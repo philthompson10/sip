@@ -17,9 +17,8 @@ from ..specification import (AccessSpecifier, Argument, ArgumentType,
         ArrayArgument, CachedName, ClassKey, CodeBlock, Constructor,
         DocstringFormat, DocstringSignature, EnumBaseType, GILAction,
         IfaceFile, IfaceFileType, KwArgs, MappedType, Member, Module, Overload,
-        PyQtMethodSpecifier, PySlot, Qualifier, QualifierType, Signature,
-        SourceLocation, Specification, Transfer, TypeHints, WrappedClass,
-        WrappedException, WrappedEnum, WrappedEnumMember)
+        PySlot, Qualifier, QualifierType, Signature, SourceLocation,
+        Specification, Transfer, TypeHints, WrappedClass, WrappedException)
 from ..templates import encoded_template_name, same_template_signature
 from ..utils import (argument_as_str, cached_name, find_iface_file,
         normalised_scoped_name, same_base_type)
@@ -35,10 +34,18 @@ class ParserManager:
     with state and utility functions.
     """
 
-    def __init__(self, hex_version, encoding, abi_version, tags,
-            disabled_features, protected_is_public, include_dirs, sip_module,
-            is_strict):
+    def __init__(self, spec, bindings, hex_version, encoding, include_dirs):
         """ Initialise the manager. """
+
+        # Get any extension keywords.
+        self._ext_access_specifiers = []
+        self._ext_function_keywords = []
+
+        for extension in bindings.build_system_extensions:
+            self._ext_access_specifiers.extend(
+                    extension.class_get_access_specifier_keywords())
+            self._ext_function_keywords.extend(
+                    extension.function_get_keywords())
 
         # Create the lexer.
         self._lexer = lex.lex(module=tokens)
@@ -56,11 +63,8 @@ class ParserManager:
         self.class_templates = []
 
         # Public state.
-        self.tags = tags
-
-        self.spec = Specification(
-                tuple([int(v) for v in abi_version.split('.')]), is_strict,
-                sip_module)
+        self.spec = spec
+        self.bindings = bindings
 
         # The module is initially unnamed.
         self.modules = [self.spec.module]
@@ -77,8 +81,6 @@ class ParserManager:
         # Private state.
         self._hex_version = hex_version
         self._encoding = encoding
-        self._disabled_features = disabled_features
-        self._protected_is_public = protected_is_public
         self._include_dirs = include_dirs
         self._template_arg_classes = []
 
@@ -113,6 +115,9 @@ class ParserManager:
         py_name = self.get_py_name(klass.iface_file.fq_cpp_name.base_name,
                 annotations)
         klass.py_name = cached_name(self.spec, py_name)
+
+        klass.virtual_error_handler = annotations.get('VirtualErrorHandler')
+        klass.type_hints = self.get_type_hints(p, symbol, annotations)
 
         klass.no_type_hint = annotations.get('NoTypeHint', False)
 
@@ -156,9 +161,9 @@ class ParserManager:
 
             # Provide a default ctor if required.
             if len(klass.ctors) == 0 and not klass.no_default_ctors:
-                signature = Signature(result=Argument(ArgumentType.VOID))
-                ctor = Constructor(AccessSpecifier.PUBLIC,
-                        py_signature=signature, cpp_signature=signature)
+                signature = Signature(result=Argument(type=ArgumentType.VOID))
+                ctor = Constructor(access_specifier=AccessSpecifier.PUBLIC,
+                        cpp_signature=signature, py_signature=signature)
 
                 klass.default_ctor = ctor
                 klass.ctors.append(ctor)
@@ -248,20 +253,20 @@ class ParserManager:
 
         return klass
 
-    def define_class(self, p, symbol, class_key, scoped_name, annotations,
+    def define_class(self, p, symbol, class_key, scoped_name,
             superclasses=None):
-        """ Create a new class and make it the current scope. """
+        """ Create and return a new class and make it the current scope. """
 
         klass = self.new_class(p, symbol, IfaceFileType.CLASS,
-                normalised_scoped_name(scoped_name, self.scope),
-                virtual_error_handler=annotations.get('VirtualErrorHandler'),
-                type_hints=self.get_type_hints(p, symbol, annotations))
+                normalised_scoped_name(scoped_name, self.scope))
 
         klass.class_key = class_key
         klass.superclasses = superclasses
 
         self.push_scope(klass,
                 AccessSpecifier.PRIVATE if class_key is ClassKey.CLASS else AccessSpecifier.PUBLIC)
+
+        return klass
 
     def disambiguate_token(self, value, keywords):
         """ Disambiguate a token by inspecting its value. """
@@ -287,6 +292,10 @@ class ParserManager:
             else:
                 if '.' in value:
                     token_type = 'DOTTED_NAME'
+                elif value in self._ext_access_specifiers:
+                    token_type = 'EXT_ACCESS_SPECIFIER'
+                elif value in self._ext_function_keywords:
+                    token_type = 'EXT_FUNCTION_KEYWORD'
                 else:
                     token_type = 'NAME'
 
@@ -334,15 +343,14 @@ class ParserManager:
             class_exception = self._find_class_with_iface_file(iface_file)
 
         # Create a new one.
-        w_exception = WrappedException(iface_file, raise_code,
-                class_exception=class_exception)
+        w_exception = WrappedException(class_exception=class_exception,
+                iface_file=iface_file, raise_code=raise_code)
 
         self.spec.exceptions.append(w_exception)
 
         return w_exception
 
-    def new_class(self, p, symbol, iface_file_type, fq_cpp_name,
-            virtual_error_handler=None, type_hints=None):
+    def new_class(self, p, symbol, iface_file_type, fq_cpp_name):
         """ Create a new, unannotated class and add it to the current scope.
         """
 
@@ -353,7 +361,7 @@ class ParserManager:
         scope = self.scope
 
         if scope is not None:
-            if self.scope_access_specifier is AccessSpecifier.PROTECTED and not self._protected_is_public:
+            if self.scope_access_specifier is AccessSpecifier.PROTECTED and not self.bindings.protected_is_public:
                 scope.is_protected = True
 
                 if iface_file_type is IfaceFileType.CLASS:
@@ -380,8 +388,6 @@ class ParserManager:
         # Complete the initialisation.
         klass.scope = scope
         klass.iface_file.module = self.module_state.module
-        klass.virtual_error_handler = virtual_error_handler
-        klass.type_hints = type_hints
 
         if type_header_code is not None:
             klass.iface_file.type_header_code.extend(type_header_code)
@@ -422,8 +428,9 @@ class ParserManager:
                 return klass
 
         # Create a new one.
-        klass = WrappedClass(iface_file,
-                cached_name(self.spec, iface_file.fq_cpp_name.base_name), None)
+        klass = WrappedClass(iface_file=iface_file,
+                py_name=cached_name(self.spec,
+                        iface_file.fq_cpp_name.base_name))
 
         if tmpl_arg:
             self._template_arg_classes.append(klass)
@@ -433,9 +440,10 @@ class ParserManager:
 
         return klass
 
-    def add_ctor(self, p, symbol, arg_list, annotations, *, exceptions,
-            cpp_signature, docstring, premethod_code, method_code):
-        """ Create a Constructor and add it to the current scope. """
+    def complete_ctor(self, p, symbol, ctor, arg_list, annotations):
+        """ Complete the definition of a Constructor and add it to the current
+        scope.
+        """
 
         scope = self.scope
 
@@ -444,42 +452,37 @@ class ParserManager:
             self.parser_error(p, symbol,
                     "constructor doesn't have the same name as its class")
 
-        if bool(self.c_bindings) and len(arg_list) != 0 and method_code is None:
+        if bool(self.c_bindings) and len(arg_list) != 0 and ctor.method_code is None:
             self.parser_error(p, symbol,
                     "constructors with arguments in C modules must specify %MethodCode")
-
-        if self.scope_pyqt_method_specifier is not None:
-            self.parser_error(p, symbol,
-                    "constructors must be in the public, protected or private sections")
 
         # Handle the access specifier.
         access_specifier = self.scope_access_specifier
 
-        if access_specifier is AccessSpecifier.PROTECTED and self._protected_is_public:
+        if access_specifier is AccessSpecifier.PROTECTED and self.bindings.protected_is_public:
             access_specifier = AccessSpecifier.PUBLIC
 
         # Handle the signatures allowing it to be used like a function
         # signature.
-        py_signature = Signature(args=arg_list,
-                result=Argument(ArgumentType.VOID))
-        self._check_ellipsis(p, symbol, py_signature)
+        ctor.py_signature = Signature(args=arg_list,
+                result=Argument(type=ArgumentType.VOID))
+        self._check_ellipsis(p, symbol, ctor.py_signature)
 
         # Configure the constructor.
-        ctor = Constructor(access_specifier, py_signature)
+        ctor.access_specifier = access_specifier
 
         if annotations.get("NoDerived", False):
-            if cpp_signature is not None:
+            if ctor.cpp_signature is not None:
                 self.parser_error(p, symbol,
                         "/NoDerived/ may not be specified with an explicit C++ signature")
 
-            if method_code is None:
+            if ctor.method_code is None:
                 self.parser_error(p, symbol,
                         "%MethodCode must also be specified if /NoDerived/ is specified")
-        elif cpp_signature is None:
-            ctor.cpp_signature = py_signature
+        elif ctor.cpp_signature is None:
+            ctor.cpp_signature = ctor.py_signature
         else:
-            self._check_ellipsis(p, symbol, cpp_signature)
-            ctor.cpp_signature = cpp_signature
+            self._check_ellipsis(p, symbol, ctor.cpp_signature)
 
         if annotations.get("Default", False):
             if scope.default_ctor is None:
@@ -488,26 +491,22 @@ class ParserManager:
                 self.parser_error(p, symbol,
                         "/Default/ has already been specified for another constructor")
 
-        ctor.docstring = docstring
         ctor.gil_action = self._get_gil_action(p, symbol, annotations)
         ctor.deprecated = annotations.get('Deprecated', False)
 
         if access_specifier is not AccessSpecifier.PRIVATE:
             ctor.kw_args = self._get_kw_args(p, symbol, annotations,
-                    py_signature)
+                    ctor.py_signature)
             scope.can_create = True
 
             if access_specifier is AccessSpecifier.PROTECTED:
                 scope.needs_shadow = True
 
-        ctor.method_code = method_code
         ctor.no_type_hint = annotations.get('NoTypeHint', False)
         ctor.posthook = annotations.get('PostHook')
         ctor.prehook = annotations.get('PreHook')
-        ctor.premethod_code = premethod_code
-        ctor.throw_args = exceptions
 
-        if method_code is None and annotations.get('NoRaisesPyException') is None:
+        if ctor.method_code is None and annotations.get('NoRaisesPyException') is None:
             if self.module_state.all_raise_py_exception or annotations.get('RaisesPyException', False):
                 ctor.raises_py_exception = True
 
@@ -532,10 +531,6 @@ class ParserManager:
         if bool(self.c_bindings) and method_code is None:
             self.parser_error(p, symbol,
                     "destructors in C modules must specify %MethodCode")
-
-        if self.scope_pyqt_method_specifier is not None:
-            self.parser_error(p, symbol,
-                    "destructors must be in the public, protected or private sections")
 
         if self.parsing_virtual:
             if self.scope.class_key is ClassKey.UNION:
@@ -567,8 +562,10 @@ class ParserManager:
         if self.parsing_virtual or len(scope.dealloc_code) != 0:
             scope.needs_shadow = True
 
-    def add_enum(self, p, symbol, cpp_name, is_scoped, annotations, members):
-        """ Create a new enum and add it to the current scope. """
+    def complete_enum(self, p, symbol, w_enum, cpp_name, is_scoped,
+            annotations, members):
+        """ Complete the definition of an enum and add it to the current scope.
+        """
 
         if self.scope_access_specifier is AccessSpecifier.PRIVATE:
             self.parser_error(p, symbol, "class enums cannot be private")
@@ -616,12 +613,16 @@ class ParserManager:
                 cached_fq_cpp_name.used = True
                 py_name.used = True
 
-        w_enum = WrappedEnum(base_type, fq_cpp_name, self.module_state.module,
-                cached_fq_cpp_name=cached_fq_cpp_name, is_scoped=is_scoped,
-                py_name=py_name, scope=self.scope)
+        w_enum.base_type = base_type
+        w_enum.cached_fq_cpp_name = cached_fq_cpp_name
+        w_enum.fq_cpp_name = fq_cpp_name
+        w_enum.is_scoped = is_scoped
+        w_enum.module = self.module_state.module
+        w_enum.py_name = py_name
+        w_enum.scope = self.scope
 
         if self.scope_access_specifier is AccessSpecifier.PROTECTED:
-            if not self._protected_is_public:
+            if not self.bindings.protected_is_public:
                 w_enum.is_protected = True
                 self.scope.needs_shadow = True
 
@@ -629,25 +630,24 @@ class ParserManager:
         w_enum.no_type_hint = annotations.get('NoTypeHint', False)
 
         # Create the members.
-        for m_cpp_name, m_py_name, m_no_type_hint in members:
+        for member in members:
             if not is_scoped:
-                self.check_attributes(p, symbol, m_py_name.name)
-
-            w_enum.members.append(
-                    WrappedEnumMember(m_cpp_name, m_py_name, w_enum,
-                            no_type_hint=m_no_type_hint))
+                self.check_attributes(p, symbol, member.py_name.name)
 
             if self.in_main_module:
-                m_py_name.used = True
+                member.py_name.used = True
+
+            member.scope = w_enum
+
+            w_enum.members.append(member)
 
         self.spec.enums.insert(0, w_enum)
 
-    def add_function(self, p, symbol, cpp_name, result, arg_list, annotations,
-            *, const=False, final=False, exceptions=None, abstract=False,
-            cpp_signature=None, docstring=None, premethod_code=None,
-            method_code=None, virtual_catcher_code=None,
-            virtual_call_code=None):
-        """ Create and return an Overload and add it to the current scope. """
+    def complete_overload(self, p, symbol, overload, cpp_name, result,
+            arg_list, annotations):
+        """ Complete the definition of an Overload and add it to the current
+        scope.
+        """
 
         # Get the Python name.
         py_name = self.get_py_name(cpp_name, annotations)
@@ -656,30 +656,25 @@ class ParserManager:
         py_signature = Signature(args=arg_list, result=result)
         self._check_ellipsis(p, symbol, py_signature)
 
-        if cpp_signature is None:
-            cpp_signature = py_signature
+        if overload.cpp_signature is None:
+            overload.cpp_signature = py_signature
         else:
-            self._check_ellipsis(p, symbol, cpp_signature)
+            self._check_ellipsis(p, symbol, overload.cpp_signature)
 
         # Find (or create) the member shared by overloads with the same Python
         # name.
         member = self._find_member(p, symbol, py_name, arg_list, annotations,
-                method_code)
+                overload.method_code)
+        member.overloads.append(overload)
 
-        # Create the overload.
-        overload = Overload(self.scope_access_specifier, member, cpp_name,
-                cpp_signature, py_signature)
+        # Configure the overload.
+        overload.access_specifier = self.scope_access_specifier
+        overload.common = member
+        overload.cpp_name = cpp_name
+        overload.py_signature = py_signature
+        overload.pyqt_is_signal = self.scope_pyqt_are_signals
 
-        for m in self.module_state.module.global_functions:
-            if m is member:
-                self.module_state.module.overloads.append(overload)
-                break
-        else:
-            self.scope.overloads.append(overload)
-
-        overload.pyqt_method_specifier = self.scope_pyqt_method_specifier
-
-        if overload.access_specifier is AccessSpecifier.PROTECTED and self._protected_is_public:
+        if overload.access_specifier is AccessSpecifier.PROTECTED and self.bindings.protected_is_public:
             overload.access_specifier = AccessSpecifier.PUBLIC
             overload.access_is_really_protected = True
 
@@ -688,18 +683,11 @@ class ParserManager:
             member.has_protected = True
 
         if overload.access_specifier is AccessSpecifier.PUBLIC:
-            if overload.pyqt_method_specifier is PyQtMethodSpecifier.SIGNAL:
+            # XXX - add extension call to force the generation of a "derived class"
+            if overload.pyqt_is_signal:
                 self.scope.needs_shadow = True
 
-        overload.docstring = docstring
-        overload.is_abstract = abstract
-        overload.is_const = const
         overload.is_delattr = (py_name == '__delattr__')
-        overload.is_final = final
-        overload.premethod_code = premethod_code
-        overload.throw_args = exceptions
-        overload.virtual_call_code = virtual_call_code
-        overload.virtual_catcher_code = virtual_catcher_code
         overload.source_location = self.get_source_location(p, symbol)
 
         # See if the function is a non-lazy method.  These are methods that
@@ -744,11 +732,9 @@ class ParserManager:
                 # If the overload is protected and defined in an imported
                 # module then we need to make sure that any other overloads'
                 # keyword argument names are marked as used.
-                if overload.pyqt_method_specifier is not PyQtMethodSpecifier.SIGNAL and overload.access_specifier is AccessSpecifier.PROTECTED and not self.in_main_module:
-                    for kwod in self.scope.overloads:
-                        if kwod.common is not member:
-                            continue
-
+                # XXX - need a way to filter functions
+                if not overload.pyqt_is_signal and overload.access_specifier is AccessSpecifier.PROTECTED and not self.in_main_module:
+                    for kwod in member.overloads:
                         if kwod.kw_args is KwArgs.NONE:
                             continue
 
@@ -763,7 +749,7 @@ class ParserManager:
         overload.posthook = annotations.get('PostHook')
         overload.prehook = annotations.get('PreHook')
 
-        if method_code is None and annotations.get('NoRaisesPyException') is None:
+        if overload.method_code is None and annotations.get('NoRaisesPyException') is None:
             if self.module_state.all_raise_py_exception or annotations.get('RaisesPyException', False):
                 overload.raises_py_exception = True
 
@@ -788,11 +774,9 @@ class ParserManager:
         self.apply_common_argument_annotations(p, symbol,
                 overload.py_signature.result, annotations)
 
-        overload.method_code = method_code
-
         # Add some auto-generated slots if required.
         if '__len__' in annotations:
-            len_method_code = method_code
+            len_method_code = overload.method_code
             if len_method_code is None:
                 len_method_code = CodeBlock("Auto-generated",
                         text='            sipRes = (Py_ssize_t)sipCpp->{0}();\n'.format(cpp_name))
@@ -801,23 +785,28 @@ class ParserManager:
                 # does too much (ie. setting sipRes).
                 self.scope.len_cpp_name = cpp_name
 
-            len_py_signature = Signature(result=Argument(ArgumentType.SSIZE))
+            len_py_signature = Signature(
+                    result=Argument(type=ArgumentType.SSIZE))
 
             self._add_auto_slot(p, symbol, annotations, '__len__',
                     len_py_signature, len_py_signature, len_method_code)
 
         if '__matmul__' in annotations:
             self._add_auto_slot(p, symbol, annotations, '__matmul__',
-                    py_signature, cpp_signature, method_code)
+                    py_signature, overload.cpp_signature, overload.method_code)
 
         if '__imatmul__' in annotations:
             self._add_auto_slot(p, symbol, annotations, '__imatmul__',
-                    py_signature, cpp_signature, method_code)
+                    py_signature, overload.cpp_signature, overload.method_code)
 
-        return overload
+        self.bindings.call_build_system_extensions('function_complete_parse',
+                overload,
+                self.module_state.module if self.scope is None else self.scope)
 
-    def add_mapped_type(self, p, symbol, cpp_type, annotations):
-        """ Create a new mapped type and add it to the current scope. """
+    def add_mapped_type(self, p, symbol, mapped_type, cpp_type, annotations):
+        """ Complete the implementation of a mapped type and add it to the
+        current scope.
+        """
 
         # Check the type is one we want to map.
         if cpp_type.type is ArgumentType.DEFINED:
@@ -852,8 +841,9 @@ class ParserManager:
         # The module may not have been set yet.
         iface_file.module = self.module_state.module
 
-        # Create a new mapped type.
-        mapped_type = MappedType(iface_file, cpp_type)
+        # Complete the implementation.
+        mapped_type.iface_file = iface_file
+        mapped_type.type = cpp_type
 
         mapped_type.cpp_name = cached_name(self.spec,
                 argument_as_str(cpp_type))
@@ -862,7 +852,6 @@ class ParserManager:
             mapped_type.py_name = cached_name(self.spec,
                     annotations.get('PyName', cpp_name))
 
-        self.annotate_mapped_type(p, symbol, mapped_type, annotations)
         self.spec.mapped_types.insert(0, mapped_type)
 
         if self.in_main_module:
@@ -986,17 +975,6 @@ class ParserManager:
                     type.type = default_encoding
             else:
                 type.type = self.convert_encoding(p, symbol, encoding)
-
-    def check_annotations(self, p, symbol, context, annotations):
-        """ Check that all the annotations provided as a dict of name/values
-        are valid in a given context.
-        """
-
-        for name in p[symbol]:
-            if name not in annotations:
-                self.parser_error(p, symbol,
-                        "{0} is not a valid {1} annotation".format(name,
-                                context))
 
     def check_attributes(self, p, symbol, py_name, is_function=False,
             ignore=None):
@@ -1183,8 +1161,9 @@ class ParserManager:
     def deprecated(self, p, symbol, instead=None):
         """ Issue a deprecation message about a symbol. """
 
-        deprecated(f"'{p[symbol]}'", instead=instead, filename=self._sip_file,
-                line_nr=p.lineno(symbol))
+        if self.module_state.module is self.spec.module:
+            deprecated(f"'{p[symbol]}'", instead=instead,
+                    filename=self._sip_file, line_nr=p.lineno(symbol))
 
     def ensure_import(self):
         """ We allow %Modules that are part of a %CompositeModule to be either
@@ -1213,13 +1192,13 @@ class ParserManager:
             return False
 
         if qual.type is QualifierType.FEATURE:
-            value = qual.name not in self._disabled_features
+            value = qual.name not in self.bindings.disabled_features
         elif qual.type is QualifierType.PLATFORM:
             # The platform is always ignored in non-strict mode.
             if not self.spec.is_strict:
                 return True
 
-            value = qual.name in self.tags
+            value = qual.name in self.bindings.tags
         else:
             self.parser_error(p, symbol,
                     "'{0}' is a %Timeline qualifier which can only be used in a range".format(name))
@@ -1291,7 +1270,7 @@ class ParserManager:
 
         # See if there is a selected qualifier withing range.
         for qual in module.qualifiers:
-            if qual.type is QualifierType.TIME and qual.timeline == timeline and qual.name in self.tags:
+            if qual.type is QualifierType.TIME and qual.timeline == timeline and qual.name in self.bindings.tags:
                 if lower_qual is not None and qual.order < lower_qual.order:
                     return False
                 if upper_qual is not None and qual.order >= upper_qual.order:
@@ -1525,7 +1504,7 @@ class ParserManager:
         for klass in self._template_arg_classes:
             self.spec.classes.remove(klass)
 
-        return self.spec, self.modules, self._sip_files
+        return self.modules, self._sip_files
 
     def parser_error(self, p, symbol, text):
         """ Record an error caused by a symbol in a production. """
@@ -1675,16 +1654,16 @@ class ParserManager:
         self._scope_stack[-1].access_specifier = access_specifier
 
     @property
-    def scope_pyqt_method_specifier(self):
-        """ The current method specifier. """
+    def scope_pyqt_are_signals(self):
+        """ Set if the current access specifier denotes Qt signals. """
 
-        return None if len(self._scope_stack) == 0 else self._scope_stack[-1].pyqt_method_specifier
+        return None if len(self._scope_stack) == 0 else self._scope_stack[-1].pyqt_are_signals
 
-    @scope_pyqt_method_specifier.setter
-    def scope_pyqt_method_specifier(self, pyqt_method_specifier):
+    @scope_pyqt_are_signals.setter
+    def scope_pyqt_are_signals(self, are_signals):
         """ Set the current method specifier. """
 
-        self._scope_stack[-1].pyqt_method_specifier = pyqt_method_specifier
+        self._scope_stack[-1].pyqt_are_signals = are_signals
 
     @property
     def skipping(self):
@@ -1692,22 +1671,38 @@ class ParserManager:
 
         return self.skip_stack[-1]
 
-    def validate_annotation(self, p, symbol, value):
-        """ Validate an annotation and its value and return a valid version of
-        the value.
+    def validate_annotations(self, raw_annotations, extension_method,
+            extendable, builtin_annotations, context):
+        """ Validate a list of raw annotations, allow any build system
+        extensions to handle their own annotations and return a dict of builtin
+        annotations and their validated values.
         """
 
-        try:
-            value = validate_annotation_value(self, p, symbol, p[symbol],
-                    value)
-        except InvalidAnnotation as e:
-            self.parser_error(p, symbol, str(e))
-            value = e.use
+        annotations = {}
 
-        return value
+        for p, symbol, name, raw_value in raw_annotations:
+            for extension in self.bindings.build_system_extensions:
+                if getattr(extension, extension_method)(extendable, name, raw_value, (self, p, symbol)):
+                    break
+            else:
+                if name not in builtin_annotations:
+                    self.parser_error(p, symbol,
+                            "{0} is not a valid {1} annotation".format(name,
+                                    context))
 
-    def validate_function(self, p, symbol, overload):
-        """ Validate a completed function. """
+                try:
+                    value = validate_annotation_value(self, p, symbol, name,
+                            raw_value)
+                except InvalidAnnotation as e:
+                    self.parser_error(p, symbol, str(e))
+                    value = e.use
+
+                annotations[name] = value
+
+        return annotations
+
+    def validate_overload(self, p, symbol, overload):
+        """ Validate a completed overload. """
 
         # Shortcuts.
         cpp_only = partial(self.cpp_only, p, symbol)
@@ -1729,9 +1724,6 @@ class ParserManager:
 
         if overload.is_static:
             cpp_only("static struct/union data members")
-
-            if overload.pyqt_method_specifier is PyQtMethodSpecifier.SIGNAL:
-                error("signals cannot be static")
 
         if overload.throw_args is not None:
             cpp_only("exceptions")
@@ -1834,13 +1826,11 @@ class ParserManager:
         member = self._find_member(p, symbol, py_name, py_signature.args,
                 annotations, method_code)
 
-        overload = Overload(AccessSpecifier.PUBLIC, member, py_name,
-                cpp_signature, py_signature, method_code=method_code)
+        overload = Overload(access_specifier=AccessSpecifier.PUBLIC,
+                common=member, cpp_name=py_name, cpp_signature=cpp_signature,
+                py_signature=py_signature, method_code=method_code)
 
-        if self.scope is None:
-            self.module_state.module.overloads.append(overload)
-        else:
-            self.scope.overloads.append(overload)
+        member.overloads.append(overload)
 
     def _check_ellipsis(self, p, symbol, signature):
         """ Check any ellipsis in a signature. """
@@ -1952,11 +1942,12 @@ class ParserManager:
             member.namespace_iface_file = namespace_iface_file
             member.no_arg_parser = no_arg_parser
             member.py_slot = py_slot
+            member.scope = self.scope
 
             if self.in_main_module:
                 member.py_name.used = True
 
-            members.insert(0, member)
+            members.append(member)
 
         return member
 
@@ -2047,6 +2038,7 @@ class ParserManager:
     def _get_plugin_annotation(self, p, symbol, annotations, name, plugin):
         """ Return an annotation that is only supported by a plugin. """
 
+        # TODO: remove in SIP v7.
         anno = annotations.get(name)
 
         if anno is not None and plugin not in self.spec.plugins:
@@ -2092,12 +2084,12 @@ class ParserManager:
                 self.spec.abi_version[0], sip_file, self._include_dirs)
 
         for tag in mod_tags:
-            if tag not in self.tags:
-                self.tags.append(tag)
+            if tag not in self.bindings.tags:
+                self.bindings.tags.append(tag)
 
         for feature in mod_disabled:
-            if feature not in self._disabled_features:
-                self._disabled_features.append(feature)
+            if feature not in self.bindings.disabled_features:
+                self.bindings.disabled_features.append(feature)
 
         # Add the new import.
         importing_from.imports.append(module)
@@ -2157,7 +2149,7 @@ class ScopeState:
 
         self.scope = scope
         self.access_specifier = access_specifier
-        self.pyqt_method_specifier = None
+        self.pyqt_are_signals = False
 
 
 class UnexpectedEOF(Exception):

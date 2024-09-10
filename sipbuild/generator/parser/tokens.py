@@ -22,7 +22,7 @@ literals = '(){}.,;:=!-+*/&|~<>[]%^'
 
 
 # The non-code directives.
-directives = {
+directives = (
     'AutoPyName', 'CompositeModule', 'DefaultDocstringFormat',
     'DefaultDocstringSignature', 'DefaultEncoding', 'DefaultMetatype',
     'DefaultSupertype', 'End', 'Exception', 'Feature', 'HideNamespace', 'If',
@@ -31,11 +31,11 @@ directives = {
 
     # Remove in SIP v7.
     'Plugin',
-}
+)
 
 
 # The code directives.
-code_directives = {
+code_directives = (
     'AccessCode', 'BIGetBufferCode', 'BIReleaseBufferCode',
     'ConvertFromTypeCode', 'ConvertToSubClassCode', 'ConvertToTypeCode',
     'Copying', 'Docstring', 'ExportedHeaderCode', 'ExportedTypeHintCode',
@@ -50,33 +50,36 @@ code_directives = {
     # Remove in SIP v7.
     'BIGetCharBufferCode', 'BIGetReadBufferCode', 'BIGetSegCountCode',
     'BIGetWriteBufferCode',
-}
+)
 
 
 # The plain keywords.
-keywords = {
+keywords = (
     'bool', 'char', 'class', 'const', 'double', 'enum', 'explicit', 'false',
     'final', 'float', 'int', 'long', 'namespace', 'noexcept', 'NULL',
     'operator', 'private', 'protected', 'public', 'Py_hash_t', 'Py_ssize_t',
-    'Q_SIGNAL', 'Q_SIGNALS', 'Q_SLOT', 'Q_SLOTS', 'short', 'signals', 'signed',
-    'SIP_PYBUFFER', 'SIP_PYCALLABLE', 'SIP_PYDICT', 'SIP_PYENUM', 'SIP_PYLIST',
-    'SIP_PYOBJECT', 'SIP_PYSLICE', 'SIP_PYTUPLE', 'SIP_PYTYPE', 'size_t',
-    'slots', 'static', 'struct', 'template', 'throw', 'true', 'typedef',
-    'union', 'unsigned', 'virtual', 'void', 'wchar_t',
+    'short', 'signed', 'SIP_PYBUFFER', 'SIP_PYCALLABLE', 'SIP_PYDICT',
+    'SIP_PYENUM', 'SIP_PYLIST', 'SIP_PYOBJECT', 'SIP_PYSLICE', 'SIP_PYTUPLE',
+    'SIP_PYTYPE', 'size_t', 'static', 'struct', 'template', 'throw', 'true',
+    'typedef', 'union', 'unsigned', 'virtual', 'void', 'wchar_t',
 
     # Remove in SIP v7.
     'SIP_SSIZE_T',
-}
+)
 
 
 # The directive keywords.
-directive_keywords = {
+directive_keywords = (
     'all_raise_py_exception', 'call_super_init', 'default_VirtualErrorHandler',
     'False', 'format', 'get', 'id', 'keyword_arguments', 'language',
     'licensee', 'name', 'optional', 'order', 'remove_leading', 'set',
     'signature', 'timestamp', 'True', 'type', 'py_ssize_t_clean',
     'use_argument_names', 'use_limited_api',
-}
+)
+
+
+# The build system extension hooks.
+extension_hooks = ('EXT_ACCESS_SPECIFIER', 'EXT_FUNCTION_KEYWORD', )
 
 
 # The lexer tokens.
@@ -89,6 +92,7 @@ tokens.extend(directives)
 tokens.extend(code_directives)
 tokens.extend(keywords)
 tokens.extend(directive_keywords)
+tokens.extend(extension_hooks)
 
 
 # Handle EOF.

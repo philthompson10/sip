@@ -319,16 +319,6 @@ class KwArgs(Enum):
     OPTIONAL = auto()
 
 
-class PyQtMethodSpecifier(Enum):
-    """ The PyQt-specific method specifier. """
-
-    # A signal.
-    SIGNAL = auto()
-
-    # A slot.
-    SLOT = auto()
-
-
 class PySlot(Enum):
     """ The Python slots corresponding to entries in a type object. """
 
@@ -562,11 +552,20 @@ class ValueType(Enum):
 
 
 @dataclass
-class Argument:
-    """ Encapsulate a callable argument (or return value or variable type). """
+class Extendable:
+    """ A mixin for specification objects that can be extended by build system
+    extension packages.
+    """
 
-    # The type.
-    type: ArgumentType
+    # A dict of extension objects.  Each build system extension potentially has
+    # an entry (keyed by the build system name) of a build system
+    # extension-specific object.
+    extension_data: Optional[Dict[str, Any]] = None
+
+
+@dataclass
+class Argument(Extendable):
+    """ Encapsulate a callable argument (or return value or variable type). """
 
     # Set if /AllowNone/ was specified.
     allow_none: bool = False
@@ -620,7 +619,7 @@ class Argument:
     # Set if /ResultSize/ was specified.
     result_size: bool = False
 
-    # The value of /ScopesStripped/.
+    # The value of /ScopesStripped/.  PyQt5 and PyQt6, remove in SIP v7.
     scopes_stripped: int = 0
 
     # The source location.
@@ -628,6 +627,9 @@ class Argument:
 
     # Any transfer of ownership.
     transfer: Transfer = Transfer.NONE
+
+    # The type.
+    type: Optional[ArgumentType] = None
 
     # The non-default type hints.
     type_hints: Optional['TypeHints'] = None
@@ -677,14 +679,11 @@ class CodeBlock:
 
 
 @dataclass
-class Constructor:
+class Constructor(Extendable):
     """ Encapsulate a constructor. """
 
     # The access specifier.
-    access_specifier: AccessSpecifier
-
-    # The Python signature.
-    py_signature: 'Signature'
+    access_specifier: Optional[AccessSpecifier] = None
 
     # The C/C++ signature.  It will be none if /NoDerived/ was specified.
     cpp_signature: Optional['Signature'] = None
@@ -718,6 +717,9 @@ class Constructor:
 
     # The code specified by any %PreMethodCode directive.
     premethod_code: Optional[CodeBlock] = None
+
+    # The Python signature.
+    py_signature: Optional['Signature'] = None
 
     # Set if a Python exception is raised.
     raises_py_exception: bool = False
@@ -820,14 +822,8 @@ class License:
 
 
 @dataclass
-class MappedType:
+class MappedType(Extendable):
     """ Encapsulate a mapped type. """
-
-    # The interface file.
-    iface_file: IfaceFile
-
-    # The type.
-    type: Argument
 
     # The %ConvertFromTypeCode.
     convert_from_type_code: Optional[CodeBlock] = None
@@ -840,6 +836,9 @@ class MappedType:
 
     # Set if /AllowNone/ was specified.
     handles_none: bool = False
+
+    # The interface file.
+    iface_file: Optional[IfaceFile] = None
 
     # The %InstanceCode.
     instance_code: Optional[CodeBlock] = None
@@ -862,17 +861,17 @@ class MappedType:
     # Set if /NoRelease/ was specified.
     no_release: bool = False
 
-    # The overloaded member functions.
-    overloads: List['Overload'] = field(default_factory=list)
-
     # The Python name.  It will be None for mapped type templates.
     py_name: Optional[CachedName] = None
 
-    # The /PyQtFlags/.
+    # The /PyQtFlags/.  PyQt6 only, remove in SIP v7.
     pyqt_flags: int = 0
 
     # The %ReleaseCode.
     release_code: Optional[CodeBlock] = None
+
+    # The type.
+    type: Optional[Argument] = None
 
     # The %TypeCode.
     type_code: List[CodeBlock] = field(default_factory=list)
@@ -917,17 +916,20 @@ class Member:
     # Set if /Sequence/ was specified.
     is_sequence: bool = False
 
-    # The number of the member. (outputter)
-    member_nr: int = -1
-
     # The original interface file if the function was defined in a namespace.
     namespace_iface_file: Optional[IfaceFile] = None
 
     # Set if /NoArgParser/ was specified.
     no_arg_parser: bool = False
 
+    # The overloaded member functions.
+    overloads: List['Overload'] = field(default_factory=list)
+
     # The Python slot if it is not an ordinary member function.
     py_slot: Optional[PySlot] = None
+
+    # The enclosing scope.
+    scope: Optional[Union[MappedType, 'WrappedClass', 'WrappedEnum']] = None
 
 
 @dataclass
@@ -1005,9 +1007,6 @@ class Module:
     # The number of virtual error handlers defined in this module. (resolver)
     nr_virtual_error_handlers: int = 0
 
-    # The overloaded global functions.
-    overloads: List['Overload'] = field(default_factory=list)
-
     # The code specified by any %PostInitialisationCode directives.
     postinitialisation_code: List[CodeBlock] = field(default_factory=list)
 
@@ -1047,29 +1046,26 @@ class Module:
 
 
 @dataclass
-class Overload:
+class Overload(Extendable):
     """ Encapsulate an overloaded member function. """
-
-    # The access specifier.
-    access_specifier: Optional[AccessSpecifier]
-
-    # The member common to all overloads.
-    common: Member
-
-    # The C/C++ name if not a operator/slot.
-    cpp_name: str
-
-    # The C/C++ signature.
-    cpp_signature: 'Signature'
-
-    # The Python signature.
-    py_signature: 'Signature'
 
     # Set if /AbortOnException/ is specified.
     abort_on_exception: bool = False
 
     # Set if the overload is really protected.
     access_is_really_protected: bool = False
+
+    # The access specifier.
+    access_specifier: Optional[AccessSpecifier] = None
+
+    # The member common to all overloads.
+    common: Optional[Member] = None
+
+    # The C/C++ name if not a operator/slot.
+    cpp_name: Optional[str] = None
+
+    # The C/C++ signature.
+    cpp_signature: Optional['Signature'] = None
 
     # Set if /Deprecated/ was specified.
     deprecated: bool = False
@@ -1143,8 +1139,12 @@ class Overload:
     # The code specified by any %PreMethodCode directive.
     premethod_code: Optional[CodeBlock] = None
 
-    # The PyQt method specifier.
-    pyqt_method_specifier: Optional[PyQtMethodSpecifier] = None
+    # The Python signature.
+    py_signature: Optional['Signature'] = None
+
+    # Set if a Qt signal.  PyQt5 and PyQt6, remove in SIP v7.
+    # XXX
+    pyqt_is_signal: bool = False
 
     # Set if a Python exception is raised.
     raises_py_exception: bool = False
@@ -1241,9 +1241,6 @@ class Specification:
     # The version of the ABI being targeted.
     abi_version: tuple
 
-    # Set if the specification is strict.
-    is_strict: bool
-
     # The fully qualified name of the sip module.  If it is None then there is
     # no shared sip module.
     sip_module: Optional[str]
@@ -1275,6 +1272,9 @@ class Specification:
     # Set if the specification is for a composite module.
     is_composite: bool = False
 
+    # Set if the specification is strict.
+    is_strict: bool = True
+
     # The mapped type templates.
     mapped_type_templates: List[MappedTypeTemplate] = field(default_factory=list)
 
@@ -1294,7 +1294,7 @@ class Specification:
     # removed in SIP v7.
     plugins: List[str] = field(default_factory=list)
 
-    # The QObject class.
+    # The QObject class.  PyQt5 and PyQt6, remove in SIP v7.
     pyqt_qobject: Optional['WrappedClass'] = None
 
     # The list of typedefs.
@@ -1426,28 +1426,8 @@ class VirtualOverload:
 
 
 @dataclass
-class VisibleMember:
-    """ Encapsulate a visible member function. (resolver) """
-
-    # The member function.
-    member: Member
-
-    # The defining class.
-    scope: 'WrappedClass'
-
-
-@dataclass
-class WrappedClass:
+class WrappedClass(Extendable):
     """ Encapsulate a wrapped C/C++ namespace/class/struct/union. """
-
-    # The interface file.
-    iface_file: IfaceFile
-
-    # The Python name.
-    py_name: CachedName
-
-    # The enclosing scope.
-    scope: Optional['WrappedClass']
 
     # The %BIGetBufferCode.
     bi_get_buffer_code: Optional[CodeBlock] = None
@@ -1536,6 +1516,9 @@ class WrappedClass:
     # Set if the class has variables that need handlers. (resolver)
     has_variable_handlers: bool = False
 
+    # The interface file.
+    iface_file: Optional[IfaceFile] = None
+
     # The %InstanceCode.
     instance_code: Optional[CodeBlock] = None
 
@@ -1560,7 +1543,10 @@ class WrappedClass:
     # The C++ name of any overload annotated with __len__.
     len_cpp_name: Optional[str] = None
 
-    # The methods.
+    # The methods defined in this class and which normally hide any methods in
+    # super-classes with the name Python name.  The resolver will also add
+    # super-class methods that have protected overloads (if the
+    # protected-is-public hack is not enabled).
     members: List[Member] = field(default_factory=list)
 
     # The value of /Metatype/ if specified.
@@ -1592,29 +1578,33 @@ class WrappedClass:
     # instantiated template name should be used instead).
     no_type_name: bool = False
 
-    # The overloaded methods.
-    overloads: List[Overload] = field(default_factory=list)
-
     # The %PickleCode.
     pickle_code: Optional[CodeBlock] = None
 
     # The properties.
     properties: List[Property] = field(default_factory=list)
 
-    # The /PyQtFlags/.
+    # The Python name.
+    py_name: Optional[CachedName] = None
+
+    # The /PyQtFlags/.  PyQt5 only, remove in SIP v7.
     pyqt_flags: int = 0
 
-    # The /PyQtFlagsEnums/.
+    # The /PyQtFlagsEnums/.  PyQt5 only, remove in SIP v7.
     pyqt_flags_enums: Optional[List[str]] = None
 
-    # The /PyQtInterface/.
+    # The /PyQtInterface/.  PyQt5 and PyQt6, remove in SIP v7.
     pyqt_interface: Optional[str] = None
 
-    # Set if /PyQtNoQMetaObject/ was specified.
+    # Set if /PyQtNoQMetaObject/ was specified.  PyQt5 and PyQt6, remove in SIP
+    # v7.
     pyqt_no_qmetaobject: bool = False
 
     # The real class if this is a proxy or a namespace extender.
     real_class: Optional['WrappedClass'] = None
+
+    # The enclosing scope.
+    scope: Optional['WrappedClass'] = None
 
     # The sub-class base class. (resolver)
     subclass_base: Optional['WrappedClass'] = None
@@ -1643,9 +1633,6 @@ class WrappedClass:
     # The virtual overloaded methods. (resolver)
     virtual_overloads: List[VirtualOverload] = field(default_factory=list)
 
-    # The visible member functions. (resolver)
-    visible_members: List[VisibleMember] = field(default_factory=list)
-
     def __hash__(self):
         """ Reimplemented so an Argument object can be used as a dict key. """
 
@@ -1653,20 +1640,17 @@ class WrappedClass:
 
 
 @dataclass
-class WrappedEnum:
+class WrappedEnum(Extendable):
     """ Encapsulate a wrapped enum. """
 
     # The base type.
-    base_type: EnumBaseType
-
-    # The fully qualified C++ name.
-    fq_cpp_name: Optional[ScopedName]
-
-    # The defining module.
-    module: Module
+    base_type: Optional[EnumBaseType] = None
 
     # The cached fully qualified C++ name.
     cached_fq_cpp_name: Optional[CachedName] = None
+
+    # The fully qualified C++ name.
+    fq_cpp_name: Optional[ScopedName] = None
 
     # Set if the enum is defined in a protected section.
     is_protected: bool = False
@@ -1677,6 +1661,9 @@ class WrappedEnum:
     # The members.
     members: List['WrappedEnumMember'] = field(default_factory=list)
 
+    # The defining module.
+    module: Optional[Module] = None
+
     # Set if this enum is needed by the module for which code is to be
     # generated. (resolver)
     needed: bool = False
@@ -1686,9 +1673,6 @@ class WrappedEnum:
 
     # Set if the type hint should be suppressed.
     no_type_hint: bool = False
-
-    # The overloaded slot member functions. (resolver)
-    overloads: List['Overload'] = field(default_factory=list)
 
     # The Python name.
     py_name: Optional[CachedName] = None
@@ -1710,31 +1694,25 @@ class WrappedEnum:
 
 
 @dataclass
-class WrappedEnumMember:
+class WrappedEnumMember(Extendable):
     """ Encapsulate a member of a wrapped enum. """
 
     # The C++ name.
-    cpp_name: str
-
-    # The Python name.
-    py_name: CachedName
-
-    # The enclosing enum.
-    scope: 'WrappedEnum'
+    cpp_name: Optional[str] = None
 
     # Set if the type hint should be suppressed.
     no_type_hint: bool = False
 
+    # The Python name.
+    py_name: Optional[CachedName] = None
+
+    # The enclosing enum.
+    scope: Optional['WrappedEnum'] = None
+
 
 @dataclass
-class WrappedException:
+class WrappedException(Extendable):
     """ Encapsulate a wrapped exception. """
-
-    # The interface file.
-    iface_file: IfaceFile
-
-    # The code specified by the %RaiseCode directive.
-    raise_code: CodeBlock
 
     # The base exception if it is a builtin.
     builtin_base_exception: Optional[str] = None
@@ -1750,6 +1728,9 @@ class WrappedException:
     # required. (resolver)
     exception_nr: int = -1
 
+    # The interface file.
+    iface_file: Optional[IfaceFile] = None
+
     # Set if this exception is needed by the module for which code is to be
     # generated. (resolver)
     needed: bool = False
@@ -1757,54 +1738,48 @@ class WrappedException:
     # The Python name.
     py_name: Optional[str] = None
 
+    # The code specified by the %RaiseCode directive.
+    raise_code: Optional[CodeBlock] = None
+
 
 @dataclass
-class WrappedTypedef:
+class WrappedTypedef(Extendable):
     """ Encapsulate a wrapped typedef. """
 
     # The fully qualified C++ name.
-    fq_cpp_name: ScopedName
+    fq_cpp_name: Optional[ScopedName] = None
 
     # The defining module.
-    module: Module
-
-    # The enclosing scope.
-    scope: Optional[WrappedClass]
-
-    # The type.
-    type: Argument
+    module: Optional[Module] = None
 
     # Set if the typedef name should not be used in the generated code.
     no_type_name: bool = False
 
-
-@dataclass
-class WrappedVariable:
-    """ Encapsulate a wrapped variable. """
-
-    # The fully qualified C++ name.
-    fq_cpp_name: ScopedName
-
-    # The defining module.
-    module: Module
-
-    # The Python name.
-    py_name: CachedName
-
     # The enclosing scope.
-    scope: Optional[WrappedClass]
+    scope: Optional[WrappedClass] = None
 
     # The type.
-    type: Argument
+    type: Optional[Argument] = None
+
+
+@dataclass
+class WrappedVariable(Extendable):
+    """ Encapsulate a wrapped variable. """
 
     # The code specified by any %AccessCode directive.
     access_code: Optional[CodeBlock] = None
+
+    # The fully qualified C++ name.
+    fq_cpp_name: Optional[ScopedName] = None
 
     # The code specified by any %GetCode directive.
     get_code: Optional[CodeBlock] = None
 
     # Set if the variable is static.
     is_static: bool = False
+
+    # The defining module.
+    module: Optional[Module] = None
 
     # Set if the variable needs a handler. (resolver)
     needs_handler: bool = False
@@ -1815,5 +1790,14 @@ class WrappedVariable:
     # Set if the variable has no setter and will be read-only.
     no_setter: bool = False
 
+    # The Python name.
+    py_name: Optional[CachedName] = None
+
+    # The enclosing scope.
+    scope: Optional[WrappedClass] = None
+
     # The code specified by any %SetCode directive.
     set_code: Optional[CodeBlock] = None
+
+    # The type.
+    type: Optional[Argument] = None

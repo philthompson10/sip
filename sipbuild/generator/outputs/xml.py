@@ -8,7 +8,7 @@ from xml.etree.ElementTree import Element, SubElement
 from ..python_slots import is_number_slot, reflected_slot
 from ..scoped_name import ScopedName, STRIP_GLOBAL
 from ..specification import (AccessSpecifier, ArgumentType, ArrayArgument,
-        IfaceFileType, KwArgs, PyQtMethodSpecifier, PySlot, Transfer)
+        IfaceFileType, KwArgs, PySlot, Transfer)
 
 from .formatters import (fmt_argument_as_py_default_value,
         fmt_argument_as_rest_ref, fmt_class_as_rest_ref, fmt_scoped_py_name,
@@ -42,7 +42,7 @@ def output_xml(spec, module_name):
     _variables(root, spec, module)
 
     for member in module.global_functions:
-        _function(root, spec, member, module.overloads)
+        _function(root, spec, member)
 
     return root
 
@@ -111,7 +111,8 @@ def _class(parent, spec, module, klass):
     _variables(parent_klass, spec, module, klass)
 
     for member in klass.members:
-        _function(parent_klass, spec, member, klass.overloads, klass)
+        if member.scope is klass:
+            _function(parent_klass, spec, member, klass)
 
 
 def _enums(parent, spec, module, scope=None):
@@ -180,12 +181,13 @@ def _ctor(parent, spec, scope, ctor):
             _argument(function_el, spec, arg, ctor.kw_args, out=True)
 
 
-def _function(parent, spec, member, overloads, scope=None):
+def _function(parent, spec, member, scope=None):
     """ Output the XML for a function. """
 
-    for overload in overloads:
-        if overload.common is member and overload.access_specifier is not AccessSpecifier.PRIVATE:
-            if overload.pyqt_method_specifier is PyQtMethodSpecifier.SIGNAL:
+    for overload in member.overloads:
+        if overload.access_specifier is not AccessSpecifier.PRIVATE:
+            # XXX - need undocumented extension calls
+            if overload.pyqt_is_signal:
                 attrib = {}
 
                 if _has_cpp_signature(overload.cpp_signature):
@@ -235,9 +237,6 @@ def _overload(parent, spec, scope, overload, extends, is_static):
 
     if is_static:
         attrib['static'] = '1'
-
-    if overload.pyqt_method_specifier is PyQtMethodSpecifier.SLOT:
-        attrib['slot'] = '1'
 
     if overload.is_virtual:
         attrib['virtual'] = '1'

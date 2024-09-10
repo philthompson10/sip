@@ -7,7 +7,7 @@ from ...version import SIP_VERSION_STR
 
 from ..python_slots import is_number_slot, reflected_slot
 from ..specification import (AccessSpecifier, ArgumentType, ArrayArgument,
-        EnumBaseType, IfaceFileType, PyQtMethodSpecifier, PySlot, Signature)
+        EnumBaseType, IfaceFileType, PySlot, Signature)
 from ..utils import append_iface_file, find_method
 
 from .formatters import (fmt_argument_as_type_hint, fmt_class_as_type_hint,
@@ -127,7 +127,7 @@ import {spec.sip_module}
     for member in module.global_functions:
         if member.py_slot is None:
             first = _separate(pf, first=first)
-            _callable(pf, spec, member, module.overloads, defined)
+            _callable(pf, spec, member, defined)
 
 
 def _type_hint_code(pf, type_hint_code, first=True, indent=0):
@@ -201,15 +201,19 @@ def _class(pf, spec, klass, defined, indent=0):
         no_body = (klass.type_hint_code is None and nr_overloads == 0)
 
         if no_body:
-            for overload in klass.overloads:
-                if overload.access_specifier is AccessSpecifier.PRIVATE:
+            for member in klass.members:
+                if member.scope is not klass:
                     continue
 
-                if overload.no_type_hint:
-                    continue
+                for overload in member.overloads:
+                    if overload.access_specifier is AccessSpecifier.PRIVATE:
+                        continue
 
-                no_body = False
-                break
+                    if overload.no_type_hint:
+                        continue
+
+                    no_body = False
+                    break
 
         if no_body:
             for enum in spec.enums:
@@ -265,9 +269,12 @@ def _class(pf, spec, klass, defined, indent=0):
     first = True
 
     for member in klass.members:
+        if member.scope is not klass:
+            continue
+
         first = _separate(pf, first=first, indent=indent)
 
-        _callable(pf, spec, member, klass.overloads, defined,
+        _callable(pf, spec, member, defined,
                 is_method=not klass.is_hidden_namespace, indent=indent)
 
     for prop in klass.properties:
@@ -275,14 +282,12 @@ def _class(pf, spec, klass, defined, indent=0):
 
         getter = find_method(klass, prop.getter)
         if getter is not None:
-            _property(pf, spec, prop, False, getter, klass.overloads, defined,
-                    indent)
+            _property(pf, spec, prop, False, getter, defined, indent)
 
             if prop.setter is not None:
                 setter = find_method(klass, prop.setter)
                 if setter is not None:
-                    _property(pf, spec, prop, True, setter, klass.overloads,
-                            defined, indent)
+                    _property(pf, spec, prop, True, setter, defined, indent)
 
     if not klass.is_hidden_namespace:
         # Keep track of what has been defined so that forward references are no
@@ -312,8 +317,7 @@ def _mapped_type(pf, spec, mapped_type, defined):
 
         for member in mapped_type.members:
             first = _separate(pf, first=first, indent=1)
-            _callable(pf, spec, member, member.overloads, defined,
-                    is_method=True, indent=1)
+            _callable(pf, spec, member, defined, is_method=True, indent=1)
 
     # Keep track of what has been defined so that forward references are no
     # longer required.
@@ -417,18 +421,15 @@ def _variables(pf, spec, defined, scope=None, indent=0):
         pf.write(s)
 
 
-def _callable(pf, spec, member, overloads, defined, is_method=False, indent=0):
+def _callable(pf, spec, member, defined, is_method=False, indent=0):
     """ Output the type hints for a callable. """
 
     # Get the non-reflected and reflected overloads.
     nonreflected_overloads = []
     reflected_overloads = []
 
-    for overload in overloads:
+    for overload in member.overloads:
         if overload.access_specifier is AccessSpecifier.PRIVATE:
-            continue
-
-        if overload.common is not member:
             continue
 
         if overload.no_type_hint:
@@ -437,7 +438,8 @@ def _callable(pf, spec, member, overloads, defined, is_method=False, indent=0):
         # Signals can have the same name as ordinary methods however
         # 'typing.overload' cannot be used with ClassVar.  We choose to
         # generate a type hint for the signal rather than any method.
-        if overload.pyqt_method_specifier is PyQtMethodSpecifier.SIGNAL:
+        # XXX - ???
+        if overload.pyqt_is_signal:
             scope = '' if spec.module.py_name == 'QtCore' else 'QtCore.'
 
             s = _indent(indent)
@@ -470,14 +472,11 @@ def _callable(pf, spec, member, overloads, defined, is_method=False, indent=0):
         first_overload = False
 
 
-def _property(pf, spec, prop, is_setter, member, overloads, defined, indent):
+def _property(pf, spec, prop, is_setter, member, defined, indent):
     """ Output the type hints for a property. """
 
-    for overload in overloads:
+    for overload in member.overloads:
         if overload.access_specifier is AccessSpecifier.PRIVATE:
-            continue
-
-        if overload.common is not member:
             continue
 
         if overload.no_type_hint:

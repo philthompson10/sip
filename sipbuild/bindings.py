@@ -9,7 +9,7 @@ import sys
 from .buildable import BuildableBindings
 from .configurable import Configurable, Option
 from .exceptions import UserException
-from .generator import parse, resolve
+from .generator import parse, resolve, Specification
 from .generator.outputs import (output_api, output_code, output_extract,
         output_pyi)
 from .installable import Installable
@@ -110,6 +110,8 @@ class Bindings(Configurable):
 
         self.initialise_options(kwargs)
 
+        self.build_system_extensions = []
+
     def apply_nonuser_defaults(self, tool):
         """ Set default values for each non-user configurable option that
         hasn't been set yet.
@@ -129,6 +131,12 @@ class Bindings(Configurable):
 
         super().apply_user_defaults(tool)
 
+    def call_build_system_extensions(self, method_name, *args):
+        """ Call an extension method for all build system extensions. """
+
+        for extension in self.build_system_extensions:
+            getattr(extension, method_name)(*args)
+
     def generate(self):
         """ Generate the bindings source code and optional additional extracts.
         and return a BuildableBindings instance containing the details of
@@ -144,14 +152,21 @@ class Bindings(Configurable):
         # make up the project.
         encoding = 'UTF-8'
 
-        # Parse the input file.
-        spec, modules, sip_files = parse(self.sip_file, SIP_VERSION, encoding,
-                project.abi_version, self.tags, self.disabled_features,
-                self.protected_is_public, self._sip_include_dirs,
+        # Create the empty specification.
+        spec = Specification(
+                tuple([int(v) for v in project.abi_version.split('.')]),
                 project.sip_module)
 
+        # Create the build system extensions.
+        self.build_system_extensions = [factory(name, self, spec)
+                for name, factory in project.build_system_extension_factories.items()]
+
+        # Parse the input file.
+        modules, sip_files = parse(spec, self, SIP_VERSION, encoding,
+                self._sip_include_dirs)
+
         # Resolve the types.
-        resolve(spec, modules)
+        resolve(spec, modules, self)
 
         module = spec.module
 
@@ -199,7 +214,7 @@ class Bindings(Configurable):
             buildable.installables.append(installable)
 
         # Generate the bindings.
-        output_code(spec, self, project, buildable)
+        output_code(spec, self, buildable)
 
         buildable.headers.extend(self.headers)
 

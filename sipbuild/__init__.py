@@ -12,6 +12,7 @@ from .buildable import (Buildable, BuildableBindings, BuildableExecutable,
 from .builder import Builder
 from .configurable import Option
 from .exceptions import handle_exception, UserException
+from .generator import BuildSystemExtension
 from .installable import Installable
 from .project import Project
 from .pyproject import (PyProjectOptionException,

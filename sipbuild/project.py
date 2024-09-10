@@ -19,6 +19,7 @@ from .bindings import Bindings
 from .buildable import BuildableFromSources
 from .configurable import Configurable, Option
 from .exceptions import deprecated, UserException
+from .generator import BuildSystemExtension
 from .module import resolve_abi_version
 from .py_versions import OLDEST_SUPPORTED_MINOR
 from .pyproject import PyProjectException, PyProjectOptionException
@@ -154,6 +155,7 @@ class Project(AbstractProject, Configurable):
         self.arguments = None
         self.bindings = collections.OrderedDict()
         self.bindings_factories = []
+        self.build_system_extension_factories = {}
         self.builder = None
         self.buildables = []
         self.installables = []
@@ -574,6 +576,22 @@ class Project(AbstractProject, Configurable):
         if pipe.returncode != 0 and fatal:
             raise UserException(
                     "'{0}' failed returning {1}".format(cmd, pipe.returncode))
+
+    def register_build_system_extension(self, name,
+            build_system_extension_factory):
+        """ Register a build system extension. """
+
+        # Sanity check the name.
+        if name in self.build_system_extension_factories:
+            raise UserException(
+                    "A build system extension called '{0}' has already been registered".format(name))
+
+        # Sanity check the extension.
+        if not issubclass(build_system_extension_factory, BuildSystemExtension):
+            raise UserException(
+                    "The build system extension must be a sub-class of sipbuild.BuildSystemExtension")
+
+        self.build_system_extension_factories[name] = build_system_extension_factory
 
     def run_command(self, args, *, fatal=True):
         """ Run a command and display the output if requested. """

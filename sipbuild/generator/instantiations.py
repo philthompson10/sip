@@ -116,10 +116,8 @@ def instantiate_class(p, symbol, fq_cpp_name, tmpl_names, proto_class,
 
     # Handle the methods.
     i_class.members = _instantiate_methods(proto_class.members,
-            i_class.iface_file.module, pm)
-    i_class.overloads = _instantiate_overloads(proto_class.overloads,
-            proto_class.members, i_class.members, tmpl_names, proto_class,
-            template, i_class, expansions, pm)
+            i_class.iface_file.module, tmpl_names, proto_class, template,
+            i_class, expansions, pm)
 
     # Handle the remaining handwritten code.
     i_class.bi_get_buffer_code = template_code(pm.spec, used,
@@ -248,7 +246,8 @@ def _instantiate_enums(tmpl_names, proto_class, template, i_class, expansions,
         if proto_enum.scope is not proto_class:
             continue
 
-        # Start with a shallow copy.
+        # Start with a shallow copy.  Note that we don't instantiate the slots
+        # as there won't be any at this point.
         i_enum = copy(proto_enum)
 
         if proto_enum.fq_cpp_name is not None:
@@ -279,7 +278,8 @@ def _instantiate_enums(tmpl_names, proto_class, template, i_class, expansions,
         pm.spec.enums.insert(0, i_enum)
 
 
-def _instantiate_methods(proto_methods, target_module, pm):
+def _instantiate_methods(proto_methods, target_module, tmpl_names, proto_class,
+        template, i_class, expansions, pm):
     """ Return a list of the instantiated methods of a template class or enum.
     """
 
@@ -294,52 +294,50 @@ def _instantiate_methods(proto_methods, target_module, pm):
         if pm.in_main_module:
             i_method.py_name.used = True
 
+        i_method.overloads = [
+                _instantiate_overload(proto_overload, i_method, tmpl_names,
+                        proto_class, template, i_class, expansions, pm)
+                for proto_overload in proto_method.overloads]
+
         i_methods.append(i_method)
 
     return i_methods
 
 
-def _instantiate_overloads(proto_overloads, proto_methods, i_methods,
-        tmpl_names, proto_class, template, i_class, expansions, pm):
-    """ Return a list of the instantiated overloads of a template class or
+def _instantiate_overload(proto_overload, i_method, tmpl_names, proto_class,
+        template, i_class, expansions, pm):
+    """ Return an instantiated overload of an overload of a template class or
     enum.
     """
 
-    i_overloads = []
     used = i_class.iface_file.used
 
-    for proto_overload in proto_overloads:
-        # Start with a shallow copy.
-        i_overload = copy(proto_overload)
+    # Start with a shallow copy.
+    i_overload = copy(proto_overload)
 
-        for i_method, proto_method in zip(i_methods, proto_methods):
-            if proto_overload.common is proto_method:
-                i_overload.common = i_method
-                break
+    i_overload.common = i_method
 
-        i_overload.py_signature = _instantiate_signature(
-                proto_overload.py_signature, proto_class, tmpl_names, template,
-                i_class, expansions, pm, kw_args=proto_overload.kw_args)
+    i_overload.py_signature = _instantiate_signature(
+            proto_overload.py_signature, proto_class, tmpl_names, template,
+            i_class, expansions, pm, kw_args=proto_overload.kw_args)
 
-        if proto_overload.cpp_signature is proto_overload.py_signature:
-            i_overload.cpp_signature = i_overload.py_signature
-        else:
-            i_overload.cpp_signature = _instantiate_signature(
-                    proto_overload.cpp_signature.cpp_signature, proto_class,
-                    tmpl_names, template, i_class, expansions, pm)
+    if proto_overload.cpp_signature is proto_overload.py_signature:
+        i_overload.cpp_signature = i_overload.py_signature
+    else:
+        i_overload.cpp_signature = _instantiate_signature(
+                proto_overload.cpp_signature.cpp_signature, proto_class,
+                tmpl_names, template, i_class, expansions, pm)
 
-        i_overload.method_code = template_code(pm.spec, used,
-                proto_overload.method_code, expansions)
-        i_overload.premethod_code = template_code(pm.spec, used,
-                proto_overload.premethod_code, expansions)
-        i_overload.virtual_call_code = template_code(pm.spec, used,
-                proto_overload.virtual_call_code, expansions)
-        i_overload.virtual_catcher_code = template_code(pm.spec, used,
-                proto_overload.virtual_catcher_code, expansions)
+    i_overload.method_code = template_code(pm.spec, used,
+            proto_overload.method_code, expansions)
+    i_overload.premethod_code = template_code(pm.spec, used,
+            proto_overload.premethod_code, expansions)
+    i_overload.virtual_call_code = template_code(pm.spec, used,
+            proto_overload.virtual_call_code, expansions)
+    i_overload.virtual_catcher_code = template_code(pm.spec, used,
+            proto_overload.virtual_catcher_code, expansions)
 
-        i_overloads.append(i_overload)
-
-    return i_overloads
+    return i_overload
 
 
 def _instantiate_signature(proto_signature, proto_class, tmpl_names, template,

@@ -176,8 +176,9 @@ def fmt_argument_as_cpp_type(spec, arg, name=None, scope=None,
     space_before_name = True
 
     for i in range(nr_derefs):
-        # Note that we don't put a space before the '*' so that Qt normalised
-        # signal signatures are correct.
+        # Note that we don't put a space before the '*' for historical reasons
+        # (ie. so that Qt normalised signal signatures are correct) which may
+        # still be valid..
         s += '*'
         space_before_name = False
 

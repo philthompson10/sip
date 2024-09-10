@@ -38,7 +38,7 @@ class RequiredAnnotation(InvalidAnnotation):
         super().__init__(name, "requires a value", use=use)
 
 
-def validate_annotation_value(pm, p, symbol, name, value):
+def validate_annotation_value(pm, p, symbol, name, raw_value):
     """ Return a valid value for the annotation or raise an InvalidAnnotation
     exception.
     """
@@ -48,7 +48,7 @@ def validate_annotation_value(pm, p, symbol, name, value):
     except KeyError:
         raise InvalidAnnotation(name, "is not a known annotation", use=None)
 
-    return validator(pm, p, symbol, name, value)
+    return validator(pm, p, symbol, name, raw_value)
 
 
 def bind(validator, **proto_kw):
@@ -69,18 +69,18 @@ def bind(validator, **proto_kw):
 
         # This takes the name and value of the annotation and calls the
         # validator along with the annotation-specific keyword arguments.
-        def bound_validator(pm, p, symbol, name, value):
-            return validator(pm, p, symbol, name, value, **kw)
+        def bound_validator(pm, p, symbol, name, raw_value):
+            return validator(pm, p, symbol, name, raw_value, **kw)
 
         return bound_validator
 
     return proto_validator
 
 
-def validate_boolean(pm, p, symbol, name, value):
+def validate_boolean(pm, p, symbol, name, raw_value):
     """ Return a valid boolean value. """
 
-    if value is None:
+    if raw_value is None:
         return True
 
     raise InvalidAnnotation(name, "must not have a value", use=False)
@@ -88,51 +88,51 @@ def validate_boolean(pm, p, symbol, name, value):
 boolean = bind(validate_boolean)
 
 
-def validate_integer(pm, p, symbol, name, value, *, optional):
+def validate_integer(pm, p, symbol, name, raw_value, *, optional):
     """ Return a valid, possibly optional, integer. """
 
-    if value is None:
+    if raw_value is None:
         if optional:
             return None
 
         raise RequiredAnnotation(name, use=0)
 
-    if not isinstance(value, int):
+    if not isinstance(raw_value, int):
         raise InvalidAnnotation(name, "must be an integer", use=0)
 
-    return value
+    return raw_value
 
 integer = bind(validate_integer, optional=False)
 
 
-def validate_name(pm, p, symbol, name, value, *, allow_dots, optional):
+def validate_name(pm, p, symbol, name, raw_value, *, allow_dots, optional):
     """ Return a valid, possibly optional, possibly dotted name. """
 
-    if value is None:
+    if raw_value is None:
         if optional:
             return ''
 
         raise RequiredAnnotation(name, use='')
 
-    if not isinstance(value, DottedName):
+    if not isinstance(raw_value, DottedName):
         raise InvalidAnnotation(name, "must be an unquoted name", use='')
 
-    if '.' in value and not allow_dots:
+    if '.' in raw_value and not allow_dots:
         raise InvalidAnnotation(name, "cannot contain '.'", use='')
 
-    return value
+    return raw_value
 
 name = bind(validate_name, allow_dots=False, optional=False)
 
 
-def validate_string(pm, p, symbol, name, value):
+def validate_string(pm, p, symbol, name, raw_value):
     """ Return a valid string value. """
 
-    if not isinstance(value, str):
+    if not isinstance(raw_value, str):
         raise InvalidAnnotation(name, "must be a quoted string", use='')
 
     # Handle any embedded selectors.
-    for part in value.split(';'):
+    for part in raw_value.split(';'):
         if ':' not in part:
             return part.strip()
 
@@ -152,13 +152,13 @@ def validate_string(pm, p, symbol, name, value):
 string = bind(validate_string)
 
 
-def validate_string_list(pm, p, symbol, name, value):
+def validate_string_list(pm, p, symbol, name, raw_value):
     """ Return a valid string list value. """
 
-    if not isinstance(value, str):
+    if not isinstance(raw_value, str):
         raise InvalidAnnotation(name, "must be a quoted string", use=[])
 
-    return value.split(' ')
+    return raw_value.split(' ')
 
 string_list = bind(validate_string_list)
 

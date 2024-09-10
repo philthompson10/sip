@@ -30,9 +30,10 @@ def output_api(spec, api_filename):
         _enums(af, spec, module)
         _variables(af, spec, module)
 
-        for overload in module.overloads:
-            if overload.common.module is module and overload.common.py_slot is None:
-                _overload(af, spec, module, overload)
+        for member in module.global_functions:
+            if member.py_slot is None:
+                for overload in member.overloads:
+                    _overload(af, spec, module, overload)
 
         for klass in spec.classes:
             if klass.iface_file.module is module and not klass.external:
@@ -43,9 +44,11 @@ def output_api(spec, api_filename):
                     if ctor.access_specifier is not AccessSpecifier.PRIVATE:
                         _ctor(af, spec, module, ctor, klass)
 
-                for overload in klass.overloads:
-                    if overload.access_specifier is not AccessSpecifier.PRIVATE and overload.common.py_slot is None:
-                        _overload(af, spec, module, overload, scope=klass)
+                for member in klass.members:
+                    if member.scope is klass and member.py_slot is None:
+                        for overload in member.overloads:
+                            if overload.access_specifier is not AccessSpecifier.PRIVATE:
+                                _overload(af, spec, module, overload, scope=klass)
 
 
 def _ctor(af, spec, module, ctor, scope):
