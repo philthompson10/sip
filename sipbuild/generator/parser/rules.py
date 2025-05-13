@@ -11,8 +11,9 @@ from ..specification import (AccessSpecifier, Argument, ArgumentType,
         ArrayArgument, ClassKey, Docstring, DocstringFormat, Extract,
         FunctionCall, IfaceFile, IfaceFileType, KwArgs, License, MappedType,
         MappedTypeTemplate, Overload, Property, PyQtMethodSpecifier,
-        QualifierType, Signature, Template, ThrowArguments, Value, ValueType,
-        VirtualErrorHandler, WrappedTypedef, WrappedVariable)
+        QualifierType, Signature, Template, ThrowArguments,
+        SipModuleConfiguration, Value, ValueType, VirtualErrorHandler,
+        WrappedTypedef, WrappedVariable)
 from ..templates import same_template_signature
 from ..utils import cached_name, normalised_scoped_name, search_typedefs
 
@@ -83,6 +84,7 @@ def p_statement(p):
         | plugin
         | preinit_code
         | postinit_code
+        | sip_module_configuration
         | timeline
         | type_hint_code
         | unit_code
@@ -1221,7 +1223,7 @@ def p_pickle_code(p):
 # %Platforms ##################################################################
 
 def p_platforms(p):
-    "platforms : Platforms '{' qualifier_list '}'"
+    "platforms : Platforms '{' name_list '}'"
 
     pm = p.parser.pm
 
@@ -1384,10 +1386,35 @@ def p_release_code(p):
     pm.scope.release_code = p[2]
 
 
+# %SipModuleConfiguration #####################################################
+
+def p_sip_module_configuration (p):
+    "sip_module_configuration : SipModuleConfiguration '{' name_list '}'"
+
+    pm = p.parser.pm
+
+    if pm.skipping:
+        return
+
+    spec = pm.spec
+
+    # Check it hasn't already been specified.
+    if spec.sip_module_configuration != 0:
+        pm.parser_error(p, 1,
+                "%SipModuleConfiguration has already been specified")
+
+    for opt in p[3]:
+        try:
+            spec.sip_module_configuration |= SipModuleConfiguration.__members__[opt]
+        except KeyError:
+            pm.parser_error(p, 1,
+                    f"'{config}' is not a supported %SipModuleConfiguration option")
+
+
 # %Timeline ###################################################################
 
 def p_timeline(p):
-    "timeline : Timeline '{' qualifier_list '}'"
+    "timeline : Timeline '{' name_list '}'"
 
     pm = p.parser.pm
 
@@ -3450,9 +3477,9 @@ def p_ored_qualifiers(p):
         p[0] = p[1] or pm.evaluate_feature_or_platform(p, 4, inverted=True)
 
 
-def p_qualifier_list(p):
-    """qualifier_list : NAME
-        | qualifier_list NAME"""
+def p_name_list(p):
+    """name_list : NAME
+        | name_list NAME"""
 
     if len(p) == 2:
         value = [p[1]]
