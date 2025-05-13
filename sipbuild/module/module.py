@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: BSD-2-Clause
 
-# Copyright (c) 2024 Phil Thompson <phil@riverbankcomputing.com>
+# Copyright (c) 2025 Phil Thompson <phil@riverbankcomputing.com>
 
 
 import os
@@ -16,8 +16,8 @@ from .abi_version import (get_latest_version, get_module_source_dir,
         get_source_version_range, parse_abi_version)
 
 
-def module(sip_module, abi_version, project, sdist, setup_cfg, sip_h, sip_rst,
-        target_dir):
+def module(sip_module, abi_version, sip_module_configuration, project, sdist,
+        setup_cfg, sip_h, sip_rst, target_dir):
     """ Create the various elements of a sip module. """
 
     # Check we have the required source.
@@ -155,7 +155,7 @@ def _create_patches(sip_module, module_source_dir, project='',
         '@_SIP_MODULE_NAME@':                   sip_module_name,
         '@_SIP_MODULE_SHARED@':                 '1' if sip_module else '0',
         '@_SIP_MODULE_ENTRY@':                  'PyInit_' + sip_module_name,
-        '@_SIP_MODULE_LEGACY@':                 "1" if legacy else "0",
+        '@_SIP_MODULE_LEGACY@':                 '1' if legacy else '0',
         '@_SIP_OLDEST_SUPPORTED_MINOR@':        str(OLDEST_SUPPORTED_MINOR),
         '@_SIP_OLDEST_SUPPORTED_MINOR_HEX@':    format(OLDEST_SUPPORTED_MINOR,
                                                         '02x'),

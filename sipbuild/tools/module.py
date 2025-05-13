@@ -5,6 +5,7 @@
 
 from ..argument_parser import ArgumentParser
 from ..exceptions import handle_exception
+from ..sip_module_configuration import SipModuleConfiguration
 from ..module import module
 
 
@@ -22,6 +23,10 @@ def main():
 
     parser.add_argument('--sdist', action='store_true', default=False,
             help="generate an sdist file")
+
+    parser.add_argument('--option', action='append',
+            choices=sorted(SipModuleConfiguration.__members__.keys()),
+            help="configure the sip module")
 
     parser.add_argument('--setup-cfg',
             help="the name of the setup.cfg file to use", metavar="FILE")
@@ -41,10 +46,17 @@ def main():
 
     args = parser.parse_args()
 
+    # Complete the parse of the configuration options.
+    module_config = SipModuleConfiguration(0)
+
+    if args.option is not None:
+        for opt in args.option:
+            module_config |= SipModuleConfiguration.__members__[opt]
+
     try:
         module(sip_module=args.sip_modules[0], abi_version=args.abi_version,
-                project=args.project, sdist=args.sdist,
-                setup_cfg=args.setup_cfg, sip_h=args.sip_h,
+                sip_module_configuration=module_config, project=args.project,
+                sdist=args.sdist, setup_cfg=args.setup_cfg, sip_h=args.sip_h,
                 sip_rst=args.sip_rst, target_dir=args.target_dir)
     except Exception as e:
         handle_exception(e)

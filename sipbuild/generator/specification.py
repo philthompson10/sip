@@ -4,8 +4,10 @@
 
 
 from dataclasses import dataclass, field
-from enum import auto, Enum, IntFlag
+from enum import auto, Enum
 from typing import Any, Optional, Union
+
+from ..sip_module_configuration import SipModuleConfiguration
 
 from .scoped_name import ScopedName
 
@@ -518,17 +520,6 @@ class QualifierType(Enum):
 
     # The qualifier is part of a timeline.
     TIME = auto()
-
-
-class SipModuleConfiguration(IntFlag):
-    """ The different aspects of the sip module's configuration for ABI v14 and
-    later.  The flag values must not be changed.  The name of a flag is visible
-    to the user, hence the use of upper camel case.
-    """
-
-    # Use a custom Python object to wrap enums rather than standard Python enum
-    # objects.
-    LegacyEnums = 0x0001
 
 
 class Transfer(Enum):
@@ -1264,7 +1255,8 @@ class Specification:
     sip_module: Optional[str]
 
     # The required configuration of the sip module.
-    sip_module_configuration: SipModuleConfiguration = 0x0
+    sip_module_configuration: SipModuleConfiguration = field(
+            default_factory=lambda: SipModuleConfiguration(0))
 
     # Set if the bindings are for C rather than C++.
     c_bindings: bool = False
