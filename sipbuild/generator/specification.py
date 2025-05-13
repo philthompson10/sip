@@ -1,10 +1,10 @@
 # SPDX-License-Identifier: BSD-2-Clause
 
-# Copyright (c) 2024 Phil Thompson <phil@riverbankcomputing.com>
+# Copyright (c) 2025 Phil Thompson <phil@riverbankcomputing.com>
 
 
 from dataclasses import dataclass, field
-from enum import auto, Enum
+from enum import auto, Enum, Flag
 from typing import Any, Optional, Union
 
 from .scoped_name import ScopedName
@@ -518,6 +518,16 @@ class QualifierType(Enum):
 
     # The qualifier is part of a timeline.
     TIME = auto()
+
+
+class SIPModuleConfiguration(Flag):
+    """ The different aspects of the sip module's configuration for ABI v14 and
+    later.  The flag values must not be changed.
+    """
+
+    # Use a custom Python object to wrap enums rather than standard Python enum
+    # objects.
+    LEGACY_ENUMS = 0x0001
 
 
 class Transfer(Enum):
@@ -1251,6 +1261,9 @@ class Specification:
     # The fully qualified name of the sip module.  If it is None then there is
     # no shared sip module.
     sip_module: Optional[str]
+
+    # The required configuration of the sip module.
+    sip_module_configuration: SIPModuleConfiguration = 0x0
 
     # Set if the bindings are for C rather than C++.
     c_bindings: bool = False
