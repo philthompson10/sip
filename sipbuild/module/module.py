@@ -10,6 +10,7 @@ import sys
 
 from ..exceptions import UserException
 from ..py_versions import MINIMUM_SETUPTOOLS, OLDEST_SUPPORTED_MINOR
+from ..sip_module_configuration import SipModuleConfiguration
 from ..version import SIP_VERSION, SIP_VERSION_STR
 
 from .abi_version import (get_latest_version, get_module_source_dir,
@@ -41,7 +42,8 @@ def module(sip_module, abi_version, sip_module_configuration, project, sdist,
         project = sip_module.replace('.', '_')
 
     # Create the patches.
-    patches = _create_patches(sip_module, module_source_dir, project)
+    patches = _create_patches(sip_module, sip_module_configuration,
+            module_source_dir, project)
 
     # The names of generated files.
     sdist_dir = project + '-' + patches['@SIP_MODULE_VERSION@']
@@ -64,12 +66,13 @@ def module(sip_module, abi_version, sip_module_configuration, project, sdist,
         _create_sip_file(sip_rst_fn, module_source_dir, patches)
 
 
-def copy_sip_h(abi_version, target_dir, sip_module='', version_info=True):
+def copy_sip_h(abi_version, sip_module_configuration, target_dir,
+        sip_module='', version_info=True):
     """ Copy the sip.h file. """
 
     module_source_dir = get_module_source_dir(abi_version)
-    patches = _create_patches(sip_module, module_source_dir,
-            version_info=version_info)
+    patches = _create_patches(sip_module, sip_module_configuration,
+            module_source_dir, version_info=version_info)
     _install_source_file('sip.h', module_source_dir, target_dir, patches)
 
 
@@ -80,11 +83,11 @@ def copy_sip_pyi(abi_version, target_dir):
     shutil.copy(os.path.join(module_source_dir, 'sip.pyi'), target_dir)
 
 
-def copy_nonshared_sources(abi_version, target_dir):
+def copy_nonshared_sources(abi_version, sip_module_configuration, target_dir):
     """ Copy the module sources as a non-shared module. """
 
     # Copy the patched sip.h.
-    copy_sip_h(abi_version, target_dir)
+    copy_sip_h(abi_version, sip_module_configuration, target_dir)
 
     # Copy the remaining source code.
     sources = []
@@ -103,8 +106,8 @@ def copy_nonshared_sources(abi_version, target_dir):
     return sources
 
 
-def _create_patches(sip_module, module_source_dir, project='',
-        version_info=True):
+def _create_patches(sip_module, sip_module_configuration, module_source_dir,
+        project='', version_info=True):
     """ Return a dict of the patches. """
 
     sip_module_parts = sip_module.split('.')
@@ -141,7 +144,7 @@ def _create_patches(sip_module, module_source_dir, project='',
 
     sip_module_version = f'{abi_major}.{abi_minor}.{abi_patch}'
 
-    return {
+    patches = {
         # The public patches are those that might be needed in setup.cfg or any
         # automatically generated user documentation.
         '@SIP_MODULE_FQ_NAME@':                 sip_module,
@@ -150,6 +153,7 @@ def _create_patches(sip_module, module_source_dir, project='',
         '@SIP_MODULE_VERSION@':                 sip_module_version,
 
         # These are internal.
+        '@_SIP_CONFIGURATION@':                 f'0x{sip_module_configuration:04x}',
         '@_SIP_MINIMUM_SETUPTOOLS@':            MINIMUM_SETUPTOOLS,
         '@_SIP_MODULE_FQ_NAME@':                sip_module,
         '@_SIP_MODULE_NAME@':                   sip_module_name,
@@ -162,6 +166,13 @@ def _create_patches(sip_module, module_source_dir, project='',
         '@_SIP_VERSION@':                       hex(sip_version),
         '@_SIP_VERSION_STR@':                   sip_version_str
     }
+
+    for opt_name, opt_value in SipModuleConfiguration.__members__.items():
+        patch_name = f'@_SIP_{opt_name}_STATE@'
+        patch_value = '#define' if opt_value in sip_module_configuration else '#undef'
+        patches[patch_name] = patch_value
+
+    return patches
 
 
 def _create_sdist(sdist_dir, module_source_dir, patches, setup_cfg):

@@ -20,9 +20,8 @@
 
 
 /* Specify the module configuration. */
-
 #define SIP_CONFIGURATION = @_SIP_CONFIGURATION@
-@_SIP_LEGACY_ENUMS_STATE@ SIP_CONFIGURATION_LEGACY_ENUMS
+@_SIP_LegacyEnums_STATE@ SIP_CONFIGURATION_LegacyEnums
 
 
 #ifdef __cplusplus
