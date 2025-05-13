@@ -1509,6 +1509,15 @@ static int sip_api_export_module(sipExportedModuleDef *client,
         return -1;
     }
 
+    if (client->em_sip_configuration != SIP_CONFIGURATION)
+    {
+        PyErr_Format(PyExc_RuntimeError,
+                "the sip module has a configuration of 0x%04x but the %s module requires 0x%04x",
+                SIP_CONFIGURATION, full_name, client->em_sip_configuration);
+
+        return -1;
+    }
+
     /* Import any required modules. */
     if (client->em_imports != NULL)
     {

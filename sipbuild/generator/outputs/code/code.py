@@ -1012,7 +1012,15 @@ f'''
 sipExportedModuleDef sipModuleAPI_{module_name} = {{
     SIP_NULLPTR,
     {spec.target_abi[1]},
-    sipNameNr_{_get_normalised_cached_name(module.fq_py_name)},
+''')
+
+    if spec.target_abi >= (14, 0):
+        sf.write(
+f'''    0x{spec.sip_module_configuration:04x},
+''')
+
+    sf.write(
+f'''    sipNameNr_{_get_normalised_cached_name(module.fq_py_name)},
     0,
     sipStrings_{module_name},
     {imports_table},

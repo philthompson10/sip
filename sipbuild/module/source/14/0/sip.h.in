@@ -19,6 +19,12 @@
 #endif
 
 
+/* Specify the module configuration. */
+
+#define SIP_CONFIGURATION = @_SIP_CONFIGURATION@
+@_SIP_LEGACY_ENUMS_STATE@ SIP_CONFIGURATION_LEGACY_ENUMS
+
+
 #ifdef __cplusplus
 #include <exception>
 
@@ -972,6 +978,9 @@ typedef struct _sipExportedModuleDef {
 
     /* The SIP API minor version number. */
     unsigned em_api_minor;
+
+    /* The required sip module configuration. */
+    unsigned em_sip_configuration;
 
     /* The module name. */
     int em_name;
