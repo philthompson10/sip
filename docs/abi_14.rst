@@ -8,18 +8,16 @@ options are described in the :directive:`%SipModuleConfiguration` directive
 documentation.  For each enabled option a C preprocessor symbol will be defined
 with the name ``SIP_CONFIGURATION_`` followed by the name of the option.
 
-.. c:macro:: SIP_API_MAJOR_NR
+.. c:macro:: SIP_ABI_MAJOR_VERSION
 
     This is a C preprocessor symbol that defines the major number of the SIP
-    API.  Its value is a number.  There is no direct relationship between this
-    and the SIP version number.
+    ABI.
 
 
-.. c:macro:: SIP_API_MINOR_NR
+.. c:macro:: SIP_ABI_MINOR_VERSION
 
     This is a C preprocessor symbol that defines the minor number of the SIP
-    API.  Its value is a number.  There is no direct relationship between this
-    and the SIP version number.
+    ABI.
 
 
 .. c:macro:: SIP_BLOCK_THREADS
