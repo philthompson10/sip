@@ -14,11 +14,19 @@ class SipModuleConfiguration(IntFlag):
     to the user, hence the use of upper camel case.
     """
 
-    # Use a custom Python object to wrap enums.
-    CustomEnums = 0x0001
+    # Use standard Python enum objects to wrap enums (default).
+    PyEnums = 0x0001
 
-    # Use standard Python enum objects to wrap enums.
-    PyEnums = 0x0002
+    # Use a custom Python object to wrap enums.
+    CustomEnums = 0x0002
+
+    # Don't add a reference to the sip module as a root module (ie. in
+    # site-packages (default).
+    NoRootSipModule = 0x0004
+
+    # Add a reference to the sip module as a root module (ie. in
+    # site-packages).
+    RootSipModule = 0x0008
 
 
 def apply_module_defaults(module_configuration):
@@ -26,9 +34,11 @@ def apply_module_defaults(module_configuration):
     been set explicitly.
     """
 
-    # Make sure Python enums are used if custom enums is not specified.
     if SipModuleConfiguration.CustomEnums not in module_configuration:
         module_configuration |= SipModuleConfiguration.PyEnums
+
+    if SipModuleConfiguration.RootSipModule not in module_configuration:
+        module_configuration |= SipModuleConfiguration.NoRootSipModule
 
     return module_configuration
 
@@ -42,12 +52,25 @@ def apply_module_option(module_configuration, option_name):
         raise UserException(
                 f"'{option_name}' is not a supported module configuration option")
 
-    if option is SipModuleConfiguration.CustomEnums and SipModuleConfiguration.PyEnums in module_configuration:
-        raise UserException(
-                "CustomEnums cannot be set because PyEnums has already been specified")
-
-    if option is SipModuleConfiguration.PyEnums and SipModuleConfiguration.CustomEnums in module_configuration:
-        raise UserException(
-                "PyEnums cannot be set because CustomEnums has already been specified")
+    _verify_option(module_configuration, option,
+            SipModuleConfiguration.PyEnums, SipModuleConfiguration.CustomEnums)
+    _verify_option(module_configuration, option,
+            SipModuleConfiguration.NoRootSipModule,
+            SipModuleConfiguration.RootSipModule)
 
     return module_configuration | option
+
+
+def _verify_option(module_configuration, new, option, converse):
+    """ Verify that a new option is compatible with existing ones. """
+
+    _check_option_conflicts(module_configuration, new, option, converse)
+    _check_option_conflicts(module_configuration, new, converse, option)
+
+
+def _check_option_conflicts(module_configuration, new, option, converse):
+    """ Check to see if a new option conflicts with an existing one. """
+
+    if new is option and converse in module_configuration:
+        raise UserException(
+                f"{new.name} cannot be set because {converse.name} has already been specified")

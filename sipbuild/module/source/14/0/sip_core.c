@@ -1048,6 +1048,19 @@ PyMODINIT_FUNC _SIP_MODULE_ENTRY(void)
         return NULL;
     }
 
+#if defined(SIP_CONFIGURATION_RootSipModule)
+    {
+        /*
+         * Also install the package-specific module at the top level for
+         * backwards compatibility.
+         */
+        PyObject *modules = PySys_GetObject("modules");
+
+        if (modules != NULL)
+            PyDict_SetItemString(modules, "sip", mod);
+    }
+#endif
+
     return mod;
 }
 #endif

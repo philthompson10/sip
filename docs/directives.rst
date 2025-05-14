@@ -2165,11 +2165,20 @@ This directive is used to specify the configuration options that the project
 expects the :mod:`sip` module to be compiled with.  The directive is only used
 when ABI v14 or later is being targeted.  The configuration options are:
 
+PyEnums
+    The standard Python enum types are used to wrap C/C+ enums (default).
+
 CustomEnums
     A custom Python object is used to wrap C/C++ enums.
 
-PyEnums
-    The standard Python enum types are used to wrap C/C+ enums.
+NoRootSipModule
+    A reference to the sip module is not added as a root module (ie. in
+    ``site-packages`` (default).
+
+RootSipModule
+    A reference to the sip module is added as a root module (ie. in
+    ``site-packages``.  This option should only be used by certain, existing,
+    legacy projects.
 
 
 .. directive:: %Timeline

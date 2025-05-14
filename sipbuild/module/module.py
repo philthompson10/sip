@@ -114,10 +114,6 @@ def _create_patches(sip_module, sip_module_configuration, module_source_dir,
     sip_module_package_name = '.'.join(sip_module_parts[:-1])
     sip_module_name = sip_module_parts[-1]
 
-    # We special case this because this should be the only package requiring
-    # the support.
-    legacy = (sip_module == 'PyQt5.sip')
-
     if version_info:
         sip_version = SIP_VERSION
         sip_version_str = SIP_VERSION_STR
@@ -125,8 +121,8 @@ def _create_patches(sip_module, sip_module_configuration, module_source_dir,
         sip_version = 0
         sip_version_str = ''
 
-    # Get the full version number of the sip module.
-    abi_major = abi_minor = abi_patch = '???'
+    # Get the full version number of the sip module from the sip.h file.
+    abi_major = abi_minor = abi_patch = None
 
     with open(os.path.join(module_source_dir, 'sip.h.in')) as vf:
         for line in vf:
@@ -136,11 +132,11 @@ def _create_patches(sip_module, sip_module_configuration, module_source_dir,
                 value = parts[2]
 
                 if name == 'SIP_ABI_MAJOR_VERSION':
-                    abi_major = value
+                    abi_major = int(value)
                 elif name == 'SIP_ABI_MINOR_VERSION':
-                    abi_minor = value
+                    abi_minor = int(value)
                 elif name == 'SIP_MODULE_PATCH_VERSION':
-                    abi_patch = value
+                    abi_patch = int(value)
 
     sip_module_version = f'{abi_major}.{abi_minor}.{abi_patch}'
 
@@ -159,7 +155,6 @@ def _create_patches(sip_module, sip_module_configuration, module_source_dir,
         '@_SIP_MODULE_NAME@':                   sip_module_name,
         '@_SIP_MODULE_SHARED@':                 '1' if sip_module else '0',
         '@_SIP_MODULE_ENTRY@':                  'PyInit_' + sip_module_name,
-        '@_SIP_MODULE_LEGACY@':                 '1' if legacy else '0',
         '@_SIP_OLDEST_SUPPORTED_MINOR@':        str(OLDEST_SUPPORTED_MINOR),
         '@_SIP_OLDEST_SUPPORTED_MINOR_HEX@':    format(OLDEST_SUPPORTED_MINOR,
                                                         '02x'),
@@ -167,10 +162,17 @@ def _create_patches(sip_module, sip_module_configuration, module_source_dir,
         '@_SIP_VERSION_STR@':                   sip_version_str
     }
 
-    for opt_name, opt_value in SipModuleConfiguration.__members__.items():
-        patch_name = f'@_SIP_{opt_name}_STATE@'
-        patch_value = '#define' if opt_value in sip_module_configuration else '#undef'
-        patches[patch_name] = patch_value
+    if abi_major == 12:
+        # We special case this because it should be the only package requiring
+        # the support.
+        legacy = (sip_module == 'PyQt5.sip')
+        patches['@_SIP_MODULE_LEGACY@'] = '1' if legacy else '0',
+
+    elif abi_major >= 14:
+        for opt_name, opt_value in SipModuleConfiguration.__members__.items():
+            patch_name = f'@_SIP_{opt_name}_STATE@'
+            patch_value = '#define' if opt_value in sip_module_configuration else '#undef'
+            patches[patch_name] = patch_value
 
     return patches
 
