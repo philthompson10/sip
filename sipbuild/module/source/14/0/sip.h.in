@@ -21,7 +21,8 @@
 
 /* Specify the module configuration. */
 #define SIP_CONFIGURATION = @_SIP_CONFIGURATION@
-@_SIP_LegacyEnums_STATE@ SIP_CONFIGURATION_LegacyEnums
+@_SIP_CustomEnums_STATE@ SIP_CONFIGURATION_CustomEnums
+@_SIP_PyEnums_STATE@ SIP_CONFIGURATION_PyEnums
 
 
 #ifdef __cplusplus

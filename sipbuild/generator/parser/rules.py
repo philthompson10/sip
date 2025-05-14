@@ -5,7 +5,7 @@
 
 from ...exceptions import UserException
 from ...module import parse_abi_version
-from ...sip_module_configuration import SipModuleConfiguration
+from ...sip_module_configuration import apply_module_option
 
 from ..scoped_name import ScopedName
 from ..specification import (AccessSpecifier, Argument, ArgumentType,
@@ -1398,17 +1398,12 @@ def p_sip_module_configuration (p):
 
     spec = pm.spec
 
-    # Check it hasn't already been specified.
-    if spec.sip_module_configuration != 0:
-        pm.parser_error(p, 1,
-                "%SipModuleConfiguration has already been specified")
-
     for opt in p[3]:
         try:
-            spec.sip_module_configuration |= SipModuleConfiguration.__members__[opt]
-        except KeyError:
-            pm.parser_error(p, 1,
-                    f"'{config}' is not a supported %SipModuleConfiguration option")
+            spec.sip_module_configuration = apply_module_option(
+                    spec.sip_module_configuration, opt)
+        except UserException as e:
+            pm.parser_error(p, 1, e.text)
 
 
 # %Timeline ###################################################################

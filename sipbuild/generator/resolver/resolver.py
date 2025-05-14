@@ -6,6 +6,8 @@
 
 from copy import copy
 
+from ...sip_module_configuration import apply_module_defaults
+
 from ..error_log import ErrorLog
 from ..instantiations import instantiate_type_hints
 from ..python_slots import (is_hash_return_slot, is_int_return_slot,
@@ -172,6 +174,10 @@ def resolve(spec, modules):
         for enum in spec.enums:
             if enum.module is spec.module:
                 _enum_iface_file_is_used(enum, spec.module)
+
+    # Finalise the sip module configuration.
+    spec.sip_module_configuration = apply_module_defaults(
+            spec.sip_module_configuration)
 
     # Perform any final checks.
     for check in final_checks:
