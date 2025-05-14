@@ -123,20 +123,12 @@ typedef unsigned int uint;
 
 
 /*
- * Hide some thread dependent stuff.  This can be removed when support for
- * Python v3.6 is removed.
+ * Hide some thread dependent stuff.
  */
-#ifdef WITH_THREAD
 typedef PyGILState_STATE sip_gilstate_t;
 #define SIP_RELEASE_GIL(gs) PyGILState_Release(gs);
 #define SIP_BLOCK_THREADS   {PyGILState_STATE sipGIL = PyGILState_Ensure();
 #define SIP_UNBLOCK_THREADS PyGILState_Release(sipGIL);}
-#else
-typedef int sip_gilstate_t;
-#define SIP_RELEASE_GIL(gs)
-#define SIP_BLOCK_THREADS
-#define SIP_UNBLOCK_THREADS
-#endif
 
 
 /*
@@ -153,6 +145,11 @@ typedef struct _sipCFunctionDef sipCFunctionDef;
 
 struct _sipDateDef;
 typedef struct _sipDateDef sipDateDef;
+
+#if defined(SIP_CONFIGURATION_CustomEnums)
+struct _sipEnumTypeObject;
+typedef struct _sipEnumTypeObject sipEnumTypeObject;
+#endif
 
 struct _sipMethodDef;
 typedef struct _sipMethodDef sipMethodDef;
@@ -333,6 +330,24 @@ struct _sipWrapper {
     /* Owning object. */
     struct _sipWrapper *parent;
 };
+
+
+#if defined(SIP_CONFIGURATION_CustomEnums)
+/*
+ * The meta-type of an enum type.  (This is exposed only to support the
+ * deprecated sipConvertFromNamedEnum() macro.)
+ */
+struct _sipEnumTypeObject {
+    /*
+     * The super-metatype.  This must be first in the structure so that it can
+     * be cast to a PyTypeObject *.
+     */
+    PyHeapTypeObject super;
+
+    /* The generated type structure. */
+    struct _sipTypeDef *type;
+};
+#endif
 #endif
 
 
@@ -349,6 +364,23 @@ typedef struct _sipEncodedTypeDef {
     /* A context specific flag. */
     unsigned sc_flag : 1;
 } sipEncodedTypeDef;
+
+
+#if defined(SIP_CONFIGURATION_CustomEnums)
+/*
+ * The information describing an enum member.
+ */
+typedef struct _sipEnumMemberDef {
+    /* The member name. */
+    const char *em_name;
+
+    /* The member value. */
+    int em_val;
+
+    /* The member enum, -ve if anonymous. */
+    int em_enum;
+} sipEnumMemberDef;
+#endif
 
 
 /*
@@ -582,11 +614,11 @@ typedef enum {
     iter_slot,          /* __iter__ */
     next_slot,          /* __next__ */
     setattr_slot,       /* __setattr__, __delattr__ */
-    matmul_slot,        /* __matmul__ (for Python v3.5 and later) */
-    imatmul_slot,       /* __imatmul__ (for Python v3.5 and later) */
-    await_slot,         /* __await__ (for Python v3.5 and later) */
-    aiter_slot,         /* __aiter__ (for Python v3.5 and later) */
-    anext_slot,         /* __anext__ (for Python v3.5 and later) */
+    matmul_slot,        /* __matmul__ */
+    imatmul_slot,       /* __imatmul__ */
+    await_slot,         /* __await__ */
+    aiter_slot,         /* __aiter__ */
+    anext_slot,         /* __anext__ */
 } sipPySlotType;
 
 
@@ -714,6 +746,14 @@ typedef struct _sipContainerDef {
 
     /* The table of lazy methods. */
     PyMethodDef *cod_methods;
+
+#if defined(SIP_CONFIGURATION_CustomEnums)
+    /* The number of lazy enum members. */
+    int cod_nrenummembers;
+
+    /* The table of lazy enum members. */
+    sipEnumMemberDef *cod_enummembers;
+#endif
 
     /* The number of variables. */
     int cod_nrvariables;
@@ -858,8 +898,10 @@ typedef struct _sipEnumTypeDef {
     /* The base type information. */
     sipTypeDef etd_base;
 
+#if defined(SIP_CONFIGURATION_PyEnums)
     /* The Python base type. */
     int etd_base_type;
+#endif
 
     /* The Python name of the enum. */
     int etd_name;
@@ -867,8 +909,10 @@ typedef struct _sipEnumTypeDef {
     /* The scoping type, -1 if it is defined at the module level. */
     int etd_scope;
 
+#if defined(SIP_CONFIGURATION_PyEnums)
     /* The number of members. */
     int etd_nr_members;
+#endif
 
     /* The Python slots. */
     struct _sipPySlotDef *etd_pyslots;
@@ -1004,6 +1048,14 @@ typedef struct _sipExportedModuleDef {
 
     /* The table of external types. */
     sipExternalTypeDef *em_external;
+
+#if defined(SIP_CONFIGURATION_CustomEnums)
+    /* The number of members in global enums. */
+    int em_nrenummembers;
+
+    /* The table of members in global enums. */
+    sipEnumMemberDef *em_enummembers;
+#endif
 
     /* The number of typedefs. */
     int em_nrtypedefs;
@@ -1442,12 +1494,6 @@ const sipAPIDef *sip_init_library(PyObject *mod_dict);
 
 
 /*
- * These flags are specific to the Qt support API.
- */
-#define SIP_SINGLE_SHOT     0x0001  /* The connection is single shot. */
-
-
-/*
  * Useful macros, not part of the public API.
  */
 
@@ -1494,14 +1540,19 @@ const sipAPIDef *sip_init_library(PyObject *mod_dict);
 #define SIP_TYPE_NONLAZY    0x0080  /* If the type has a non-lazy method. */
 #define SIP_TYPE_SUPER_INIT 0x0100  /* If the instance's super init should be called. */
 #define SIP_TYPE_LIMITED_API    0x0200  /* Use the limited API.  If this is more generally required it may need to be moved to the module definition. */
+#if defined(SIP_CONFIGURATION_CustomEnums)
+#define SIP_TYPE_SCOPED_ENUM    0x0400  /* If the type is a scoped enum. */
+#endif
 
 
+#if defined(SIP_CONFIGURATION_PyEnums)
 /* The Python base types of enums. */
 #define SIP_ENUM_ENUM       0       /* The base type is Enum. */
 #define SIP_ENUM_FLAG       1       /* The base type is Flag. */
 #define SIP_ENUM_INT_ENUM   2       /* The base type is IntEnum. */
 #define SIP_ENUM_INT_FLAG   3       /* The base type is IntFlag. */
 #define SIP_ENUM_UINT_ENUM  4       /* The base type is IntEnum with unsigned members. */
+#endif
 
 
 /*
@@ -1511,6 +1562,9 @@ const sipAPIDef *sip_init_library(PyObject *mod_dict);
 #define sipTypeIsNamespace(td)  (((td)->td_flags & SIP_TYPE_TYPE_MASK) == SIP_TYPE_NAMESPACE)
 #define sipTypeIsMapped(td) (((td)->td_flags & SIP_TYPE_TYPE_MASK) == SIP_TYPE_MAPPED)
 #define sipTypeIsEnum(td)   (((td)->td_flags & SIP_TYPE_TYPE_MASK) == SIP_TYPE_ENUM)
+#if defined(SIP_CONFIGURATION_CustomEnums)
+#define sipTypeIsScopedEnum(td) (((td)->td_flags & SIP_TYPE_TYPE_MASK) == SIP_TYPE_SCOPED_ENUM)
+#endif
 #define sipTypeAsPyTypeObject(td)   ((td)->td_py_type)
 #define sipTypeName(td)     sipNameFromPool((td)->td_module, (td)->td_cname)
 #define sipTypePluginData(td)   ((td)->td_plugin_data)

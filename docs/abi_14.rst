@@ -1837,12 +1837,14 @@ with the name ``SIP_CONFIGURATION_`` followed by the name of the option.
 .. c:function:: int sipTypeIsEnum(sipTypeDef *td)
 
     This checks if a :ref:`generated type structure <ref-type-structures>`
-    refers to a C-style named enum.
+    refers to a named enum.  If the ``CustomEnums`` :mod:`sip` module
+    configuration option is set then this will only check for C-style named
+    enums and not C++11 scoped enums.
 
     :param td:
         the type structure.
     :return:
-        a non-zero value if the type structure refers to a C-style named enum.
+        a non-zero value if the type structure refers to a named enum.
 
 
 .. c:function:: int sipTypeIsMapped(sipTypeDef *td)
@@ -1870,7 +1872,8 @@ with the name ``SIP_CONFIGURATION_`` followed by the name of the option.
 .. c:function:: int sipTypeIsScopedEnum(sipTypeDef *td)
 
     This checks if a :ref:`generated type structure <ref-type-structures>`
-    refers to a C++11 scoped enum.
+    refers to a C++11 scoped enum.  This is only present if the ``CustomEnums``
+    :mod:`sip` module configuration option is set.
 
     :param td:
         the type structure.

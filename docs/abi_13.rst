@@ -1833,12 +1833,12 @@ module, that can be used by handwritten code in specification files.
 .. c:function:: int sipTypeIsEnum(sipTypeDef *td)
 
     This checks if a :ref:`generated type structure <ref-type-structures>`
-    refers to a C-style named enum.
+    refers to a named enum.
 
     :param td:
         the type structure.
     :return:
-        a non-zero value if the type structure refers to a C-style named enum.
+        a non-zero value if the type structure refers to a named enum.
 
 
 .. c:function:: int sipTypeIsMapped(sipTypeDef *td)
@@ -1861,17 +1861,6 @@ module, that can be used by handwritten code in specification files.
         the type structure.
     :return:
         a non-zero value if the type structure refers to a namespace.
-
-
-.. c:function:: int sipTypeIsScopedEnum(sipTypeDef *td)
-
-    This checks if a :ref:`generated type structure <ref-type-structures>`
-    refers to a C++11 scoped enum.
-
-    :param td:
-        the type structure.
-    :return:
-        a non-zero value if the type structure refers to a C++11 scoped enum.
 
 
 .. c:function:: const char *sipTypeName(const sipTypeDef *td)
