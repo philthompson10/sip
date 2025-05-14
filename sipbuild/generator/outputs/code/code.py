@@ -262,11 +262,16 @@ f'''#define sipPyTypeDictRef            sipAPI_{module_name}->api_py_type_dict_r
             sf.write(
 f'''#define sipNextExceptionHandler     sipAPI_{module_name}->api_next_exception_handler
 ''')
+
+        # ABI v13 or v14 and later with PyEnums configured.
+        if _py_enums_configured(spec):
+            sf.write(
+f'''#define sipIsEnumFlag               sipAPI_{module_name}->api_is_enum_flag
+''')
             
         # ABI v13.0 and later. */
         sf.write(
-f'''#define sipIsEnumFlag               sipAPI_{module_name}->api_is_enum_flag
-#define sipConvertToTypeUS          sipAPI_{module_name}->api_convert_to_type_us
+f'''#define sipConvertToTypeUS          sipAPI_{module_name}->api_convert_to_type_us
 #define sipForceConvertToTypeUS     sipAPI_{module_name}->api_force_convert_to_type_us
 #define sipReleaseTypeUS            sipAPI_{module_name}->api_release_type_us
 ''')
@@ -706,7 +711,7 @@ static sipPySlotDef slots_{enum_name}[] = {{
         cpp_name = _get_normalised_cached_name(enum.cached_fq_cpp_name)
         py_name = _get_normalised_cached_name(enum.py_name)
 
-        if spec.target_abi >= (13, 0):
+        if _py_enums_configured(spec):
             base_type = 'SIP_ENUM_' + enum.base_type.name
             nr_members = len(enum.members)
 
@@ -730,10 +735,10 @@ f'    {{{{-1, SIP_NULLPTR, SIP_NULLPTR, {sip_type}, sipNameNr_{cpp_name}, SIP_NU
     if len(needed_enums) != 0:
         sf.write('};\n')
 
-    if spec.target_abi >= (13, 0):
-        nr_enum_members = -1
-    else:
+    if _custom_enums_configured(spec):
         nr_enum_members = _enum_member_table(sf, spec)
+    else:
+        nr_enum_members = -1
 
     # Generate the types table.
     if len(module.needed_types) != 0:
@@ -1956,7 +1961,7 @@ def _int_instances(sf, spec, scope=None):
 
     instances = []
 
-    if spec.target_abi >= (13, 0):
+    if _py_enums_configured(spec):
         # Named enum members are handled as int variables but must be placed at
         # the start of the table.  Note we use the sorted table of needed types
         # rather than the unsorted table of all enums.
@@ -1988,7 +1993,7 @@ def _int_instances(sf, spec, scope=None):
         instances.append((ii_name, ii_val))
 
     # Anonymous enum members are handled as int variables.
-    if spec.target_abi >= (13, 0) or scope is None:
+    if _py_enums_configured(spec) or scope is None:
         for enum in spec.enums:
             if _py_scope(enum.scope) is not scope or enum.module is not spec.module:
                 continue
@@ -2291,15 +2296,15 @@ f'''static PyObject *convertFrom_{mapped_type_name}(void *sipCppV, PyObject *{xf
 
     id_int = 'SIP_NULLPTR'
 
-    if spec.target_abi >= (13, 0):
+    if _custom_enums_configured(spec):
+        cod_nrenummembers = _enum_member_table(sf, spec, scope=mapped_type)
+        has_ints = False
+        needs_namespace = (cod_nrenummembers > 0)
+    else:
         if _int_instances(sf, spec, scope=mapped_type):
             id_int = 'intInstances_' + mapped_type_name
 
         needs_namespace = False
-    else:
-        cod_nrenummembers = _enum_member_table(sf, spec, scope=mapped_type)
-        has_ints = False
-        needs_namespace = (cod_nrenummembers > 0)
 
     if cod_nrmethods > 0:
         needs_namespace = True
@@ -2354,7 +2359,7 @@ f'''        SIP_NULLPTR,
         {cod_nrmethods}, {cod_methods},
 ''')
 
-    if spec.target_abi < (13, 0):
+    if _custom_enums_configured(spec):
         cod_enummembers = 'SIP_NULLPTR' if cod_nrenummembers == 0 else 'enummembers_' + mapped_type_name
 
         sf.write(
@@ -5594,10 +5599,10 @@ static sipPySlotDef slots_{klass_name}[] = {{
     # The attributes tables.
     nr_methods = _class_method_table(sf, spec, bindings, klass)
 
-    if spec.target_abi >= (13, 0):
-        nr_enum_members = -1
-    else:
+    if _custom_enums_configured(spec):
         nr_enum_members = _enum_member_table(sf, spec, scope=klass)
+    else:
+        nr_enum_members = -1
 
     # The property and variable handlers.
     nr_variables = 0
@@ -9048,6 +9053,18 @@ def _overload_cpp_name(overload):
     py_slot = overload.common.py_slot
 
     return overload.cpp_name if py_slot is None else _SLOT_NAME_MAP[py_slot]
+
+
+def _py_enums_configured(spec):
+    """ Return True if PyEnums is configured. """
+
+    return spec.target_abi[0] == 13 or (spec.target_abi >= (14, 0) and SipModuleConfiguration.PyEnums in spec.sip_module_configuration))
+
+
+def _custom_enums_configured(spec):
+    """ Return True if CustomEnums is configured. """
+
+    return spec.target_abi[0] < 13 or (spec.target_abi >= (14, 0) and SipModuleConfiguration.CustomEnums in spec.sip_module_configuration))
 
 
 def _py_scope(scope):

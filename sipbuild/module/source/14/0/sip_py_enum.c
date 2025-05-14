@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: BSD-2-Clause */
 
 /*
- * This file implements the enum support.
+ * This file implements the enum support using Python enums.
  *
  * Copyright (c) 2025 Phil Thompson <phil@riverbankcomputing.com>
  */
@@ -15,7 +15,7 @@
 
 #include "sip_core.h"
 
-#include "sip_enum.h"
+#include "sip_py_enum.h"
 
 
 #define IS_UNSIGNED_ENUM(etd)   ((etd)->etd_base_type == SIP_ENUM_UINT_ENUM || (etd)->etd_base_type == SIP_ENUM_INT_FLAG || (etd)->etd_base_type == SIP_ENUM_FLAG)

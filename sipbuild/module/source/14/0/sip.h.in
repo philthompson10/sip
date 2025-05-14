@@ -334,8 +334,7 @@ struct _sipWrapper {
 
 #if defined(SIP_CONFIGURATION_CustomEnums)
 /*
- * The meta-type of an enum type.  (This is exposed only to support the
- * deprecated sipConvertFromNamedEnum() macro.)
+ * The meta-type of an enum type.  (This no longer needs to be in a .h file.)
  */
 struct _sipEnumTypeObject {
     /*
@@ -1389,7 +1388,9 @@ typedef struct _sipAPIDef {
     size_t (*api_long_as_size_t)(PyObject *o);
     void (*api_visit_wrappers)(sipWrapperVisitorFunc visitor, void *closure);
     int (*api_register_exit_notifier)(PyMethodDef *md);
+#if defined(SIP_CONFIGURATION_PyEnums)
     int (*api_is_enum_flag)(PyObject *o);
+#endif
     PyObject *(*api_py_type_dict_ref)(PyTypeObject *);
     void (*unused_public_2)(void);
     void (*unused_public_3)(void);
