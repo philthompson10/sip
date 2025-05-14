@@ -2151,6 +2151,27 @@ PyObject \*sipPyType
 .. seealso:: :directive:`%AccessCode`, :directive:`%GetCode`
 
 
+.. directive:: %SipModuleConfiguration
+
+:directive:`%SipModuleConfiguration`
+------------------------------------
+
+.. parsed-literal::
+    %SipModuleConfiguration {*option* *option* ...}
+
+.. versionadded:: 6.12
+
+This directive is used to specify the configuration options that the project
+expects the :mod:`sip` module to be compiled with.  The directive is only used
+when ABI v14 or later is being targeted.  The configuration options are:
+
+CustomEnums
+    A custom Python object is used to wrap C/C++ enums.
+
+PyEnums
+    The standard Python enum types are used to wrap C/C+ enums.
+
+
 .. directive:: %Timeline
 
 :directive:`%Timeline`
