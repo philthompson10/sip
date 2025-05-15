@@ -11,14 +11,16 @@
 #define PY_SSIZE_T_CLEAN
 #include <Python.h>
 
+#include "sip.h"
+
+#if defined(SIP_CONFIGURATION_PyEnums)
+
 #include <assert.h>
 
 #include "sip_core.h"
 
 #include "sip_enum.h"
 
-
-#if defined(SIP_CONFIGURATION_PyEnums)
 
 #define IS_UNSIGNED_ENUM(etd)   ((etd)->etd_base_type == SIP_ENUM_UINT_ENUM || (etd)->etd_base_type == SIP_ENUM_INT_FLAG || (etd)->etd_base_type == SIP_ENUM_FLAG)
 
@@ -128,7 +130,7 @@ int sip_enum_convert_to_constrained_enum(PyObject *obj, const sipTypeDef *td)
  * Create an enum object and add it to a dictionary.  A negative value is
  * returned (and an exception set) if there was an error.
  */
-int sip_enum_create(sipExportedModuleDef *client, sipEnumTypeDef *etd,
+int sip_enum_create_py_enum(sipExportedModuleDef *client, sipEnumTypeDef *etd,
         sipIntInstanceDef **next_int_p, PyObject *dict)
 {
     int rc;

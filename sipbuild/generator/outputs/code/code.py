@@ -9058,13 +9058,13 @@ def _overload_cpp_name(overload):
 def _py_enums_configured(spec):
     """ Return True if PyEnums is configured. """
 
-    return spec.target_abi[0] == 13 or (spec.target_abi >= (14, 0) and SipModuleConfiguration.PyEnums in spec.sip_module_configuration))
+    return spec.target_abi[0] == 13 or (spec.target_abi >= (14, 0) and SipModuleConfiguration.PyEnums in spec.sip_module_configuration)
 
 
 def _custom_enums_configured(spec):
     """ Return True if CustomEnums is configured. """
 
-    return spec.target_abi[0] < 13 or (spec.target_abi >= (14, 0) and SipModuleConfiguration.CustomEnums in spec.sip_module_configuration))
+    return spec.target_abi[0] < 13 or (spec.target_abi >= (14, 0) and SipModuleConfiguration.CustomEnums in spec.sip_module_configuration)
 
 
 def _py_scope(scope):

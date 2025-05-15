@@ -1643,7 +1643,7 @@ static int sip_api_init_module(sipExportedModuleDef *client,
              */
             td->td_module = client;
 
-            if (etd->etd_scope < 0 && sip_enum_create(client, etd, &next_int, mod_dict) < 0)
+            if (etd->etd_scope < 0 && sip_enum_create_py_enum(client, etd, &next_int, mod_dict) < 0)
                 return -1;
         }
 #endif
@@ -1653,7 +1653,7 @@ static int sip_api_init_module(sipExportedModuleDef *client,
             sipEnumTypeDef *etd = (sipEnumTypeDef *)td;
 
             if (td->td_version < 0 || sipIsRangeEnabled(client, td->td_version))
-                if (sip_enum_create(client, etd, i, mod_dict) < 0)
+                if (sip_enum_create_custom_enum(client, etd, i, mod_dict) < 0)
                     return -1;
 
             /*
@@ -6200,7 +6200,7 @@ static int add_lazy_container_attrs(const sipTypeDef *td, sipContainerDef *cod,
                 sipEnumTypeDef *etd = (sipEnumTypeDef *)enum_td;
 
                 if (module->em_types[etd->etd_scope] == td)
-                    if (sip_enum_create(module, etd, &next_int, dict) < 0)
+                    if (sip_enum_create_py_enum(module, etd, &next_int, dict) < 0)
                         return -1;
             }
         }

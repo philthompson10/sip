@@ -25,18 +25,18 @@ extern "C" {
 /* These are part of the module API. */
 PyObject *sip_api_convert_from_enum(int member, const sipTypeDef *td);
 int sip_api_convert_to_enum(PyObject *obj, const sipTypeDef *td);
-#if defined(SIP_CONFIGURE_PyEnums)
+#if defined(SIP_CONFIGURATION_PyEnums)
 int sip_api_is_enum_flag(PyObject *obj);
 #endif
 
 /* These are internal. */
-#if defined(SIP_CONFIGURE_PyEnums)
-int sip_enum_create(sipExportedModuleDef *client, sipEnumTypeDef *etd,
+#if defined(SIP_CONFIGURATION_PyEnums)
+int sip_enum_create_py_enum(sipExportedModuleDef *client, sipEnumTypeDef *etd,
         sipIntInstanceDef **next_int_p, PyObject *dict);
 #endif
-#if defined(SIP_CONFIGURE_CustonEnums)
-int sip_enum_create(sipExportedModuleDef *client, sipEnumTypeDef *etd,
-        int enum_nr, PyObject *dict);
+#if defined(SIP_CONFIGURATION_CustomEnums)
+int sip_enum_create_custom_enum(sipExportedModuleDef *client,
+        sipEnumTypeDef *etd, int enum_nr, PyObject *dict);
 #endif
 int sip_enum_convert_to_constrained_enum(PyObject *obj, const sipTypeDef *td);
 const sipTypeDef *sip_enum_get_generated_type(PyObject *obj);
