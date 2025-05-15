@@ -1,14 +1,14 @@
 /* SPDX-License-Identifier: BSD-2-Clause */
 
 /*
- * This file defines the API for the enum support.
+ * This file defines the API for the enum support using Python enums.
  *
  * Copyright (c) 2025 Phil Thompson <phil@riverbankcomputing.com>
  */
 
 
-#ifndef _SIP_ENUM_H
-#define _SIP_ENUM_H
+#ifndef _SIP_PY_ENUM_H
+#define _SIP_PY_ENUM_H
 
 
 /* Remove when Python v3.12 is no longer supported. */
@@ -17,6 +17,8 @@
 
 #include "sip.h"
 
+
+#if defined(SIP_CONFIGURE_PyEnums)
 
 #ifdef __cplusplus
 extern "C" {
@@ -36,6 +38,8 @@ int sip_enum_is_enum(PyObject *obj);
 
 #ifdef __cplusplus
 }
+#endif
+
 #endif
 
 #endif

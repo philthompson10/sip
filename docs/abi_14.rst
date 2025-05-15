@@ -1093,7 +1093,9 @@ with the name ``SIP_CONFIGURATION_`` followed by the name of the option.
 
 .. c:function:: int sipIsEnumFlag(PyObject *obj)
 
-    This determines if an object is a sub-class of :py:class:`enum.Flag`.
+    This determines if an object is a sub-class of :py:class:`enum.Flag`.  This
+    is only present if the ``PyEnums`` :mod:`sip` module configuration option
+    is set.
 
     :param obj:
         the object.

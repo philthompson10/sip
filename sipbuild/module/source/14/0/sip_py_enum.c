@@ -18,6 +18,8 @@
 #include "sip_py_enum.h"
 
 
+#if defined(SIP_CONFIGURATION_PyEnums)
+
 #define IS_UNSIGNED_ENUM(etd)   ((etd)->etd_base_type == SIP_ENUM_UINT_ENUM || (etd)->etd_base_type == SIP_ENUM_INT_FLAG || (etd)->etd_base_type == SIP_ENUM_FLAG)
 
 
@@ -559,3 +561,5 @@ static PyObject *missing_int_enum(PyObject *cls, PyObject *value)
 {
     return missing(cls, value, TRUE);
 }
+
+#endif

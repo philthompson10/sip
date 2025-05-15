@@ -23,6 +23,9 @@
 #if defined(SIP_CONFIGURATION_PyEnums)
 #include "sip_py_enum.h"
 #endif
+#if defined(SIP_CONFIGURATION_CustomEnums)
+#include "sip_custom_enum.h"
+#endif
 
 #include "sip_core.h"
 
@@ -876,8 +879,10 @@ const sipAPIDef *sip_init_library(PyObject *mod_dict)
     PyObject *obj;
     PyMethodDef *md;
 
+#if defined(SIP_CONFIGURATION_PyEnums)
     if (sip_enum_init() < 0)
         return NULL;
+#endif
 
     /* Add the SIP version number. */
     obj = PyLong_FromLong(SIP_VERSION);
@@ -1632,6 +1637,7 @@ static int sip_api_init_module(sipExportedModuleDef *client,
             continue;
         }
 
+#if defined(SIP_CONFIGURATION_PyEnums)
         if (sipTypeIsEnum(td))
         {
             sipEnumTypeDef *etd = (sipEnumTypeDef *)td;
@@ -1646,6 +1652,31 @@ static int sip_api_init_module(sipExportedModuleDef *client,
             if (etd->etd_scope < 0 && sip_enum_create(client, etd, &next_int, mod_dict) < 0)
                 return -1;
         }
+#endif
+#if defined(SIP_CONFIGURATION_CustomEnums)
+        if (sipTypeIsEnum(td) || sipTypeIsScopedEnum(td))
+        {
+            sipEnumTypeDef *etd = (sipEnumTypeDef *)td;
+
+            if (td->td_version < 0 || sipIsRangeEnabled(client, td->td_version))
+                if (createEnum(client, etd, i, mod_dict) < 0)
+                    return -1;
+
+            /*
+             * Register the enum pickler for nested enums (non-nested enums
+             * don't need special treatment).
+             */
+            if (sipTypeIsEnum(td) && etd->etd_scope >= 0)
+            {
+                static PyMethodDef md = {
+                    "_pickle_enum", pickle_enum, METH_NOARGS, NULL
+                };
+
+                if (setReduce(sipTypeAsPyTypeObject(td), &md) < 0)
+                    return -1;
+            }
+        }
+#endif
         else if (sipTypeIsMapped(td))
         {
             sipMappedTypeDef *mtd = (sipMappedTypeDef *)td;
@@ -6147,7 +6178,6 @@ static int add_lazy_container_attrs(const sipTypeDef *td, sipContainerDef *cod,
 {
     int i;
     PyMethodDef *pmd;
-    sipIntInstanceDef *next_int;
     sipVariableDef *vd;
 
     /* Do the methods. */
@@ -6161,8 +6191,9 @@ static int add_lazy_container_attrs(const sipTypeDef *td, sipContainerDef *cod,
         }
     }
 
+#if defined(SIP_CONFIGURATION_PyEnums)
     /* Do the enums. */
-    next_int = cod->cod_instances.id_int;
+    sipIntInstanceDef *next_int = cod->cod_instances.id_int;
 
     if (next_int != NULL)
     {
@@ -6194,6 +6225,11 @@ static int add_lazy_container_attrs(const sipTypeDef *td, sipContainerDef *cod,
     /* Any non-int instances. */
     if (addInstances(dict, &cod->cod_instances) < 0)
         return -1;
+#endif
+
+#if defined(SIP_CONFIGURATION_CustomEnums)
+    // ZZZ - copy code from v12
+#endif
 
     /* Do the variables. */
     for (vd = cod->cod_variables, i = 0; i < cod->cod_nrvariables; ++i, ++vd)
