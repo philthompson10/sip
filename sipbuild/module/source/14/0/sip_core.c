@@ -724,7 +724,6 @@ static int createMappedType(sipExportedModuleDef *client,
 static PyObject *pickle_type(PyObject *obj, PyObject *args);
 static PyObject *unpickle_type(PyObject *obj, PyObject *args);
 static int setReduce(PyTypeObject *type, PyMethodDef *pickler);
-static PyObject *createTypeDict(sipExportedModuleDef *em);
 static sipTypeDef *getGeneratedType(const sipEncodedTypeDef *enc,
         sipExportedModuleDef *em);
 static const sipTypeDef *convertSubClass(const sipTypeDef *td, void **cppPtr);
@@ -813,7 +812,6 @@ static PyObject *create_function(PyMethodDef *ml);
 static PyObject *sip_exit(PyObject *self, PyObject *args);
 static sipConvertFromFunc get_from_convertor(const sipTypeDef *td);
 static sipPyObject **autoconversion_disabled(const sipTypeDef *td);
-static void fix_slots(PyTypeObject *py_type, sipPySlotDef *psd);
 static sipFinalFunc find_finalisation(sipClassTypeDef *ctd);
 static PyObject *next_in_mro(PyObject *self, PyObject *after);
 static int super_init(PyObject *self, PyObject *args, PyObject *kwds,
@@ -831,8 +829,6 @@ static int importExceptions(sipExportedModuleDef *client,
         sipImportedModuleDef *im, sipExportedModuleDef *em);
 static int is_subtype(const sipClassTypeDef *ctd,
         const sipClassTypeDef *base_ctd);
-static PyObject *import_module_attr(const char *module, const char *attr);
-static const sipContainerDef *get_container(const sipTypeDef *td);
 static void handle_failed_int_conversion(sipParseFailure *pf, PyObject *arg);
 static void handle_failed_type_conversion(sipParseFailure *pf, PyObject *arg);
 static void raise_no_convert_from(const sipTypeDef *td);
@@ -2802,6 +2798,7 @@ static int parseResult(PyObject *method, PyObject *res,
             case 'e':
                 {
                     int *p = va_arg(va, int *);
+                    // ZZZ - long_as_nonoverflow_int()
                     int v = sip_api_long_as_int(arg);
 
                     if (PyErr_Occurred())
@@ -4303,6 +4300,7 @@ static int parsePass1(PyObject **parseErrp, PyObject **selfp, int *selfargp,
 
                 if (arg != NULL)
                 {
+                    // ZZZ - long_as_nonoverflow_int()
                     int v = sip_api_long_as_int(arg);
 
                     if (PyErr_Occurred())
@@ -5774,7 +5772,7 @@ static int createClassType(sipExportedModuleDef *client, sipClassTypeDef *ctd,
         metatype = (PyObject *)Py_TYPE(PyTuple_GET_ITEM(bases, 0));
 
     /* Create the type dictionary and populate it with any non-lazy methods. */
-    if ((type_dict = createTypeDict(client)) == NULL)
+    if ((type_dict = sip_create_type_dict(client)) == NULL)
         goto relbases;
 
     if (sipTypeHasNonlazyMethod(&ctd->ctd_base))
@@ -5794,7 +5792,7 @@ static int createClassType(sipExportedModuleDef *client, sipClassTypeDef *ctd,
         goto reldict;
 
     if (ctd->ctd_pyslots != NULL)
-        fix_slots((PyTypeObject *)py_type, ctd->ctd_pyslots);
+        sip_fix_slots((PyTypeObject *)py_type, ctd->ctd_pyslots);
 
     /* Handle the pickle function. */
     if (ctd->ctd_pickle != NULL)
@@ -5850,7 +5848,7 @@ static int createMappedType(sipExportedModuleDef *client,
         goto reterr;
 
     /* Create the type dictionary. */
-    if ((type_dict = createTypeDict(client)) == NULL)
+    if ((type_dict = sip_create_type_dict(client)) == NULL)
         goto relbases;
 
     if (createContainerType(&mtd->mtd_container, (sipTypeDef *)mtd, bases, (PyObject *)&sipWrapperType_Type, mod_dict, type_dict, client) == NULL)
@@ -6031,7 +6029,7 @@ static int setReduce(PyTypeObject *type, PyMethodDef *pickler)
 /*
  * Create a type dictionary for dynamic type being created in a module.
  */
-static PyObject *createTypeDict(sipExportedModuleDef *em)
+PyObject *sip_create_type_dict(sipExportedModuleDef *em)
 {
     static PyObject *mstr = NULL;
     PyObject *dict;
@@ -8814,7 +8812,7 @@ static PyObject *sipSimpleWrapper_new(sipWrapperType *wt, PyObject *args,
         PyErr_Format(PyExc_TypeError,
                 "%s.%s represents a mapped type and cannot be instantiated",
                 sipNameOfModule(td->td_module),
-                sipPyNameOfContainer(get_container(td), td));
+                sipPyNameOfContainer(sip_get_container(td), td));
 
         return NULL;
     }
@@ -8825,7 +8823,7 @@ static PyObject *sipSimpleWrapper_new(sipWrapperType *wt, PyObject *args,
         PyErr_Format(PyExc_TypeError,
                 "%s.%s represents a C++ namespace and cannot be instantiated",
                 sipNameOfModule(td->td_module),
-                sipPyNameOfContainer(get_container(td), td));
+                sipPyNameOfContainer(sip_get_container(td), td));
 
         return NULL;
     }
@@ -8845,7 +8843,7 @@ static PyObject *sipSimpleWrapper_new(sipWrapperType *wt, PyObject *args,
             PyErr_Format(PyExc_TypeError,
                     "%s.%s cannot be instantiated or sub-classed",
                     sipNameOfModule(td->td_module),
-                    sipPyNameOfContainer(get_container(td), td));
+                    sipPyNameOfContainer(sip_get_container(td), td));
 
             return NULL;
         }
@@ -8856,7 +8854,7 @@ static PyObject *sipSimpleWrapper_new(sipWrapperType *wt, PyObject *args,
             PyErr_Format(PyExc_TypeError,
                     "%s.%s represents a C++ abstract class and cannot be instantiated",
                     sipNameOfModule(td->td_module),
-                    sipPyNameOfContainer(get_container(td), td));
+                    sipPyNameOfContainer(sip_get_container(td), td));
 
             return NULL;
         }
@@ -11005,7 +11003,7 @@ static int sip_api_register_exit_notifier(PyMethodDef *md)
     static PyObject *register_func = NULL;
     PyObject *notifier, *res;
 
-    if (register_func == NULL && (register_func = import_module_attr("atexit", "register")) == NULL)
+    if (register_func == NULL && (register_func = sip_import_module_attr("atexit", "register")) == NULL)
         return -1;
 
     if ((notifier = PyCFunction_New(md, NULL)) == NULL)
@@ -11138,7 +11136,7 @@ static PyObject *enableAutoconversion(PyObject *self, PyObject *args)
  * versa if either are missing.  This is a bug because they don't have the same
  * API.  We therefore reverse this.
  */
-static void fix_slots(PyTypeObject *py_type, sipPySlotDef *psd)
+void sip_fix_slots(PyTypeObject *py_type, sipPySlotDef *psd)
 {
     while (psd->psd_func != NULL)
     {
@@ -11870,7 +11868,7 @@ static int is_subtype(const sipClassTypeDef *ctd,
 /*
  * Return an attribute of an imported module.
  */
-static PyObject *import_module_attr(const char *module, const char *attr)
+PyObject *sip_import_module_attr(const char *module, const char *attr)
 {
     PyObject *mod_obj, *attr_obj;
 
@@ -11888,7 +11886,7 @@ static PyObject *import_module_attr(const char *module, const char *attr)
 /*
  * Get the container for a generated type.
  */
-static const sipContainerDef *get_container(const sipTypeDef *td)
+const sipContainerDef *sip_get_container(const sipTypeDef *td)
 {
     if (sipTypeIsMapped(td))
         return &((const sipMappedTypeDef *)td)->mtd_container;

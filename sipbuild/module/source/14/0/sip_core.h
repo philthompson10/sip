@@ -130,11 +130,15 @@ const sipTypeDef *sip_api_type_scope(const sipTypeDef *td);
  */
 int sip_add_all_lazy_attrs(const sipTypeDef *td);
 void sip_add_type_slots(PyHeapTypeObject *heap_to, sipPySlotDef *slots);
+PyObject *sip_create_type_dict(sipExportedModuleDef *em);
 int sip_dict_set_and_discard(PyObject *dict, const char *name, PyObject *obj);
+void sip_fix_slots(PyTypeObject *py_type, sipPySlotDef *psd);
+const sipContainerDef *sip_get_container(const sipTypeDef *td);
+sipExportedModuleDef *sip_get_module(PyObject *mname_obj);
 PyObject *sip_get_qualname(const sipTypeDef *td, PyObject *name);
 PyObject *sip_get_scope_dict(sipTypeDef *td, PyObject *mod_dict,
         sipExportedModuleDef *client);
-sipExportedModuleDef *sip_get_module(PyObject *mname_obj);
+PyObject *sip_import_module_attr(const char *module, const char *attr);
 int sip_objectify(const char *s, PyObject **objp);
 
 sipClassTypeDef *sipGetGeneratedClassType(const sipEncodedTypeDef *enc,

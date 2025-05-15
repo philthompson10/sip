@@ -26,12 +26,17 @@ static PyObject *create_scoped_enum(sipExportedModuleDef *client,
         sipEnumTypeDef *etd, int enum_nr, PyObject *name);
 static PyObject *create_unscoped_enum(sipExportedModuleDef *client,
         sipEnumTypeDef *etd, PyObject *name);
+static void enum_expected(PyObject *obj, const sipTypeDef *td);
+static int long_as_nonoverflow_int(PyObject *val_obj);
 static PyObject *sipEnumType_alloc(PyTypeObject *self, Py_ssize_t nitems);
 static PyObject *sipEnumType_getattro(PyObject *self, PyObject *name);
 
 
 /* The enum unpickler Python function. */
 PyObject *sip_enum_custom_enum_unpickler = NULL;
+
+/* The custom enum in the process of being created. */
+static sipTypeDef *currentEnum = NULL;
 
 
 /*
@@ -341,7 +346,7 @@ static int convert_to_enum(PyObject *obj, const sipTypeDef *td, int allow_int)
             return -1;
         }
 
-        if (objectify("value", &value) < 0)
+        if (sip_objectify("value", &value) < 0)
             return -1;
 
         if ((val_obj = PyObject_GetAttr(obj, value)) == NULL)
@@ -395,7 +400,7 @@ static PyObject *create_scoped_enum(sipExportedModuleDef *client,
     /* Get the enum type if we haven't done so already. */
     if (enum_type == NULL)
     {
-        if ((enum_type = import_module_attr("enum", "IntEnum")) == NULL)
+        if ((enum_type = sip_import_module_attr("enum", "IntEnum")) == NULL)
             goto ret_err;
     }
 
@@ -415,7 +420,7 @@ static PyObject *create_scoped_enum(sipExportedModuleDef *client,
     }
     else
     {
-        const sipContainerDef *cod = get_container(client->em_types[etd->etd_scope]);
+        const sipContainerDef *cod = sip_get_container(client->em_types[etd->etd_scope]);
 
         nr_members = cod->cod_nrenummembers;
         enm = cod->cod_enummembers;
@@ -427,7 +432,7 @@ static PyObject *create_scoped_enum(sipExportedModuleDef *client,
         {
             PyObject *val = PyLong_FromLong(enm->em_val);
 
-            if (dict_set_and_discard(members, enm->em_name, val) < 0)
+            if (sip_dict_set_and_discard(members, enm->em_name, val) < 0)
                 goto rel_members;
         }
 
@@ -440,7 +445,7 @@ static PyObject *create_scoped_enum(sipExportedModuleDef *client,
     if ((kw_args = PyDict_New()) == NULL)
         goto rel_args;
 
-    if (objectify("module", &module_arg) < 0)
+    if (sip_objectify("module", &module_arg) < 0)
         goto rel_kw_args;
 
     if (PyDict_SetItem(kw_args, module_arg, client->em_nameobj) < 0)
@@ -454,10 +459,10 @@ static PyObject *create_scoped_enum(sipExportedModuleDef *client,
         int rc;
         PyObject *qualname;
 
-        if (objectify("qualname", &qualname_arg) < 0)
+        if (sip_objectify("qualname", &qualname_arg) < 0)
             goto rel_kw_args;
 
-        if ((qualname = get_qualname(client->em_types[etd->etd_scope], name)) == NULL)
+        if ((qualname = sip_get_qualname(client->em_types[etd->etd_scope], name)) == NULL)
             goto rel_kw_args;
 
         rc = PyDict_SetItem(kw_args, qualname_arg, qualname);
@@ -512,7 +517,7 @@ static PyObject *create_unscoped_enum(sipExportedModuleDef *client,
             return NULL;
 
     /* Create the type dictionary. */
-    if ((type_dict = createTypeDict(client)) == NULL)
+    if ((type_dict = sip_create_type_dict(client)) == NULL)
         return NULL;
 
     /* Create the type by calling the metatype. */
@@ -524,11 +529,11 @@ static PyObject *create_unscoped_enum(sipExportedModuleDef *client,
         return NULL;
 
     /* Pass the type via the back door. */
-    assert(currentType == NULL);
-    currentType = &etd->etd_base;
+    assert(currentEnum == NULL);
+    currentEnum = &etd->etd_base;
     eto = (sipEnumTypeObject *)PyObject_Call((PyObject *)&sipEnumType_Type,
             args, NULL);
-    currentType = NULL;
+    currentEnum = NULL;
 
     Py_DECREF(args);
 
@@ -536,7 +541,7 @@ static PyObject *create_unscoped_enum(sipExportedModuleDef *client,
         return NULL;
 
     if (etd->etd_pyslots != NULL)
-        fix_slots((PyTypeObject *)eto, etd->etd_pyslots);
+        sip_fix_slots((PyTypeObject *)eto, etd->etd_pyslots);
 
     /*
      * If the enum has a scope then the default __qualname__ will be incorrect.
@@ -545,7 +550,7 @@ static PyObject *create_unscoped_enum(sipExportedModuleDef *client,
      {
         /* Append the name of the enum to the scope's __qualname__. */
         Py_CLEAR(eto->super.ht_qualname);
-        eto->super.ht_qualname = get_qualname(
+        eto->super.ht_qualname = sip_get_qualname(
                 client->em_types[etd->etd_scope], name);
 
         if (eto->super.ht_qualname == NULL)
@@ -560,6 +565,29 @@ static PyObject *create_unscoped_enum(sipExportedModuleDef *client,
 
 
 /*
+ * Raise an exception when failing to convert an enum because of its type.
+ */
+static void enum_expected(PyObject *obj, const sipTypeDef *td)
+{
+    PyErr_Format(PyExc_TypeError, "a member of enum '%s' is expected not '%s'",
+            sipPyNameOfEnum((sipEnumTypeDef *)td), Py_TYPE(obj)->tp_name);
+}
+
+
+/* Convert to a C/C++ int while checking for overflow. */
+static int long_as_nonoverflow_int(PyObject *val_obj)
+{
+    int old_overflow, val;
+
+    old_overflow = sip_api_enable_overflow_checking(TRUE);
+    val = sip_api_long_as_int(val_obj);
+    sip_api_enable_overflow_checking(old_overflow);
+
+    return val;
+}
+
+
+/*
  * The enum type alloc slot.
  */
 static PyObject *sipEnumType_alloc(PyTypeObject *self, Py_ssize_t nitems)
@@ -567,13 +595,13 @@ static PyObject *sipEnumType_alloc(PyTypeObject *self, Py_ssize_t nitems)
     sipEnumTypeObject *py_type;
     sipPySlotDef *psd;
 
-    if (currentType == NULL)
+    if (currentEnum == NULL)
     {
         PyErr_SetString(PyExc_TypeError, "enums cannot be sub-classed");
         return NULL;
     }
 
-    assert(sipTypeIsEnum(currentType));
+    assert(sipTypeIsEnum(currentEnum));
 
     /* Call the standard super-metatype alloc. */
     if ((py_type = (sipEnumTypeObject *)PyType_Type.tp_alloc(self, nitems)) == NULL)
@@ -583,15 +611,15 @@ static PyObject *sipEnumType_alloc(PyTypeObject *self, Py_ssize_t nitems)
      * Set the links between the Python type object and the generated type
      * structure.  Strictly speaking this doesn't need to be done here.
      */
-    py_type->type = currentType;
-    currentType->td_py_type = (PyTypeObject *)py_type;
+    py_type->type = currentEnum;
+    currentEnum->td_py_type = (PyTypeObject *)py_type;
 
     /*
      * Initialise any slots.  This must be done here, after the type is
      * allocated but before PyType_Ready() is called.
      */
-    if ((psd = ((sipEnumTypeDef *)currentType)->etd_pyslots) != NULL)
-        addTypeSlots(&py_type->super, psd);
+    if ((psd = ((sipEnumTypeDef *)currentEnum)->etd_pyslots) != NULL)
+        sip_add_type_slots(&py_type->super, psd);
 
     return (PyObject *)py_type;
 }
@@ -641,7 +669,7 @@ static PyObject *sipEnumType_getattro(PyObject *self, PyObject *name)
     }
     else
     {
-        const sipContainerDef *cod = get_container(client->em_types[etd->etd_scope]);
+        const sipContainerDef *cod = sip_get_container(client->em_types[etd->etd_scope]);
 
         nr_members = cod->cod_nrenummembers;
         enm = cod->cod_enummembers;
