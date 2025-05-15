@@ -15,7 +15,7 @@
 
 #include "sip_core.h"
 
-#include "sip_py_enum.h"
+#include "sip_enum.h"
 
 
 #if defined(SIP_CONFIGURATION_PyEnums)
@@ -111,6 +111,16 @@ int sip_api_convert_to_enum(PyObject *obj, const sipTypeDef *td)
 int sip_api_is_enum_flag(PyObject *obj)
 {
     return (PyObject_IsSubclass(obj, flag_type) == 1);
+}
+
+
+/*
+ * Convert a Python object implementing a constrained enum to an integer value.
+ */
+int sip_enum_convert_to_constrained_enum(PyObject *obj, const sipTypeDef *td)
+{
+    /* There is no difference between constrained and unconstrained enums. */
+    return sip_api_convert_to_enum(obj, td);
 }
 
 
@@ -249,7 +259,6 @@ int sip_enum_is_enum(PyObject *obj)
 {
     return (PyObject_IsSubclass(obj, enum_type) == 1);
 }
-
 
 
 /*

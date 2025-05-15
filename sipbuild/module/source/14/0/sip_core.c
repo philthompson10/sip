@@ -18,16 +18,10 @@
 #include <stddef.h>
 #include <string.h>
 
-#include "sip.h"
-#include "sip_array.h"
-#if defined(SIP_CONFIGURATION_PyEnums)
-#include "sip_py_enum.h"
-#endif
-#if defined(SIP_CONFIGURATION_CustomEnums)
-#include "sip_custom_enum.h"
-#endif
-
 #include "sip_core.h"
+
+#include "sip_array.h"
+#include "sip_enum.h"
 
 
 /*
@@ -881,10 +875,8 @@ const sipAPIDef *sip_init_library(PyObject *mod_dict)
     PyObject *obj;
     PyMethodDef *md;
 
-#if defined(SIP_CONFIGURATION_PyEnums)
     if (sip_enum_init() < 0)
         return NULL;
-#endif
 
     /* Add the SIP version number. */
     obj = PyLong_FromLong(SIP_VERSION);
@@ -1661,7 +1653,7 @@ static int sip_api_init_module(sipExportedModuleDef *client,
             sipEnumTypeDef *etd = (sipEnumTypeDef *)td;
 
             if (td->td_version < 0 || sipIsRangeEnabled(client, td->td_version))
-                if (createEnum(client, etd, i, mod_dict) < 0)
+                if (sip_enum_create(client, etd, i, mod_dict) < 0)
                     return -1;
 
             /*
@@ -4569,18 +4561,12 @@ static int parsePass1(PyObject **parseErrp, PyObject **selfp, int *selfargp,
 
                 if (sub_fmt == 'E')
                 {
-                    /*
-                     * Named or scoped enum.  Note that in this version of the
-                     * ABI there is no difference between constrained and
-                     * unconstrained enums.
-                     */
-
                     sipTypeDef *td = va_arg(va, sipTypeDef *);
                     int *p = va_arg(va, int *);
 
                     if (arg != NULL)
                     {
-                        *p = sip_api_convert_to_enum(arg, td);
+                        *p = sip_enum_convert_to_constrained_enum(arg, td);
 
                         if (PyErr_Occurred())
                             handle_failed_type_conversion(&failure, arg);
@@ -8505,6 +8491,22 @@ static void *findSlot(PyObject *self, sipPySlotType st)
 
         slot = findSlotInClass(ctd, st);
     }
+    // ZZZ - this code is from v12
+#if 0
+    else
+    {
+        sipEnumTypeDef *etd;
+
+        /* If it is not a wrapper then it must be an enum. */
+        assert(PyObject_TypeCheck((PyObject *)py_type, &sipEnumType_Type));
+
+        etd = (sipEnumTypeDef *)((sipEnumTypeObject *)(py_type))->type;
+
+        assert(etd->etd_pyslots != NULL);
+
+        slot = findSlotInSlotList(etd->etd_pyslots, st);
+    }
+#endif
 
     return slot;
 }
