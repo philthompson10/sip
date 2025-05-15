@@ -503,6 +503,8 @@ static const sipAPIDef sip_api = {
     sip_api_register_exit_notifier,
 #if defined(SIP_CONFIGURATION_PyEnums)
     sip_api_is_enum_flag,
+#else
+    NULL,
 #endif
     sip_api_py_type_dict_ref,
     NULL,

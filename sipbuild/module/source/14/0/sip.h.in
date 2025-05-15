@@ -1255,7 +1255,8 @@ typedef struct _sipTypeInstanceDef {
 
 /*
  * The API exported by the SIP module, ie. pointers to all the data and
- * functions that can be used by generated code.
+ * functions that can be used by generated code.  Note that the offset of each
+ * field doesn't change if the module configuration options do change.
  */
 typedef struct _sipAPIDef {
     /*
@@ -1390,6 +1391,8 @@ typedef struct _sipAPIDef {
     int (*api_register_exit_notifier)(PyMethodDef *md);
 #if defined(SIP_CONFIGURATION_PyEnums)
     int (*api_is_enum_flag)(PyObject *o);
+#else
+    void (*reserved_1)(void);
 #endif
     PyObject *(*api_py_type_dict_ref)(PyTypeObject *);
     void (*unused_public_2)(void);
