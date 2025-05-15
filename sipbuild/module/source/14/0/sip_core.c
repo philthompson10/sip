@@ -714,8 +714,6 @@ static void *cast_cpp_ptr(void *ptr, PyTypeObject *src_type,
 static void finalise(void);
 static PyObject *getDefaultBase(void);
 static PyObject *getDefaultSimpleBase(void);
-static PyObject *getScopeDict(sipTypeDef *td, PyObject *mod_dict,
-        sipExportedModuleDef *client);
 static PyObject *createContainerType(sipContainerDef *cod, sipTypeDef *td,
         PyObject *bases, PyObject *metatype, PyObject *mod_dict,
         PyObject *type_dict, sipExportedModuleDef *client);
@@ -723,7 +721,6 @@ static int createClassType(sipExportedModuleDef *client, sipClassTypeDef *ctd,
         PyObject *mod_dict);
 static int createMappedType(sipExportedModuleDef *client,
         sipMappedTypeDef *mtd, PyObject *mod_dict);
-static sipExportedModuleDef *getModule(PyObject *mname_obj);
 static PyObject *pickle_type(PyObject *obj, PyObject *args);
 static PyObject *unpickle_type(PyObject *obj, PyObject *args);
 static int setReduce(PyTypeObject *type, PyMethodDef *pickler);
@@ -851,6 +848,10 @@ const sipAPIDef *sip_init_library(PyObject *mod_dict)
     static PyMethodDef methods[] = {
         /* The type unpickler must be first. */
         {"_unpickle_type", unpickle_type, METH_VARARGS, NULL},
+#if defined(SIP_CONFIGURATION_CustomEnums)
+        /* The custom enum unpickler must be second. */
+        {"_unpickle_enum", sip_enum_unpickle_custom_enum, METH_VARARGS, NULL},
+#endif
         {"assign", assign, METH_VARARGS, NULL},
         {"cast", cast, METH_VARARGS, NULL},
         {"delete", callDtor, METH_VARARGS, NULL},
@@ -910,6 +911,13 @@ const sipAPIDef *sip_init_library(PyObject *mod_dict)
             Py_INCREF(meth);
             type_unpickler = meth;
         }
+#if defined(SIP_CONFIGURATION_CustomEnums)
+        else if (md == &methods[1])
+        {
+            Py_INCREF(meth);
+            sip_enum_custom_enum_unpickler = meth;
+        }
+#endif
     }
 
     /* Initialise the types. */
@@ -1652,9 +1660,8 @@ static int sip_api_init_module(sipExportedModuleDef *client,
         {
             sipEnumTypeDef *etd = (sipEnumTypeDef *)td;
 
-            if (td->td_version < 0 || sipIsRangeEnabled(client, td->td_version))
-                if (sip_enum_create_custom_enum(client, etd, i, mod_dict) < 0)
-                    return -1;
+            if (sip_enum_create_custom_enum(client, etd, i, mod_dict) < 0)
+                return -1;
 
             /*
              * Register the enum pickler for nested enums (non-nested enums
@@ -1663,7 +1670,8 @@ static int sip_api_init_module(sipExportedModuleDef *client,
             if (sipTypeIsEnum(td) && etd->etd_scope >= 0)
             {
                 static PyMethodDef md = {
-                    "_pickle_enum", pickle_enum, METH_NOARGS, NULL
+                    "_pickle_enum", sip_enum_pickle_custom_enum, METH_NOARGS,
+                    NULL
                 };
 
                 if (setReduce(sipTypeAsPyTypeObject(td), &md) < 0)
@@ -5565,7 +5573,7 @@ static PyObject *getDefaultSimpleBase(void)
 /*
  * Return the dictionary of a type.
  */
-static PyObject *getScopeDict(sipTypeDef *td, PyObject *mod_dict,
+PyObject *sip_get_scope_dict(sipTypeDef *td, PyObject *mod_dict,
         sipExportedModuleDef *client)
 {
     /*
@@ -5609,7 +5617,7 @@ static PyObject *createContainerType(sipContainerDef *cod, sipTypeDef *td,
     else
     {
         scope_td = getGeneratedType(&cod->cod_scope, client);
-        scope_dict = getScopeDict(scope_td, mod_dict, client);
+        scope_dict = sip_get_scope_dict(scope_td, mod_dict, client);
 
         if (scope_dict == NULL)
             goto reterr;
@@ -5871,7 +5879,7 @@ reterr:
 /*
  * Return the module definition for a named module.
  */
-static sipExportedModuleDef *getModule(PyObject *mname_obj)
+sipExportedModuleDef *sip_get_module(PyObject *mname_obj)
 {
     PyObject *mod;
     sipExportedModuleDef *em;
@@ -5911,7 +5919,7 @@ static PyObject *unpickle_type(PyObject *obj, PyObject *args)
         return NULL;
 
     /* Get the module definition. */
-    if ((em = getModule(mname_obj)) == NULL)
+    if ((em = sip_get_module(mname_obj)) == NULL)
         return NULL;
 
     /* Find the class type object. */
@@ -6383,7 +6391,7 @@ static const sipTypeDef *sip_api_type_from_py_type_object(PyTypeObject *py_type)
     if (PyObject_TypeCheck((PyObject *)py_type, &sipWrapperType_Type))
         return ((sipWrapperType *)py_type)->wt_td;
 
-    return sip_enum_get_generated_type((PyObject *)py_type);
+    return sip_enum_get_generated_type(py_type);
 }
 
 

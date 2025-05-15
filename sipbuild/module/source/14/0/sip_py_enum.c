@@ -162,13 +162,13 @@ int sip_enum_create_py_enum(sipExportedModuleDef *client, sipEnumTypeDef *etd,
  * Return the generated type structure for a Python enum object that wraps a
  * C/C++ enum or NULL (and no exception set) if the object is something else.
  */
-const sipTypeDef *sip_enum_get_generated_type(PyObject *obj)
+const sipTypeDef *sip_enum_get_generated_type(PyTypeObject *py_type)
 {
-    if (sip_enum_is_enum(obj))
+    if (sip_enum_is_enum((PyObject *)py_type))
     {
         PyObject *etd_cap;
 
-        if ((etd_cap = PyObject_GetAttr(obj, str_dunder_sip)) != NULL)
+        if ((etd_cap = PyObject_GetAttr((PyObject *)py_type, str_dunder_sip)) != NULL)
         {
             sipTypeDef *td = (sipTypeDef *)PyCapsule_GetPointer(etd_cap, NULL);
 

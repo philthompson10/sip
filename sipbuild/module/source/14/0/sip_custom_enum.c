@@ -22,10 +22,16 @@
 
 /* Forward references. */
 static int convert_to_enum(PyObject *obj, const sipTypeDef *td, int allow_int);
+static PyObject *create_scoped_enum(sipExportedModuleDef *client,
+        sipEnumTypeDef *etd, int enum_nr, PyObject *name);
 static PyObject *create_unscoped_enum(sipExportedModuleDef *client,
         sipEnumTypeDef *etd, PyObject *name);
 static PyObject *sipEnumType_alloc(PyTypeObject *self, Py_ssize_t nitems);
 static PyObject *sipEnumType_getattro(PyObject *self, PyObject *name);
+
+
+/* The enum unpickler Python function. */
+PyObject *sip_enum_custom_enum_unpickler = NULL;
 
 
 /*
@@ -122,7 +128,7 @@ int sip_enum_convert_to_constrained_enum(PyObject *obj, const sipTypeDef *td)
  * returned (and an exception set) if there was an error.
  */
 int sip_enum_create_custom_enum(sipExportedModuleDef *client,
-        sipEnumTypeDef *etd, int enum_nr, PyObject *dict)
+        sipEnumTypeDef *etd, int enum_nr, PyObject *mod_dict)
 {
     int rc;
     PyObject *name, *dict, *enum_obj;
@@ -132,7 +138,7 @@ int sip_enum_create_custom_enum(sipExportedModuleDef *client,
     /* Get the dictionary into which the type will be placed. */
     if (etd->etd_scope < 0)
         dict = mod_dict;
-    else if ((dict = getScopeDict(client->em_types[etd->etd_scope], mod_dict, client)) == NULL)
+    else if ((dict = sip_get_scope_dict(client->em_types[etd->etd_scope], mod_dict, client)) == NULL)
         return -1;
 
     /* Create an object corresponding to the type name. */
@@ -163,28 +169,13 @@ int sip_enum_create_custom_enum(sipExportedModuleDef *client,
 
 
 /*
- * Return the generated type structure for a Python enum object that wraps a
+ * Return the generated type structure for a custom enum object that wraps a
  * C/C++ enum or NULL (and no exception set) if the object is something else.
  */
-// ZZZ
-// See sip_api_type_from_py_type_object() in v12 for the implementation.
-const sipTypeDef *sip_enum_get_generated_type(PyObject *obj)
+const sipTypeDef *sip_enum_get_generated_type(PyTypeObject *py_type)
 {
-    if (sip_enum_is_enum(obj))
-    {
-        PyObject *etd_cap;
-
-        if ((etd_cap = PyObject_GetAttr(obj, str_dunder_sip)) != NULL)
-        {
-            sipTypeDef *td = (sipTypeDef *)PyCapsule_GetPointer(etd_cap, NULL);
-
-            Py_DECREF(etd_cap);
-
-            return td;
-        }
-
-        PyErr_Clear();
-    }
+    if (PyObject_TypeCheck((PyObject *)py_type, &sipEnumType_Type))
+        return ((sipEnumTypeObject *)py_type)->type;
 
     return NULL;
 }
@@ -202,6 +193,7 @@ int sip_enum_init(void)
     if (PyType_Ready(&sipEnumType_Type) < 0)
         return -1;
 
+#if 0
     PyObject *builtins, *enum_module;
 
     /* Get the builtin types. */
@@ -261,6 +253,7 @@ int sip_enum_init(void)
 
     if (sip_objectify("value", &str_value) < 0)
         return -1;
+#endif
 
     return 0;
 }
@@ -273,7 +266,57 @@ int sip_enum_init(void)
 // Needed for '&', '^' format character support.  Lack of support in v12 is a bug.  Will need to import the enum module (see sip_enum_init() in v13.
 int sip_enum_is_enum(PyObject *obj)
 {
-    return (PyObject_IsSubclass(obj, enum_type) == 1);
+    return 0;
+}
+
+
+/*
+ * The enum pickler.
+ */
+PyObject *sip_enum_pickle_custom_enum(PyObject *obj, PyObject *args)
+{
+    sipTypeDef *td = ((sipEnumTypeObject *)Py_TYPE(obj))->type;
+
+    (void)args;
+
+    return Py_BuildValue("O(Osi)", sip_enum_custom_enum_unpickler,
+            td->td_module->em_nameobj, sipPyNameOfEnum((sipEnumTypeDef *)td),
+            (int)PyLong_AS_LONG(obj));
+}
+
+
+/*
+ * The enum unpickler.
+ */
+PyObject *sip_enum_unpickle_custom_enum(PyObject *obj, PyObject *args)
+{
+    PyObject *mname_obj, *evalue_obj;
+    const char *ename;
+    sipExportedModuleDef *em;
+    int i;
+
+    (void)obj;
+
+    if (!PyArg_ParseTuple(args, "UsO:_unpickle_enum", &mname_obj, &ename, &evalue_obj))
+        return NULL;
+
+    /* Get the module definition. */
+    if ((em = sip_get_module(mname_obj)) == NULL)
+        return NULL;
+
+    /* Find the enum type object. */
+    for (i = 0; i < em->em_nrtypes; ++i)
+    {
+        sipTypeDef *td = em->em_types[i];
+
+        if (td != NULL && !sipTypeIsStub(td) && sipTypeIsEnum(td))
+            if (strcmp(sipPyNameOfEnum((sipEnumTypeDef *)td), ename) == 0)
+                return PyObject_CallFunctionObjArgs((PyObject *)sipTypeAsPyTypeObject(td), evalue_obj, NULL);
+    }
+
+    PyErr_Format(PyExc_SystemError, "unable to find to find enum: %s", ename);
+
+    return NULL;
 }
 
 
@@ -340,7 +383,7 @@ static int convert_to_enum(PyObject *obj, const sipTypeDef *td, int allow_int)
 /*
  * Create a scoped enum.
  */
-static PyObject *createScopedEnum(sipExportedModuleDef *client,
+static PyObject *create_scoped_enum(sipExportedModuleDef *client,
         sipEnumTypeDef *etd, int enum_nr, PyObject *name)
 {
     static PyObject *enum_type = NULL, *module_arg = NULL;

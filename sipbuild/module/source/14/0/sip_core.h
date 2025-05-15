@@ -132,6 +132,9 @@ int sip_add_all_lazy_attrs(const sipTypeDef *td);
 void sip_add_type_slots(PyHeapTypeObject *heap_to, sipPySlotDef *slots);
 int sip_dict_set_and_discard(PyObject *dict, const char *name, PyObject *obj);
 PyObject *sip_get_qualname(const sipTypeDef *td, PyObject *name);
+PyObject *sip_get_scope_dict(sipTypeDef *td, PyObject *mod_dict,
+        sipExportedModuleDef *client);
+sipExportedModuleDef *sip_get_module(PyObject *mname_obj);
 int sip_objectify(const char *s, PyObject **objp);
 
 sipClassTypeDef *sipGetGeneratedClassType(const sipEncodedTypeDef *enc,
