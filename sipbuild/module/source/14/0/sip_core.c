@@ -2798,7 +2798,6 @@ static int parseResult(PyObject *method, PyObject *res,
             case 'e':
                 {
                     int *p = va_arg(va, int *);
-                    // ZZZ - long_as_nonoverflow_int()
                     int v = sip_api_long_as_int(arg);
 
                     if (PyErr_Occurred())
@@ -4300,7 +4299,6 @@ static int parsePass1(PyObject **parseErrp, PyObject **selfp, int *selfargp,
 
                 if (arg != NULL)
                 {
-                    // ZZZ - long_as_nonoverflow_int()
                     int v = sip_api_long_as_int(arg);
 
                     if (PyErr_Occurred())

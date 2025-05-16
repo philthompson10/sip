@@ -146,11 +146,6 @@ typedef struct _sipCFunctionDef sipCFunctionDef;
 struct _sipDateDef;
 typedef struct _sipDateDef sipDateDef;
 
-#if defined(SIP_CONFIGURATION_CustomEnums)
-struct _sipEnumTypeObject;
-typedef struct _sipEnumTypeObject sipEnumTypeObject;
-#endif
-
 struct _sipMethodDef;
 typedef struct _sipMethodDef sipMethodDef;
 
@@ -330,23 +325,6 @@ struct _sipWrapper {
     /* Owning object. */
     struct _sipWrapper *parent;
 };
-
-
-#if defined(SIP_CONFIGURATION_CustomEnums)
-/*
- * The meta-type of an enum type.  (This no longer needs to be in a .h file.)
- */
-struct _sipEnumTypeObject {
-    /*
-     * The super-metatype.  This must be first in the structure so that it can
-     * be cast to a PyTypeObject *.
-     */
-    PyHeapTypeObject super;
-
-    /* The generated type structure. */
-    struct _sipTypeDef *type;
-};
-#endif
 #endif
 
 

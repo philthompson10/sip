@@ -27,7 +27,6 @@ static PyObject *create_scoped_enum(sipExportedModuleDef *client,
 static PyObject *create_unscoped_enum(sipExportedModuleDef *client,
         sipEnumTypeDef *etd, PyObject *name);
 static void enum_expected(PyObject *obj, const sipTypeDef *td);
-static int long_as_nonoverflow_int(PyObject *val_obj);
 static PyObject *sipEnumType_alloc(PyTypeObject *self, Py_ssize_t nitems);
 static PyObject *sipEnumType_getattro(PyObject *self, PyObject *name);
 
@@ -353,7 +352,7 @@ static int convert_to_enum(PyObject *obj, const sipTypeDef *td, int allow_int)
             return -1;
 
         /* This will never overflow. */
-        val = long_as_nonoverflow_int(val_obj);
+        val = sip_api_long_as_int(val_obj);
 
         Py_DECREF(val_obj);
     }
@@ -368,11 +367,11 @@ static int convert_to_enum(PyObject *obj, const sipTypeDef *td, int allow_int)
             }
 
             /* This will never overflow. */
-            val = long_as_nonoverflow_int(obj);
+            val = sip_api_long_as_int(obj);
         }
         else if (allow_int && PyLong_Check(obj))
         {
-            val = long_as_nonoverflow_int(obj);
+            val = sip_api_long_as_int(obj);
         }
         else
         {
@@ -571,19 +570,6 @@ static void enum_expected(PyObject *obj, const sipTypeDef *td)
 {
     PyErr_Format(PyExc_TypeError, "a member of enum '%s' is expected not '%s'",
             sipPyNameOfEnum((sipEnumTypeDef *)td), Py_TYPE(obj)->tp_name);
-}
-
-
-/* Convert to a C/C++ int while checking for overflow. */
-static int long_as_nonoverflow_int(PyObject *val_obj)
-{
-    int old_overflow, val;
-
-    old_overflow = sip_api_enable_overflow_checking(TRUE);
-    val = sip_api_long_as_int(val_obj);
-    sip_api_enable_overflow_checking(old_overflow);
-
-    return val;
 }
 
 

@@ -34,7 +34,24 @@ int sip_api_is_enum_flag(PyObject *obj);
 int sip_enum_create_py_enum(sipExportedModuleDef *client, sipEnumTypeDef *etd,
         sipIntInstanceDef **next_int_p, PyObject *dict);
 #endif
+
 #if defined(SIP_CONFIGURATION_CustomEnums)
+/*
+ * The meta-type of a custom enum type.
+ */
+struct _sipEnumTypeObject {
+    /*
+     * The super-metatype.  This must be first in the structure so that it can
+     * be cast to a PyTypeObject *.
+     */
+    PyHeapTypeObject super;
+
+    /* The generated type structure. */
+    sipTypeDef *type;
+};
+
+typedef struct _sipEnumTypeObject sipEnumTypeObject;
+
 extern PyObject *sip_enum_custom_enum_unpickler;
 
 int sip_enum_create_custom_enum(sipExportedModuleDef *client,
@@ -42,6 +59,7 @@ int sip_enum_create_custom_enum(sipExportedModuleDef *client,
 PyObject *sip_enum_pickle_custom_enum(PyObject *obj, PyObject *args);
 PyObject *sip_enum_unpickle_custom_enum(PyObject *obj, PyObject *args);
 #endif
+
 int sip_enum_convert_to_constrained_enum(PyObject *obj, const sipTypeDef *td);
 const sipTypeDef *sip_enum_get_generated_type(PyTypeObject *py_type);
 int sip_enum_init(void);
