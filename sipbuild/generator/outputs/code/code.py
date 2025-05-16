@@ -6,6 +6,7 @@
 import os
 
 from ....exceptions import UserException
+from ....sip_module_configuration import SipModuleConfiguration
 from ....version import SIP_VERSION_STR
 
 from ...python_slots import (is_hash_return_slot, is_inplace_number_slot,

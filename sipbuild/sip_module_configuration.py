@@ -61,6 +61,39 @@ def apply_module_option(module_configuration, option_name):
     return module_configuration | option
 
 
+def incompatible_module_configurations(module_configuration, other):
+    """ Return True if an integer value (which may contain flags from a later
+    version that we don't know about) is incompatible with a module
+    configuration.
+    """
+
+    return (
+        _incompatible(module_configuration, other,
+                SipModuleConfiguration.PyEnums,
+                SipModuleConfiguration.CustomEnums)
+    or
+        _incompatible(module_configuration, other,
+                SipModuleConfiguration.NoRootSipModule,
+                SipModuleConfiguration.RootSipModule)
+    )
+
+
+def _incompatible(module_configuration, other, option, converse):
+    """ Check for incompatibility for an option and its converse. """
+
+    return (
+        _check_incompatibility(module_configuration, other, option, converse)
+    or
+        _check_incompatibility(module_configuration, other, converse, option)
+    )
+
+
+def _check_incompatibility(module_configuration, other, option, converse):
+    """ Check for incompatibility for an option. """
+
+    return (option in module_configuration) and (converse.value & other)
+
+
 def _verify_option(module_configuration, new, option, converse):
     """ Verify that a new option is compatible with existing ones. """
 

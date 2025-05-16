@@ -154,6 +154,8 @@ class BuildableBindings(BuildableModule):
 
         self.bindings = bindings
 
+        self.sip_module_configuration = None
+
     def get_bindings_installable(self, name):
         """ Return an installable for the buildable's bindings directory. """
 
@@ -188,9 +190,12 @@ class BuildableBindings(BuildableModule):
                     ['"{}"'.format(f) for f in bindings.disabled_features])
 
             cf.write("# Automatically generated configuration for {0}.\n".format(self.fq_name))
-            cf.write('''
-sip-version = "{}"
-sip-abi-version = "{}"
-module-tags = [{}]
-module-disabled-features = [{}]
-'''.format(sip_version_str, self.project.abi_version, tags, disabled))
+            cf.write(f'''
+sip-version = "{sip_version_str}"
+sip-abi-version = "{self.project.abi_version}"
+module-tags = [{tags}]
+module-disabled-features = [{disabled}]
+''')
+
+            if self.project.target_abi >= (14, 0):
+                cf.write(f'sip-module-configuration = {self.sip_module_configuration}\n')
