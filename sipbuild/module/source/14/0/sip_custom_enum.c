@@ -20,6 +20,10 @@
 
 #if defined(SIP_CONFIGURATION_CustomEnums)
 
+static PyObject *enum_type = NULL;              /* The enum.Enum type. */
+static PyObject *int_enum_type = NULL;          /* The enum.IntEnum type. */
+
+
 /* Forward references. */
 static int convert_to_enum(PyObject *obj, const sipTypeDef *td, int allow_int);
 static PyObject *create_scoped_enum(sipExportedModuleDef *client,
@@ -27,6 +31,7 @@ static PyObject *create_scoped_enum(sipExportedModuleDef *client,
 static PyObject *create_unscoped_enum(sipExportedModuleDef *client,
         sipEnumTypeDef *etd, PyObject *name);
 static void enum_expected(PyObject *obj, const sipTypeDef *td);
+static int init_enum_module_types();
 static PyObject *sipEnumType_alloc(PyTypeObject *self, Py_ssize_t nitems);
 static PyObject *sipEnumType_getattro(PyObject *self, PyObject *name);
 
@@ -189,88 +194,23 @@ const sipTypeDef *sip_enum_get_generated_type(PyTypeObject *py_type)
  * Initialise the enum support.  A negative value is returned (and an exception
  * set) if there was an error.
  */
-// ZZZ
 int sip_enum_init(void)
 {
     sipEnumType_Type.tp_base = &PyType_Type;
 
-    if (PyType_Ready(&sipEnumType_Type) < 0)
-        return -1;
-
-#if 0
-    PyObject *builtins, *enum_module;
-
-    /* Get the builtin types. */
-    builtins = PyEval_GetBuiltins();
-
-    if ((int_type = PyDict_GetItemString(builtins, "int")) == NULL)
-        return -1;
-
-    if ((object_type = PyDict_GetItemString(builtins, "object")) == NULL)
-        return -1;
-
-    /* Get the enum types. */
-    if ((enum_module = PyImport_ImportModule("enum")) == NULL)
-        return -1;
-
-    enum_type = PyObject_GetAttrString(enum_module, "Enum");
-    int_enum_type = PyObject_GetAttrString(enum_module, "IntEnum");
-    flag_type = PyObject_GetAttrString(enum_module, "Flag");
-    int_flag_type = PyObject_GetAttrString(enum_module, "IntFlag");
-
-    Py_DECREF(enum_module);
-
-    if (enum_type == NULL || int_enum_type == NULL || flag_type == NULL || int_flag_type == NULL)
-    {
-        Py_XDECREF(enum_type);
-        Py_XDECREF(int_enum_type);
-        Py_XDECREF(flag_type);
-        Py_XDECREF(int_flag_type);
-
-        return -1;
-    }
-
-    /* Objectify the strings. */
-    if (sip_objectify("__new__", &str_dunder_new) < 0)
-        return -1;
-
-    if (sip_objectify("__sip__", &str_dunder_sip) < 0)
-        return -1;
-
-    if (sip_objectify("_missing_", &str_sunder_missing) < 0)
-        return -1;
-
-    if (sip_objectify("_name_", &str_sunder_name) < 0)
-        return -1;
-
-    if (sip_objectify("_sip_missing_", &str_sunder_sip_missing) < 0)
-        return -1;
-
-    if (sip_objectify("_value_", &str_sunder_value) < 0)
-        return -1;
-
-    if (sip_objectify("module", &str_module) < 0)
-        return -1;
-
-    if (sip_objectify("qualname", &str_qualname) < 0)
-        return -1;
-
-    if (sip_objectify("value", &str_value) < 0)
-        return -1;
-#endif
-
-    return 0;
+    return PyType_Ready(&sipEnumType_Type);
 }
 
 
 /*
  * Return a non-zero value if an object is a sub-class of enum.Enum.
  */
-// ZZZ
-// Needed for '&', '^' format character support.  Lack of support in v12 is a bug.  Will need to import the enum module (see sip_enum_init() in v13.
 int sip_enum_is_enum(PyObject *obj)
 {
-    return 0;
+    if (init_enum_module_types() < 0)
+        return 0;
+
+    return (PyObject_IsSubclass(obj, enum_type) == 1);
 }
 
 
@@ -390,18 +330,15 @@ static int convert_to_enum(PyObject *obj, const sipTypeDef *td, int allow_int)
 static PyObject *create_scoped_enum(sipExportedModuleDef *client,
         sipEnumTypeDef *etd, int enum_nr, PyObject *name)
 {
-    static PyObject *enum_type = NULL, *module_arg = NULL;
+    static PyObject *module_arg = NULL;
     static PyObject *qualname_arg = NULL;
     int i, nr_members;
     sipEnumMemberDef *enm;
     PyObject *members, *enum_obj, *args, *kw_args;
 
-    /* Get the enum type if we haven't done so already. */
-    if (enum_type == NULL)
-    {
-        if ((enum_type = sip_import_module_attr("enum", "IntEnum")) == NULL)
-            goto ret_err;
-    }
+    /* Get the IntEnum type if we haven't done so already. */
+    if (init_enum_module_types() < 0)
+        goto ret_err;
 
     /* Create a dict of the members. */
     if ((members = PyDict_New()) == NULL)
@@ -472,7 +409,7 @@ static PyObject *create_scoped_enum(sipExportedModuleDef *client,
             goto rel_kw_args;
     }
 
-    if ((enum_obj = PyObject_Call(enum_type, args, kw_args)) == NULL)
+    if ((enum_obj = PyObject_Call(int_enum_type, args, kw_args)) == NULL)
         goto rel_kw_args;
 
     Py_DECREF(kw_args);
@@ -570,6 +507,40 @@ static void enum_expected(PyObject *obj, const sipTypeDef *td)
 {
     PyErr_Format(PyExc_TypeError, "a member of enum '%s' is expected not '%s'",
             sipPyNameOfEnum((sipEnumTypeDef *)td), Py_TYPE(obj)->tp_name);
+}
+
+
+/*
+ * Initialise the required types from the standard library enum module.  Return
+ * a negative value and raise an exception if there is an error.  Note that we
+ * don't do it in enum_init() so that the behaviour is the same as v12.
+ */
+static int init_enum_module_types()
+{
+    PyObject *enum_module;
+
+    /* Check if it has already been done. */
+    if (enum_type != NULL)
+        return 0;
+
+    /* Get the enum types. */
+    if ((enum_module = PyImport_ImportModule("enum")) == NULL)
+        return -1;
+
+    enum_type = PyObject_GetAttrString(enum_module, "Enum");
+    int_enum_type = PyObject_GetAttrString(enum_module, "IntEnum");
+
+    Py_DECREF(enum_module);
+
+    if (enum_type == NULL || int_enum_type == NULL)
+    {
+        Py_XDECREF(enum_type);
+        Py_XDECREF(int_enum_type);
+
+        return -1;
+    }
+
+    return 0;
 }
 
 

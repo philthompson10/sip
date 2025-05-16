@@ -834,6 +834,7 @@ static void handle_failed_type_conversion(sipParseFailure *pf, PyObject *arg);
 static void raise_no_convert_from(const sipTypeDef *td);
 static void raise_no_convert_to(PyObject *py, const sipTypeDef *td);
 static int user_state_is_valid(const sipTypeDef *td, void **user_statep);
+static PyObject *import_module_attr(const char *module, const char *attr);
 
 
 /*
@@ -6184,7 +6185,7 @@ static int add_lazy_container_attrs(const sipTypeDef *td, sipContainerDef *cod,
     }
 
 #if defined(SIP_CONFIGURATION_PyEnums)
-    /* Do the enums. */
+    /* Do the Python enums. */
     sipIntInstanceDef *next_int = cod->cod_instances.id_int;
 
     if (next_int != NULL)
@@ -6220,7 +6221,31 @@ static int add_lazy_container_attrs(const sipTypeDef *td, sipContainerDef *cod,
 #endif
 
 #if defined(SIP_CONFIGURATION_CustomEnums)
-    // ZZZ - copy code from v12
+    /* Do the unscoped custom enum members. */
+    sipEnumMemberDef *enm;
+
+    for (enm = cod->cod_enummembers, i = 0; i < cod->cod_nrenummembers; ++i, ++enm)
+    {
+        PyObject *val;
+
+        if (enm->em_enum < 0)
+        {
+            /* It's an unnamed unscoped enum. */
+            val = PyLong_FromLong(enm->em_val);
+        }
+        else
+        {
+            sipTypeDef *etd = td->td_module->em_types[enm->em_enum];
+
+            if (sipTypeIsScopedEnum(etd))
+                continue;
+
+            val = sip_api_convert_from_enum(enm->em_val, etd);
+        }
+
+        if (sip_dict_set_and_discard(dict, enm->em_name, val) < 0)
+            return -1;
+    }
 #endif
 
     /* Do the variables. */
@@ -8486,7 +8511,6 @@ static void *findSlot(PyObject *self, sipPySlotType st)
     PyTypeObject *py_type = Py_TYPE(self);
 
     /* See if it is a wrapper. */
-    /* TODO: will this always be TRUE? */
     if (PyObject_TypeCheck((PyObject *)py_type, &sipWrapperType_Type))
     {
         const sipClassTypeDef *ctd;
@@ -8495,8 +8519,7 @@ static void *findSlot(PyObject *self, sipPySlotType st)
 
         slot = findSlotInClass(ctd, st);
     }
-    // ZZZ - this code is from v12
-#if 0
+#if defined(SIP_CONFIGURATION_CustomEnums)
     else
     {
         sipEnumTypeDef *etd;
@@ -11001,7 +11024,7 @@ static int sip_api_register_exit_notifier(PyMethodDef *md)
     static PyObject *register_func = NULL;
     PyObject *notifier, *res;
 
-    if (register_func == NULL && (register_func = sip_import_module_attr("atexit", "register")) == NULL)
+    if (register_func == NULL && (register_func = import_module_attr("atexit", "register")) == NULL)
         return -1;
 
     if ((notifier = PyCFunction_New(md, NULL)) == NULL)
@@ -11866,7 +11889,7 @@ static int is_subtype(const sipClassTypeDef *ctd,
 /*
  * Return an attribute of an imported module.
  */
-PyObject *sip_import_module_attr(const char *module, const char *attr)
+static PyObject *import_module_attr(const char *module, const char *attr)
 {
     PyObject *mod_obj, *attr_obj;
 
