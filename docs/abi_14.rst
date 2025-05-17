@@ -786,6 +786,14 @@ with the name ``SIP_CONFIGURATION_`` followed by the name of the option.
     garbage collected.
 
 
+.. cpp:enumerator:: sipEventPySubclassCreated
+
+    This event is triggered whenever a Python subclass of a C++ class is
+    created.  The handler is passed a pointer to the :c:type:`sipWrapper`
+    object that has been created and returns an :c:type:`int` that is negative
+    (and a Python exception raised) if there was an error.
+
+
 .. c:function:: int sipExportSymbol(const char *name, void *sym)
 
     Python does not allow extension modules to directly access symbols in

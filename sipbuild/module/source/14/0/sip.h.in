@@ -172,6 +172,7 @@ typedef enum
 {
     sipEventWrappedInstance,    /* After wrapping a C/C++ instance. */
     sipEventCollectingWrapper,  /* When garbage collecting a wrapper object. */
+    sipEventPySubclassCreated,  /* When a Python subclass of a C++ class has been created. */
     sipEventNrEvents
 } sipEventType;
 
@@ -180,6 +181,7 @@ typedef enum
  */
 typedef void (*sipWrappedInstanceEventHandler)(void *sipCpp);
 typedef void (*sipCollectingWrapperEventHandler)(sipSimpleWrapper *sipSelf);
+typedef int (*sipPySubclassCreatedEventHandler)(sipWrapperType *wt);
 
 
 /*

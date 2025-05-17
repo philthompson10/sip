@@ -242,7 +242,7 @@ f'''
 
     # These are dependent on the specific ABI version.
     if spec.target_abi >= (13, 0):
-        # ABI v14.0 and later (it's also in v12).
+        # ABI v14.0 and later (this is also in v12).
         if spec.target_abi >= (14, 0):
             sf.write(
 f'''#define sipGetFrame                 sipAPI_{module_name}->api_get_frame

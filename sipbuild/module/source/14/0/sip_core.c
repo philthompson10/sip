@@ -8764,7 +8764,26 @@ static int sipWrapperType_init(sipWrapperType *self, PyObject *args,
          * the generated type structure being NULL.
          */
         if (base != NULL && PyObject_TypeCheck((PyObject *)base, (PyTypeObject *)&sipWrapperType_Type))
+        {
             self->wt_td = ((sipWrapperType *)base)->wt_td;
+
+            if (self->wt_td != NULL)
+            {
+                sipEventHandler *eh;
+
+                /* Invoke any event handlers. */
+                for (eh = event_handlers[sipEventCollectingWrapper]; eh != NULL; eh = eh->next)
+                {
+                    if (is_subtype(self->wt_td, eh->ctd))
+                    {
+                        sipPySubclassCreatedEventHandler handler = (sipPySubclassCreatedEventHandler)eh->handler;
+
+                        if (handler(self) < 0)
+                            return -1;
+                    }
+                }
+            }
+        }
     }
     else
     {
