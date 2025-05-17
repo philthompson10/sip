@@ -8772,7 +8772,7 @@ static int sipWrapperType_init(sipWrapperType *self, PyObject *args,
                 sipEventHandler *eh;
 
                 /* Invoke any event handlers. */
-                for (eh = event_handlers[sipEventCollectingWrapper]; eh != NULL; eh = eh->next)
+                for (eh = event_handlers[sipEventPySubclassCreated]; eh != NULL; eh = eh->next)
                 {
                     if (is_subtype(self->wt_td, eh->ctd))
                     {
