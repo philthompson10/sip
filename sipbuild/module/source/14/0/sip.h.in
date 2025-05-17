@@ -1513,12 +1513,14 @@ const sipAPIDef *sip_init_library(PyObject *mod_dict);
 #define sipWasCreated(sw)   ((sw)->sw_flags & SIP_CREATED)
 #endif
 
-#define SIP_TYPE_TYPE_MASK  0x0003  /* The type type mask. */
+#define SIP_TYPE_TYPE_MASK  0x0007  /* The type type mask. */
 #define SIP_TYPE_CLASS      0x0000  /* If the type is a C++ class. */
 #define SIP_TYPE_NAMESPACE  0x0001  /* If the type is a C++ namespace. */
 #define SIP_TYPE_MAPPED     0x0002  /* If the type is a mapped type. */
 #define SIP_TYPE_ENUM       0x0003  /* If the type is an enum. */
-#define SIP_TYPE_USER_STATE 0x0004  /* If the convertors need user state. */
+#if defined(SIP_CONFIGURATION_CustomEnums)
+#define SIP_TYPE_SCOPED_ENUM    0x0040  /* If the type is a scoped enum. */
+#endif
 #define SIP_TYPE_ABSTRACT   0x0008  /* If the type is abstract. */
 #define SIP_TYPE_SCC        0x0010  /* If the type is subject to sub-class convertors. */
 #define SIP_TYPE_ALLOW_NONE 0x0020  /* If the type can handle None. */
@@ -1526,9 +1528,7 @@ const sipAPIDef *sip_init_library(PyObject *mod_dict);
 #define SIP_TYPE_NONLAZY    0x0080  /* If the type has a non-lazy method. */
 #define SIP_TYPE_SUPER_INIT 0x0100  /* If the instance's super init should be called. */
 #define SIP_TYPE_LIMITED_API    0x0200  /* Use the limited API.  If this is more generally required it may need to be moved to the module definition. */
-#if defined(SIP_CONFIGURATION_CustomEnums)
-#define SIP_TYPE_SCOPED_ENUM    0x0400  /* If the type is a scoped enum. */
-#endif
+#define SIP_TYPE_USER_STATE 0x0400  /* If the convertors need user state. */
 
 
 #if defined(SIP_CONFIGURATION_PyEnums)

@@ -638,7 +638,7 @@ static PyObject *sipEnumType_getattro(PyObject *self, PyObject *name)
             return sip_api_convert_from_enum(emd->em_val, (sipTypeDef *)etd);
 
     PyErr_Format(PyExc_AttributeError,
-            "sip.enumtype object '%s' has no member '%s'",
+            _SIP_MODULE_FQ_NAME ".enumtype object '%s' has no member '%s'",
             sipPyNameOfEnum(etd), name_str);
 
     return NULL;

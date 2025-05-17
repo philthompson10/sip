@@ -1724,7 +1724,9 @@ static int sip_api_init_module(sipExportedModuleDef *client,
                 client->em_types[i] = real_nspace;
             }
             else if (createClassType(client, ctd, mod_dict) < 0)
+            {
                 return -1;
+            }
         }
     }
 
@@ -5771,7 +5773,9 @@ static int createClassType(sipExportedModuleDef *client, sipClassTypeDef *ctd,
             goto relbases;
     }
     else
+    {
         metatype = (PyObject *)Py_TYPE(PyTuple_GET_ITEM(bases, 0));
+    }
 
     /* Create the type dictionary and populate it with any non-lazy methods. */
     if ((type_dict = sip_create_type_dict(client)) == NULL)
