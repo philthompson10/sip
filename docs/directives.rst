@@ -2172,15 +2172,6 @@ CustomEnums
     A custom Python object is used to wrap C-style named enums.  The standard
     Python enum types will be used to wrap C++11 scoped enums.
 
-NoRootSipModule
-    A reference to the sip module is not added as a root module (ie. in
-    ``site-packages`` (default).
-
-RootSipModule
-    A reference to the sip module is added as a root module (ie. in
-    ``site-packages``.  This option should only be used by certain, existing,
-    legacy projects.
-
 
 .. directive:: %Timeline
 

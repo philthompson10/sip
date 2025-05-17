@@ -23,8 +23,6 @@
 #define SIP_CONFIGURATION @_SIP_CONFIGURATION@
 @_SIP_PyEnums_STATE@ SIP_CONFIGURATION_PyEnums
 @_SIP_CustomEnums_STATE@ SIP_CONFIGURATION_CustomEnums
-@_SIP_NoRootSipModule_STATE@ SIP_CONFIGURATION_NoRootSipModule
-@_SIP_RootSipModule_STATE@ SIP_CONFIGURATION_RootSipModule
 
 
 #ifdef __cplusplus

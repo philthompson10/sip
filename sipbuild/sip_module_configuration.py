@@ -20,14 +20,6 @@ class SipModuleConfiguration(IntFlag):
     # Use a custom Python object to wrap enums.
     CustomEnums = 0x0002
 
-    # Don't add a reference to the sip module as a root module (ie. in
-    # site-packages (default).
-    NoRootSipModule = 0x0004
-
-    # Add a reference to the sip module as a root module (ie. in
-    # site-packages).
-    RootSipModule = 0x0008
-
 
 def apply_module_defaults(module_configuration):
     """ Apply the default module configuration options for any that haven't
@@ -36,9 +28,6 @@ def apply_module_defaults(module_configuration):
 
     if SipModuleConfiguration.CustomEnums not in module_configuration:
         module_configuration |= SipModuleConfiguration.PyEnums
-
-    if SipModuleConfiguration.RootSipModule not in module_configuration:
-        module_configuration |= SipModuleConfiguration.NoRootSipModule
 
     return module_configuration
 
@@ -54,9 +43,6 @@ def apply_module_option(module_configuration, option_name):
 
     _verify_option(module_configuration, option,
             SipModuleConfiguration.PyEnums, SipModuleConfiguration.CustomEnums)
-    _verify_option(module_configuration, option,
-            SipModuleConfiguration.NoRootSipModule,
-            SipModuleConfiguration.RootSipModule)
 
     return module_configuration | option
 
@@ -71,10 +57,6 @@ def incompatible_module_configurations(module_configuration, other):
         _incompatible(module_configuration, other,
                 SipModuleConfiguration.PyEnums,
                 SipModuleConfiguration.CustomEnums)
-    or
-        _incompatible(module_configuration, other,
-                SipModuleConfiguration.NoRootSipModule,
-                SipModuleConfiguration.RootSipModule)
     )
 
 
