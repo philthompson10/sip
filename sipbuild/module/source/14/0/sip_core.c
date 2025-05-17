@@ -502,7 +502,7 @@ static const sipAPIDef sip_api = {
     NULL,
 #endif
     sip_api_py_type_dict_ref,
-    sip_api_get_frame,,
+    sip_api_get_frame,
     NULL,
     NULL,
     NULL,
