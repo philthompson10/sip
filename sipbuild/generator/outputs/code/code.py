@@ -242,7 +242,13 @@ f'''
 
     # These are dependent on the specific ABI version.
     if spec.target_abi >= (13, 0):
-        # ABI v13.9 and later
+        # ABI v14.0 and later (it's also in v12).
+        if spec.target_abi >= (14, 0):
+            sf.write(
+f'''#define sipGetFrame                 sipAPI_{module_name}->api_get_frame
+''')
+
+        # ABI v13.9 and later.
         if spec.target_abi >= (13, 9):
             sf.write(
 f'''#define sipDeprecated               sipAPI_{module_name}->api_deprecated_13_9
@@ -721,8 +727,10 @@ f'    {{{{SIP_NULLPTR, SIP_TYPE_ENUM, sipNameNr_{cpp_name}, SIP_NULLPTR, 0}}, {b
         else:
             sip_type = 'SIP_TYPE_SCOPED_ENUM' if enum.is_scoped else 'SIP_TYPE_ENUM'
 
+            v12_fields = '-1, SIP_NULLPTR, ' if spec.target_abi < (13, 0)  else ''
+
             sf.write(
-f'    {{{{-1, SIP_NULLPTR, SIP_NULLPTR, {sip_type}, sipNameNr_{cpp_name}, SIP_NULLPTR, 0}}, sipNameNr_{py_name}, {scope_type_nr}')
+f'    {{{{{v12_fields}SIP_NULLPTR, {sip_type}, sipNameNr_{cpp_name}, SIP_NULLPTR, 0}}, sipNameNr_{py_name}, {scope_type_nr}')
 
         if len(enum.slots) == 0:
             sf.write(', SIP_NULLPTR')

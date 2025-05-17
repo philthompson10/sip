@@ -962,6 +962,21 @@ with the name ``SIP_CONFIGURATION_`` followed by the name of the option.
         a non-zero value if the object is a Python datetime object.
 
 
+.. c:function:: PyFrameObject *sipGetFrame(int depth)
+
+    This retrieves a borrowed reference to the frame object from the current
+    execution stack.
+
+    .. note::
+        On PyPy this will always return NULL.
+
+    :param depth:
+        the depth of frame to retrieve where 0 is the current frame, 1 is the
+        previous frame etc.
+    :return:
+        the opaque frame or NULL if there wasn't one at the given depth.
+
+
 .. c:function:: PyInterpreterState *sipGetInterpreter()
 
     This returns the address of the Python interpreter.  If it is ``NULL`` then

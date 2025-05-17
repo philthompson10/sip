@@ -1373,6 +1373,8 @@ typedef struct _sipAPIDef {
     void (*reserved_1)(void);
 #endif
     PyObject *(*api_py_type_dict_ref)(PyTypeObject *);
+    PyFrameObject *(*api_get_frame)(int);
+    void (*unused_public_1)(void);
     void (*unused_public_2)(void);
     void (*unused_public_3)(void);
     void (*unused_public_4)(void);

@@ -389,6 +389,7 @@ static void sip_api_visit_wrappers(sipWrapperVisitorFunc visitor,
         void *closure);
 static int sip_api_register_exit_notifier(PyMethodDef *md);
 static sipExceptionHandler sip_api_next_exception_handler(void **statep);
+static PyFrameObject *sip_api_get_frame(int depth);
 
 
 /*
@@ -501,6 +502,8 @@ static const sipAPIDef sip_api = {
     NULL,
 #endif
     sip_api_py_type_dict_ref,
+    sip_api_get_frame,,
+    NULL,
     NULL,
     NULL,
     NULL,
@@ -12029,4 +12032,29 @@ sipExceptionHandler sip_api_next_exception_handler(void **statep)
     *statep = em;
 
     return em->em_exception_handler;
+}
+
+
+/*
+ * Return a frame from the execution stack.
+ */
+static PyFrameObject *sip_api_get_frame(int depth)
+{
+#if defined(PYPY_VERSION)
+    /* PyPy only supports a depth of 0. */
+    return NULL;
+#else
+    PyFrameObject *frame = PyEval_GetFrame();
+
+    while (frame != NULL && depth > 0)
+    {
+        frame = PyFrame_GetBack(frame);
+
+        /* We return a borrowed reference. */
+        Py_XDECREF(frame);
+        --depth;
+    }
+
+    return frame;
+#endif
 }
