@@ -1,8 +1,12 @@
-ABI v13 for Handwritten Code
+ABI v14 for Handwritten Code
 ============================
 
-In this section we describe the v13 of the ABI, provided by the :mod:`sip`
-module, that can be used by handwritten code in specification files.
+In this section we describe the v14 of the ABI, provided by the :mod:`sip`
+module, that can be used by handwritten code in specification files.  Some
+elements may be dependent on the module's build configuration options.  These
+options are described in the :directive:`%SipModuleConfiguration` directive
+documentation.  For each enabled option a C preprocessor symbol will be defined
+with the name ``SIP_CONFIGURATION_`` followed by the name of the option.
 
 .. c:macro:: SIP_ABI_MAJOR_VERSION
 
@@ -767,19 +771,89 @@ module, that can be used by handwritten code in specification files.
     This is the enum that defines the different event types.
 
 
+.. cpp:enumerator:: sipEventWrappingInstance
+
+    This event is triggered before a C struct, C++ class or mapped type is
+    wrapped allow the bindings to replace it with something else (eg. a proxy).
+
+    A handler has the following signature.
+
+    int handler(const :c:type:`sipTypeDef` \*td, void \*cpp)
+
+        *td* is the generated type definition of the type of the instance.
+
+        *cpp* is the address of the instance.
+
+        The address of the instance that will actually be wrapped is returned.
+        This will be ``NULL``, and an exception raised, if there was an error.
+
+
 .. cpp:enumerator:: sipEventWrappedInstance
 
-    This event is triggered whenever a C/C++ instance that is created by C/C++
-    (and not by Python) is wrapped.  The handler is passed a ``void *`` which
-    is the address of the C/C++ instance.
+    This event is triggered whenever a C struct or C++ class that is created by
+    C/C++ (and not by Python) is wrapped.
+
+    A handler has the following signature.
+
+    int handler(const :c:type:`sipTypeDef` \*td, void \*cpp)
+
+        *td* is the generated type definition of the type of the instance.
+
+        *cpp* is the address of the instance.
+
+        0 is returned if there was no error.  -1 is returned, and an exception
+        raised, if there was an error.
+
+
+.. cpp:enumerator:: sipEventFinalisingType
+
+    This event is triggered as the Python type object of a C struct or C++
+    class is being finalised.
+
+    A handler has the following signature.
+
+    int handler(const :c:type:`sipTypeDef` \*td, :c:type:`PyObject` \*dict)
+
+        *td* is the generated type definition of the type.
+
+        *dict* is the type's dictionary which may be updated by the handler.
+
+        0 is returned if there was no error.  -1 is returned, and an exception
+        raised, if there was an error.
 
 
 .. cpp:enumerator:: sipEventCollectingWrapper
 
     This event is triggered whenever a Python wrapper object is being garbage
-    collected.  The handler is passed a pointer to the
-    :c:type:`sipSimpleWrapper` object that is the Python wrapper object being
-    garbage collected.
+    collected.
+
+    A handler has the following signature.
+
+    int handler(const :c:type:`sipTypeDef` \*td, :c:type:`sipSimpleWrapper` \*sw)
+
+        *td* is the generated type definition of the type of the instance.
+
+        *sw* is the Python wrapper object being garbage collected.
+
+        0 is returned if there was no error.  -1 is returned, and an exception
+        raised, if there was an error.
+
+
+.. cpp:enumerator:: sipEventPySubclassCreated
+
+    This event is triggered whenever a Python subclass of a C++ class is
+    created.
+
+    A handler has the following signature.
+
+    int handler(const :c:type:`sipTypeDef` \*td, :c:type:`sipWrapper` \*w)
+
+        *td* is the generated type definition of the type of the instance.
+
+        *w* is the Python wrapper object that has been created.
+
+        0 is returned if there was no error.  -1 is returned, and an exception
+        raised, if there was an error.
 
 
 .. c:function:: int sipExportSymbol(const char *name, void *sym)
@@ -958,6 +1032,21 @@ module, that can be used by handwritten code in specification files.
         a non-zero value if the object is a Python datetime object.
 
 
+.. c:function:: PyFrameObject *sipGetFrame(int depth)
+
+    This retrieves a borrowed reference to the frame object from the current
+    execution stack.
+
+    .. note::
+        On PyPy this will always return NULL.
+
+    :param depth:
+        the depth of frame to retrieve where 0 is the current frame, 1 is the
+        previous frame etc.
+    :return:
+        the opaque frame or NULL if there wasn't one at the given depth.
+
+
 .. c:function:: PyInterpreterState *sipGetInterpreter()
 
     This returns the address of the Python interpreter.  If it is ``NULL`` then
@@ -1089,7 +1178,9 @@ module, that can be used by handwritten code in specification files.
 
 .. c:function:: int sipIsEnumFlag(PyObject *obj)
 
-    This determines if an object is a sub-class of :py:class:`enum.Flag`.
+    This determines if an object is a sub-class of :py:class:`enum.Flag`.  This
+    is only present if the ``PyEnums`` :mod:`sip` module configuration option
+    is set.
 
     :param obj:
         the object.
@@ -1833,7 +1924,9 @@ module, that can be used by handwritten code in specification files.
 .. c:function:: int sipTypeIsEnum(sipTypeDef *td)
 
     This checks if a :ref:`generated type structure <ref-type-structures>`
-    refers to a named enum.
+    refers to a named enum.  If the ``CustomEnums`` :mod:`sip` module
+    configuration option is set then this will only check for C-style named
+    enums and not C++11 scoped enums.
 
     :param td:
         the type structure.
@@ -1861,6 +1954,18 @@ module, that can be used by handwritten code in specification files.
         the type structure.
     :return:
         a non-zero value if the type structure refers to a namespace.
+
+
+.. c:function:: int sipTypeIsScopedEnum(sipTypeDef *td)
+
+    This checks if a :ref:`generated type structure <ref-type-structures>`
+    refers to a C++11 scoped enum.  This is only present if the ``CustomEnums``
+    :mod:`sip` module configuration option is set.
+
+    :param td:
+        the type structure.
+    :return:
+        a non-zero value if the type structure refers to a C++11 scoped enum.
 
 
 .. c:function:: const char *sipTypeName(const sipTypeDef *td)

@@ -6,6 +6,7 @@
 import os
 
 from ....exceptions import UserException
+from ....sip_module_configuration import SipModuleConfiguration
 from ....version import SIP_VERSION_STR
 
 from ...python_slots import (is_hash_return_slot, is_inplace_number_slot,
@@ -183,12 +184,10 @@ f'''
 #define sipWrappedTypeName(wt)      ((wt)->wt_td->td_cname)
 #define sipGetReference             sipAPI_{module_name}->api_get_reference
 #define sipKeepReference            sipAPI_{module_name}->api_keep_reference
-#define sipRegisterProxyResolver    sipAPI_{module_name}->api_register_proxy_resolver
 #define sipRegisterPyType           sipAPI_{module_name}->api_register_py_type
 #define sipTypeFromPyTypeObject     sipAPI_{module_name}->api_type_from_py_type_object
 #define sipTypeScope                sipAPI_{module_name}->api_type_scope
 #define sipResolveTypedef           sipAPI_{module_name}->api_resolve_typedef
-#define sipRegisterAttributeGetter  sipAPI_{module_name}->api_register_attribute_getter
 #define sipEnableAutoconversion     sipAPI_{module_name}->api_enable_autoconversion
 #define sipInitMixin                sipAPI_{module_name}->api_init_mixin
 #define sipExportModule             sipAPI_{module_name}->api_export_module
@@ -241,7 +240,13 @@ f'''
 
     # These are dependent on the specific ABI version.
     if spec.target_abi >= (13, 0):
-        # ABI v13.9 and later
+        # ABI v14.0 and later (this is also in v12).
+        if spec.target_abi >= (14, 0):
+            sf.write(
+f'''#define sipGetFrame                 sipAPI_{module_name}->api_get_frame
+''')
+
+        # ABI v13.9 and later.
         if spec.target_abi >= (13, 9):
             sf.write(
 f'''#define sipDeprecated               sipAPI_{module_name}->api_deprecated_13_9
@@ -262,11 +267,16 @@ f'''#define sipPyTypeDictRef            sipAPI_{module_name}->api_py_type_dict_r
             sf.write(
 f'''#define sipNextExceptionHandler     sipAPI_{module_name}->api_next_exception_handler
 ''')
+
+        # ABI v13 or v14 and later with PyEnums configured.
+        if _py_enums_configured(spec):
+            sf.write(
+f'''#define sipIsEnumFlag               sipAPI_{module_name}->api_is_enum_flag
+''')
             
         # ABI v13.0 and later. */
         sf.write(
-f'''#define sipIsEnumFlag               sipAPI_{module_name}->api_is_enum_flag
-#define sipConvertToTypeUS          sipAPI_{module_name}->api_convert_to_type_us
+f'''#define sipConvertToTypeUS          sipAPI_{module_name}->api_convert_to_type_us
 #define sipForceConvertToTypeUS     sipAPI_{module_name}->api_force_convert_to_type_us
 #define sipReleaseTypeUS            sipAPI_{module_name}->api_release_type_us
 ''')
@@ -706,7 +716,7 @@ static sipPySlotDef slots_{enum_name}[] = {{
         cpp_name = _get_normalised_cached_name(enum.cached_fq_cpp_name)
         py_name = _get_normalised_cached_name(enum.py_name)
 
-        if spec.target_abi >= (13, 0):
+        if _py_enums_configured(spec):
             base_type = 'SIP_ENUM_' + enum.base_type.name
             nr_members = len(enum.members)
 
@@ -715,8 +725,10 @@ f'    {{{{SIP_NULLPTR, SIP_TYPE_ENUM, sipNameNr_{cpp_name}, SIP_NULLPTR, 0}}, {b
         else:
             sip_type = 'SIP_TYPE_SCOPED_ENUM' if enum.is_scoped else 'SIP_TYPE_ENUM'
 
+            v12_fields = '-1, SIP_NULLPTR, ' if spec.target_abi < (13, 0)  else ''
+
             sf.write(
-f'    {{{{-1, SIP_NULLPTR, SIP_NULLPTR, {sip_type}, sipNameNr_{cpp_name}, SIP_NULLPTR, 0}}, sipNameNr_{py_name}, {scope_type_nr}')
+f'    {{{{{v12_fields}SIP_NULLPTR, {sip_type}, sipNameNr_{cpp_name}, SIP_NULLPTR, 0}}, sipNameNr_{py_name}, {scope_type_nr}')
 
         if len(enum.slots) == 0:
             sf.write(', SIP_NULLPTR')
@@ -730,10 +742,10 @@ f'    {{{{-1, SIP_NULLPTR, SIP_NULLPTR, {sip_type}, sipNameNr_{cpp_name}, SIP_NU
     if len(needed_enums) != 0:
         sf.write('};\n')
 
-    if spec.target_abi >= (13, 0):
-        nr_enum_members = -1
-    else:
+    if _custom_enums_configured(spec):
         nr_enum_members = _enum_member_table(sf, spec)
+    else:
+        nr_enum_members = -1
 
     # Generate the types table.
     if len(module.needed_types) != 0:
@@ -1012,7 +1024,15 @@ f'''
 sipExportedModuleDef sipModuleAPI_{module_name} = {{
     SIP_NULLPTR,
     {spec.target_abi[1]},
-    sipNameNr_{_get_normalised_cached_name(module.fq_py_name)},
+''')
+
+    if spec.target_abi >= (14, 0):
+        sf.write(
+f'''    0x{spec.sip_module_configuration:04x},
+''')
+
+    sf.write(
+f'''    sipNameNr_{_get_normalised_cached_name(module.fq_py_name)},
     0,
     sipStrings_{module_name},
     {imports_table},
@@ -1948,7 +1968,7 @@ def _int_instances(sf, spec, scope=None):
 
     instances = []
 
-    if spec.target_abi >= (13, 0):
+    if _py_enums_configured(spec):
         # Named enum members are handled as int variables but must be placed at
         # the start of the table.  Note we use the sorted table of needed types
         # rather than the unsorted table of all enums.
@@ -1980,7 +2000,7 @@ def _int_instances(sf, spec, scope=None):
         instances.append((ii_name, ii_val))
 
     # Anonymous enum members are handled as int variables.
-    if spec.target_abi >= (13, 0) or scope is None:
+    if _py_enums_configured(spec) or scope is None:
         for enum in spec.enums:
             if _py_scope(enum.scope) is not scope or enum.module is not spec.module:
                 continue
@@ -2283,15 +2303,15 @@ f'''static PyObject *convertFrom_{mapped_type_name}(void *sipCppV, PyObject *{xf
 
     id_int = 'SIP_NULLPTR'
 
-    if spec.target_abi >= (13, 0):
+    if _custom_enums_configured(spec):
+        cod_nrenummembers = _enum_member_table(sf, spec, scope=mapped_type)
+        has_ints = False
+        needs_namespace = (cod_nrenummembers > 0)
+    else:
         if _int_instances(sf, spec, scope=mapped_type):
             id_int = 'intInstances_' + mapped_type_name
 
         needs_namespace = False
-    else:
-        cod_nrenummembers = _enum_member_table(sf, spec, scope=mapped_type)
-        has_ints = False
-        needs_namespace = (cod_nrenummembers > 0)
 
     if cod_nrmethods > 0:
         needs_namespace = True
@@ -2346,7 +2366,7 @@ f'''        SIP_NULLPTR,
         {cod_nrmethods}, {cod_methods},
 ''')
 
-    if spec.target_abi < (13, 0):
+    if _custom_enums_configured(spec):
         cod_enummembers = 'SIP_NULLPTR' if cod_nrenummembers == 0 else 'enummembers_' + mapped_type_name
 
         sf.write(
@@ -5586,10 +5606,10 @@ static sipPySlotDef slots_{klass_name}[] = {{
     # The attributes tables.
     nr_methods = _class_method_table(sf, spec, bindings, klass)
 
-    if spec.target_abi >= (13, 0):
-        nr_enum_members = -1
-    else:
+    if _custom_enums_configured(spec):
         nr_enum_members = _enum_member_table(sf, spec, scope=klass)
+    else:
+        nr_enum_members = -1
 
     # The property and variable handlers.
     nr_variables = 0
@@ -9040,6 +9060,18 @@ def _overload_cpp_name(overload):
     py_slot = overload.common.py_slot
 
     return overload.cpp_name if py_slot is None else _SLOT_NAME_MAP[py_slot]
+
+
+def _py_enums_configured(spec):
+    """ Return True if PyEnums is configured. """
+
+    return spec.target_abi[0] == 13 or (spec.target_abi >= (14, 0) and SipModuleConfiguration.PyEnums in spec.sip_module_configuration)
+
+
+def _custom_enums_configured(spec):
+    """ Return True if CustomEnums is configured. """
+
+    return spec.target_abi[0] < 13 or (spec.target_abi >= (14, 0) and SipModuleConfiguration.CustomEnums in spec.sip_module_configuration)
 
 
 def _py_scope(scope):

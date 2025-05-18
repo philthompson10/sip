@@ -45,6 +45,7 @@ file.
             :directive:`%Platforms` |
             :directive:`%PreInitialisationCode` |
             :directive:`%PostInitialisationCode` |
+            :directive:`%SipModuleConfiguration` |
             :directive:`%Timeline` |
             :directive:`%TypeHintCode` |
             :directive:`%UnitCode` |

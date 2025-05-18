@@ -158,7 +158,14 @@ for each supported version of Python.
 
 The version number of the :mod:`sip` module is the version number of the ABI
 that the module implements. Like SIP itself, this uses `semantic versioning
-<https://semver.org/spec/v2.0.0.html>`__.
+<https://semver.org/spec/v2.0.0.html>`__.  At the moment v12, v13 and v14 of
+the ABI are supported.  The main difference between v12 and v13 is that the
+former uses a custom Python object to represent enums whereas the latter uses
+the standard Python enum object.  v14 combines the functionality of both of the
+older versions, and will at some point, replace them.  v14 uses compile-time
+:mod:`sip` module configuration options to select the exact functionality to
+implement.  v14 also support modern Python concepts such as multi-phase
+initialisation and multiple sub-interpreters.
 
 When used with standalone projects the :mod:`sip` module is not a separate
 module and is instead embedded in the single set of bindings.  When used with

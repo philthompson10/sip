@@ -236,6 +236,7 @@ class Builder(AbstractBuilder):
 
         # Generate the code for each set of bindings.
         api_files = []
+        sip_module_configuration = None
 
         for bindings in project.bindings.values():
             project.progress(
@@ -247,6 +248,9 @@ class Builder(AbstractBuilder):
             bindings._sip_include_dirs = sip_include_dirs
             buildable = bindings.generate()
             del bindings._sip_include_dirs
+
+            # The sip module configuration will be the same for all bindings.
+            sip_module_configuration = buildable.sip_module_configuration
 
             if not bindings.internal:
                 api_files.append(
@@ -261,9 +265,10 @@ class Builder(AbstractBuilder):
 
         if project.sip_module:
             # Generate the sip.h file for the shared sip module now that we
-            # know the target ABI..
-            copy_sip_h(project.build_abi, project.build_dir,
-                    project.sip_module, version_info=project.version_info)
+            # know the target ABI.
+            copy_sip_h(project.build_abi, sip_module_configuration,
+                    project.build_dir, project.sip_module,
+                    version_info=project.version_info)
 
         # Create __init__.py if required.
         if project.dunder_init:

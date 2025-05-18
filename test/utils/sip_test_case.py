@@ -22,6 +22,9 @@ class SIPTestCase(unittest.TestCase):
     # Set if exception support should be enabled.
     exceptions = False
 
+    # The list of options to configure the sip module.
+    sip_module_configuration = None
+
     # The list of tags to be used to configure the test modules.
     tags = None
 
@@ -149,6 +152,11 @@ class SIPTestCase(unittest.TestCase):
         if cls.abi_version is not None:
             args.append('--abi-version')
             args.append(cls.abi_version)
+
+        if cls.sip_module_configuration is not None:
+            for option in cls.sip_module_configuration:
+                args.append('--option')
+                args.append(option)
 
         args.append(sip_module_name)
 

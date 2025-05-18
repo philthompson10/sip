@@ -1,11 +1,13 @@
 # SPDX-License-Identifier: BSD-2-Clause
 
-# Copyright (c) 2024 Phil Thompson <phil@riverbankcomputing.com>
+# Copyright (c) 2025 Phil Thompson <phil@riverbankcomputing.com>
 
 
 from dataclasses import dataclass, field
 from enum import auto, Enum
 from typing import Any, Optional, Union
+
+from ..sip_module_configuration import SipModuleConfiguration
 
 from .scoped_name import ScopedName
 
@@ -1251,6 +1253,10 @@ class Specification:
     # The fully qualified name of the sip module.  If it is None then there is
     # no shared sip module.
     sip_module: Optional[str]
+
+    # The required configuration of the sip module.
+    sip_module_configuration: SipModuleConfiguration = field(
+            default_factory=lambda: SipModuleConfiguration(0))
 
     # Set if the bindings are for C rather than C++.
     c_bindings: bool = False

@@ -9,10 +9,13 @@ from utils import SIPTestCase
 
 
 class PyEnumsTestCase(SIPTestCase):
-    """ Test the support for Python enums in ABI v13 and later. """
+    """ Test the support for Python enums. """
 
     # The ABI version to use.
-    abi_version = '13'
+    abi_version = '14'
+
+    # The sip module configuration.
+    sip_module_configuration = ['PyEnums']
 
     @classmethod
     def setUpClass(cls):

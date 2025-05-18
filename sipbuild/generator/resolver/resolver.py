@@ -6,6 +6,9 @@
 
 from copy import copy
 
+from ...sip_module_configuration import (apply_module_defaults,
+        SipModuleConfiguration)
+
 from ..error_log import ErrorLog
 from ..instantiations import instantiate_type_hints
 from ..python_slots import (is_hash_return_slot, is_int_return_slot,
@@ -172,6 +175,10 @@ def resolve(spec, modules):
         for enum in spec.enums:
             if enum.module is spec.module:
                 _enum_iface_file_is_used(enum, spec.module)
+
+    # Finalise the sip module configuration.
+    spec.sip_module_configuration = apply_module_defaults(
+            spec.sip_module_configuration)
 
     # Perform any final checks.
     for check in final_checks:
@@ -546,7 +553,7 @@ def _move_global_slot(spec, global_slot, error_log):
             # correctly (ie. 'E.M == E.M' works as expected).  However if there
             # is another equality operator defined then it will fail so we have
             # to explicitly inject the comparison.
-            if spec.target_abi < (13, 0) and arg0.type is ArgumentType.ENUM and arg_member.py_slot is PySlot.EQ and not is_second:
+            if SipModuleConfiguration.CustomEnums in spec.sip_module_configuration and arg0.type is ArgumentType.ENUM and arg_member.py_slot is PySlot.EQ and not is_second:
                 inject_equality_slot = True
 
         # Move the overload to the end of the destination list.
