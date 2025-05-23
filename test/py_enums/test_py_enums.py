@@ -11,9 +11,6 @@ from utils import SIPTestCase
 class PyEnumsTestCase(SIPTestCase):
     """ Test the support for Python enums. """
 
-    # The ABI version to use.
-    abi_version = '14'
-
     # The sip module configuration.
     sip_module_configuration = ['PyEnums']
 
