@@ -1452,7 +1452,7 @@ typedef struct _sipAPIDef {
     void (*unused_private_5)(void);
 } sipAPIDef;
 
-const sipAPIDef *sip_init_library(PyObject *mod_dict);
+const sipAPIDef *sip_init_library(PyObject *module_dict);
 
 
 /*

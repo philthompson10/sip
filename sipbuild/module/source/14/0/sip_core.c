@@ -815,7 +815,7 @@ static PyObject *import_module_attr(const char *module, const char *attr);
 /*
  * Initialise the module as a library.
  */
-const sipAPIDef *sip_init_library(PyObject *mod_dict)
+const sipAPIDef *sip_init_library(PyObject *module_dict)
 {
     static PyMethodDef methods[] = {
         /* The type unpickler must be first. */
@@ -854,12 +854,12 @@ const sipAPIDef *sip_init_library(PyObject *mod_dict)
     /* Add the SIP version number. */
     obj = PyLong_FromLong(SIP_VERSION);
 
-    if (sip_dict_set_and_discard(mod_dict, "SIP_VERSION", obj) < 0)
+    if (sip_dict_set_and_discard(module_dict, "SIP_VERSION", obj) < 0)
         return NULL;
 
     obj = PyUnicode_FromString(SIP_VERSION_STR);
 
-    if (sip_dict_set_and_discard(mod_dict, "SIP_VERSION_STR", obj) < 0)
+    if (sip_dict_set_and_discard(module_dict, "SIP_VERSION_STR", obj) < 0)
         return NULL;
 
     /* Add the SIP ABI version number. */
@@ -867,7 +867,7 @@ const sipAPIDef *sip_init_library(PyObject *mod_dict)
             (SIP_ABI_MINOR_VERSION << 8) +
             SIP_MODULE_PATCH_VERSION);
 
-    if (sip_dict_set_and_discard(mod_dict, "SIP_ABI_VERSION", obj) < 0)
+    if (sip_dict_set_and_discard(module_dict, "SIP_ABI_VERSION", obj) < 0)
         return NULL;
 
     /* Add the methods. */
@@ -875,7 +875,7 @@ const sipAPIDef *sip_init_library(PyObject *mod_dict)
     {
         PyObject *meth = PyCFunction_New(md, NULL);
 
-        if (sip_dict_set_and_discard(mod_dict, md->ml_name, meth) < 0)
+        if (sip_dict_set_and_discard(module_dict, md->ml_name, meth) < 0)
             return NULL;
 
         if (md == &methods[0])
@@ -926,19 +926,19 @@ const sipAPIDef *sip_init_library(PyObject *mod_dict)
         return NULL;
 
     /* Add the public types. */
-    if (PyDict_SetItemString(mod_dict, "wrappertype", (PyObject *)&sipWrapperType_Type) < 0)
+    if (PyDict_SetItemString(module_dict, "wrappertype", (PyObject *)&sipWrapperType_Type) < 0)
         return NULL;
 
-    if (PyDict_SetItemString(mod_dict, "simplewrapper", (PyObject *)&sipSimpleWrapper_Type) < 0)
+    if (PyDict_SetItemString(module_dict, "simplewrapper", (PyObject *)&sipSimpleWrapper_Type) < 0)
         return NULL;
 
-    if (PyDict_SetItemString(mod_dict, "wrapper", (PyObject *)&sipWrapper_Type) < 0)
+    if (PyDict_SetItemString(module_dict, "wrapper", (PyObject *)&sipWrapper_Type) < 0)
         return NULL;
 
-    if (PyDict_SetItemString(mod_dict, "voidptr", (PyObject *)&sipVoidPtr_Type) < 0)
+    if (PyDict_SetItemString(module_dict, "voidptr", (PyObject *)&sipVoidPtr_Type) < 0)
         return NULL;
 
-    if (PyDict_SetItemString(mod_dict, "array", (PyObject *)&sipArray_Type) < 0)
+    if (PyDict_SetItemString(module_dict, "array", (PyObject *)&sipArray_Type) < 0)
         return NULL;
 
     /* These will always be needed. */
@@ -985,55 +985,6 @@ int sip_dict_set_and_discard(PyObject *dict, const char *name, PyObject *obj)
 
     return rc;
 }
-
-
-#if _SIP_MODULE_SHARED
-/*
- * The Python module initialisation function.
- */
-#if defined(SIP_STATIC_MODULE)
-PyObject *_SIP_MODULE_ENTRY(void)
-#else
-PyMODINIT_FUNC _SIP_MODULE_ENTRY(void)
-#endif
-{
-    static PyModuleDef module_def = {
-        PyModuleDef_HEAD_INIT,
-        _SIP_MODULE_FQ_NAME,    /* m_name */
-        NULL,                   /* m_doc */
-        -1,                     /* m_size */
-        NULL,                   /* m_methods */
-        NULL,                   /* m_reload */
-        NULL,                   /* m_traverse */
-        NULL,                   /* m_clear */
-        NULL,                   /* m_free */
-    };
-
-    const sipAPIDef *api;
-    PyObject *mod, *mod_dict, *api_obj;
-
-    /* Create the module. */
-    if ((mod = PyModule_Create(&module_def)) == NULL)
-        return NULL;
-
-    mod_dict = PyModule_GetDict(mod);
-
-    /* Initialise the module dictionary and static variables. */
-    if ((api = sip_init_library(mod_dict)) == NULL)
-        return NULL;
-
-    /* Publish the SIP API. */
-    api_obj = PyCapsule_New((void *)api, _SIP_MODULE_FQ_NAME "._C_API", NULL);
-
-    if (sip_dict_set_and_discard(mod_dict, "_C_API", api_obj) < 0)
-    {
-        Py_DECREF(mod);
-        return NULL;
-    }
-
-    return mod;
-}
-#endif
 
 
 /*
