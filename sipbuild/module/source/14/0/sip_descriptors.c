@@ -420,9 +420,10 @@ static void sipVariableDescr_dealloc(PyObject *self)
  */
 static sipVariableDescr *alloc_variable_descr(sipWrapperType *wt)
 {
-    // TODO Get the type object from the sip module's state itself obtained
-    // from the wrapper type.
-    return (sipVariableDescr *)PyType_GenericAlloc(&sipVariableDescr_Type, 0);
+    sipSipModuleState *module_state = sip_get_sip_module_state(wt);
+
+    return (sipVariableDescr *)PyType_GenericAlloc(
+            module_state->sip_variable_descr, 0);
 }
 
 

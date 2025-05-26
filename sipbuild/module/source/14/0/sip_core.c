@@ -815,7 +815,7 @@ static PyObject *import_module_attr(const char *module, const char *attr);
  * Initialise the module as a library.
  */
 const sipAPIDef *sip_init_library(PyObject *module,
-        SipModuleState *module_state)
+        sipSipModuleState *module_state)
 {
     // TODO METH_FASTCALL
     static PyMethodDef methods[] = {

@@ -64,7 +64,8 @@ PyMODINIT_FUNC _SIP_MODULE_ENTRY(void)
 // TODO This has to be exposed to be called for when the sip module is a lib.
 static int module_clear(PyObject *module)
 {
-    SipModuleState *module_state = (SipModuleState *)PyModule_GetState(module);
+    sipSipModuleState *module_state = (SipModuleState *)PyModule_GetState(
+            module);
 
     Py_CLEAR(module_state->sip_variable_descr_type);
 
@@ -80,7 +81,7 @@ static int module_exec(PyObject *module)
 
     /* Initialise the module. */
     const sipAPIDef *api = sip_init_library(module,
-            (SipModuleState *)PyModule_GetState(module));
+            (sipSipModuleState *)PyModule_GetState(module));
 
     if (api == NULL)
         return -1;
@@ -113,9 +114,19 @@ static void module_free(void *module_ptr)
 // TODO This has to be exposed to be called for when the sip module is a lib.
 static int module_traverse(PyObject *module, visitproc visit, void *arg)
 {
-    SipModuleState *module_state = (SipModuleState *)PyModule_GetState(module);
+    sipSipModuleState *module_state = (SipModuleState *)PyModule_GetState(
+            module);
 
     Py_VISIT(module_state->sip_variable_descr_type);
 
     return 0;
+}
+
+
+/*
+ * Return the state for the sip module that created a wrapper type.
+ */
+sipSipModuleState *sip_get_sip_module_state(sipWrapperType *wt)
+{
+    return (sipSipModuleState *)PyModule_GetState(wt->wt_sip_module);
 }

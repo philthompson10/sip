@@ -167,7 +167,7 @@ typedef struct _sipWrapper sipWrapper;
 typedef struct {
     // The variable descriptor type object.
     PyTypeObject *sip_variable_descr_type;
-} SipModuleState;
+} sipSipModuleState;
 
 
 /*
@@ -266,7 +266,11 @@ struct _sipWrapperType {
     unsigned wt_unused : 30;
 
     /* The generated type structure. */
-    sipTypeDef *wt_td;
+    const sipTypeDef *wt_td;
+
+    /* A borrowed reference to the sip module. */
+    // TODO How to set this?
+    PyObject *wt_sip_module;
 
     /* The list of init extenders. */
     struct _sipInitExtenderDef *wt_iextend;
@@ -275,6 +279,7 @@ struct _sipWrapperType {
      * For the user to use.  Note that any data structure will leak if the
      * type is garbage collected.
      */
+    // TODO Should these be a PyObject?
     void *wt_user_data;
 
     /* Reserved for future use by this ABI version. */
@@ -1460,7 +1465,7 @@ typedef struct _sipAPIDef {
 } sipAPIDef;
 
 const sipAPIDef *sip_init_library(PyObject *module,
-        SipModuleState *module_state);
+        sipSipModuleState *module_state);
 
 
 /*

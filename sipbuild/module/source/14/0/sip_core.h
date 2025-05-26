@@ -139,6 +139,7 @@ PyObject *sip_get_qualname(const sipTypeDef *td, PyObject *name);
 PyObject *sip_get_scope_dict(sipTypeDef *td, PyObject *mod_dict,
         sipExportedModuleDef *client);
 int sip_objectify(const char *s, PyObject **objp);
+sipSipModuleState *sip_get_sip_module_state(sipWrapperType *wt);
 
 sipClassTypeDef *sipGetGeneratedClassType(const sipEncodedTypeDef *enc,
         const sipClassTypeDef *ctd);
