@@ -173,6 +173,7 @@ static int sipMethodDescr_traverse(PyObject *self, visitproc visit, void *arg)
 {
     sipMethodDescr *descr = (sipMethodDescr *)self;
 
+    Py_VISIT(Py_TYPE(self));
     Py_VISIT(descr->wt);
     Py_VISIT(descr->mixin_name);
 
@@ -382,6 +383,7 @@ static int sipVariableDescr_traverse(PyObject *self, visitproc visit, void *arg)
 {
     sipVariableDescr *descr = (sipVariableDescr *)self;
 
+    Py_VISIT(Py_TYPE(self));
     Py_VISIT(descr->wt);
     Py_VISIT(descr->mixin_name);
 
