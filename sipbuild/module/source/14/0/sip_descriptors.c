@@ -39,81 +39,55 @@ typedef struct _sipMethodDescr {
     /* The method definition. */
     PyMethodDef *pmd;
 
+    /* The containing wrapper type. */
+    sipWrapperType *wt;
+
     /* The mixin name, if any. */
     PyObject *mixin_name;
 } sipMethodDescr;
 
 
 /*
- * The type data structure.
+ * The type specification.
  */
-PyTypeObject sipMethodDescr_Type = {
-    PyVarObject_HEAD_INIT(NULL, 0)
-    _SIP_MODULE_FQ_NAME ".methoddescriptor",    /* tp_name */
-    sizeof (sipMethodDescr),    /* tp_basicsize */
-    0,                      /* tp_itemsize */
-    sipMethodDescr_dealloc, /* tp_dealloc */
-    0,                      /* tp_print */
-    0,                      /* tp_getattr */
-    0,                      /* tp_setattr */
-    0,                      /* tp_compare */
-    sipMethodDescr_repr,    /* tp_repr */
-    0,                      /* tp_as_number */
-    0,                      /* tp_as_sequence */
-    0,                      /* tp_as_mapping */
-    0,                      /* tp_hash */
-    0,                      /* tp_call */
-    0,                      /* tp_str */
-    0,                      /* tp_getattro */
-    0,                      /* tp_setattro */
-    0,                      /* tp_as_buffer */
-    Py_TPFLAGS_DEFAULT|Py_TPFLAGS_HAVE_GC,  /* tp_flags */
-    0,                      /* tp_doc */
-    sipMethodDescr_traverse,/* tp_traverse */
-    sipMethodDescr_clear,   /* tp_clear */
-    0,                      /* tp_richcompare */
-    0,                      /* tp_weaklistoffset */
-    0,                      /* tp_iter */
-    0,                      /* tp_iternext */
-    0,                      /* tp_methods */
-    0,                      /* tp_members */
-    0,                      /* tp_getset */
-    0,                      /* tp_base */
-    0,                      /* tp_dict */
-    sipMethodDescr_descr_get,   /* tp_descr_get */
-    0,                      /* tp_descr_set */
-    0,                      /* tp_dictoffset */
-    0,                      /* tp_init */
-    0,                      /* tp_alloc */
-    0,                      /* tp_new */
-    0,                      /* tp_free */
-    0,                      /* tp_is_gc */
-    0,                      /* tp_bases */
-    0,                      /* tp_mro */
-    0,                      /* tp_cache */
-    0,                      /* tp_subclasses */
-    0,                      /* tp_weaklist */
-    0,                      /* tp_del */
-    0,                      /* tp_version_tag */
-    0,                      /* tp_finalize */
-    0,                      /* tp_vectorcall */
+static PyType_Slot sipMethodDescr_slots = {
+    {Py_tp_descr_get, sipMethodDescr_descr_get},
+    {Py_tp_repr, sipMethodDescr_repr},
+    {Py_tp_traverse, sipMethodDescr_traverse},
+    {Py_tp_clear, sipMethodDescr_clear},
+    {Py_tp_dealloc, sipMethodDescr_dealloc},
+    {0, NULL}
 };
+
+PyType_Spec sipMethodDescr_TypeSpec = {
+    .name = _SIP_MODULE_FQ_NAME ".methoddescriptor",
+    .basicsize = sizeof (sipMethodDescr),
+    .flags = Py_TPFLAGS_DEFAULT|Py_TPFLAGS_HAVE_GC,
+    .slots = sipMethodDescr_slots,
+};
+
+
+/* Forward declarations. */
+static sipMethodDescr *alloc_method_descr(sipWrapperType *wt);
 
 
 /*
  * Return a new method descriptor for the given method.
  */
-PyObject *sipMethodDescr_New(PyMethodDef *pmd)
+PyObject *sipMethodDescr_New(PyMethodDef *pmd, sipWrapperType *wt)
 {
-    PyObject *descr = PyType_GenericAlloc(&sipMethodDescr_Type, 0);
+    sipMethodDescr *descr = alloc_method_descr(wt);
 
     if (descr != NULL)
     {
-        ((sipMethodDescr *)descr)->pmd = pmd;
-        ((sipMethodDescr *)descr)->mixin_name = NULL;
+        descr->pmd = pmd;
+        descr->wt = wt;
+        descr->mixin_name = NULL;
+
+        Py_INCREF(wt);
     }
 
-    return descr;
+    return (PyObject *)descr;
 }
 
 
@@ -122,16 +96,20 @@ PyObject *sipMethodDescr_New(PyMethodDef *pmd)
  */
 PyObject *sipMethodDescr_Copy(PyObject *orig, PyObject *mixin_name)
 {
-    PyObject *descr = PyType_GenericAlloc(&sipMethodDescr_Type, 0);
+    sipMethodDescr *orig_descr = (sipMethodDescr *)orig;
+    sipMethodDescr *descr = alloc_method_descr(orig_descr->wt);
 
     if (descr != NULL)
     {
-        ((sipMethodDescr *)descr)->pmd = ((sipMethodDescr *)orig)->pmd;
-        ((sipMethodDescr *)descr)->mixin_name = mixin_name;
+        descr->vd = orig_descr->vd;
+        descr->wt = orig_descr->wt;
+        descr->mixin_name = mixin_name;
+
+        Py_INCREF(orig_descr->wt);
         Py_INCREF(mixin_name);
     }
 
-    return descr;
+    return (PyObject *)descr;
 }
 
 
@@ -141,7 +119,7 @@ PyObject *sipMethodDescr_Copy(PyObject *orig, PyObject *mixin_name)
 static PyObject *sipMethodDescr_descr_get(PyObject *self, PyObject *obj,
         PyObject *type)
 {
-    sipMethodDescr *md = (sipMethodDescr *)self;
+    sipMethodDescr *descr = (sipMethodDescr *)self;
     PyObject *bind, *func;
 
     if (obj == NULL)
@@ -150,9 +128,9 @@ static PyObject *sipMethodDescr_descr_get(PyObject *self, PyObject *obj,
         bind = type;
         Py_INCREF(bind);
     }
-    else if (md->mixin_name != NULL)
+    else if (descr->mixin_name != NULL)
     {
-        bind = PyObject_GetAttr(obj, md->mixin_name);
+        bind = PyObject_GetAttr(obj, descr->mixin_name);
     }
     else
     {
@@ -164,7 +142,7 @@ static PyObject *sipMethodDescr_descr_get(PyObject *self, PyObject *obj,
         Py_INCREF(bind);
     }
 
-    func = PyCFunction_New(md->pmd, bind);
+    func = PyCFunction_New(descr->pmd, bind);
     Py_DECREF(bind);
 
     return func;
@@ -177,9 +155,9 @@ static PyObject *sipMethodDescr_descr_get(PyObject *self, PyObject *obj,
  */
 static PyObject *sipMethodDescr_repr(PyObject *self)
 {
-    sipMethodDescr *md = (sipMethodDescr *)self;
+    sipMethodDescr *descr = (sipMethodDescr *)self;
 
-    return PyUnicode_FromFormat("<built-in method %s>", md->pmd->ml_name);
+    return PyUnicode_FromFormat("<built-in method %s>", descr->pmd->ml_name);
 }
 
 
@@ -188,13 +166,10 @@ static PyObject *sipMethodDescr_repr(PyObject *self)
  */
 static int sipMethodDescr_traverse(PyObject *self, visitproc visit, void *arg)
 {
-    if (((sipMethodDescr *)self)->mixin_name != NULL)
-    {
-        int vret = visit(((sipMethodDescr *)self)->mixin_name, arg);
+    sipMethodDescr *descr = (sipMethodDescr *)self;
 
-        if (vret != 0)
-            return vret;
-    }
+    Py_VISIT(descr->wt);
+    Py_VISIT(descr->mixin_name);
 
     return 0;
 }
@@ -205,10 +180,10 @@ static int sipMethodDescr_traverse(PyObject *self, visitproc visit, void *arg)
  */
 static int sipMethodDescr_clear(PyObject *self)
 {
-    PyObject *tmp = ((sipMethodDescr *)self)->mixin_name;
+    sipMethodDescr *descr = (sipMethodDescr *)self;
 
-    ((sipMethodDescr *)self)->mixin_name = NULL;
-    Py_XDECREF(tmp);
+    Py_CLEAR(descr->wt);
+    Py_CLEAR(descr->mixin_name);
 
     return 0;
 }
@@ -222,6 +197,18 @@ static void sipMethodDescr_dealloc(PyObject *self)
     PyObject_GC_UnTrack(self);
     sipMethodDescr_clear(self);
     Py_TYPE(self)->tp_free(self);
+}
+
+
+/*
+ * Allocate a new method descriptor for a wrapper type.
+ */
+static sipMethodDescr *alloc_method_descr(sipWrapperType *wt)
+{
+    sipSipModuleState *module_state = sip_get_sip_module_state(wt);
+
+    return (sipMethodDescr *)PyType_GenericAlloc(
+            module_state->sip_method_descr, 0);
 }
 
 
@@ -340,13 +327,13 @@ PyObject *sipVariableDescr_Copy(PyObject *orig, PyObject *mixin_name)
 static PyObject *sipVariableDescr_descr_get(PyObject *self, PyObject *obj,
         PyObject *type)
 {
-    sipVariableDescr *vd = (sipVariableDescr *)self;
+    sipVariableDescr *descr = (sipVariableDescr *)self;
     void *addr;
 
-    if (get_instance_address(vd, obj, &addr) < 0)
+    if (get_instance_address(descr, obj, &addr) < 0)
         return NULL;
 
-    return ((sipVariableGetterFunc)vd->vd->vd_getter)(addr, obj, type);
+    return ((sipVariableGetterFunc)descr->vd->vd_getter)(addr, obj, type);
 }
 
 
@@ -356,23 +343,23 @@ static PyObject *sipVariableDescr_descr_get(PyObject *self, PyObject *obj,
 static int sipVariableDescr_descr_set(PyObject *self, PyObject *obj,
         PyObject *value)
 {
-    sipVariableDescr *vd = (sipVariableDescr *)self;
+    sipVariableDescr *descr = (sipVariableDescr *)self;
     void *addr;
 
     /* Check that the value isn't const. */
-    if (vd->vd->vd_setter == NULL)
+    if (descr->vd->vd_setter == NULL)
     {
         PyErr_Format(PyExc_AttributeError,
-                "'%s' object attribute '%s' is read-only", vd->cod_name,
-                vd->vd->vd_name);
+                "'%s' object attribute '%s' is read-only", descr->cod_name,
+                descr->vd->vd_name);
 
         return -1;
     }
 
-    if (get_instance_address(vd, obj, &addr) < 0)
+    if (get_instance_address(descr, obj, &addr) < 0)
         return -1;
 
-    return ((sipVariableSetterFunc)vd->vd->vd_setter)(addr, value, obj);
+    return ((sipVariableSetterFunc)descr->vd->vd_setter)(addr, value, obj);
 }
 
 
@@ -430,12 +417,12 @@ static sipVariableDescr *alloc_variable_descr(sipWrapperType *wt)
 /*
  * Return the C/C++ address of any instance.
  */
-static int get_instance_address(sipVariableDescr *vd, PyObject *obj,
+static int get_instance_address(sipVariableDescr *descr, PyObject *obj,
         void **addrp)
 {
     void *addr;
 
-    if (vd->vd->vd_type == ClassVariable)
+    if (descr->vd->vd_type == ClassVariable)
     {
         addr = NULL;
     }
@@ -446,16 +433,16 @@ static int get_instance_address(sipVariableDescr *vd, PyObject *obj,
         {
             PyErr_Format(PyExc_AttributeError,
                     "'%s' object attribute '%s' is an instance attribute",
-                    vd->cod_name, vd->vd->vd_name);
+                    descr->cod_name, descr->vd->vd_name);
 
             return -1;
         }
 
-        if (vd->mixin_name != NULL)
-            obj = PyObject_GetAttr(obj, vd->mixin_name);
+        if (descr->mixin_name != NULL)
+            obj = PyObject_GetAttr(obj, descr->mixin_name);
 
         /* Get the C++ instance. */
-        if ((addr = sip_api_get_cpp_ptr((sipSimpleWrapper *)obj, vd->wt->wt_td)) == NULL)
+        if ((addr = sip_api_get_cpp_ptr((sipSimpleWrapper *)obj, descr->wt->wt_td)) == NULL)
             return -1;
     }
 

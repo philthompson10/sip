@@ -895,10 +895,13 @@ const sipAPIDef *sip_init_library(PyObject *module,
     if (PyModule_AddType(module, &sipArray_Type) < 0)
         return NULL;
 
-    if (PyType_Ready(&sipMethodDescr_Type) < 0)
+    module_state->sip_method_descr_type = (PyTypeObject *)PyType_FromModuleAndSpec(
+            module, &sipMethodDescr_TypeSpec, NULL);
+
+    if (module_state->sip_method_descr_type == NULL)
         return NULL;
 
-    module_state->variable_descr_type = (PyTypeObject *)PyType_FromModuleAndSpec(
+    module_state->sip_variable_descr_type = (PyTypeObject *)PyType_FromModuleAndSpec(
             module, &sipVariableDescr_TypeSpec, NULL);
 
     if (module_state->variable_descr_type == NULL)
@@ -9053,25 +9056,24 @@ static void *sip_api_get_mixin_address(sipSimpleWrapper *w,
 
 
 /*
- * Initialise a mixin.
+ * Initialise from a mixin.
  */
 static int sip_api_init_mixin(PyObject *self, PyObject *args, PyObject *kwds,
-        const sipClassTypeDef *ctd)
+        const sipClassTypeDef *mixin_ctd)
 {
-    int rc;
-    Py_ssize_t pos;
-    PyObject *unused, *mixin, *mixin_name, *key, *value;
-    PyTypeObject *self_wt = sipTypeAsPyTypeObject(((sipWrapperType *)Py_TYPE(self))->wt_td);
-    PyTypeObject *wt = sipTypeAsPyTypeObject(&ctd->ctd_base);
-
     static PyObject *double_us = NULL;
 
     if (sip_objectify("__", &double_us) < 0)
         return -1;
 
     /* If we are not a mixin to another wrapped class then behave as normal. */
-    if (PyType_IsSubtype(self_wt, wt))
-        return super_init(self, args, kwds, next_in_mro(self, (PyObject *)wt));
+    PyTypeObject *self_wt = sipTypeAsPyTypeObject(
+            ((sipWrapperType *)Py_TYPE(self))->wt_td);
+    PyTypeObject *mixin_wt = sipTypeAsPyTypeObject(&mixin_ctd->ctd_base);
+
+    if (PyType_IsSubtype(self_wt, mixin_wt))
+        return super_init(self, args, kwds,
+                next_in_mro(self, (PyObject *)mixin_wt));
 
     /*
      * Create the mixin instance.  Retain the positional arguments for the
@@ -9079,9 +9081,9 @@ static int sip_api_init_mixin(PyObject *self, PyObject *args, PyObject *kwds,
      * main class in the MRO, it appears before sipWrapperType where the main
      * class's arguments are actually parsed.
      */
-    unused = NULL;
+    PyObject *unused = NULL;
     unused_backdoor = &unused;
-    mixin = PyObject_Call((PyObject *)wt, empty_tuple, kwds);
+    PyObject *mixin = PyObject_Call((PyObject *)mixin_wt, empty_tuple, kwds);
     unused_backdoor = NULL;
 
     if (mixin == NULL)
@@ -9091,22 +9093,26 @@ static int sip_api_init_mixin(PyObject *self, PyObject *args, PyObject *kwds,
     ((sipSimpleWrapper *)mixin)->mixin_main = self;
     Py_INCREF(self);
 
-    if ((mixin_name = PyUnicode_FromString(sipTypeName(&ctd->ctd_base))) == NULL)
+    PyObject *mixin_name;
+
+    if ((mixin_name = PyUnicode_FromString(sipTypeName(&mixin_ctd->ctd_base))) == NULL)
     {
         Py_DECREF(mixin);
         goto gc_unused;
     }
 
-    rc = PyObject_SetAttr(self, mixin_name, mixin);
+    int rc = PyObject_SetAttr(self, mixin_name, mixin);
     Py_DECREF(mixin);
 
     if (rc < 0)
         goto gc_mixin_name;
 
     /* Add the mixin's useful attributes to the main class. */
-    pos = 0;
+    sipSipModuleState *module_state = sip_get_sip_module_state(mixin_wt);
+    Py_ssize_t pos = 0;
+    PyObject *key, *value;
 
-    while (PyDict_Next(wt->tp_dict, &pos, &key, &value))
+    while (PyDict_Next(mixin_wt->tp_dict, &pos, &key, &value))
     {
         /* Don't replace existing values. */
         if (PyDict_Contains(Py_TYPE(self)->tp_dict, key) != 0)
@@ -9128,12 +9134,12 @@ static int sip_api_init_mixin(PyObject *self, PyObject *args, PyObject *kwds,
         if (rc > 0)
             continue;
 
-        if (PyObject_IsInstance(value, (PyObject *)&sipMethodDescr_Type))
+        if (PyObject_IsInstance(value, (PyObject *)module_state->sip_method_descr_type))
         {
             if ((value = sipMethodDescr_Copy(value, mixin_name)) == NULL)
                 goto gc_mixin_name;
         }
-        else if (PyObject_IsInstance(value, (PyObject *)&sipVariableDescr_Type))
+        else if (PyObject_IsInstance(value, (PyObject *)module_state->sip_variable_descr_type))
         {
             if ((value = sipVariableDescr_Copy(value, mixin_name)) == NULL)
                 goto gc_mixin_name;
@@ -9154,7 +9160,8 @@ static int sip_api_init_mixin(PyObject *self, PyObject *args, PyObject *kwds,
     Py_DECREF(mixin_name);
 
     /* Call the super-class's __init__ with any remaining arguments. */
-    rc = super_init(self, args, unused, next_in_mro(self, (PyObject *)wt));
+    rc = super_init(self, args, unused,
+            next_in_mro(self, (PyObject *)mixin_wt));
     Py_XDECREF(unused);
 
     return rc;

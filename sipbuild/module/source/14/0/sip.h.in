@@ -165,6 +165,9 @@ typedef struct _sipWrapper sipWrapper;
 
 /* The sip module's state. */
 typedef struct {
+    // The method descriptor type object.
+    PyTypeObject *sip_method_descr_type;
+
     // The variable descriptor type object.
     PyTypeObject *sip_variable_descr_type;
 } sipSipModuleState;

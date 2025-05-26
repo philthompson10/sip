@@ -59,8 +59,8 @@ typedef struct
 /*
  * Support for the descriptors.
  */
-extern PyTypeObject sipMethodDescr_Type;
-PyObject *sipMethodDescr_New(PyMethodDef *pmd);
+extern PyType_Spec sipMethodDescr_TypeSpec;
+PyObject *sipMethodDescr_New(PyMethodDef *pmd, sipWrapper *wt);
 PyObject *sipMethodDescr_Copy(PyObject *orig, PyObject *mixin_name);
 
 extern PyType_Spec sipVariableDescr_TypeSpec;
