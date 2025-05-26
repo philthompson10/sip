@@ -62,7 +62,12 @@ static PyType_Slot sipMethodDescr_slots = {
 PyType_Spec sipMethodDescr_TypeSpec = {
     .name = _SIP_MODULE_FQ_NAME ".methoddescriptor",
     .basicsize = sizeof (sipMethodDescr),
-    .flags = Py_TPFLAGS_DEFAULT|Py_TPFLAGS_HAVE_GC,
+    .flags = Py_TPFLAGS_DEFAULT |
+#if PY_VERSION_HEX >= 0x030a0000
+             Py_TPFLAGS_IMMUTABLETYPE |
+             Py_TPFLAGS_DISALLOW_INSTANTIATION |
+#endif
+             Py_TPFLAGS_HAVE_GC,
     .slots = sipMethodDescr_slots,
 };
 
@@ -196,7 +201,9 @@ static void sipMethodDescr_dealloc(PyObject *self)
 {
     PyObject_GC_UnTrack(self);
     sipMethodDescr_clear(self);
-    Py_TYPE(self)->tp_free(self);
+    PyTypeObject *type = Py_TYPE(self);
+    type->tp_free(self);
+    Py_DECREF(type);
 }
 
 
@@ -264,7 +271,12 @@ static PyType_Slot sipVariableDescr_slots = {
 PyType_Spec sipVariableDescr_TypeSpec = {
     .name = _SIP_MODULE_FQ_NAME ".variabledescriptor",
     .basicsize = sizeof (sipVariableDescr),
-    .flags = Py_TPFLAGS_DEFAULT|Py_TPFLAGS_HAVE_GC,
+    .flags = Py_TPFLAGS_DEFAULT |
+#if PY_VERSION_HEX >= 0x030a0000
+             Py_TPFLAGS_IMMUTABLETYPE |
+             Py_TPFLAGS_DISALLOW_INSTANTIATION |
+#endif
+             Py_TPFLAGS_HAVE_GC,
     .slots = sipVariableDescr_slots,
 };
 
@@ -398,7 +410,9 @@ static void sipVariableDescr_dealloc(PyObject *self)
 {
     PyObject_GC_UnTrack(self);
     sipVariableDescr_clear(self);
-    Py_TYPE(self)->tp_free(self);
+    PyTypeObject *type = Py_TYPE(self);
+    type->tp_free(self);
+    Py_DECREF(type);
 }
 
 
