@@ -646,7 +646,6 @@ static PyObject **unused_backdoor = NULL;   /* For passing dict of unused argume
 
 static PyObject *init_name = NULL;      /* '__init__'. */
 static PyObject *empty_tuple;           /* The empty tuple. */
-static PyObject *type_unpickler;        /* The type unpickler function. */
 static sipSymbol *sipSymbolList = NULL; /* The list of published symbols. */
 static sipPyObject *sipRegisteredPyTypes = NULL;    /* Registered Python types. */
 static sipPyObject *sipDisabledAutoconversions = NULL;  /* Python types whose auto-conversion is disabled. */
@@ -771,8 +770,8 @@ static PyObject *findPyType(const char *name);
 static int addPyObjectToList(sipPyObject **head, PyObject *object);
 static PyObject *getDictFromObject(PyObject *obj);
 static void forgetObject(sipSimpleWrapper *sw);
-static int add_lazy_container_attrs(const sipTypeDef *td, sipContainerDef *cod,
-        PyObject *dict);
+static int add_lazy_container_attrs(sipWrapperType *wt, const sipTypeDef *td,
+        sipContainerDef *cod);
 static int add_lazy_attrs(const sipTypeDef *td);
 static void add_failure(PyObject **parseErrp, sipParseFailure *failure);
 static PyObject *bad_type_str(int arg_nr, PyObject *arg);
@@ -815,15 +814,11 @@ static PyObject *import_module_attr(const char *module, const char *attr);
 /*
  * Initialise the module as a library.
  */
-const sipAPIDef *sip_init_library(PyObject *module_dict)
+const sipAPIDef *sip_init_library(PyObject *module,
+        SipModuleState *module_state)
 {
+    // TODO METH_FASTCALL
     static PyMethodDef methods[] = {
-        /* The type unpickler must be first. */
-        {"_unpickle_type", unpickle_type, METH_VARARGS, NULL},
-#if defined(SIP_CONFIGURATION_CustomEnums)
-        /* The custom enum unpickler must be second. */
-        {"_unpickle_enum", sip_enum_unpickle_custom_enum, METH_VARARGS, NULL},
-#endif
         {"assign", assign, METH_VARARGS, NULL},
         {"cast", cast, METH_VARARGS, NULL},
         {"delete", callDtor, METH_VARARGS, NULL},
@@ -838,6 +833,10 @@ const sipAPIDef *sip_init_library(PyObject *module_dict)
         {"transferto", transferTo, METH_VARARGS, NULL},
         {"wrapinstance", wrapInstance, METH_VARARGS, NULL},
         {"unwrapinstance", unwrapInstance, METH_VARARGS, NULL},
+        {"_unpickle_type", unpickle_type, METH_VARARGS, NULL},
+#if defined(SIP_CONFIGURATION_CustomEnums)
+        {"_unpickle_enum", sip_enum_unpickle_custom_enum, METH_VARARGS, NULL},
+#endif
         {NULL, NULL, 0, NULL}
     };
 
@@ -845,60 +844,37 @@ const sipAPIDef *sip_init_library(PyObject *module_dict)
         "_sip_exit", sip_exit, METH_NOARGS, NULL
     };
 
-    PyObject *obj;
-    PyMethodDef *md;
-
-    if (sip_enum_init() < 0)
-        return NULL;
-
     /* Add the SIP version number. */
-    obj = PyLong_FromLong(SIP_VERSION);
-
-    if (sip_dict_set_and_discard(module_dict, "SIP_VERSION", obj) < 0)
+    if (PyModule_AddIntMacro(module, SIP_VERSION) < 0)
         return NULL;
 
-    obj = PyUnicode_FromString(SIP_VERSION_STR);
-
-    if (sip_dict_set_and_discard(module_dict, "SIP_VERSION_STR", obj) < 0)
+    if (PyModule_AddStringMacro(module, SIP_VERSION_STR) < 0)
         return NULL;
 
     /* Add the SIP ABI version number. */
-    obj = PyLong_FromLong((SIP_ABI_MAJOR_VERSION << 16) +
+    const long abi_version = (SIP_ABI_MAJOR_VERSION << 16) +
             (SIP_ABI_MINOR_VERSION << 8) +
-            SIP_MODULE_PATCH_VERSION);
+            SIP_MODULE_PATCH_VERSION;
 
-    if (sip_dict_set_and_discard(module_dict, "SIP_ABI_VERSION", obj) < 0)
+    if (PyModule_AddIntConstant(module, "SIP_ABI_VERSION", abi_version) < 0)
         return NULL;
 
     /* Add the methods. */
-    for (md = methods; md->ml_name != NULL; ++md)
-    {
-        PyObject *meth = PyCFunction_New(md, NULL);
-
-        if (sip_dict_set_and_discard(module_dict, md->ml_name, meth) < 0)
-            return NULL;
-
-        if (md == &methods[0])
-        {
-            Py_INCREF(meth);
-            type_unpickler = meth;
-        }
-#if defined(SIP_CONFIGURATION_CustomEnums)
-        else if (md == &methods[1])
-        {
-            Py_INCREF(meth);
-            sip_enum_custom_enum_unpickler = meth;
-        }
-#endif
-    }
-
-    /* Initialise the types. */
-    sipWrapperType_Type.tp_base = &PyType_Type;
-
-    if (PyType_Ready(&sipWrapperType_Type) < 0)
+    if (PyModule_AddFunctions(module, methods) < 0)
         return NULL;
 
-    if (PyType_Ready((PyTypeObject *)&sipSimpleWrapper_Type) < 0)
+    /* Initialise the enum support. */
+    if (sip_enum_init(module, module_state) < 0)
+        return NULL;
+
+    /* Initialise the types. */
+    // TODO
+    sipWrapperType_Type.tp_base = &PyType_Type;
+
+    if (PyModule_AddType(module, &sipWrapperType_Type) < 0)
+        return NULL;
+
+    if (PyModule_AddType(module, (PyTypeObject *)&sipSimpleWrapper_Type) < 0)
         return NULL;
 
     if (sip_api_register_py_type((PyTypeObject *)&sipSimpleWrapper_Type) < 0)
@@ -910,35 +886,22 @@ const sipAPIDef *sip_init_library(PyObject *module_dict)
     sipWrapper_Type.super.ht_type.tp_base = (PyTypeObject *)&sipSimpleWrapper_Type;
 #endif
 
-    if (PyType_Ready((PyTypeObject *)&sipWrapper_Type) < 0)
+    if (PyModule_AddType(module, (PyTypeObject *)&sipWrapper_Type) < 0)
+        return NULL;
+
+    if (PyModule_AddType(module, &sipVoidPtr_Type) < 0)
+        return NULL;
+
+    if (PyModule_AddType(module, &sipArray_Type) < 0)
         return NULL;
 
     if (PyType_Ready(&sipMethodDescr_Type) < 0)
         return NULL;
 
-    if (PyType_Ready(&sipVariableDescr_Type) < 0)
-        return NULL;
+    module_state->variable_descr_type = (PyTypeObject *)PyType_FromModuleAndSpec(
+            module, &sipVariableDescr_TypeSpec, NULL);
 
-    if (PyType_Ready(&sipVoidPtr_Type) < 0)
-        return NULL;
-
-    if (PyType_Ready(&sipArray_Type) < 0)
-        return NULL;
-
-    /* Add the public types. */
-    if (PyDict_SetItemString(module_dict, "wrappertype", (PyObject *)&sipWrapperType_Type) < 0)
-        return NULL;
-
-    if (PyDict_SetItemString(module_dict, "simplewrapper", (PyObject *)&sipSimpleWrapper_Type) < 0)
-        return NULL;
-
-    if (PyDict_SetItemString(module_dict, "wrapper", (PyObject *)&sipWrapper_Type) < 0)
-        return NULL;
-
-    if (PyDict_SetItemString(module_dict, "voidptr", (PyObject *)&sipVoidPtr_Type) < 0)
-        return NULL;
-
-    if (PyDict_SetItemString(module_dict, "array", (PyObject *)&sipArray_Type) < 0)
+    if (module_state->variable_descr_type == NULL)
         return NULL;
 
     /* These will always be needed. */
@@ -5922,6 +5885,7 @@ static PyObject *pickle_type(PyObject *obj, PyObject *args)
                         return NULL;
                     }
 
+                    // TODO Get type_unpickler from the sip module dict.
                     return Py_BuildValue("O(OsN)", type_unpickler,
                             em->em_nameobj, pyname, init_args);
                 }
@@ -6105,12 +6069,13 @@ static int addMethod(PyObject *dict, PyMethodDef *pmd)
 /*
  * Populate a container's type dictionary.
  */
-static int add_lazy_container_attrs(const sipTypeDef *td, sipContainerDef *cod,
-        PyObject *dict)
+static int add_lazy_container_attrs(sipWrapperType *wt, const sipTypeDef *td,
+        sipContainerDef *cod)
 {
     int i;
     PyMethodDef *pmd;
     sipVariableDef *vd;
+    PyObject *dict = ((PyTypeObject *)wt)->tp_dict;
 
     /* Do the methods. */
     for (pmd = cod->cod_methods, i = 0; i < cod->cod_nrmethods; ++i, ++pmd)
@@ -6195,7 +6160,8 @@ static int add_lazy_container_attrs(const sipTypeDef *td, sipContainerDef *cod,
         if (vd->vd_type == PropertyVariable)
             descr = create_property(vd);
         else
-            descr = sipVariableDescr_New(vd, td, cod);
+            descr = sipVariableDescr_New(vd, wt,
+                    sipPyNameOfContainer(cod, td));
 
         if (sip_dict_set_and_discard(dict, vd->vd_name, descr) < 0)
             return -1;
@@ -6266,18 +6232,14 @@ static PyObject *create_function(PyMethodDef *ml)
 static int add_lazy_attrs(const sipTypeDef *td)
 {
     sipWrapperType *wt = (sipWrapperType *)sipTypeAsPyTypeObject(td);
-    PyObject *dict;
-    EventHandler *eh;
 
     /* Handle the trivial case. */
     if (wt->wt_dict_complete)
         return 0;
 
-    dict = ((PyTypeObject *)wt)->tp_dict;
-
     if (sipTypeIsMapped(td))
     {
-        if (add_lazy_container_attrs(td, &((sipMappedTypeDef *)td)->mtd_container, dict) < 0)
+        if (add_lazy_container_attrs(wt, td, &((sipMappedTypeDef *)td)->mtd_container) < 0)
             return -1;
     }
     else
@@ -6286,7 +6248,7 @@ static int add_lazy_attrs(const sipTypeDef *td)
 
         /* Search the possible linked list of namespace extenders. */
         for (nsx = (sipClassTypeDef *)td; nsx != NULL; nsx = nsx->ctd_nsextender)
-            if (add_lazy_container_attrs((sipTypeDef *)nsx, &nsx->ctd_container, dict) < 0)
+            if (add_lazy_container_attrs(wt, (sipTypeDef *)nsx, &nsx->ctd_container) < 0)
                 return -1;
     }
 
@@ -6294,13 +6256,15 @@ static int add_lazy_attrs(const sipTypeDef *td)
      * Allow handlers to update the type dictionary.  This must be done last to
      * allow any existing attributes to be replaced.
      */
+    EventHandler *eh;
+
     for (eh = event_handlers[sipEventFinalisingType]; eh != NULL; eh = eh->next)
     {
         if (sipTypeIsClass(eh->td) && is_subtype((const sipClassTypeDef *)td, (const sipClassTypeDef *)eh->td))
         {
             sipFinalisingTypeEventHandler handler = (sipFinalisingTypeEventHandler)eh->handler;
 
-            if (handler(td, dict) < 0)
+            if (handler(td, ((PyTypeObject *)wt)->tp_dict) < 0)
                 return -1;
         }
     }

@@ -62,7 +62,7 @@ PyObject *sip_enum_unpickle_custom_enum(PyObject *obj, PyObject *args);
 
 int sip_enum_convert_to_constrained_enum(PyObject *obj, const sipTypeDef *td);
 const sipTypeDef *sip_enum_get_generated_type(PyTypeObject *py_type);
-int sip_enum_init(void);
+int sip_enum_init(PyObject *module, SipModuleState *module_state);
 int sip_enum_is_enum(PyObject *obj);
 
 

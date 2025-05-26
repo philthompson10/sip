@@ -163,6 +163,13 @@ struct _sipWrapper;
 typedef struct _sipWrapper sipWrapper;
 
 
+/* The sip module's state. */
+typedef struct {
+    // The variable descriptor type object.
+    PyTypeObject *sip_variable_descr_type;
+} SipModuleState;
+
+
 /*
  * The different events a handler can be registered for.
  */
@@ -1452,7 +1459,8 @@ typedef struct _sipAPIDef {
     void (*unused_private_5)(void);
 } sipAPIDef;
 
-const sipAPIDef *sip_init_library(PyObject *module_dict);
+const sipAPIDef *sip_init_library(PyObject *module,
+        SipModuleState *module_state);
 
 
 /*

@@ -36,9 +36,6 @@ static PyObject *sipEnumType_alloc(PyTypeObject *self, Py_ssize_t nitems);
 static PyObject *sipEnumType_getattro(PyObject *self, PyObject *name);
 
 
-/* The enum unpickler Python function. */
-PyObject *sip_enum_custom_enum_unpickler = NULL;
-
 /* The custom enum in the process of being created. */
 static sipTypeDef *currentEnum = NULL;
 
@@ -194,8 +191,9 @@ const sipTypeDef *sip_enum_get_generated_type(PyTypeObject *py_type)
  * Initialise the enum support.  A negative value is returned (and an exception
  * set) if there was an error.
  */
-int sip_enum_init(void)
+int sip_enum_init(PyObject *module, SipModuleState *module_state)
 {
+    // TODO
     sipEnumType_Type.tp_base = &PyType_Type;
 
     return PyType_Ready(&sipEnumType_Type);
@@ -223,6 +221,7 @@ PyObject *sip_enum_pickle_custom_enum(PyObject *obj, PyObject *args)
 
     (void)args;
 
+    // TODO Get sip_enum_custom_enum_unpickler from the sip module dict.
     return Py_BuildValue("O(Osi)", sip_enum_custom_enum_unpickler,
             td->td_module->em_nameobj, sipPyNameOfEnum((sipEnumTypeDef *)td),
             (int)PyLong_AS_LONG(obj));

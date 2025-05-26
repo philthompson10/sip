@@ -1460,6 +1460,10 @@ f'''    sipAPI_{module_name} = {c_api};
     else:
         # If there is no sip module name then we are getting the API from a
         # non-shared sip module.
+        # TODO For ABI v14 this should pass the module object and a pointer to
+        # the sip state structure which will be embedded in the module's state
+        # structure.  There also needs to be other lifecycle hooks with the
+        # same signature.
         sf.write(
 f'''    if ((sipAPI_{module_name} = sip_init_library(sipModuleDict)) == SIP_NULLPTR)
         return SIP_NULLPTR;

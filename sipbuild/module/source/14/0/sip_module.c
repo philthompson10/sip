@@ -12,16 +12,13 @@
 #include <Python.h>
 
 #include "sip.h"
-#include "sip_core.h"
-
-
-/* The module-specific state. */
-typedef struct {
-} module_state;
 
 
 /* Forward declarations. */
+static int module_clear(PyObject *module);
 static int module_exec(PyObject *module);
+static void module_free(void *module_ptr);
+static int module_traverse(PyObject *module, visitproc visit, void *arg);
 
 
 #if _SIP_MODULE_SHARED
@@ -49,12 +46,11 @@ PyMODINIT_FUNC _SIP_MODULE_ENTRY(void)
         .m_base = PyModuleDef_HEAD_INIT,
         .m_name = _SIP_MODULE_FQ_NAME,
         .m_doc = PyDoc_STR("Bindings related utilities"),
-        .m_size = sizeof (module_state),
-        //.m_methods = module_methods,
+        .m_size = sizeof (sip_module_state),
         .m_slots = module_slots,
-        //.m_traverse = module_traverse,
-        //.m_clear = module_clear,
-        //.m_free = module_free,
+        .m_clear = module_clear,
+        .m_traverse = module_traverse,
+        .m_free = module_free,
     };
 
     return PyModuleDef_Init(&module_def);
@@ -63,14 +59,28 @@ PyMODINIT_FUNC _SIP_MODULE_ENTRY(void)
 
 
 /*
+ * Implement the module clear slot.
+ */
+// TODO This has to be exposed to be called for when the sip module is a lib.
+static int module_clear(PyObject *module)
+{
+    SipModuleState *module_state = (SipModuleState *)PyModule_GetState(module);
+
+    Py_CLEAR(module_state->sip_variable_descr_type);
+
+    return 0;
+}
+
+/*
  * Implement the exec phase of the module initialisation.
  */
 static int module_exec(PyObject *module)
 {
     PyObject *module_dict = PyModule_GetDict(module);
 
-    /* Initialise the module dictionary and static variables. */
-    const sipAPIDef *api = sip_init_library(module_dict);
+    /* Initialise the module. */
+    const sipAPIDef *api = sip_init_library(module,
+            (SipModuleState *)PyModule_GetState(module));
 
     if (api == NULL)
         return -1;
@@ -79,8 +89,33 @@ static int module_exec(PyObject *module)
     PyObject *api_obj = PyCapsule_New((void *)api,
             _SIP_MODULE_FQ_NAME "._C_API", NULL);
 
-    if (sip_dict_set_and_discard(module_dict, "_C_API", api_obj) < 0)
-        return -1;
+    int rc = PyModule_AddObjectRef(module, "_C_API", api_obj);
+
+    Py_XDECREF(api_obj);
+
+    return rc;
+}
+
+
+/*
+ * Implement the module free slot.
+ */
+// TODO This has to be exposed to be called for when the sip module is a lib.
+static void module_free(void *module_ptr)
+{
+    module_clear((PyObject *)module_ptr);
+}
+
+
+/*
+ * Implement the module traverse slot.
+ */
+// TODO This has to be exposed to be called for when the sip module is a lib.
+static int module_traverse(PyObject *module, visitproc visit, void *arg)
+{
+    SipModuleState *module_state = (SipModuleState *)PyModule_GetState(module);
+
+    Py_VISIT(module_state->sip_variable_descr_type);
 
     return 0;
 }
