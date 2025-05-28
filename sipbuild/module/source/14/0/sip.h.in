@@ -130,7 +130,51 @@ typedef PyGILState_STATE sip_gilstate_t;
 
 
 /*
- * Forward declarations of types.
+ * Define the types used for implementing module state and the interface to the
+ * sip module API.  All of these structures may only ever be extended.  Fields
+ * must not be removed or re-ordered.
+ */
+
+/* Forward declare the API structure. */
+struct _sipAPI;
+typedef struct _sipAPI sipAPI;
+
+/*
+ * The structure defining the interface between the sip module and wrapped
+ * modules that import and use it.
+ */
+typedef struct {
+    /*
+     * The major version number of the ABI being used.  This allows the
+     * possibility of a sip module supporting multiple ABI major version
+     * although there are no plans to do so.
+     */
+    int smh_abi_major;
+
+    /* A strong reference to the sip module. */
+    PyObject *smh_module;
+
+    /* The pointers to the functions that implement the sip module API. */
+    const sipAPI *smh_api;
+} sipSipModuleInterface;
+
+/*
+ * The state of a wrapped module.
+ */
+typedef struct {
+    /* The interface to the sip module. */
+    const sipSipModuleInterface *wms_sip_module_interface;
+
+    /* TODO Extensions to the state provided by the bindings author. */
+    // sipStateExtension *wms_user;
+} sipWrappedModuleState;
+
+/* The signature of the sip module bootstrap function. */
+typedef const sipSipModuleInterface *(*sipBootstrapFunc)(int abi_major);
+
+
+/*
+ * Forward declarations of generated structures.
  */
 struct _sipBufferDef;
 typedef struct _sipBufferDef sipBufferDef;
@@ -161,16 +205,6 @@ typedef struct _sipWrapperType sipWrapperType;
 
 struct _sipWrapper;
 typedef struct _sipWrapper sipWrapper;
-
-
-/* The sip module's state. */
-typedef struct {
-    // The method descriptor type object.
-    PyTypeObject *sip_method_descr_type;
-
-    // The variable descriptor type object.
-    PyTypeObject *sip_variable_descr_type;
-} sipSipModuleState;
 
 
 /*
@@ -270,10 +304,6 @@ struct _sipWrapperType {
 
     /* The generated type structure. */
     const sipTypeDef *wt_td;
-
-    /* A borrowed reference to the sip module. */
-    // TODO How to set this?
-    PyObject *wt_sip_module;
 
     /* The list of init extenders. */
     struct _sipInitExtenderDef *wt_iextend;
@@ -1258,7 +1288,7 @@ typedef struct _sipTypeInstanceDef {
  * functions that can be used by generated code.  Note that the offset of each
  * field doesn't change if the module configuration options do change.
  */
-typedef struct _sipAPIDef {
+struct _sipAPI {
     /*
      * This must be the first entry and it's signature must not change so that
      * version number mismatches can be detected and reported.
@@ -1269,11 +1299,6 @@ typedef struct _sipAPIDef {
     /*
      * The following are part of the public API.
      */
-    PyTypeObject *api_simplewrapper_type;
-    PyTypeObject *api_wrapper_type;
-    PyTypeObject *api_wrappertype_type;
-    PyTypeObject *api_voidptr_type;
-
     void (*api_bad_catcher_result)(PyObject *method);
     void (*api_bad_length_for_slice)(Py_ssize_t seqlen, Py_ssize_t slicelen);
     PyObject *(*api_build_result)(int *isErr, const char *fmt, ...);
@@ -1334,10 +1359,11 @@ typedef struct _sipAPIDef {
             const sipTypeDef *td);
     PyObject *(*api_convert_from_new_pytype)(void *cpp, PyTypeObject *py_type,
             sipWrapper *owner, sipSimpleWrapper **selfp, const char *fmt, ...);
-    PyObject *(*api_convert_to_typed_array)(void *data, const sipTypeDef *td,
-            const char *format, size_t stride, Py_ssize_t len, int flags);
-    PyObject *(*api_convert_to_array)(void *data, const char *format,
+    PyObject *(*api_convert_to_typed_array)(PyObject *wmod, void *data,
+            const sipTypeDef *td, const char *format, size_t stride,
             Py_ssize_t len, int flags);
+    PyObject *(*api_convert_to_array)(PyObject *wmod, void *data,
+            const char *format, Py_ssize_t len, int flags);
     PyInterpreterState *(*api_get_interpreter)(void);
     void (*api_set_type_user_data)(sipWrapperType *, void *);
     void *(*api_get_type_user_data)(const sipWrapperType *);
@@ -1402,10 +1428,10 @@ typedef struct _sipAPIDef {
      * The following are not part of the public API.
      */
     int (*api_init_module)(sipExportedModuleDef *client, PyObject *mod_dict);
-    int (*api_parse_args)(PyObject **parseErrp, PyObject *sipArgs,
-            const char *fmt, ...);
-    int (*api_parse_pair)(PyObject **parseErrp, PyObject *arg0, PyObject *arg1,
-            const char *fmt, ...);
+    int (*api_parse_args)(PyObject *wmod, PyObject **parseErrp,
+            PyObject *sipArgs, const char *fmt, ...);
+    int (*api_parse_pair)(PyObject *wmod, PyObject **parseErrp, PyObject *arg0,
+            PyObject *arg1, const char *fmt, ...);
     void (*api_no_function)(PyObject *parseErr, const char *func,
             const char *doc);
     void (*api_no_method)(PyObject *parseErr, const char *scope,
@@ -1444,9 +1470,9 @@ typedef struct _sipAPIDef {
 #endif
     int (*api_deprecated)(const char *classname, const char *method);
     void (*api_keep_reference)(PyObject *self, int key, PyObject *obj);
-    int (*api_parse_kwd_args)(PyObject **parseErrp, PyObject *sipArgs,
-            PyObject *sipKwdArgs, const char **kwdlist, PyObject **unused,
-            const char *fmt, ...);
+    int (*api_parse_kwd_args)(PyObject *wmod, PyObject **parseErrp,
+            PyObject *sipArgs, PyObject *sipKwdArgs, const char **kwdlist,
+            PyObject **unused, const char *fmt, ...);
     void (*api_add_exception)(sipErrorState es, PyObject **parseErrp);
     int (*api_parse_result_ex)(sip_gilstate_t, sipVirtErrorHandlerFunc,
             sipSimpleWrapper *, PyObject *method, PyObject *res,
@@ -1465,8 +1491,9 @@ typedef struct _sipAPIDef {
     void (*unused_private_3)(void);
     void (*unused_private_4)(void);
     void (*unused_private_5)(void);
-} sipAPIDef;
+};
 
+// TODO Don't expose the sipSipModuleState struct.
 const sipAPIDef *sip_init_library(PyObject *module,
         sipSipModuleState *module_state);
 

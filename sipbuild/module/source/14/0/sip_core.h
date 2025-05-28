@@ -32,6 +32,19 @@ extern "C" {
 #define FALSE       0
 
 
+/* The sip module's state. */
+typedef struct {
+    // The sip.array type object.
+    PyTypeObject *array_type;
+
+    // The method descriptor type object.
+    PyTypeObject *method_descr_type;
+
+    // The variable descriptor type object.
+    PyTypeObject *variable_descr_type;
+} sipSipModuleState;
+
+
 /*
  * This defines a single entry in an object map's hash table.
  */
@@ -60,13 +73,15 @@ typedef struct
  * Support for the descriptors.
  */
 extern PyType_Spec sipMethodDescr_TypeSpec;
-PyObject *sipMethodDescr_New(PyMethodDef *pmd, sipWrapper *wt);
-PyObject *sipMethodDescr_Copy(PyObject *orig, PyObject *mixin_name);
+PyObject *sipMethodDescr_New(PyObject *wmod, PyMethodDef *pmd);
+PyObject *sipMethodDescr_Copy(PyObject *wmod, PyObject *orig,
+        PyObject *mixin_name);
 
 extern PyType_Spec sipVariableDescr_TypeSpec;
-PyObject *sipVariableDescr_New(sipVariableDef *vd, sipWrapperType *wt,
-        const char *cod_name);
-PyObject *sipVariableDescr_Copy(PyObject *orig, PyObject *mixin_name);
+PyObject *sipVariableDescr_New(PyObject *wmod, sipVariableDef *vd,
+        const sipTypeDef *td, const char *cod_name);
+PyObject *sipVariableDescr_Copy(PyObject *wmod, PyObject *orig,
+        PyObject *mixin_name);
 
 
 /*
@@ -139,7 +154,7 @@ PyObject *sip_get_qualname(const sipTypeDef *td, PyObject *name);
 PyObject *sip_get_scope_dict(sipTypeDef *td, PyObject *mod_dict,
         sipExportedModuleDef *client);
 int sip_objectify(const char *s, PyObject **objp);
-sipSipModuleState *sip_get_sip_module_state(sipWrapperType *wt);
+sipSipModuleState *sip_get_sip_module_state(PyObject *wmod);
 
 sipClassTypeDef *sipGetGeneratedClassType(const sipEncodedTypeDef *enc,
         const sipClassTypeDef *ctd);

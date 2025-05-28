@@ -11,7 +11,7 @@
 #define PY_SSIZE_T_CLEAN
 #include <Python.h>
 
-#include "sip.h"
+#include "sip_core.h"
 
 
 /* Forward declarations. */
@@ -64,10 +64,12 @@ PyMODINIT_FUNC _SIP_MODULE_ENTRY(void)
 // TODO This has to be exposed to be called for when the sip module is a lib.
 static int module_clear(PyObject *module)
 {
-    sipSipModuleState *module_state = (SipModuleState *)PyModule_GetState(
+    sipSipModuleState *module_state = (sipSipModuleState *)PyModule_GetState(
             module);
 
-    Py_CLEAR(module_state->sip_variable_descr_type);
+    Py_CLEAR(module_state->array_type);
+    Py_CLEAR(module_state->method_descr_type);
+    Py_CLEAR(module_state->variable_descr_type);
 
     return 0;
 }
@@ -114,19 +116,22 @@ static void module_free(void *module_ptr)
 // TODO This has to be exposed to be called for when the sip module is a lib.
 static int module_traverse(PyObject *module, visitproc visit, void *arg)
 {
-    sipSipModuleState *module_state = (SipModuleState *)PyModule_GetState(
+    sipSipModuleState *module_state = (sipSipModuleState *)PyModule_GetState(
             module);
 
-    Py_VISIT(module_state->sip_variable_descr_type);
+    Py_VISIT(module_state->array_type);
+    Py_VISIT(module_state->method_descr_type);
+    Py_VISIT(module_state->variable_descr_type);
 
     return 0;
 }
 
 
 /*
- * Return the state for the sip module that created a wrapper type.
+ * Return the state for the sip module imported by a wrapped module.
  */
-sipSipModuleState *sip_get_sip_module_state(sipWrapperType *wt)
+sipSipModuleState *sip_get_sip_module_state(PyObject *wmod)
 {
-    return (sipSipModuleState *)PyModule_GetState(wt->wt_sip_module);
+    return (sipSipModuleState *)PyModule_GetState(
+            ((sipWrappedModuleState *)PyModule_GetState(wmod))->wms_sip_module_interface->smh_module);
 }

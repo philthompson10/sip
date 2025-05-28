@@ -342,8 +342,8 @@ static int sip_api_is_owned_by_python(sipSimpleWrapper *sw);
 static int sip_api_is_derived_class(sipSimpleWrapper *sw);
 static void sip_api_add_exception(sipErrorState es, PyObject **parseErrp);
 static int sip_api_enable_autoconversion(const sipTypeDef *td, int enable);
-static int sip_api_init_mixin(PyObject *self, PyObject *args, PyObject *kwds,
-        const sipClassTypeDef *ctd);
+static int sip_api_init_mixin(PyObject *wmod, PyObject *self, PyObject *args,
+        PyObject *kwds, const sipClassTypeDef *ctd);
 static void *sip_api_get_mixin_address(sipSimpleWrapper *w,
         const sipTypeDef *td);
 static PyInterpreterState *sip_api_get_interpreter(void);
@@ -397,11 +397,6 @@ static const sipAPIDef sip_api = {
     /*
      * The following are part of the public API.
      */
-    (PyTypeObject *)&sipSimpleWrapper_Type,
-    (PyTypeObject *)&sipWrapper_Type,
-    &sipWrapperType_Type,
-    &sipVoidPtr_Type,
-
     sip_api_bad_catcher_result,
     sip_api_bad_length_for_slice,
     sip_api_build_result,
@@ -661,15 +656,15 @@ static int objobjargprocSlot(PyObject *self, PyObject *arg1, PyObject *arg2,
 static int ssizeobjargprocSlot(PyObject *self, Py_ssize_t arg1,
         PyObject *arg2, sipPySlotType st);
 static PyObject *buildObject(PyObject *tup, const char *fmt, va_list va);
-static int parseKwdArgs(PyObject **parseErrp, PyObject *sipArgs,
-        PyObject *sipKwdArgs, const char **kwdlist, PyObject **unused,
-        const char *fmt, va_list va_orig);
-static int parsePass1(PyObject **parseErrp, PyObject **selfp, int *selfargp,
+static int parseKwdArgs(PyObject *wmod, PyObject **parseErrp,
         PyObject *sipArgs, PyObject *sipKwdArgs, const char **kwdlist,
-        PyObject **unused, const char *fmt, va_list va);
-static int parsePass2(PyObject *self, int selfarg, PyObject *sipArgs,
-        PyObject *sipKwdArgs, const char **kwdlist, const char *fmt,
-        va_list va);
+        PyObject **unused, const char *fmt, va_list va_orig);
+static int parsePass1(PyObject *wmod, PyObject **parseErrp, PyObject **selfp,
+        int *selfargp, PyObject *sipArgs, PyObject *sipKwdArgs,
+        const char **kwdlist, PyObject **unused, const char *fmt, va_list va);
+static int parsePass2(PyObject *wmod, PyObject *self, int selfarg,
+        PyObject *sipArgs, PyObject *sipKwdArgs, const char **kwdlist,
+        const char *fmt, va_list va);
 static int parseResult(PyObject *method, PyObject *res,
         sipSimpleWrapper *py_self, const char *fmt, va_list va);
 static PyObject *signature_FromDocstring(const char *doc, Py_ssize_t line);
@@ -691,8 +686,8 @@ static PyObject *getDefaultSimpleBase(void);
 static PyObject *createContainerType(sipContainerDef *cod, sipTypeDef *td,
         PyObject *bases, PyObject *metatype, PyObject *mod_dict,
         PyObject *type_dict, sipExportedModuleDef *client);
-static int createClassType(sipExportedModuleDef *client, sipClassTypeDef *ctd,
-        PyObject *mod_dict);
+static int createClassType(PyObject *wmod, sipExportedModuleDef *client,
+        sipClassTypeDef *ctd, PyObject *mod_dict);
 static int createMappedType(sipExportedModuleDef *client,
         sipMappedTypeDef *mtd, PyObject *mod_dict);
 static PyObject *pickle_type(PyObject *obj, PyObject *args);
@@ -770,9 +765,9 @@ static PyObject *findPyType(const char *name);
 static int addPyObjectToList(sipPyObject **head, PyObject *object);
 static PyObject *getDictFromObject(PyObject *obj);
 static void forgetObject(sipSimpleWrapper *sw);
-static int add_lazy_container_attrs(sipWrapperType *wt, const sipTypeDef *td,
-        sipContainerDef *cod);
-static int add_lazy_attrs(const sipTypeDef *td);
+static int add_lazy_container_attrs(PyObject *wmod, sipWrapperType *wt,
+        const sipTypeDef *td, sipContainerDef *cod);
+static int add_lazy_attrs(PyObject *wmod, const sipTypeDef *td);
 static void add_failure(PyObject **parseErrp, sipParseFailure *failure);
 static PyObject *bad_type_str(int arg_nr, PyObject *arg);
 static void *explicit_access_func(sipSimpleWrapper *sw, AccessFuncOp op);
@@ -780,7 +775,7 @@ static void *indirect_access_func(sipSimpleWrapper *sw, AccessFuncOp op);
 static void clear_access_func(sipSimpleWrapper *sw);
 static int check_encoded_string(PyObject *obj);
 static int isNonlazyMethod(PyMethodDef *pmd);
-static int addMethod(PyObject *dict, PyMethodDef *pmd);
+static int addMethod(PyObject *wmod, PyObject *dict, PyMethodDef *pmd);
 static PyObject *create_property(sipVariableDef *vd);
 static PyObject *create_function(PyMethodDef *ml);
 static PyObject *sip_exit(PyObject *self, PyObject *args);
@@ -892,16 +887,19 @@ const sipAPIDef *sip_init_library(PyObject *module,
     if (PyModule_AddType(module, &sipVoidPtr_Type) < 0)
         return NULL;
 
-    if (PyModule_AddType(module, &sipArray_Type) < 0)
+    module_state->array_type = (PyTypeObject *)PyType_FromModuleAndSpec(module,
+            &sipArray_TypeSpec, NULL);
+
+    if (module_state->array_type == NULL)
         return NULL;
 
-    module_state->sip_method_descr_type = (PyTypeObject *)PyType_FromModuleAndSpec(
+    module_state->method_descr_type = (PyTypeObject *)PyType_FromModuleAndSpec(
             module, &sipMethodDescr_TypeSpec, NULL);
 
-    if (module_state->sip_method_descr_type == NULL)
+    if (module_state->method_descr_type == NULL)
         return NULL;
 
-    module_state->sip_variable_descr_type = (PyTypeObject *)PyType_FromModuleAndSpec(
+    module_state->variable_descr_type = (PyTypeObject *)PyType_FromModuleAndSpec(
             module, &sipVariableDescr_TypeSpec, NULL);
 
     if (module_state->variable_descr_type == NULL)
@@ -1486,7 +1484,7 @@ static int sip_api_export_module(sipExportedModuleDef *client,
  * this depends on should have been initialised.  A negative value is returned
  * and an exception raised if there was an error.
  */
-static int sip_api_init_module(sipExportedModuleDef *client,
+static int sip_api_init_module(PyObject *wmod, sipExportedModuleDef *client,
         PyObject *mod_dict)
 {
     sipExportedModuleDef *em;
@@ -1600,7 +1598,7 @@ static int sip_api_init_module(sipExportedModuleDef *client,
                  */
                 client->em_types[i] = real_nspace;
             }
-            else if (createClassType(client, ctd, mod_dict) < 0)
+            else if (createClassType(wmod, client, ctd, mod_dict) < 0)
             {
                 return -1;
             }
@@ -3117,14 +3115,14 @@ static int parseResult(PyObject *method, PyObject *res,
 /*
  * Parse the arguments to a C/C++ function without any side effects.
  */
-static int sip_api_parse_args(PyObject **parseErrp, PyObject *sipArgs,
-        const char *fmt, ...)
+static int sip_api_parse_args(PyObject *wmod, PyObject **parseErrp,
+        PyObject *sipArgs, const char *fmt, ...)
 {
     int ok;
     va_list va;
 
     va_start(va, fmt);
-    ok = parseKwdArgs(parseErrp, sipArgs, NULL, NULL, NULL, fmt, va);
+    ok = parseKwdArgs(wmod, parseErrp, sipArgs, NULL, NULL, NULL, fmt, va);
     va_end(va);
 
     return ok;
@@ -3135,9 +3133,9 @@ static int sip_api_parse_args(PyObject **parseErrp, PyObject *sipArgs,
  * Parse the positional and/or keyword arguments to a C/C++ function without
  * any side effects.
  */
-static int sip_api_parse_kwd_args(PyObject **parseErrp, PyObject *sipArgs,
-        PyObject *sipKwdArgs, const char **kwdlist, PyObject **unused,
-        const char *fmt, ...)
+static int sip_api_parse_kwd_args(PyObject *wmod, PyObject **parseErrp,
+        PyObject *sipArgs, PyObject *sipKwdArgs, const char **kwdlist,
+        PyObject **unused, const char *fmt, ...)
 {
     int ok;
     va_list va;
@@ -3152,8 +3150,8 @@ static int sip_api_parse_kwd_args(PyObject **parseErrp, PyObject *sipArgs,
     }
 
     va_start(va, fmt);
-    ok = parseKwdArgs(parseErrp, sipArgs, sipKwdArgs, kwdlist, unused, fmt,
-            va);
+    ok = parseKwdArgs(wmod, parseErrp, sipArgs, sipKwdArgs, kwdlist, unused,
+            fmt, va);
     va_end(va);
 
     /* Release any unused arguments if the parse failed. */
@@ -3169,9 +3167,9 @@ static int sip_api_parse_kwd_args(PyObject **parseErrp, PyObject *sipArgs,
 /*
  * Parse the arguments to a C/C++ function without any side effects.
  */
-static int parseKwdArgs(PyObject **parseErrp, PyObject *sipArgs,
-        PyObject *sipKwdArgs, const char **kwdlist, PyObject **unused,
-        const char *fmt, va_list va_orig)
+static int parseKwdArgs(PyObject *wmod, PyObject **parseErrp,
+        PyObject *sipArgs, PyObject *sipKwdArgs, const char **kwdlist,
+        PyObject **unused, const char *fmt, va_list va_orig)
 {
     int no_tmp_tuple, ok, selfarg;
     PyObject *self, *single_arg;
@@ -3220,8 +3218,8 @@ static int parseKwdArgs(PyObject **parseErrp, PyObject *sipArgs,
      * and have no side effects.
      */
     va_copy(va, va_orig);
-    ok = parsePass1(parseErrp, &self, &selfarg, sipArgs, sipKwdArgs, kwdlist,
-            unused, fmt, va);
+    ok = parsePass1(wmod, parseErrp, &self, &selfarg, sipArgs, sipKwdArgs,
+            kwdlist, unused, fmt, va);
     va_end(va);
 
     if (ok)
@@ -3231,7 +3229,8 @@ static int parseKwdArgs(PyObject **parseErrp, PyObject *sipArgs,
          * have the right signature.
          */
         va_copy(va, va_orig);
-        ok = parsePass2(self, selfarg, sipArgs, sipKwdArgs, kwdlist, fmt, va);
+        ok = parsePass2(wmod, self, selfarg, sipArgs, sipKwdArgs, kwdlist, fmt,
+                va);
         va_end(va);
 
         /* Remove any previous failed parses. */
@@ -3387,8 +3386,8 @@ static void add_failure(PyObject **parseErrp, sipParseFailure *failure)
  * Parse one or a pair of arguments to a C/C++ function without any side
  * effects.
  */
-static int sip_api_parse_pair(PyObject **parseErrp, PyObject *sipArg0,
-        PyObject *sipArg1, const char *fmt, ...)
+static int sip_api_parse_pair(PyObject *wmod, PyObject **parseErrp,
+        PyObject *sipArg0, PyObject *sipArg1, const char *fmt, ...)
 {
     int ok, selfarg;
     PyObject *self, *args;
@@ -3422,8 +3421,8 @@ static int sip_api_parse_pair(PyObject **parseErrp, PyObject *sipArg0,
      * and have no side effects.
      */
     va_start(va, fmt);
-    ok = parsePass1(parseErrp, &self, &selfarg, args, NULL, NULL, NULL, fmt,
-            va);
+    ok = parsePass1(wmod, parseErrp, &self, &selfarg, args, NULL, NULL, NULL,
+            fmt, va);
     va_end(va);
 
     if (ok)
@@ -3433,7 +3432,7 @@ static int sip_api_parse_pair(PyObject **parseErrp, PyObject *sipArg0,
          * have the right signature.
          */
         va_start(va, fmt);
-        ok = parsePass2(self, selfarg, args, NULL, NULL, fmt, va);
+        ok = parsePass2(wmod, self, selfarg, args, NULL, NULL, fmt, va);
         va_end(va);
 
         /* Remove any previous failed parses. */
@@ -3461,9 +3460,9 @@ static int sip_api_parse_pair(PyObject **parseErrp, PyObject *sipArg0,
  * First pass of the argument parse, converting those that can be done so
  * without any side effects.  Return TRUE if the arguments matched.
  */
-static int parsePass1(PyObject **parseErrp, PyObject **selfp, int *selfargp,
-        PyObject *sipArgs, PyObject *sipKwdArgs, const char **kwdlist,
-        PyObject **unused, const char *fmt, va_list va)
+static int parsePass1(PyObject *wmod, PyObject **parseErrp, PyObject **selfp,
+        int *selfargp, PyObject *sipArgs, PyObject *sipKwdArgs,
+        const char **kwdlist, PyObject **unused, const char *fmt, va_list va)
 {
     int compulsory, argnr, nr_args;
     Py_ssize_t nr_pos_args, nr_kwd_args, nr_kwd_args_used;
@@ -3895,6 +3894,7 @@ static int parsePass1(PyObject **parseErrp, PyObject **selfp, int *selfargp,
                  * by ABI v13.4 and later.
                  */
 
+                // Change this to be sipWrapperType *.
                 const sipTypeDef *td;
 
                 td = va_arg(va, const sipTypeDef *);
@@ -3902,7 +3902,7 @@ static int parsePass1(PyObject **parseErrp, PyObject **selfp, int *selfargp,
                 va_arg(va, Py_ssize_t *);
                 va_arg(va, int *);
 
-                if (arg != NULL && !sip_array_can_convert(arg, td) && !canConvertFromSequence(arg, td))
+                if (arg != NULL && !sip_array_can_convert(wmod, arg, td) && !canConvertFromSequence(arg, td))
                     handle_failed_type_conversion(&failure, arg);
 
                 break;
@@ -4717,9 +4717,9 @@ static void handle_failed_type_conversion(sipParseFailure *pf, PyObject *arg)
  * Second pass of the argument parse, converting the remaining ones that might
  * have side effects.  Return TRUE if there was no error.
  */
-static int parsePass2(PyObject *self, int selfarg, PyObject *sipArgs,
-        PyObject *sipKwdArgs, const char **kwdlist, const char *fmt,
-        va_list va)
+static int parsePass2(PyObject *wmod, PyObject *self, int selfarg,
+        PyObject *sipArgs, PyObject *sipKwdArgs, const char **kwdlist,
+        const char *fmt, va_list va)
 {
     int a, ok, isstatic = FALSE;
     Py_ssize_t nr_pos_args;
@@ -4856,7 +4856,7 @@ static int parsePass2(PyObject *self, int selfarg, PyObject *sipArgs,
 
                 if (arg != NULL)
                 {
-                    if (sip_array_can_convert(arg, td))
+                    if (sip_array_can_convert(wmod, arg, td))
                     {
                         sip_array_convert(arg, array, nr_elem);
                         *is_temp = FALSE;
@@ -5473,8 +5473,8 @@ static PyObject *getDefaultSimpleBase(void)
 /*
  * Return the dictionary of a type.
  */
-PyObject *sip_get_scope_dict(sipTypeDef *td, PyObject *mod_dict,
-        sipExportedModuleDef *client)
+PyObject *sip_get_scope_dict(PyObject *wmod, sipTypeDef *td,
+        PyObject *mod_dict, sipExportedModuleDef *client)
 {
     /*
      * Initialise the scoping type if necessary.  It will always be in the
@@ -5490,7 +5490,7 @@ PyObject *sip_get_scope_dict(sipTypeDef *td, PyObject *mod_dict,
     }
     else
     {
-        if (createClassType(client, (sipClassTypeDef *)td, mod_dict) < 0)
+        if (createClassType(wmod, client, (sipClassTypeDef *)td, mod_dict) < 0)
             return NULL;
     }
 
@@ -5583,8 +5583,8 @@ reterr:
 /*
  * Create a single class type object.
  */
-static int createClassType(sipExportedModuleDef *client, sipClassTypeDef *ctd,
-        PyObject *mod_dict)
+static int createClassType(PyObject *wmod, sipExportedModuleDef *client,
+        sipClassTypeDef *ctd, PyObject *mod_dict)
 {
     PyObject *bases, *metatype, *py_type, *type_dict;
     sipEncodedTypeDef *sup;
@@ -5639,7 +5639,7 @@ static int createClassType(sipExportedModuleDef *client, sipClassTypeDef *ctd,
              * Initialise the super-class if necessary.  It will always be in
              * the same module if it needs doing.
              */
-            if (createClassType(client, (sipClassTypeDef *)sup_td, mod_dict) < 0)
+            if (createClassType(wmod, client, (sipClassTypeDef *)sup_td, mod_dict) < 0)
                 goto relbases;
 
             st = (PyObject *)sipTypeAsPyTypeObject(sup_td);
@@ -5685,7 +5685,7 @@ static int createClassType(sipExportedModuleDef *client, sipClassTypeDef *ctd,
 
         for (i = 0; i < ctd->ctd_container.cod_nrmethods; ++i)
         {
-            if (isNonlazyMethod(pmd) && addMethod(type_dict, pmd) < 0)
+            if (isNonlazyMethod(pmd) && addMethod(wmod, type_dict, pmd) < 0)
                 goto reldict;
 
             ++pmd;
@@ -6061,9 +6061,9 @@ static int isNonlazyMethod(PyMethodDef *pmd)
 /*
  * Add a method to a dictionary.
  */
-static int addMethod(PyObject *dict, PyMethodDef *pmd)
+static int addMethod(PyObject *wmod, PyObject *dict, PyMethodDef *pmd)
 {
-    PyObject *descr = sipMethodDescr_New(pmd);
+    PyObject *descr = sipMethodDescr_New(wmod, pmd);
 
     return sip_dict_set_and_discard(dict, pmd->ml_name, descr);
 }
@@ -6072,8 +6072,8 @@ static int addMethod(PyObject *dict, PyMethodDef *pmd)
 /*
  * Populate a container's type dictionary.
  */
-static int add_lazy_container_attrs(sipWrapperType *wt, const sipTypeDef *td,
-        sipContainerDef *cod)
+static int add_lazy_container_attrs(PyObject *wmod, sipWrapperType *wt,
+        const sipTypeDef *td, sipContainerDef *cod)
 {
     int i;
     PyMethodDef *pmd;
@@ -6086,7 +6086,7 @@ static int add_lazy_container_attrs(sipWrapperType *wt, const sipTypeDef *td,
         /* Non-lazy methods will already have been handled. */
         if (!sipTypeHasNonlazyMethod(td) || !isNonlazyMethod(pmd))
         {
-            if (addMethod(dict, pmd) < 0)
+            if (addMethod(wmod, dict, pmd) < 0)
                 return -1;
         }
     }
@@ -6163,7 +6163,7 @@ static int add_lazy_container_attrs(sipWrapperType *wt, const sipTypeDef *td,
         if (vd->vd_type == PropertyVariable)
             descr = create_property(vd);
         else
-            descr = sipVariableDescr_New(vd, wt,
+            descr = sipVariableDescr_New(wmod, vd, td,
                     sipPyNameOfContainer(cod, td));
 
         if (sip_dict_set_and_discard(dict, vd->vd_name, descr) < 0)
@@ -6232,7 +6232,7 @@ static PyObject *create_function(PyMethodDef *ml)
  * Populate a type dictionary with all lazy attributes if it hasn't already
  * been done.
  */
-static int add_lazy_attrs(const sipTypeDef *td)
+static int add_lazy_attrs(PyObject *wmod, const sipTypeDef *td)
 {
     sipWrapperType *wt = (sipWrapperType *)sipTypeAsPyTypeObject(td);
 
@@ -6242,7 +6242,7 @@ static int add_lazy_attrs(const sipTypeDef *td)
 
     if (sipTypeIsMapped(td))
     {
-        if (add_lazy_container_attrs(wt, td, &((sipMappedTypeDef *)td)->mtd_container) < 0)
+        if (add_lazy_container_attrs(wmod, wt, td, &((sipMappedTypeDef *)td)->mtd_container) < 0)
             return -1;
     }
     else
@@ -6251,7 +6251,7 @@ static int add_lazy_attrs(const sipTypeDef *td)
 
         /* Search the possible linked list of namespace extenders. */
         for (nsx = (sipClassTypeDef *)td; nsx != NULL; nsx = nsx->ctd_nsextender)
-            if (add_lazy_container_attrs(wt, (sipTypeDef *)nsx, &nsx->ctd_container) < 0)
+            if (add_lazy_container_attrs(wmod, wt, (sipTypeDef *)nsx, &nsx->ctd_container) < 0)
                 return -1;
     }
 
@@ -6283,12 +6283,13 @@ static int add_lazy_attrs(const sipTypeDef *td)
 /*
  * Populate the type dictionary and all its super-types.
  */
-int sip_add_all_lazy_attrs(const sipTypeDef *td)
+ZZZ
+int sip_add_all_lazy_attrs(PyObject *wmod, const sipTypeDef *td)
 {
     if (td == NULL)
         return 0;
 
-    if (add_lazy_attrs(td) < 0)
+    if (add_lazy_attrs(wmod, td) < 0)
         return -1;
 
     if (sipTypeIsClass(td))
@@ -6301,7 +6302,7 @@ int sip_add_all_lazy_attrs(const sipTypeDef *td)
             {
                 const sipTypeDef *sup_td = getGeneratedType(sup, td->td_module);
 
-                if (sip_add_all_lazy_attrs(sup_td) < 0)
+                if (sip_add_all_lazy_attrs(wmod, sup_td) < 0)
                     return -1;
             }
             while (!sup++->sc_flag);
@@ -7284,8 +7285,10 @@ static PyObject *sip_api_is_py_method(sip_gilstate_t *gil, char *pymc,
  * Return a Python reimplementation corresponding to a C/C++ virtual function,
  * if any.  If one was found then the GIL is acquired.
  */
-static PyObject *sip_api_is_py_method_12_8(sip_gilstate_t *gil, char *pymc,
-        sipSimpleWrapper **sipSelfp, const char *cname, const char *mname)
+ZZZ
+static PyObject *sip_api_is_py_method_12_8(PyObject *wmod, sip_gilstate_t *gil,
+        char *pymc, sipSimpleWrapper **sipSelfp, const char *cname,
+        const char *mname)
 {
     sipSimpleWrapper *sipSelf;
     PyObject *mname_obj, *reimp, *mro, *cls;
@@ -7345,7 +7348,7 @@ static PyObject *sip_api_is_py_method_12_8(sip_gilstate_t *gil, char *pymc,
      * the MRO).  However that means we must explicitly check that the class
      * hierarchy is fully initialised.
      */
-    if (sip_add_all_lazy_attrs(((sipWrapperType *)Py_TYPE(sipSelf))->wt_td) < 0)
+    if (sip_add_all_lazy_attrs(wmod, ((sipWrapperType *)Py_TYPE(sipSelf))->wt_td) < 0)
     {
         Py_DECREF(mname_obj);
         goto release_gil;
@@ -8671,7 +8674,9 @@ static int sipWrapperType_init(sipWrapperType *self, PyObject *args,
  */
 static PyObject *sipWrapperType_getattro(PyObject *self, PyObject *name)
 {
-    if (sip_add_all_lazy_attrs(((sipWrapperType *)self)->wt_td) < 0)
+    PyObject *wmod = PyType_GetModule(Py_TYPE(self));
+
+    if (sip_add_all_lazy_attrs(wmod, ((sipWrapperType *)self)->wt_td) < 0)
         return NULL;
 
     return PyType_Type.tp_getattro(self, name);
@@ -8684,7 +8689,9 @@ static PyObject *sipWrapperType_getattro(PyObject *self, PyObject *name)
 static int sipWrapperType_setattro(PyObject *self, PyObject *name,
         PyObject *value)
 {
-    if (sip_add_all_lazy_attrs(((sipWrapperType *)self)->wt_td) < 0)
+    PyObject *wmod = PyType_GetModule(Py_TYPE(self));
+
+    if (sip_add_all_lazy_attrs(wmod, ((sipWrapperType *)self)->wt_td) < 0)
         return -1;
 
     return PyType_Type.tp_setattro(self, name, value);
@@ -8697,6 +8704,7 @@ static int sipWrapperType_setattro(PyObject *self, PyObject *name,
 static PyObject *sipSimpleWrapper_new(sipWrapperType *wt, PyObject *args,
         PyObject *kwds)
 {
+    PyObject *wmod = PyType_GetModule((PyObject *)wt);
     sipTypeDef *td = wt->wt_td;
 
     (void)args;
@@ -8712,7 +8720,7 @@ static PyObject *sipSimpleWrapper_new(sipWrapperType *wt, PyObject *args,
         return NULL;
     }
 
-    if (sip_add_all_lazy_attrs(td) < 0)
+    if (sip_add_all_lazy_attrs(wmod, td) < 0)
         return NULL;
 
     /* See if it is a mapped type. */
@@ -9058,8 +9066,8 @@ static void *sip_api_get_mixin_address(sipSimpleWrapper *w,
 /*
  * Initialise from a mixin.
  */
-static int sip_api_init_mixin(PyObject *self, PyObject *args, PyObject *kwds,
-        const sipClassTypeDef *mixin_ctd)
+static int sip_api_init_mixin(PyObject *wmod, PyObject *self, PyObject *args,
+        PyObject *kwds, const sipClassTypeDef *mixin_ctd)
 {
     static PyObject *double_us = NULL;
 
@@ -9108,7 +9116,7 @@ static int sip_api_init_mixin(PyObject *self, PyObject *args, PyObject *kwds,
         goto gc_mixin_name;
 
     /* Add the mixin's useful attributes to the main class. */
-    sipSipModuleState *module_state = sip_get_sip_module_state(mixin_wt);
+    sipSipModuleState *module_state = sip_get_sip_module_state(wmod);
     Py_ssize_t pos = 0;
     PyObject *key, *value;
 
@@ -9134,14 +9142,14 @@ static int sip_api_init_mixin(PyObject *self, PyObject *args, PyObject *kwds,
         if (rc > 0)
             continue;
 
-        if (PyObject_IsInstance(value, (PyObject *)module_state->sip_method_descr_type))
+        if (PyObject_IsInstance(value, (PyObject *)module_state->method_descr_type))
         {
-            if ((value = sipMethodDescr_Copy(value, mixin_name)) == NULL)
+            if ((value = sipMethodDescr_Copy(wmod, value, mixin_name)) == NULL)
                 goto gc_mixin_name;
         }
-        else if (PyObject_IsInstance(value, (PyObject *)module_state->sip_variable_descr_type))
+        else if (PyObject_IsInstance(value, (PyObject *)module_state->variable_descr_type))
         {
-            if ((value = sipVariableDescr_Copy(value, mixin_name)) == NULL)
+            if ((value = sipVariableDescr_Copy(wmod, value, mixin_name)) == NULL)
                 goto gc_mixin_name;
         }
         else
