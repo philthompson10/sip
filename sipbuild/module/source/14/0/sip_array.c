@@ -85,7 +85,7 @@ PyType_Spec sipArray_TypeSpec = {
 static void bad_key(PyObject *key);
 static int check_index(sipArray *array, Py_ssize_t idx);
 static int check_writable(sipArray *array);
-static PyObject *create_array(sipSipModuleState *module_state, void *data,
+static PyObject *create_array(sipSipModuleState *sms, void *data,
         const sipTypeDef *td, const char *format, size_t stride,
         Py_ssize_t len, int flags, PyObject *owner);
 static void *element(sipArray *array, Py_ssize_t idx);
@@ -202,7 +202,8 @@ static PyObject *sipArray_subscript(PyObject *self, PyObject *key)
             return NULL;
         }
 
-        return create_array(PyType_GetModuleState(Py_TYPE(self)),
+        return create_array(
+                (sipSipModuleState *)PyType_GetModuleState(Py_TYPE(self)),
                 element(array, start), array->td, array->format, array->stride,
                 slicelength, (array->flags & ~SIP_OWNS_MEMORY), array->owner);
     }
@@ -472,9 +473,9 @@ static PyObject *sipArray_new(PyTypeObject *cls, PyObject *args, PyObject *kw)
  */
 int sip_array_can_convert(PyObject *wmod, PyObject *obj, const sipTypeDef *td)
 {
-    sipSipModuleState *module_state = sip_get_sip_module_state(wmod);
+    sipSipModuleState *sms = sip_get_sip_module_state(wmod);
 
-    if (!PyObject_TypeCheck(obj, module_state->array_type))
+    if (!PyObject_TypeCheck(obj, sms->array_type))
         return FALSE;
 
     return (((sipArray *)obj)->td == td);
@@ -721,12 +722,11 @@ static const char *get_type_name(sipArray *array)
 /*
  * Create an array for the C API.
  */
-static PyObject *create_array(sipSipModuleState *module_state, void *data,
+static PyObject *create_array(sipSipModuleState *sms, void *data,
         const sipTypeDef *td, const char *format, size_t stride,
         Py_ssize_t len, int flags, PyObject *owner)
 {
-    sipArray *array = module_state->array_type->tp_alloc(
-            module_state->array_type, 0);
+    sipArray *array = sms->array_type->tp_alloc(sms->array_type, 0);
 
     if (array == NULL)
         return NULL;

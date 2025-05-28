@@ -21,6 +21,30 @@ static void module_free(void *module_ptr);
 static int module_traverse(PyObject *module, visitproc visit, void *arg);
 
 
+/* The module definition. */
+static PyModuleDef_Slot module_slots[] = {
+    {Py_mod_exec, module_exec},
+#if PY_VERSION_HEX >= 0x030c0000
+    {Py_mod_multiple_interpreters, Py_MOD_PER_INTERPRETER_GIL_SUPPORTED},
+#endif
+#if PY_VERSION_HEX >= 0x030d0000
+    {Py_mod_gil, Py_MOD_GIL_USED},
+#endif
+    {0, NULL},
+};
+
+static PyModuleDef sip_module_def = {
+    .m_base = PyModuleDef_HEAD_INIT,
+    .m_name = _SIP_MODULE_FQ_NAME,
+    .m_doc = PyDoc_STR("Bindings related utilities"),
+    .m_size = sizeof (sipSipModuleState),
+    .m_slots = module_slots,
+    .m_clear = module_clear,
+    .m_traverse = module_traverse,
+    .m_free = module_free,
+};
+
+
 #if _SIP_MODULE_SHARED
 /*
  * The sip module initialisation function.
@@ -31,29 +55,7 @@ PyObject *_SIP_MODULE_ENTRY(void)
 PyMODINIT_FUNC _SIP_MODULE_ENTRY(void)
 #endif
 {
-    static PyModuleDef_Slot module_slots[] = {
-        {Py_mod_exec, module_exec},
-#if PY_VERSION_HEX >= 0x030c0000
-        {Py_mod_multiple_interpreters, Py_MOD_PER_INTERPRETER_GIL_SUPPORTED},
-#endif
-#if PY_VERSION_HEX >= 0x030d0000
-        {Py_mod_gil, Py_MOD_GIL_USED},
-#endif
-        {0, NULL},
-    };
-
-    static PyModuleDef module_def = {
-        .m_base = PyModuleDef_HEAD_INIT,
-        .m_name = _SIP_MODULE_FQ_NAME,
-        .m_doc = PyDoc_STR("Bindings related utilities"),
-        .m_size = sizeof (sip_module_state),
-        .m_slots = module_slots,
-        .m_clear = module_clear,
-        .m_traverse = module_traverse,
-        .m_free = module_free,
-    };
-
-    return PyModuleDef_Init(&module_def);
+    return PyModuleDef_Init(&sip_module_def);
 }
 #endif
 
@@ -64,12 +66,12 @@ PyMODINIT_FUNC _SIP_MODULE_ENTRY(void)
 // TODO This has to be exposed to be called for when the sip module is a lib.
 static int module_clear(PyObject *module)
 {
-    sipSipModuleState *module_state = (sipSipModuleState *)PyModule_GetState(
-            module);
+    sipSipModuleState *sms = (sipSipModuleState *)PyModule_GetState(module);
 
-    Py_CLEAR(module_state->array_type);
-    Py_CLEAR(module_state->method_descr_type);
-    Py_CLEAR(module_state->variable_descr_type);
+    Py_CLEAR(sms->array_type);
+    Py_CLEAR(sms->method_descr_type);
+    Py_CLEAR(sms->variable_descr_type);
+    Py_CLEAR(sms->void_ptr_type);
 
     return 0;
 }
@@ -92,6 +94,7 @@ static int module_exec(PyObject *module)
     PyObject *api_obj = PyCapsule_New((void *)api,
             _SIP_MODULE_FQ_NAME "._C_API", NULL);
 
+    // TODO Add the bootstrap rather than the API structure.
     int rc = PyModule_AddObjectRef(module, "_C_API", api_obj);
 
     Py_XDECREF(api_obj);
@@ -116,12 +119,12 @@ static void module_free(void *module_ptr)
 // TODO This has to be exposed to be called for when the sip module is a lib.
 static int module_traverse(PyObject *module, visitproc visit, void *arg)
 {
-    sipSipModuleState *module_state = (sipSipModuleState *)PyModule_GetState(
-            module);
+    sipSipModuleState *sms = (sipSipModuleState *)PyModule_GetState(module);
 
-    Py_VISIT(module_state->array_type);
-    Py_VISIT(module_state->method_descr_type);
-    Py_VISIT(module_state->variable_descr_type);
+    Py_VISIT(sms->array_type);
+    Py_VISIT(sms->method_descr_type);
+    Py_VISIT(sms->variable_descr_type);
+    Py_VISIT(sms->void_ptr_type);
 
     return 0;
 }
@@ -134,4 +137,22 @@ sipSipModuleState *sip_get_sip_module_state(PyObject *wmod)
 {
     return (sipSipModuleState *)PyModule_GetState(
             ((sipWrappedModuleState *)PyModule_GetState(wmod))->wms_sip_module_interface->smh_module);
+}
+
+
+/*
+ * Return the state for the sip module for a type created by the module.  NULL
+ * is returned if the type was created by another module.
+ */
+sipSipModuleState *sip_get_sip_module_state_from_type(PyTypeObject *type)
+{
+    PyObject *mod = PyType_GetModuleByDef(type, &sip_module_def);
+
+    if (mod == NULL)
+    {
+        PyErr_Clear();
+        return NULL;
+    }
+
+    return (sipSipModuleState *)PyModule_GetState(mod);
 }

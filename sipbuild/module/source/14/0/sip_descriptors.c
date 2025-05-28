@@ -206,10 +206,9 @@ static void sipMethodDescr_dealloc(PyObject *self)
  */
 static sipMethodDescr *alloc_method_descr(PyObject *wmod)
 {
-    sipSipModuleState *module_state = sip_get_sip_module_state(wmod);
+    sipSipModuleState *sms = sip_get_sip_module_state(wmod);
 
-    return (sipMethodDescr *)PyType_GenericAlloc(
-            module_state->sip_method_descr, 0);
+    return (sipMethodDescr *)PyType_GenericAlloc(sms->method_descr, 0);
 }
 
 
@@ -413,10 +412,9 @@ static void sipVariableDescr_dealloc(PyObject *self)
  */
 static sipVariableDescr *alloc_variable_descr(PyObject *wmod)
 {
-    sipSipModuleState *module_state = sip_get_sip_module_state(wmod);
+    sipSipModuleState *sms = sip_get_sip_module_state(wmod);
 
-    return (sipVariableDescr *)PyType_GenericAlloc(
-            module_state->sip_variable_descr, 0);
+    return (sipVariableDescr *)PyType_GenericAlloc(sms->variable_descr, 0);
 }
 
 

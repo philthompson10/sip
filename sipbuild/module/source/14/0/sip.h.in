@@ -1494,8 +1494,7 @@ struct _sipAPI {
 };
 
 // TODO Don't expose the sipSipModuleState struct.
-const sipAPIDef *sip_init_library(PyObject *module,
-        sipSipModuleState *module_state);
+const sipAPIDef *sip_init_library(PyObject *module, sipSipModuleState *sms);
 
 
 /*

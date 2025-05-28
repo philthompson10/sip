@@ -42,6 +42,9 @@ typedef struct {
 
     // The variable descriptor type object.
     PyTypeObject *variable_descr_type;
+
+    // The void pointer type object.
+    PyTypeObject *void_ptr_type;
 } sipSipModuleState;
 
 
@@ -87,7 +90,7 @@ PyObject *sipVariableDescr_Copy(PyObject *wmod, PyObject *orig,
 /*
  * Support for void pointers.
  */
-extern PyTypeObject sipVoidPtr_Type;
+extern PyType_Spec sipVoidPtr_TypeSpec;
 void *sip_api_convert_to_void_ptr(PyObject *obj);
 PyObject *sip_api_convert_from_void_ptr(void *val);
 PyObject *sip_api_convert_from_const_void_ptr(const void *val);
@@ -155,6 +158,7 @@ PyObject *sip_get_scope_dict(sipTypeDef *td, PyObject *mod_dict,
         sipExportedModuleDef *client);
 int sip_objectify(const char *s, PyObject **objp);
 sipSipModuleState *sip_get_sip_module_state(PyObject *wmod);
+sipSipModuleState *sip_get_sip_module_state_from_type(PyTypeObject *type);
 
 sipClassTypeDef *sipGetGeneratedClassType(const sipEncodedTypeDef *enc,
         const sipClassTypeDef *ctd);

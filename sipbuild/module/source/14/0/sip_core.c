@@ -809,8 +809,7 @@ static PyObject *import_module_attr(const char *module, const char *attr);
 /*
  * Initialise the module as a library.
  */
-const sipAPIDef *sip_init_library(PyObject *module,
-        sipSipModuleState *module_state)
+const sipAPIDef *sip_init_library(PyObject *module, sipSipModuleState *sms)
 {
     // TODO METH_FASTCALL
     static PyMethodDef methods[] = {
@@ -859,7 +858,7 @@ const sipAPIDef *sip_init_library(PyObject *module,
         return NULL;
 
     /* Initialise the enum support. */
-    if (sip_enum_init(module, module_state) < 0)
+    if (sip_enum_init(module, sms) < 0)
         return NULL;
 
     /* Initialise the types. */
@@ -884,25 +883,34 @@ const sipAPIDef *sip_init_library(PyObject *module,
     if (PyModule_AddType(module, (PyTypeObject *)&sipWrapper_Type) < 0)
         return NULL;
 
-    if (PyModule_AddType(module, &sipVoidPtr_Type) < 0)
-        return NULL;
-
-    module_state->array_type = (PyTypeObject *)PyType_FromModuleAndSpec(module,
+    sms->array_type = (PyTypeObject *)PyType_FromModuleAndSpec(module,
             &sipArray_TypeSpec, NULL);
 
-    if (module_state->array_type == NULL)
+    if (sms->array_type == NULL)
         return NULL;
 
-    module_state->method_descr_type = (PyTypeObject *)PyType_FromModuleAndSpec(
-            module, &sipMethodDescr_TypeSpec, NULL);
-
-    if (module_state->method_descr_type == NULL)
+    if (PyModule_AddType(module, sms->array_type) < 0)
         return NULL;
 
-    module_state->variable_descr_type = (PyTypeObject *)PyType_FromModuleAndSpec(
-            module, &sipVariableDescr_TypeSpec, NULL);
+    sms->method_descr_type = (PyTypeObject *)PyType_FromModuleAndSpec(module,
+            &sipMethodDescr_TypeSpec, NULL);
 
-    if (module_state->variable_descr_type == NULL)
+    if (sms->method_descr_type == NULL)
+        return NULL;
+
+    sms->variable_descr_type = (PyTypeObject *)PyType_FromModuleAndSpec(module,
+            &sipVariableDescr_TypeSpec, NULL);
+
+    if (sms->variable_descr_type == NULL)
+        return NULL;
+
+    sms->void_ptr_type = (PyTypeObject *)PyType_FromModuleAndSpec(module,
+            &sipVoidPtr_TypeSpec, NULL);
+
+    if (sms->void_ptr_type == NULL)
+        return NULL;
+
+    if (PyModule_AddType(module, sms->void_ptr_type) < 0)
         return NULL;
 
     /* These will always be needed. */
@@ -9116,7 +9124,7 @@ static int sip_api_init_mixin(PyObject *wmod, PyObject *self, PyObject *args,
         goto gc_mixin_name;
 
     /* Add the mixin's useful attributes to the main class. */
-    sipSipModuleState *module_state = sip_get_sip_module_state(wmod);
+    sipSipModuleState *sms = sip_get_sip_module_state(wmod);
     Py_ssize_t pos = 0;
     PyObject *key, *value;
 
@@ -9142,12 +9150,12 @@ static int sip_api_init_mixin(PyObject *wmod, PyObject *self, PyObject *args,
         if (rc > 0)
             continue;
 
-        if (PyObject_IsInstance(value, (PyObject *)module_state->method_descr_type))
+        if (PyObject_IsInstance(value, (PyObject *)sms->method_descr_type))
         {
             if ((value = sipMethodDescr_Copy(wmod, value, mixin_name)) == NULL)
                 goto gc_mixin_name;
         }
-        else if (PyObject_IsInstance(value, (PyObject *)module_state->variable_descr_type))
+        else if (PyObject_IsInstance(value, (PyObject *)sms->variable_descr_type))
         {
             if ((value = sipVariableDescr_Copy(wmod, value, mixin_name)) == NULL)
                 goto gc_mixin_name;

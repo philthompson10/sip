@@ -191,7 +191,7 @@ const sipTypeDef *sip_enum_get_generated_type(PyTypeObject *py_type)
  * Initialise the enum support.  A negative value is returned (and an exception
  * set) if there was an error.
  */
-int sip_enum_init(PyObject *module, sipSipModuleState *module_state)
+int sip_enum_init(PyObject *module, sipSipModuleState *sms)
 {
     // TODO
     sipEnumType_Type.tp_base = &PyType_Type;
