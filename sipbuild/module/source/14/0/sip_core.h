@@ -56,24 +56,6 @@ typedef struct
 } sipObjectMap;
 
 
-/*
- * Support for int convertors.
- */
-int sip_api_convert_to_bool(PyObject *o);
-char sip_api_long_as_char(PyObject *o);
-signed char sip_api_long_as_signed_char(PyObject *o);
-unsigned char sip_api_long_as_unsigned_char(PyObject *o);
-short sip_api_long_as_short(PyObject *o);
-unsigned short sip_api_long_as_unsigned_short(PyObject *o);
-int sip_api_long_as_int(PyObject *o);
-unsigned int sip_api_long_as_unsigned_int(PyObject *o);
-long sip_api_long_as_long(PyObject *o);
-unsigned long sip_api_long_as_unsigned_long(PyObject *o);
-long long sip_api_long_as_long_long(PyObject *o);
-unsigned long long sip_api_long_as_unsigned_long_long(PyObject *o);
-size_t sip_api_long_as_size_t(PyObject *o);
-
-
 extern PyTypeObject sipWrapperType_Type;        /* The wrapper type type. */
 extern sipWrapperType sipSimpleWrapper_Type;    /* The simple wrapper type. */
 
