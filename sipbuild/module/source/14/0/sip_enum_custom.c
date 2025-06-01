@@ -11,14 +11,16 @@
 #define PY_SSIZE_T_CLEAN
 #include <Python.h>
 
-#include <assert.h>
+#include "sip.h"
 
-#include "sip_core.h"
+#if defined(SIP_CONFIGURATION_CustomEnums)
+
+#include <assert.h>
 
 #include "sip_enum.h"
 
+#include "sip_core.h"
 
-#if defined(SIP_CONFIGURATION_CustomEnums)
 
 static PyObject *enum_type = NULL;              /* The enum.Enum type. */
 static PyObject *int_enum_type = NULL;          /* The enum.IntEnum type. */
