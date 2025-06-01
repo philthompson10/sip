@@ -17,6 +17,7 @@
 #include "sip_voidptr.h"
 
 #include "sip_array.h"
+#include "sip_module.h"
 
 
 /* The object data structure. */

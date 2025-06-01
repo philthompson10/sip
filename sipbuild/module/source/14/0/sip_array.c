@@ -14,9 +14,9 @@
 #include <stddef.h>
 #include <string.h>
 
-#include "sip_core.h"
-
 #include "sip_array.h"
+
+#include "sip_module.h"
 
 
 /*
@@ -31,44 +31,43 @@ typedef struct {
     Py_ssize_t len;
     int flags;
     PyObject *owner;
-} sipArray;
+} Array;
 
 
 /* Forward declarations of slots. */
-static int sipArray_ass_subscript(PyObject *self, PyObject *key,
-        PyObject *value);
-static void sipArray_clear(PyObject *self);
-static void sipArray_dealloc(PyObject *self);
-static int sipArray_getbuffer(PyObject *self, Py_buffer *view, int flags);
-static PyObject *sipArray_item(PyObject *self, Py_ssize_t idx);
-static Py_ssize_t sipArray_length(PyObject *self);
-static PyObject *sipArray_new(PyTypeObject *cls, PyObject *args, PyObject *kw);
-static PyObject *sipArray_repr(PyObject *self);
-static PyObject *sipArray_subscript(PyObject *self, PyObject *key);
-static int sipArray_traverse(PyObject *self, visitproc visit, void *arg);
+static int Array_ass_subscript(PyObject *self, PyObject *key, PyObject *value);
+static void Array_clear(PyObject *self);
+static void Array_dealloc(PyObject *self);
+static int Array_getbuffer(PyObject *self, Py_buffer *view, int flags);
+static PyObject *Array_item(PyObject *self, Py_ssize_t idx);
+static Py_ssize_t Array_length(PyObject *self);
+static PyObject *Array_new(PyTypeObject *cls, PyObject *args, PyObject *kw);
+static PyObject *Array_repr(PyObject *self);
+static PyObject *Array_subscript(PyObject *self, PyObject *key);
+static int Array_traverse(PyObject *self, visitproc visit, void *arg);
 
 
 /*
  * The type specification.
  */
-sipArray_slots = {
-    {Py_bf_getbuffer, sipArray_getbuffer},
-    {Py_mp_ass_subscript, sipArray_ass_subscript},
-    {Py_mp_length, sipArray_length},
-    {Py_mp_subscript, sipArray_subscript},
-    {Py_sq_item, sipArray_item},
-    {Py_sq_length, sipArray_length},
-    {Py_tp_clear, sipArray_clear},
-    {Py_tp_dealloc, sipArray_dealloc},
-    {Py_tp_new, sipArray_new},
-    {Py_tp_repr, sipArray_repr},
-    {Py_tp_traverse, sipArray_traverse},
+Array_slots = {
+    {Py_bf_getbuffer, Array_getbuffer},
+    {Py_mp_ass_subscript, Array_ass_subscript},
+    {Py_mp_length, Array_length},
+    {Py_mp_subscript, Array_subscript},
+    {Py_sq_item, Array_item},
+    {Py_sq_length, Array_length},
+    {Py_tp_clear, Array_clear},
+    {Py_tp_dealloc, Array_dealloc},
+    {Py_tp_new, Array_new},
+    {Py_tp_repr, Array_repr},
+    {Py_tp_traverse, Array_traverse},
     {0, NULL}
 };
 
 PyType_Spec sipArray_TypeSpec = {
     .name = _SIP_MODULE_FQ_NAME ".array",
-    .basicsize = sizeof (sipArray),
+    .basicsize = sizeof (Array),
     .flags = Py_TPFLAGS_DEFAULT |
 #if defined(Py_TPFLAGS_DISALLOW_INSTANTIATION)
              Py_TPFLAGS_DISALLOW_INSTANTIATION |
@@ -77,22 +76,22 @@ PyType_Spec sipArray_TypeSpec = {
              Py_TPFLAGS_IMMUTABLETYPE |
 #endif
              Py_TPFLAGS_HAVE_GC,
-    .slots = sipArray_slots,
+    .slots = Array_slots,
 };
 
 
 /* Forward declarations. */
 static void bad_key(PyObject *key);
-static int check_index(sipArray *array, Py_ssize_t idx);
-static int check_writable(sipArray *array);
+static int check_index(Array *array, Py_ssize_t idx);
+static int check_writable(Array *array);
 static PyObject *create_array(sipSipModuleState *sms, void *data,
         const sipTypeDef *td, const char *format, size_t stride,
         Py_ssize_t len, int flags, PyObject *owner);
-static void *element(sipArray *array, Py_ssize_t idx);
-static void *get_slice(sipArray *array, PyObject *value, Py_ssize_t len);
-static const char *get_type_name(sipArray *array);
-static void *get_value(sipArray *array, PyObject *value);
-static void init_array(sipArray *array, void *data, const sipTypeDef *td,
+static void *element(Array *array, Py_ssize_t idx);
+static void *get_slice(Array *array, PyObject *value, Py_ssize_t len);
+static const char *get_type_name(Array *array);
+static void *get_value(Array *array, PyObject *value);
+static void init_array(Array *array, void *data, const sipTypeDef *td,
         const char *format, size_t stride, Py_ssize_t len, int flags,
         PyObject *owner);
 
@@ -100,18 +99,18 @@ static void init_array(sipArray *array, void *data, const sipTypeDef *td,
 /*
  * Implement len() for the type.
  */
-static Py_ssize_t sipArray_length(PyObject *self)
+static Py_ssize_t Array_length(PyObject *self)
 {
-    return ((sipArray *)self)->len;
+    return ((Array *)self)->len;
 }
 
 
 /*
  * Implement sequence item sub-script for the type.
  */
-static PyObject *sipArray_item(PyObject *self, Py_ssize_t idx)
+static PyObject *Array_item(PyObject *self, Py_ssize_t idx)
 {
-    sipArray *array = (sipArray *)self;
+    Array *array = (Array *)self;
     PyObject *py_item;
     void *data;
 
@@ -172,9 +171,9 @@ static PyObject *sipArray_item(PyObject *self, Py_ssize_t idx)
 /*
  * Implement mapping sub-script for the type.
  */
-static PyObject *sipArray_subscript(PyObject *self, PyObject *key)
+static PyObject *Array_subscript(PyObject *self, PyObject *key)
 {
-    sipArray *array = (sipArray *)self;
+    Array *array = (Array *)self;
 
     if (PyIndex_Check(key))
     {
@@ -186,7 +185,7 @@ static PyObject *sipArray_subscript(PyObject *self, PyObject *key)
         if (idx < 0)
             idx += array->len;
 
-        return sipArray_item(self, idx);
+        return Array_item(self, idx);
     }
 
     if (PySlice_Check(key))
@@ -217,10 +216,9 @@ static PyObject *sipArray_subscript(PyObject *self, PyObject *key)
 /*
  * Implement mapping assignment sub-script for the type.
  */
-static int sipArray_ass_subscript(PyObject *self, PyObject *key,
-        PyObject *value)
+static int Array_ass_subscript(PyObject *self, PyObject *key, PyObject *value)
 {
-    sipArray *array = (sipArray *)self;
+    Array *array = (Array *)self;
     Py_ssize_t start, len;
     void *value_data;
 
@@ -300,9 +298,9 @@ static int sipArray_ass_subscript(PyObject *self, PyObject *key,
 /*
  * The buffer implementation.
  */
-static int sipArray_getbuffer(PyObject *self, Py_buffer *view, int flags)
+static int Array_getbuffer(PyObject *self, Py_buffer *view, int flags)
 {
-    sipArray *array = (sipArray *)self;
+    Array *array = (Array *)self;
     const char *format;
     Py_ssize_t itemsize;
 
@@ -362,9 +360,9 @@ static int sipArray_getbuffer(PyObject *self, Py_buffer *view, int flags)
 /*
  * The arrays's traverse slot.
  */
-static int sipArray_traverse(PyObject *self, visitproc visit, void *arg)
+static int Array_traverse(PyObject *self, visitproc visit, void *arg)
 {
-    sipArray *array = (sipArray *)self;
+    Array *array = (Array *)self;
 
     Py_VISIT(Py_TYPE(self));
     Py_VISIT(array->owner);
@@ -376,9 +374,9 @@ static int sipArray_traverse(PyObject *self, visitproc visit, void *arg)
 /*
  * The arrays's clear slot.
  */
-static int sipArray_clear(PyObject *self)
+static int Array_clear(PyObject *self)
 {
-    sipArray *array = (sipArray *)self;
+    Array *array = (Array *)self;
 
     Py_CLEAR(array->owner);
 
@@ -389,12 +387,12 @@ static int sipArray_clear(PyObject *self)
 /*
  * The array's dealloc slot.
  */
-static void sipArray_dealloc(PyObject *self)
+static void Array_dealloc(PyObject *self)
 {
     PyObject_GC_UnTrack(self);
-    sipArray_clear(self);
+    Array_clear(self);
 
-    sipArray *array = (sipArray *)self;
+    Array *array = (Array *)self;
 
     if (array->flags & SIP_OWNS_MEMORY)
     {
@@ -413,9 +411,9 @@ static void sipArray_dealloc(PyObject *self)
 /*
  * Implement __repr__ for the type.
  */
-static PyObject *sipArray_repr(PyObject *self)
+static PyObject *Array_repr(PyObject *self)
 {
-    sipArray *array = (sipArray *)self;
+    Array *array = (Array *)self;
 
     return PyUnicode_FromFormat(_SIP_MODULE_FQ_NAME ".array(%s, %zd)",
             get_type_name(array), array->len);
@@ -425,7 +423,7 @@ static PyObject *sipArray_repr(PyObject *self)
 /*
  * Implement __new__ for the type.
  */
-static PyObject *sipArray_new(PyTypeObject *cls, PyObject *args, PyObject *kw)
+static PyObject *Array_new(PyTypeObject *cls, PyObject *args, PyObject *kw)
 {
 #if PY_VERSION_HEX >= 0x030d0000
     static char * const kwlist[] = {"", "", NULL};
@@ -461,8 +459,8 @@ static PyObject *sipArray_new(PyTypeObject *cls, PyObject *args, PyObject *kw)
     if ((array = cls->tp_alloc(cls, 0)) == NULL)
         return NULL;
 
-    init_array((sipArray *)array, ctd->ctd_array(length), &ctd->ctd_base,
-            NULL, ctd->ctd_sizeof, length, SIP_OWNS_MEMORY, NULL);
+    init_array((Array *)array, ctd->ctd_array(length), &ctd->ctd_base, NULL,
+            ctd->ctd_sizeof, length, SIP_OWNS_MEMORY, NULL);
 
     return array;
 }
@@ -478,7 +476,7 @@ int sip_array_can_convert(PyObject *wmod, PyObject *obj, const sipTypeDef *td)
     if (!PyObject_TypeCheck(obj, sms->array_type))
         return FALSE;
 
-    return (((sipArray *)obj)->td == td);
+    return (((Array *)obj)->td == td);
 }
 
 
@@ -488,7 +486,7 @@ int sip_array_can_convert(PyObject *wmod, PyObject *obj, const sipTypeDef *td)
  */
 void sip_array_convert(PyObject *obj, void **data, Py_ssize_t *size)
 {
-    sipArray *array = (sipArray *)obj;
+    Array *array = (Array *)obj;
 
     *data = array->data;
     *size = array->len;
@@ -498,7 +496,7 @@ void sip_array_convert(PyObject *obj, void **data, Py_ssize_t *size)
 /*
  * Check that an array is writable.
  */
-static int check_writable(sipArray *array)
+static int check_writable(Array *array)
 {
     if (array->flags & SIP_READ_ONLY)
     {
@@ -514,7 +512,7 @@ static int check_writable(sipArray *array)
 /*
  * Check that an index is valid for an array.
  */
-static int check_index(sipArray *array, Py_ssize_t idx)
+static int check_index(Array *array, Py_ssize_t idx)
 {
     if (idx >= 0 && idx < array->len)
         return 0;
@@ -539,7 +537,7 @@ static void bad_key(PyObject *key)
 /*
  * Get the address of an element of an array.
  */
-static void *element(sipArray *array, Py_ssize_t idx)
+static void *element(Array *array, Py_ssize_t idx)
 {
     return (unsigned char *)(array->data) + idx * array->stride;
 }
@@ -548,7 +546,7 @@ static void *element(sipArray *array, Py_ssize_t idx)
 /*
  * Get the address of a value that will be copied to an array.
  */
-static void *get_value(sipArray *array, PyObject *value)
+static void *get_value(Array *array, PyObject *value)
 {
     static union {
         signed char s_char_t;
@@ -631,9 +629,9 @@ static void *get_value(sipArray *array, PyObject *value)
 /*
  * Get the address of an value that will be copied to an array slice.
  */
-static void *get_slice(sipArray *array, PyObject *value, Py_ssize_t len)
+static void *get_slice(Array *array, PyObject *value, Py_ssize_t len)
 {
-    sipArray *other = (sipArray *)value;
+    Array *other = (Array *)value;
 
     if (!PyObject_IsInstance(value, Py_TYPE((PyObject *)array)) || array->td != other->td || strcmp(array->format, other->format) != 0)
     {
@@ -665,7 +663,7 @@ static void *get_slice(sipArray *array, PyObject *value, Py_ssize_t len)
 /*
  * Get the name of the type of an element of an array.
  */
-static const char *get_type_name(sipArray *array)
+static const char *get_type_name(Array *array)
 {
     const char *type_name;
 
@@ -726,7 +724,7 @@ static PyObject *create_array(sipSipModuleState *sms, void *data,
         const sipTypeDef *td, const char *format, size_t stride,
         Py_ssize_t len, int flags, PyObject *owner)
 {
-    sipArray *array = sms->array_type->tp_alloc(sms->array_type, 0);
+    Array *array = sms->array_type->tp_alloc(sms->array_type, 0);
 
     if (array == NULL)
         return NULL;
@@ -740,7 +738,7 @@ static PyObject *create_array(sipSipModuleState *sms, void *data,
 /*
  * Initialise an array.
  */
-static void init_array(sipArray *array, void *data, const sipTypeDef *td,
+static void init_array(Array *array, void *data, const sipTypeDef *td,
         const char *format, size_t stride, Py_ssize_t len, int flags,
         PyObject *owner)
 {

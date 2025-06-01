@@ -13,6 +13,8 @@
 
 #include "sip_variable_descriptor.h"
 
+#include "sip_module.h"
+
 
 /******************************************************************************
  * We don't use the similar Python descriptor because it doesn't support static

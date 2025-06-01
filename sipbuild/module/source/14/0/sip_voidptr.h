@@ -7,8 +7,8 @@
  */
 
 
-#ifndef _SIP_METHOD_DESCRIPTOR_H
-#define _SIP_METHOD_DESCRIPTOR_H
+#ifndef _SIP_VOIDPTR_H
+#define _SIP_VOIDPTR_H
 
 
 /* Remove when Python v3.12 is no longer supported. */

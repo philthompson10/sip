@@ -32,22 +32,6 @@ extern "C" {
 #define FALSE       0
 
 
-/* The sip module's state. */
-typedef struct {
-    // The sip.array type object.
-    PyTypeObject *array_type;
-
-    // The method descriptor type object.
-    PyTypeObject *method_descr_type;
-
-    // The variable descriptor type object.
-    PyTypeObject *variable_descr_type;
-
-    // The void pointer type object.
-    PyTypeObject *void_ptr_type;
-} sipSipModuleState;
-
-
 /*
  * This defines a single entry in an object map's hash table.
  */
@@ -130,8 +114,6 @@ PyObject *sip_get_qualname(const sipTypeDef *td, PyObject *name);
 PyObject *sip_get_scope_dict(sipTypeDef *td, PyObject *mod_dict,
         sipExportedModuleDef *client);
 int sip_objectify(const char *s, PyObject **objp);
-sipSipModuleState *sip_get_sip_module_state(PyObject *wmod);
-sipSipModuleState *sip_get_sip_module_state_from_type(PyTypeObject *type);
 
 sipClassTypeDef *sipGetGeneratedClassType(const sipEncodedTypeDef *enc,
         const sipClassTypeDef *ctd);

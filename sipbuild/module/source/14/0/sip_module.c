@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: BSD-2-Clause */
 
 /*
- * The core sip module code.
+ * The sip module implementation.
  *
  * Copyright (c) 2025 Phil Thompson <phil@riverbankcomputing.com>
  */
@@ -11,7 +11,7 @@
 #define PY_SSIZE_T_CLEAN
 #include <Python.h>
 
-#include "sip_core.h"
+#include "sip_module.h"
 
 
 /* Forward declarations. */
@@ -33,7 +33,7 @@ static PyModuleDef_Slot module_slots[] = {
     {0, NULL},
 };
 
-static PyModuleDef sip_module_def = {
+static PyModuleDef module_def = {
     .m_base = PyModuleDef_HEAD_INIT,
     .m_name = _SIP_MODULE_FQ_NAME,
     .m_doc = PyDoc_STR("Bindings related utilities"),
@@ -55,7 +55,7 @@ PyObject *_SIP_MODULE_ENTRY(void)
 PyMODINIT_FUNC _SIP_MODULE_ENTRY(void)
 #endif
 {
-    return PyModuleDef_Init(&sip_module_def);
+    return PyModuleDef_Init(&module_def);
 }
 #endif
 

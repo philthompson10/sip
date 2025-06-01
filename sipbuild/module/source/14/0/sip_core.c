@@ -23,6 +23,7 @@
 #include "sip_array.h"
 #include "sip_enum.h"
 #include "sip_method_descriptor.h"
+#include "sip_module.h"
 #include "sip_variable_descriptor.h"
 #include "sip_voidptr.h"
 
