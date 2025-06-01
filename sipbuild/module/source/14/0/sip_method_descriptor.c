@@ -1,0 +1,212 @@
+/* SPDX-License-Identifier: BSD-2-Clause */
+
+/*
+ * The implementation of the method descriptor type.
+ *
+ * Copyright (c) 2025 Phil Thompson <phil@riverbankcomputing.com>
+ */
+
+
+/* Remove when Python v3.12 is no longer supported. */
+#define PY_SSIZE_T_CLEAN
+#include <Python.h>
+
+#include "sip_method_descriptor.h"
+
+
+/******************************************************************************
+ * We don't use the similar Python descriptor because it doesn't support a
+ * method having static and non-static overloads, and we handle mixins via a
+ * delegate.
+ *****************************************************************************/
+
+
+/*
+ * The object data structure.
+ */
+typedef struct {
+    PyObject_HEAD
+
+    /* The method definition. */
+    PyMethodDef *pmd;
+
+    /* The mixin name, if any. */
+    PyObject *mixin_name;
+} MethodDescr;
+
+
+/* Forward declarations of slots. */
+static int MethodDescr_clear(PyObject *self);
+static void MethodDescr_dealloc(PyObject *self);
+static PyObject *MethodDescr_descr_get(PyObject *self, PyObject *obj,
+        PyObject *type);
+static PyObject *MethodDescr_repr(PyObject *self);
+static int MethodDescr_traverse(PyObject *self, visitproc visit, void *arg);
+
+
+/*
+ * The type specification.
+ */
+static PyType_Slot MethodDescr_slots = {
+    {Py_tp_clear, MethodDescr_clear},
+    {Py_tp_dealloc, MethodDescr_dealloc},
+    {Py_tp_descr_get, MethodDescr_descr_get},
+    {Py_tp_repr, MethodDescr_repr},
+    {Py_tp_traverse, MethodDescr_traverse},
+    {0, NULL}
+};
+
+PyType_Spec sipMethodDescr_TypeSpec = {
+    .name = _SIP_MODULE_FQ_NAME ".methoddescriptor",
+    .basicsize = sizeof (MethodDescr),
+    .flags = Py_TPFLAGS_DEFAULT |
+#if defined(Py_TPFLAGS_DISALLOW_INSTANTIATION)
+             Py_TPFLAGS_DISALLOW_INSTANTIATION |
+#endif
+#if defined(Py_TPFLAGS_IMMUTABLETYPE)
+             Py_TPFLAGS_IMMUTABLETYPE |
+#endif
+             Py_TPFLAGS_HAVE_GC,
+    .slots = MethodDescr_slots,
+};
+
+
+/* Forward declarations. */
+static MethodDescr *alloc_method_descr(PyObject *wmod);
+
+
+/*
+ * Return a new method descriptor for the given method.
+ */
+PyObject *sipMethodDescr_New(PyObject *wmod, PyMethodDef *pmd)
+{
+    MethodDescr *descr = alloc_method_descr(wmod);
+
+    if (descr != NULL)
+    {
+        descr->pmd = pmd;
+        descr->mixin_name = NULL;
+    }
+
+    return (PyObject *)descr;
+}
+
+
+/*
+ * Return a new method descriptor based on an existing one and a mixin name.
+ */
+PyObject *sipMethodDescr_Copy(PyObject *wmod, PyObject *orig,
+        PyObject *mixin_name)
+{
+    MethodDescr *orig_descr = (MethodDescr *)orig;
+    MethodDescr *descr = alloc_method_descr(wmod);
+
+    if (descr != NULL)
+    {
+        descr->vd = orig_descr->vd;
+        descr->mixin_name = mixin_name;
+
+        Py_INCREF(mixin_name);
+    }
+
+    return (PyObject *)descr;
+}
+
+
+/*
+ * The descriptor's descriptor get slot.
+ */
+static PyObject *MethodDescr_descr_get(PyObject *self, PyObject *obj,
+        PyObject *type)
+{
+    MethodDescr *descr = (MethodDescr *)self;
+    PyObject *bind, *func;
+
+    if (obj == NULL)
+    {
+        /* The argument parser must work out that 'self' is the type object. */
+        bind = type;
+        Py_INCREF(bind);
+    }
+    else if (descr->mixin_name != NULL)
+    {
+        bind = PyObject_GetAttr(obj, descr->mixin_name);
+    }
+    else
+    {
+        /*
+         * The argument parser must work out that 'self' is the instance
+         * object.
+         */
+        bind = obj;
+        Py_INCREF(bind);
+    }
+
+    func = PyCFunction_New(descr->pmd, bind);
+    Py_DECREF(bind);
+
+    return func;
+}
+
+
+/*
+ * The descriptor's repr slot.  This is for the benefit of cProfile which seems
+ * to determine attribute names differently to the rest of Python.
+ */
+static PyObject *MethodDescr_repr(PyObject *self)
+{
+    MethodDescr *descr = (MethodDescr *)self;
+
+    return PyUnicode_FromFormat("<built-in method %s>", descr->pmd->ml_name);
+}
+
+
+/*
+ * The descriptor's traverse slot.
+ */
+static int MethodDescr_traverse(PyObject *self, visitproc visit, void *arg)
+{
+    MethodDescr *descr = (MethodDescr *)self;
+
+    Py_VISIT(Py_TYPE(self));
+    Py_VISIT(descr->mixin_name);
+
+    return 0;
+}
+
+
+/*
+ * The descriptor's clear slot.
+ */
+static int MethodDescr_clear(PyObject *self)
+{
+    MethodDescr *descr = (MethodDescr *)self;
+
+    Py_CLEAR(descr->mixin_name);
+
+    return 0;
+}
+
+
+/*
+ * The descriptor's dealloc slot.
+ */
+static void MethodDescr_dealloc(PyObject *self)
+{
+    PyObject_GC_UnTrack(self);
+    MethodDescr_clear(self);
+    PyTypeObject *type = Py_TYPE(self);
+    type->tp_free(self);
+    Py_DECREF(type);
+}
+
+
+/*
+ * Allocate a new method descriptor for a wrapper type.
+ */
+static MethodDescr *alloc_method_descr(PyObject *wmod)
+{
+    sipSipModuleState *sms = sip_get_sip_module_state(wmod);
+
+    return (MethodDescr *)PyType_GenericAlloc(sms->method_descr, 0);
+}

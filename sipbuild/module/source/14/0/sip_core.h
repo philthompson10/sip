@@ -73,21 +73,6 @@ typedef struct
 
 
 /*
- * Support for the descriptors.
- */
-extern PyType_Spec sipMethodDescr_TypeSpec;
-PyObject *sipMethodDescr_New(PyObject *wmod, PyMethodDef *pmd);
-PyObject *sipMethodDescr_Copy(PyObject *wmod, PyObject *orig,
-        PyObject *mixin_name);
-
-extern PyType_Spec sipVariableDescr_TypeSpec;
-PyObject *sipVariableDescr_New(PyObject *wmod, sipVariableDef *vd,
-        const sipTypeDef *td, const char *cod_name);
-PyObject *sipVariableDescr_Copy(PyObject *wmod, PyObject *orig,
-        PyObject *mixin_name);
-
-
-/*
  * Support for void pointers.
  */
 extern PyType_Spec sipVoidPtr_TypeSpec;
