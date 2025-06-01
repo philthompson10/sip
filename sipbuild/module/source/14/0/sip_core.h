@@ -32,30 +32,6 @@ extern "C" {
 #define FALSE       0
 
 
-/*
- * This defines a single entry in an object map's hash table.
- */
-typedef struct
-{
-    void *key;                  /* The C/C++ address. */
-    sipSimpleWrapper *first;    /* The first object at this address. */
-} sipHashEntry;
-
-
-/*
- * This defines the interface to a hash table class for mapping C/C++ addresses
- * to the corresponding wrapped Python object.
- */
-typedef struct
-{
-    int primeIdx;               /* Index into table sizes. */
-    uintptr_t size;             /* Size of hash table. */
-    uintptr_t unused;           /* Nr. unused in hash table. */
-    uintptr_t stale;            /* Nr. stale in hash table. */
-    sipHashEntry *hash_array;   /* Current hash table. */
-} sipObjectMap;
-
-
 extern PyTypeObject sipWrapperType_Type;        /* The wrapper type type. */
 extern sipWrapperType sipSimpleWrapper_Type;    /* The simple wrapper type. */
 
@@ -103,13 +79,6 @@ int sipGetPending(void **pp, sipWrapper **op, int *fp);
 int sipIsPending(void);
 PyObject *sipWrapInstance(void *cpp,  PyTypeObject *py_type, PyObject *args,
         sipWrapper *owner, int flags);
-
-void sipOMInit(sipObjectMap *om);
-void sipOMFinalise(sipObjectMap *om);
-sipSimpleWrapper *sipOMFindObject(sipObjectMap *om, void *key,
-        const sipTypeDef *td);
-void sipOMAddObject(sipObjectMap *om, sipSimpleWrapper *val);
-int sipOMRemoveObject(sipObjectMap *om, sipSimpleWrapper *val);
 
 #define sip_set_bool(p, v)    (*(_Bool *)(p) = (v))
 

@@ -11,7 +11,7 @@
 #include <stdint.h>
 #include <string.h>
 
-#include "sip_core.h"
+#include "sip_object_map.h"
 
 
 #define hash_1(k,s) (((uintptr_t)(k)) % (s))
