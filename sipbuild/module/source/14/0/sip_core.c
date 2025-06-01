@@ -26,6 +26,7 @@
 #include "sip_method_descriptor.h"
 #include "sip_module.h"
 #include "sip_object_map.h"
+#include "sip_threads.h"
 #include "sip_variable_descriptor.h"
 #include "sip_voidptr.h"
 
