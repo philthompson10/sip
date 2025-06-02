@@ -30,156 +30,8 @@
 #include "sip_threads.h"
 #include "sip_variable_descriptor.h"
 #include "sip_voidptr.h"
+#include "sip_wrapper.h"
 #include "sip_wrapper_type.h"
-
-
-/*
- * The Python type that is the super-type for all C++ wrapper types that
- * support parent/child relationships.
- */
-
-static int sipWrapper_clear(sipWrapper *self);
-static void sipWrapper_dealloc(sipWrapper *self);
-static int sipWrapper_traverse(sipWrapper *self, visitproc visit, void *arg);
-
-static sipWrapperType sipWrapper_Type = {
-#if !defined(STACKLESS)
-    {
-#endif
-        {
-            PyVarObject_HEAD_INIT(&sipWrapperType_Type, 0)
-            _SIP_MODULE_FQ_NAME ".wrapper", /* tp_name */
-            sizeof (sipWrapper),    /* tp_basicsize */
-            0,              /* tp_itemsize */
-            (destructor)sipWrapper_dealloc, /* tp_dealloc */
-            0,              /* tp_print */
-            0,              /* tp_getattr */
-            0,              /* tp_setattr */
-            0,              /* tp_as_async */
-            0,              /* tp_repr */
-            0,              /* tp_as_number */
-            0,              /* tp_as_sequence */
-            0,              /* tp_as_mapping */
-            0,              /* tp_hash */
-            0,              /* tp_call */
-            0,              /* tp_str */
-            0,              /* tp_getattro */
-            0,              /* tp_setattro */
-            0,              /* tp_as_buffer */
-            Py_TPFLAGS_DEFAULT | Py_TPFLAGS_BASETYPE | Py_TPFLAGS_HAVE_GC,  /* tp_flags */
-            0,              /* tp_doc */
-            (traverseproc)sipWrapper_traverse,  /* tp_traverse */
-            (inquiry)sipWrapper_clear,  /* tp_clear */
-            0,              /* tp_richcompare */
-            0,              /* tp_weaklistoffset */
-            0,              /* tp_iter */
-            0,              /* tp_iternext */
-            0,              /* tp_methods */
-            0,              /* tp_members */
-            0,              /* tp_getset */
-            0,              /* tp_base */
-            0,              /* tp_dict */
-            0,              /* tp_descr_get */
-            0,              /* tp_descr_set */
-            0,              /* tp_dictoffset */
-            0,              /* tp_init */
-            0,              /* tp_alloc */
-            0,              /* tp_new */
-            0,              /* tp_free */
-            0,              /* tp_is_gc */
-            0,              /* tp_bases */
-            0,              /* tp_mro */
-            0,              /* tp_cache */
-            0,              /* tp_subclasses */
-            0,              /* tp_weaklist */
-            0,              /* tp_del */
-            0,              /* tp_version_tag */
-            0,              /* tp_finalize */
-            0,              /* tp_vectorcall */
-        },
-        {
-            0,              /* am_await */
-            0,              /* am_aiter */
-            0,              /* am_anext */
-#if PY_VERSION_HEX >= 0x030a0000
-            0,              /* am_send */
-#endif
-        },
-        {
-            0,              /* nb_add */
-            0,              /* nb_subtract */
-            0,              /* nb_multiply */
-            0,              /* nb_remainder */
-            0,              /* nb_divmod */
-            0,              /* nb_power */
-            0,              /* nb_negative */
-            0,              /* nb_positive */
-            0,              /* nb_absolute */
-            0,              /* nb_bool */
-            0,              /* nb_invert */
-            0,              /* nb_lshift */
-            0,              /* nb_rshift */
-            0,              /* nb_and */
-            0,              /* nb_xor */
-            0,              /* nb_or */
-            0,              /* nb_int */
-            0,              /* nb_reserved */
-            0,              /* nb_float */
-            0,              /* nb_inplace_add */
-            0,              /* nb_inplace_subtract */
-            0,              /* nb_inplace_multiply */
-            0,              /* nb_inplace_remainder */
-            0,              /* nb_inplace_power */
-            0,              /* nb_inplace_lshift */
-            0,              /* nb_inplace_rshift */
-            0,              /* nb_inplace_and */
-            0,              /* nb_inplace_xor */
-            0,              /* nb_inplace_or */
-            0,              /* nb_floor_divide */
-            0,              /* nb_true_divide */
-            0,              /* nb_inplace_floor_divide */
-            0,              /* nb_inplace_true_divide */
-            0,              /* nb_index */
-            0,              /* nb_matrix_multiply */
-            0,              /* nb_inplace_matrix_multiply */
-        },
-        {
-            0,              /* mp_length */
-            0,              /* mp_subscript */
-            0,              /* mp_ass_subscript */
-        },
-        {
-            0,              /* sq_length */
-            0,              /* sq_concat */
-            0,              /* sq_repeat */
-            0,              /* sq_item */
-            0,              /* was_sq_slice */
-            0,              /* sq_ass_item */
-            0,              /* was_sq_ass_slice */
-            0,              /* sq_contains */
-            0,              /* sq_inplace_concat */
-            0,              /* sq_inplace_repeat */
-        },
-        {
-            0,              /* bf_getbuffer */
-            0,              /* bf_releasebuffer */
-        },
-        0,                  /* ht_name */
-        0,                  /* ht_slots */
-        0,                  /* ht_qualname */
-        0,                  /* ht_cached_keys */
-        0,                  /* ht_module */
-#if !defined(STACKLESS)
-    },
-#endif
-    0,                      /* wt_user_type */
-    0,                      /* wt_dict_complete */
-    0,                      /* wt_unused */
-    0,                      /* wt_td */
-    0,                      /* wt_iextend */
-    0,                      /* wt_user_data */
-    0,                      /* wt_reserved */
-};
 
 
 static void sip_api_bad_catcher_result(PyObject *method);
@@ -829,9 +681,18 @@ const sipAPIDef *sip_init_library(PyObject *module, sipSipModuleState *sms)
         return NULL;
 
     // TODO
-    sipWrapper_Type.super.ht_type.tp_base = (PyTypeObject *)&sipSimpleWrapper_Type;
+#if PY_VERSION_HEX >= 0x030c0000
+    sms->wrapper_type = (PyTypeObject *)PyType_FromMetaclass(
+            sms->wrapper_type_type, module, &sipWrapper_TypeSpec,
+            sms->simple_wrapper_type);
+#else
+    // TODO support for version prior to v3.12.
+#endif
 
-    if (PyModule_AddType(module, (PyTypeObject *)&sipWrapper_Type) < 0)
+    if (sms->wrapper_type == NULL)
+        return NULL;
+
+    if (PyModule_AddType(module, sms->wrapper_type) < 0)
         return NULL;
 
     sms->array_type = (PyTypeObject *)PyType_FromModuleAndSpec(module,
@@ -8845,70 +8706,6 @@ static PyObject *slot_richcompare(PyObject *self, PyObject *arg, int op)
     }
 
     return f(self, arg);
-}
-
-
-/*
- * The wrapper clear slot.
- */
-static int sipWrapper_clear(sipWrapper *self)
-{
-    int vret;
-    sipSimpleWrapper *sw = (sipSimpleWrapper *)self;
-
-    vret = sipSimpleWrapper_clear(sw);
-
-    /* Detach any children (which will be owned by C/C++). */
-    detachChildren(self);
-
-    return vret;
-}
-
-
-/*
- * The wrapper dealloc slot.
- */
-static void sipWrapper_dealloc(sipWrapper *self)
-{
-    /*
-     * We can't simply call the super-type because things have to be done in a
-     * certain order.  The first thing is to get rid of the wrapped instance.
-     */
-    forgetObject((sipSimpleWrapper *)self);
-
-    sipWrapper_clear(self);
-
-    /* Skip the super-type's dealloc. */
-    PyBaseObject_Type.tp_dealloc((PyObject *)self);
-}
-
-
-/*
- * The wrapper traverse slot.
- */
-static int sipWrapper_traverse(sipWrapper *self, visitproc visit, void *arg)
-{
-    int vret;
-    sipSimpleWrapper *sw = (sipSimpleWrapper *)self;
-    sipWrapper *w;
-
-    if ((vret = sipSimpleWrapper_traverse(sw, visit, arg)) != 0)
-        return vret;
-
-    for (w = self->first_child; w != NULL; w = w->sibling_next)
-    {
-        /*
-         * We don't traverse if the wrapper is a child of itself.  We do this
-         * so that wrapped objects returned by virtual methods with the
-         * /Factory/ don't have those objects collected.  This then means that
-         * plugins implemented in Python have a chance of working.
-         */
-        if (w != self)
-            if ((vret = visit((PyObject *)w, arg)) != 0)
-                return vret;
-    }
-
-    return 0;
 }
 
 

@@ -1,0 +1,112 @@
+/* SPDX-License-Identifier: BSD-2-Clause */
+
+/*
+ * The implementation of the sip wrapper type.
+ *
+ * Copyright (c) 2025 Phil Thompson <phil@riverbankcomputing.com>
+ */
+
+
+/* Remove when Python v3.12 is no longer supported. */
+#define PY_SSIZE_T_CLEAN
+#include <Python.h>
+
+#include "sip_wrapper.h"
+
+
+/* Forward declarations of slots. */
+static int Wrapper_clear(PyObject *self);
+static void Wrapper_dealloc(PyObject *self);
+static int Wrapper_traverse(PyObject *self, visitproc visit, void *arg);
+
+
+/*
+ * The type specification.
+ */
+static PyType_Slot Wrapper_slots[] = {
+    {Py_tp_clear, Wrapper_clear},
+    {Py_tp_dealloc, Wrapper_dealloc},
+    {Py_tp_traverse, Wrapper_traverse},
+    {0, NULL}
+}
+
+PyType_Spec sipWrapper_TypeSpec = {
+    .name = _SIP_MODULE_FQ_NAME ".wrapper",
+    .basicsize = sizeof (sipWrapper),
+    .flags = Py_TPFLAGS_DEFAULT |
+             Py_TPFLAGS_BASETYPE |
+#if defined(Py_TPFLAGS_DISALLOW_INSTANTIATION)
+             Py_TPFLAGS_DISALLOW_INSTANTIATION |
+#endif
+#if defined(Py_TPFLAGS_IMMUTABLETYPE)
+             Py_TPFLAGS_IMMUTABLETYPE |
+#endif
+             Py_TPFLAGS_HAVE_GC,
+    .slots = WrapperType_slots,
+};
+
+
+/*
+ * The wrapper clear slot.
+ */
+static int Wrapper_clear(PyObject *self)
+{
+    int vret;
+
+    // TODO Call super class some other way (or done automatically?)
+    vret = SimpleWrapper_clear(self);
+
+    /* Detach any children (which will be owned by C/C++). */
+    detachChildren((sipWrapper *)self);
+
+    return vret;
+}
+
+
+/*
+ * The wrapper dealloc slot.
+ */
+static void Wrapper_dealloc(PyObject *self)
+{
+    /*
+     * We can't simply call the super-type because things have to be done in a
+     * certain order.  The first thing is to get rid of the wrapped instance.
+     */
+    forgetObject((sipSimpleWrapper *)self);
+
+    Wrapper_clear(self);
+
+    /* Skip the super-type's dealloc. */
+    PyBaseObject_Type.tp_dealloc((PyObject *)self);
+}
+
+
+/*
+ * The wrapper traverse slot.
+ */
+static int Wrapper_traverse(PyObject *self, visitproc visit, void *arg)
+{
+    int vret;
+
+    // TODO Call super class some other way (or done automatically?)
+    if ((vret = SimpleWrapper_traverse(self, visit, arg)) != 0)
+        return vret;
+
+    sipWrapper *w;
+
+    for (w = ((sipWrapper *)self)->first_child; w != NULL; w = w->sibling_next)
+    {
+        /*
+         * We don't traverse if the wrapper is a child of itself.  We do this
+         * so that wrapped objects returned by virtual methods with the
+         * /Factory/ don't have those objects collected.  This then means that
+         * plugins implemented in Python have a chance of working.
+         */
+        // TODO Need to collect everything.
+        if (w != self)
+            if ((vret = visit((PyObject *)w, arg)) != 0)
+                return vret;
+    }
+
+    return 0;
+}

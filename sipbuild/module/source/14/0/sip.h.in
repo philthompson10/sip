@@ -282,66 +282,6 @@ typedef int (*sipVariableSetterFunc)(void *, PyObject *, PyObject *);
 typedef void (*sipWrapperVisitorFunc)(sipSimpleWrapper *, void *);
 
 
-#if !defined(Py_LIMITED_API)
-/*
- * The meta-type of a wrapper type.
- */
-struct _sipWrapperType {
-    /*
-     * The super-metatype.  This must be first in the structure so that it can
-     * be cast to a PyTypeObject *.
-     */
-    PyHeapTypeObject super;
-
-    /* Set if the type is a user implemented Python sub-class. */
-    unsigned wt_user_type : 1;
-
-    /* Set if the type's dictionary contains all lazy attributes. */
-    unsigned wt_dict_complete : 1;
-
-    /* Unused and available for future use. */
-    unsigned wt_unused : 30;
-
-    /* The generated type structure. */
-    const sipTypeDef *wt_td;
-
-    /* The list of init extenders. */
-    struct _sipInitExtenderDef *wt_iextend;
-
-    /*
-     * For the user to use.  Note that any data structure will leak if the
-     * type is garbage collected.
-     */
-    // TODO Should these be a PyObject?
-    void *wt_user_data;
-
-    /* Reserved for future use by this ABI version. */
-    void *wt_reserved; 
-};
-
-
-/*
- * The type of a C/C++ wrapper object that supports parent/child relationships.
- */
-struct _sipWrapper {
-    /* The super-type. */
-    struct _sipSimpleWrapper super;
-
-    /* First child object. */
-    struct _sipWrapper *first_child;
-
-    /* Next sibling. */
-    struct _sipWrapper *sibling_next;
-
-    /* Previous sibling. */
-    struct _sipWrapper *sibling_prev;
-
-    /* Owning object. */
-    struct _sipWrapper *parent;
-};
-#endif
-
-
 /*
  * The information describing an encoded type ID.
  */

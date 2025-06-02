@@ -45,6 +45,9 @@ typedef struct {
     // The sip.voidptr type object.
     PyTypeObject *void_ptr_type;
 
+    // The sip.wrapper type object.
+    PyTypeObject *wrapper_type;
+
     // The sip.wrappertype type object.
     PyTypeObject *wrapper_type_type;
 } sipSipModuleState;

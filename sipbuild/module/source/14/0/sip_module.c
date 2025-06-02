@@ -76,6 +76,7 @@ static int module_clear(PyObject *module)
     Py_CLEAR(sms->simple_wrapper_type);
     Py_CLEAR(sms->variable_descr_type);
     Py_CLEAR(sms->void_ptr_type);
+    Py_CLEAR(sms->wrapper_type);
     Py_CLEAR(sms->wrapper_type_type);
 
     return 0;
@@ -134,6 +135,7 @@ static int module_traverse(PyObject *module, visitproc visit, void *arg)
     Py_VISIT(sms->simple_wrapper_type);
     Py_VISIT(sms->variable_descr_type);
     Py_VISIT(sms->void_ptr_type);
+    Py_VISIT(sms->wrapper_type);
     Py_VISIT(sms->wrapper_type_type);
 
     return 0;
