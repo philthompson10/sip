@@ -69,6 +69,9 @@ static int module_clear(PyObject *module)
     sipSipModuleState *sms = (sipSipModuleState *)PyModule_GetState(module);
 
     Py_CLEAR(sms->array_type);
+#if defined(SIP_CONFIGURATION_CustomEnums)
+    Py_CLEAR(sms->custom_enum_type);
+#endif
     Py_CLEAR(sms->method_descr_type);
     Py_CLEAR(sms->variable_descr_type);
     Py_CLEAR(sms->void_ptr_type);
@@ -122,6 +125,9 @@ static int module_traverse(PyObject *module, visitproc visit, void *arg)
     sipSipModuleState *sms = (sipSipModuleState *)PyModule_GetState(module);
 
     Py_VISIT(sms->array_type);
+#if defined(SIP_CONFIGURATION_CustomEnums)
+    Py_VISIT(sms->custom_enum_type);
+#endif
     Py_VISIT(sms->method_descr_type);
     Py_VISIT(sms->variable_descr_type);
     Py_VISIT(sms->void_ptr_type);

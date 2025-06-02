@@ -39,7 +39,7 @@ int sip_enum_create_py_enum(sipExportedModuleDef *client, sipEnumTypeDef *etd,
 /*
  * The meta-type of a custom enum type.
  */
-struct _sipEnumTypeObject {
+typedef struct {
     /*
      * The super-metatype.  This must be first in the structure so that it can
      * be cast to a PyTypeObject *.
@@ -48,9 +48,7 @@ struct _sipEnumTypeObject {
 
     /* The generated type structure. */
     sipTypeDef *type;
-};
-
-typedef struct _sipEnumTypeObject sipEnumTypeObject;
+} sipEnumTypeObject;
 
 extern PyObject *sip_enum_custom_enum_unpickler;
 

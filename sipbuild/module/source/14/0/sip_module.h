@@ -15,6 +15,8 @@
 #define PY_SSIZE_T_CLEAN
 #include <Python.h>
 
+#include "sip.h"
+
 
 #ifdef __cplusplus
 extern "C" {
@@ -25,6 +27,11 @@ extern "C" {
 typedef struct {
     // The sip.array type object.
     PyTypeObject *array_type;
+
+#if defined(SIP_CONFIGURATION_CustomEnums)
+    // The sip.enumtype type object.
+    PyTypeObject *custom_enum_type;
+#endif
 
     // The method descriptor type object.
     PyTypeObject *method_descr_type;

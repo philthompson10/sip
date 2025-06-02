@@ -43,7 +43,6 @@ static PyObject *VoidPtr_setwriteable(VoidPtr *v, PyObject *arg);
 static int VoidPtr_ass_subscript(PyObject *self, PyObject *key,
         PyObject *value);
 static int VoidPtr_bool(PyObject *self);
-static void VoidPtr_clear(PyObject *self);
 static void VoidPtr_dealloc(PyObject *self);
 static int VoidPtr_getbuffer(PyObject *self, Py_buffer *view, int flags);
 static PyObject *VoidPtr_int(PyObject *self);
