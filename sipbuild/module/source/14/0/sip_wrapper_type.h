@@ -15,8 +15,6 @@
 #define PY_SSIZE_T_CLEAN
 #include <Python.h>
 
-#include "sip.h"
-
 
 #ifdef __cplusplus
 extern "C" {
@@ -24,13 +22,6 @@ extern "C" {
 
 
 extern PyType_Spec sipWrapperType_TypeSpec;
-
-void *sip_api_convert_to_void_ptr(PyObject *obj);
-PyObject *sip_api_convert_from_void_ptr(void *val);
-PyObject *sip_api_convert_from_const_void_ptr(const void *val);
-PyObject *sip_api_convert_from_void_ptr_and_size(void *val, Py_ssize_t size);
-PyObject *sip_api_convert_from_const_void_ptr_and_size(const void *val,
-        Py_ssize_t size);
 
 
 #ifdef __cplusplus

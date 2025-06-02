@@ -50,7 +50,7 @@ static int Array_traverse(PyObject *self, visitproc visit, void *arg);
 /*
  * The type specification.
  */
-Array_slots = {
+static PyType_Slot Array_slots[] = {
     {Py_bf_getbuffer, Array_getbuffer},
     {Py_mp_ass_subscript, Array_ass_subscript},
     {Py_mp_length, Array_length},

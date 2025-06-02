@@ -36,6 +36,9 @@ typedef struct {
     // The method descriptor type object.
     PyTypeObject *method_descr_type;
 
+    // The sip.simplewrapper type object.
+    PyTypeObject *simple_wrapper_type;
+
     // The variable descriptor type object.
     PyTypeObject *variable_descr_type;
 

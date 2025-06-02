@@ -73,6 +73,7 @@ static int module_clear(PyObject *module)
     Py_CLEAR(sms->custom_enum_type);
 #endif
     Py_CLEAR(sms->method_descr_type);
+    Py_CLEAR(sms->simple_wrapper_type);
     Py_CLEAR(sms->variable_descr_type);
     Py_CLEAR(sms->void_ptr_type);
     Py_CLEAR(sms->wrapper_type_type);
@@ -130,6 +131,7 @@ static int module_traverse(PyObject *module, visitproc visit, void *arg)
     Py_VISIT(sms->custom_enum_type);
 #endif
     Py_VISIT(sms->method_descr_type);
+    Py_VISIT(sms->simple_wrapper_type);
     Py_VISIT(sms->variable_descr_type);
     Py_VISIT(sms->void_ptr_type);
     Py_VISIT(sms->wrapper_type_type);

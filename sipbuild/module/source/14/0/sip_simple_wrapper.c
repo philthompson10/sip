@@ -1,0 +1,622 @@
+/* SPDX-License-Identifier: BSD-2-Clause */
+
+/*
+ * The implementation of the sip simple wrapper type.
+ *
+ * Copyright (c) 2025 Phil Thompson <phil@riverbankcomputing.com>
+ */
+
+
+/* Remove when Python v3.12 is no longer supported. */
+#define PY_SSIZE_T_CLEAN
+#include <Python.h>
+
+#include "sip_simple_wrapper.h"
+
+
+/* Forward declarations of slots. */
+static int SimpleWrapper_clear(PyObject *self);
+static void SimpleWrapper_dealloc(PyObject *self);
+static int SimpleWrapper_getbuffer(PyObject *self, Py_buffer *buf, int flags);
+static int SimpleWrapper_init(PyObject *self, PyObject *args, PyObject *kwds);
+static PyObject *SimpleWrapper_new(PyTypeObject *cls, PyObject *args,
+        PyObject *kwds);
+static void SimpleWrapper_releasebuffer(PyObject *self, Py_buffer *buf);
+static int SimpleWrapper_traverse(PyObject *self, visitproc visit, void *arg);
+
+static PyObject *SimpleWrapper_get_dict(PyObject *self, void *closure);
+static int SimpleWrapper_set_dict(PyObject *self, PyObject *value,
+        void *closure);
+
+
+/*
+ * The type specification.
+ */
+#if !defined(Py_TPFLAGS_MANAGED_DICT)
+static PyGetSetDef SimpleWrapper_getset[] = {
+    {"__dict__", SimpleWrapper_get_dict, SimpleWrapper_set_dict, NULL, NULL},
+    {NULL, NULL, NULL, NULL, NULL}
+};
+
+static PyMemberDef SimpleWrapper_members[] = {
+    {"__dictoffset__", Py_T_PYSSIZET, offsetof(sipSimpleWrapper, dict), Py_READONLY},
+    {NULL}
+}
+#endif
+
+static PyType_Slot SimpleWrapper_slots[] = {
+    {Py_tp_clear, SimpleWrapper_clear},
+    {Py_tp_dealloc, SimpleWrapper_dealloc},
+    {Py_tp_getbuffer, SimpleWrapper_getbuffer},
+    {Py_tp_init, SimpleWrapper_init},
+    {Py_tp_new, SimpleWrapper_new},
+    {Py_tp_releasebuffer, SimpleWrapper_releasebuffer},
+    {Py_tp_traverse, SimpleWrapper_traverse},
+#if !defined(Py_TPFLAGS_MANAGED_DICT)
+    {Py_tp_getset, SimpleWrapper_getset},
+    {Py_tp_members, SimpleWrapper_members},
+#endif
+    {0, NULL}
+};
+
+PyType_Spec sipSimpleWrapper_TypeSpec = {
+    .name = _SIP_MODULE_FQ_NAME ".simplewrapper",
+    .basicsize = sizeof (sipSimpleWrapper),
+    .flags = Py_TPFLAGS_DEFAULT |
+             Py_TPFLAGS_BASETYPE |
+#if defined(Py_TPFLAGS_DISALLOW_INSTANTIATION)
+             Py_TPFLAGS_DISALLOW_INSTANTIATION |
+#endif
+#if defined(Py_TPFLAGS_IMMUTABLETYPE)
+             Py_TPFLAGS_IMMUTABLETYPE |
+#endif
+#if defined(Py_TPFLAGS_MANAGED_DICT)
+             Py_TPFLAGS_MANAGED_DICT |
+#endif
+             Py_TPFLAGS_HAVE_GC,
+    .slots = WrapperType_slots,
+};
+
+
+/*
+ * The simple wrapper clear slot.
+ */
+static int SimpleWrapper_clear(PyObject *self)
+{
+    sipSimpleWrapper *sw = (sipSimpleWrapper *)self;
+
+    int vret = 0;
+
+    /* Call any handwritten clear code. */
+    void *ptr;
+    const sipClassTypeDef *ctd;
+
+    if ((ptr = getPtrTypeDef(sw, &ctd)) != NULL)
+        if (ctd->ctd_clear != NULL)
+            vret = ctd->ctd_clear(ptr);
+
+#if defined(Py_TPFLAGS_MANAGED_DICT)
+    PyObject_ClearManagedDict(self);
+#else
+    Py_CLEAR(sw->dict);
+#endif
+
+    Py_CLEAR(sw->extra_refs);
+    Py_CLEAR(sw->user);
+    Py_CLEAR(sw->mixin_main);
+
+    return vret;
+}
+
+
+/*
+ * The simple wrapper dealloc slot.
+ */
+static void SimpleWrapper_dealloc(PyObject *self)
+{
+    forgetObject((sipSimpleWrapper *)self);
+
+    /*
+     * Now that the C++ object no longer exists we can tidy up the Python
+     * object.
+     */
+    SimpleWrapper_clear(self);
+
+    PyTypeObject *type = Py_TYPE(self);
+    type->tp_free(self);
+    Py_DECREF(type);
+}
+
+
+/*
+ * The simple wrapper get buffer slot.
+ */
+static int SimpleWrapper_getbuffer(PyObject *self, Py_buffer *buf, int flags)
+{
+    void *ptr;
+    const sipClassTypeDef *ctd;
+
+    if ((ptr = getPtrTypeDef((sipSimpleWrapper *)self, &ctd)) == NULL)
+        return -1;
+
+    if (sipTypeUseLimitedAPI(&ctd->ctd_base))
+    {
+        sipGetBufferFuncLimited getbuffer = (sipGetBufferFuncLimited)ctd->ctd_getbuffer;
+        sipBufferDef bd;
+
+        /*
+         * Ensure all fields have a default value.  This means that extra
+         * fields can be appended in the future that older handwritten code
+         * doesn't know about.
+         */
+        memset(&bd, 0, sizeof(sipBufferDef));
+
+        if (getbuffer(self, ptr, &bd) < 0)
+            return -1;
+
+        return PyBuffer_FillInfo(buf, self, bd.bd_buffer, bd.bd_length,
+                bd.bd_readonly, flags);
+    }
+
+    return ctd->ctd_getbuffer(self, ptr, buf, flags);
+}
+
+
+/*
+ * The simple wrapper init slot.
+ */
+static int SimpleWrapper_init(PyObject *self, PyObject *args, PyObject *kwds)
+{
+    sipSimpleWrapper *sw = (sipSimpleWrapper *)self;
+
+    void *sipNew;
+    int sipFlags, from_cpp = TRUE;
+    sipWrapper *owner;
+    sipWrapperType *wt = (sipWrapperType *)Py_TYPE(self);
+    sipTypeDef *td = wt->wt_td;
+    sipClassTypeDef *ctd = (sipClassTypeDef *)td;
+    PyObject *unused = NULL;
+    sipFinalFunc final_func = find_finalisation(ctd);
+
+    /* Check for an existing C++ instance waiting to be wrapped. */
+    if (sipGetPending(&sipNew, &owner, &sipFlags) < 0)
+        return -1;
+
+    if (sipNew == NULL)
+    {
+        PyObject *parseErr = NULL, **unused_p = NULL;
+
+        /* See if we are interested in any unused keyword arguments. */
+        if (sipTypeCallSuperInit(&ctd->ctd_base) || final_func != NULL)
+            unused_p = &unused;
+
+        /* Call the C++ ctor. */
+        owner = NULL;
+
+        sipNew = ctd->ctd_init(sw, args, kwds, unused_p, (PyObject **)&owner,
+                &parseErr);
+
+        if (sipNew != NULL)
+        {
+            sipFlags = SIP_DERIVED_CLASS;
+        }
+        else if (parseErr == NULL)
+        {
+            /*
+             * The C++ ctor must have raised an exception which has been
+             * translated to a Python exception.
+             */
+            return -1;
+        }
+        else
+        {
+            sipInitExtenderDef *ie = wt->wt_iextend;
+
+            /*
+             * If we have not found an appropriate overload then try any
+             * extenders.
+             */
+            while (PyList_Check(parseErr) && ie != NULL)
+            {
+                sipNew = ie->ie_extender(sw, args, kwds, &unused,
+                        (PyObject **)&owner, &parseErr);
+
+                if (sipNew != NULL)
+                    break;
+
+                ie = ie->ie_next;
+            }
+
+            if (sipNew == NULL)
+            {
+                const char *docstring = ctd->ctd_docstring;
+
+                /*
+                 * Use the docstring for errors if it was automatically
+                 * generated.
+                 */
+                if (docstring != NULL)
+                {
+                    if (*docstring == AUTO_DOCSTRING)
+                        ++docstring;
+                    else
+                        docstring = NULL;
+                }
+
+                sip_api_no_function(parseErr,
+                        sipPyNameOfContainer(&ctd->ctd_container, td),
+                        docstring);
+
+                return -1;
+            }
+
+            sipFlags = 0;
+        }
+
+        if (owner == NULL)
+            sipFlags |= SIP_PY_OWNED;
+        else if ((PyObject *)owner == Py_None)
+        {
+            /* This is the hack that means that C++ owns the new instance. */
+            sipFlags |= SIP_CPP_HAS_REF;
+            Py_INCREF(self);
+            owner = NULL;
+        }
+
+        /* The instance was created from Python. */
+        from_cpp = FALSE;
+    }
+
+    /* Handler any owner if the type supports the concept. */
+    if (PyObject_TypeCheck(self, (PyTypeObject *)&sipWrapper_Type))
+    {
+        /*
+         * The application may be doing something very unadvisable (like
+         * calling __init__() for a second time), so make sure we don't already
+         * have a parent.
+         */
+        removeFromParent((sipWrapper *)self);
+
+        if (owner != NULL)
+        {
+            assert(PyObject_TypeCheck((PyObject *)owner, (PyTypeObject *)&sipWrapper_Type));
+
+            addToParent((sipWrapper *)self, (sipWrapper *)owner);
+        }
+    }
+
+    sw->data = sipNew;
+    sw->sw_flags = sipFlags | SIP_CREATED;
+
+    /* Set the access function. */
+    if (sipIsAccessFunc(sw))
+        sw->access_func = explicit_access_func;
+    else if (sipIsIndirect(sw))
+        sw->access_func = indirect_access_func;
+    else
+        sw->access_func = NULL;
+
+    if (!sipNotInMap(sw))
+        sipOMAddObject(&cppPyMap, sw);
+
+    /* If we are wrapping an instance returned from C/C++ then we are done. */
+    if (from_cpp)
+    {
+        /*
+         * Invoke any event handlers for instances that are accessed directly.
+         */
+        if (sw->access_func == NULL)
+        {
+            EventHandler *eh;
+
+            for (eh = event_handlers[sipEventWrappedInstance]; eh != NULL; eh = eh->next)
+            {
+                if (sipTypeIsClass(eh->td) && is_subtype(ctd, (const sipClassTypeDef *)eh->td))
+                {
+                    sipWrappedInstanceEventHandler handler = (sipWrappedInstanceEventHandler)eh->handler;
+
+                    if (handler((const sipTypeDef *)ctd, sipNew) < 0)
+                        return -1;
+                }
+            }
+        }
+
+        return 0;
+    }
+
+    /* Call any finalisation code. */
+    if (final_func != NULL)
+    {
+        PyObject *new_unused = NULL, **new_unused_p;
+
+        if (unused == NULL || unused != kwds)
+        {
+            /*
+             * There are no unused arguments or we have already created a dict
+             * containing the unused sub-set, so there is no need to create
+             * another.
+             */
+            new_unused_p = NULL;
+        }
+        else
+        {
+            /*
+             * All of the keyword arguments are unused, so if some of them are
+             * now going to be used then a new dict will be needed.
+             */
+            new_unused_p = &new_unused;
+        }
+            
+        if (final_func(self, sipNew, unused, new_unused_p) < 0)
+        {
+            Py_XDECREF(unused);
+            return -1;
+        }
+
+        if (new_unused != NULL)
+        {
+            Py_DECREF(unused);
+            unused = new_unused;
+        }
+    }
+
+    /* See if we should call the equivalent of super().__init__(). */
+    if (sipTypeCallSuperInit(&ctd->ctd_base))
+    {
+        PyObject *next;
+
+        /* Find the next type in the MRO. */
+        next = next_in_mro(self, (PyObject *)&sipSimpleWrapper_Type);
+
+        /*
+         * If the next type in the MRO is object then take a shortcut by not
+         * calling super().__init__() but emulating object.__init__() instead.
+         * This will be the most common case and also allows us to generate a
+         * better exception message if there are unused keyword arguments.  The
+         * disadvantage is that the exception message will be different if
+         * there is a mixin.
+         */
+        if (next != (PyObject *)&PyBaseObject_Type)
+        {
+            int rc = super_init(self, empty_tuple, unused, next);
+
+            Py_XDECREF(unused);
+
+            return rc;
+        }
+    }
+
+    if (unused_backdoor != NULL)
+    {
+        /*
+         * We are being called by a mixin's __init__ so save any unused
+         * arguments for it to pass on to the main class's __init__.
+         */
+        *unused_backdoor = unused;
+    }
+    else if (unused != NULL)
+    {
+        /* We shouldn't have any unused keyword arguments. */
+        if (PyDict_Size(unused) != 0)
+        {
+            PyObject *key, *value;
+            Py_ssize_t pos = 0;
+
+            /* Just report one of the unused arguments. */
+            PyDict_Next(unused, &pos, &key, &value);
+
+            PyErr_Format(PyExc_TypeError,
+                    "'%S' is an unknown keyword argument", key);
+
+            Py_DECREF(unused);
+
+            return -1;
+        }
+
+        Py_DECREF(unused);
+    }
+
+    return 0;
+}
+
+
+/*
+ * The simple wrapper new slot.
+ */
+static PyObject *SimpleWrapper_new(PyTypeObject *cls, PyObject *args,
+        PyObject *kwds)
+{
+    sipWrapperType *wt = (sipWrapperType *)cls;
+
+    PyObject *wmod = PyType_GetModule((PyObject *)cls);
+    sipTypeDef *td = wt->wt_td;
+
+    (void)args;
+    (void)kwds;
+
+    /* Check the base types are not being used directly. */
+    if (wt == &sipSimpleWrapper_Type || wt == &sipWrapper_Type)
+    {
+        PyErr_Format(PyExc_TypeError,
+                "the %s type cannot be instantiated or sub-classed",
+                ((PyTypeObject *)wt)->tp_name);
+
+        return NULL;
+    }
+
+    if (sip_add_all_lazy_attrs(wmod, td) < 0)
+        return NULL;
+
+    /* See if it is a mapped type. */
+    if (sipTypeIsMapped(td))
+    {
+        PyErr_Format(PyExc_TypeError,
+                "%s.%s represents a mapped type and cannot be instantiated",
+                sipNameOfModule(td->td_module),
+                sipPyNameOfContainer(sip_get_container(td), td));
+
+        return NULL;
+    }
+
+    /* See if it is a namespace. */
+    if (sipTypeIsNamespace(td))
+    {
+        PyErr_Format(PyExc_TypeError,
+                "%s.%s represents a C++ namespace and cannot be instantiated",
+                sipNameOfModule(td->td_module),
+                sipPyNameOfContainer(sip_get_container(td), td));
+
+        return NULL;
+    }
+
+    /*
+     * See if the object is being created explicitly rather than being wrapped.
+     */
+    if (!sipIsPending())
+    {
+        /*
+         * See if it cannot be instantiated or sub-classed from Python, eg.
+         * it's an opaque class.  Some restrictions might be overcome with
+         * better SIP support.
+         */
+        if (((sipClassTypeDef *)td)->ctd_init == NULL)
+        {
+            PyErr_Format(PyExc_TypeError,
+                    "%s.%s cannot be instantiated or sub-classed",
+                    sipNameOfModule(td->td_module),
+                    sipPyNameOfContainer(sip_get_container(td), td));
+
+            return NULL;
+        }
+
+        /* See if it is an abstract type. */
+        if (sipTypeIsAbstract(td) && !wt->wt_user_type && ((sipClassTypeDef *)td)->ctd_init_mixin == NULL)
+        {
+            PyErr_Format(PyExc_TypeError,
+                    "%s.%s represents a C++ abstract class and cannot be instantiated",
+                    sipNameOfModule(td->td_module),
+                    sipPyNameOfContainer(sip_get_container(td), td));
+
+            return NULL;
+        }
+    }
+
+    /* Call the standard super-type new. */
+    return PyBaseObject_Type.tp_new(cls, empty_tuple, NULL);
+}
+
+
+/*
+ * The simple wrapper release buffer slot.
+ */
+static void SimpleWrapper_releasebuffer(PyObject *self, Py_buffer *buf)
+{
+    void *ptr;
+    const sipClassTypeDef *ctd;
+
+    if ((ptr = getPtrTypeDef((sipSimpleWrapper *)self, &ctd)) == NULL)
+        return;
+
+    if (sipTypeUseLimitedAPI(&ctd->ctd_base))
+    {
+        sipReleaseBufferFuncLimited releasebuffer = (sipReleaseBufferFuncLimited)ctd->ctd_releasebuffer;
+
+        releasebuffer(self, ptr);
+
+        return;
+    }
+
+    ctd->ctd_releasebuffer(self, ptr, buf);
+}
+
+
+/*
+ * The simple wrapper traverse slot.
+ */
+static int SimpleWrapper_traverse(PyObject *self, visitproc visit, void *arg)
+{
+    sipSimpleWrapper *sw = (sipSimpleWrapper *)self;
+
+    Py_VISIT(Py_Type(self));
+
+    /* Call any handwritten traverse code. */
+    void *ptr;
+    const sipClassTypeDef *ctd;
+
+    if ((ptr = getPtrTypeDef(sw, &ctd)) != NULL)
+        if (ctd->ctd_traverse != NULL)
+        {
+            int vret;
+
+            if ((vret = ctd->ctd_traverse(ptr, visit, arg)) != 0)
+                return vret;
+        }
+
+#if defined(Py_TPFLAGS_MANAGED_DICT)
+    int vret;
+
+    if ((vret = PyObject_VisitManagedDict(self, visit, arg)) != 0)
+        return vret;
+#else
+    Py_VISIT(sw->dict);
+#endif
+
+    Py_VISIT(sw->extra_refs);
+    Py_VISIT(sw->user);
+    Py_VISIT(sw->mixin_main);
+
+    return 0;
+}
+
+
+#if !defined(Py_TPFLAGS_MANAGED_DICT)
+/*
+ * The __dict__ getter.
+ */
+static PyObject *SimpleWrapper_get_dict(PyObject *self, void *closure)
+{
+    sipSimpleWrapper *sw = (sipSimpleWrapper *)self;
+
+    (void)closure;
+
+    /* Create the dictionary if needed. */
+    if (sw->dict == NULL)
+    {
+        sw->dict = PyDict_New();
+
+        if (sw->dict == NULL)
+            return NULL;
+    }
+
+    Py_INCREF(sw->dict);
+    return sw->dict;
+}
+
+
+/*
+ * The __dict__ setter.
+ */
+static int SimpleWrapper_set_dict(PyObject *self, PyObject *value,
+        void *closure)
+{
+    sipSimpleWrapper *sw = (sipSimpleWrapper *)self;
+
+    (void)closure;
+
+    /* Check that any new value really is a dictionary. */
+    if (value != NULL && !PyDict_Check(value))
+    {
+        PyErr_Format(PyExc_TypeError,
+                "__dict__ must be set to a dictionary, not a '%s'",
+                Py_TYPE(value)->tp_name);
+        return -1;
+    }
+
+    Py_XDECREF(sw->dict);
+    
+    Py_XINCREF(value);
+    sw->dict = value;
+
+    return 0;
+}
+#endif

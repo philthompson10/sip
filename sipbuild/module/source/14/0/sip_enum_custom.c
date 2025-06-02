@@ -34,7 +34,7 @@ static int EnumType_traverse(PyObject *self, visitproc visit, void *arg);
  * metatype and the size of the type object created is increased to accomodate
  * the extra information we associate with a named enum type.
  */
-EnumType_slots = {
+static PyType_Slot EnumType_slots[] = {
     {Py_tp_alloc, EnumType_alloc},
     {Py_tp_dealloc, EnumType_dealloc},
     {Py_tp_getattro, EnumType_getattro},

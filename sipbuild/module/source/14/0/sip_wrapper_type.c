@@ -30,7 +30,7 @@ static int WrapperType_traverse(PyObject *self, visitproc visit, void *arg);
 /*
  * The type specification.
  */
-WrapperType_slots = {
+static PyType_Slot WrapperType_slots[] = {
     {Py_tp_alloc, WrapperType_alloc},
     {Py_tp_dealloc, WrapperType_dealloc},
     {Py_tp_getattro, WrapperType_getattro},
@@ -40,7 +40,7 @@ WrapperType_slots = {
     {0, NULL}
 };
 
-PyType_Spec sipArray_TypeSpec = {
+PyType_Spec sipWrapperType_TypeSpec = {
     .name = _SIP_MODULE_FQ_NAME ".wrappertype",
     .basicsize = sizeof (sipWrapperType),
     .flags = Py_TPFLAGS_DEFAULT |

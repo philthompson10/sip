@@ -49,7 +49,7 @@ static int MethodDescr_traverse(PyObject *self, visitproc visit, void *arg);
 /*
  * The type specification.
  */
-static PyType_Slot MethodDescr_slots = {
+static PyType_Slot MethodDescr_slots[] = {
     {Py_tp_clear, MethodDescr_clear},
     {Py_tp_dealloc, MethodDescr_dealloc},
     {Py_tp_descr_get, MethodDescr_descr_get},

@@ -56,7 +56,7 @@ static int VariableDescr_traverse(PyObject *self, visitproc visit,
 /*
  * The type specification.
  */
-static PyType_Slot VariableDescr_slots = {
+static PyType_Slot VariableDescr_slots[] = {
     {Py_tp_clear, VariableDescr_clear},
     {Py_tp_dealloc, VariableDescr_dealloc},
     {Py_tp_descr_get, VariableDescr_descr_get},

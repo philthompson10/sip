@@ -32,7 +32,6 @@ extern "C" {
 #define FALSE       0
 
 
-extern PyTypeObject sipWrapperType_Type;        /* The wrapper type type. */
 extern sipWrapperType sipSimpleWrapper_Type;    /* The simple wrapper type. */
 
 

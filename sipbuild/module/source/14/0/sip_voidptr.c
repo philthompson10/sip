@@ -67,8 +67,7 @@ static PyMethodDef VoidPtr_Methods[] = {
     {NULL, NULL, 0, NULL}
 };
 
-
-VoidPtr_slots = {
+static PyType_slot VoidPtr_slots[] = {
     {Py_bf_getbuffer, VoidPtr_getbuffer},
     {Py_mp_ass_subscript, VoidPtr_ass_subscript},
     {Py_mp_length, VoidPtr_length},
