@@ -29,73 +29,7 @@
 #include "sip_threads.h"
 #include "sip_variable_descriptor.h"
 #include "sip_voidptr.h"
-
-
-/*
- * The Python metatype for a C++ wrapper type.  We inherit everything from the
- * standard Python metatype except the init and getattro methods and the size
- * of the type object created is increased to accomodate the extra information
- * we associate with a wrapped type.
- */
-
-static PyObject *sipWrapperType_alloc(PyTypeObject *self, Py_ssize_t nitems);
-static PyObject *sipWrapperType_getattro(PyObject *self, PyObject *name);
-static int sipWrapperType_init(sipWrapperType *self, PyObject *args,
-        PyObject *kwds);
-static int sipWrapperType_setattro(PyObject *self, PyObject *name,
-        PyObject *value);
-
-PyTypeObject sipWrapperType_Type = {
-    PyVarObject_HEAD_INIT(NULL, 0)
-    _SIP_MODULE_FQ_NAME ".wrappertype", /* tp_name */
-    sizeof (sipWrapperType),    /* tp_basicsize */
-    0,                      /* tp_itemsize */
-    0,                      /* tp_dealloc */
-    0,                      /* tp_print */
-    0,                      /* tp_getattr */
-    0,                      /* tp_setattr */
-    0,                      /* tp_as_async */
-    0,                      /* tp_repr */
-    0,                      /* tp_as_number */
-    0,                      /* tp_as_sequence */
-    0,                      /* tp_as_mapping */
-    0,                      /* tp_hash */
-    0,                      /* tp_call */
-    0,                      /* tp_str */
-    sipWrapperType_getattro,    /* tp_getattro */
-    sipWrapperType_setattro,    /* tp_setattro */
-    0,                      /* tp_as_buffer */
-    Py_TPFLAGS_DEFAULT | Py_TPFLAGS_BASETYPE,   /* tp_flags */
-    0,                      /* tp_doc */
-    0,                      /* tp_traverse */
-    0,                      /* tp_clear */
-    0,                      /* tp_richcompare */
-    0,                      /* tp_weaklistoffset */
-    0,                      /* tp_iter */
-    0,                      /* tp_iternext */
-    0,                      /* tp_methods */
-    0,                      /* tp_members */
-    0,                      /* tp_getset */
-    0,                      /* tp_base */
-    0,                      /* tp_dict */
-    0,                      /* tp_descr_get */
-    0,                      /* tp_descr_set */
-    0,                      /* tp_dictoffset */
-    (initproc)sipWrapperType_init,  /* tp_init */
-    sipWrapperType_alloc,   /* tp_alloc */
-    0,                      /* tp_new */
-    0,                      /* tp_free */
-    0,                      /* tp_is_gc */
-    0,                      /* tp_bases */
-    0,                      /* tp_mro */
-    0,                      /* tp_cache */
-    0,                      /* tp_subclasses */
-    0,                      /* tp_weaklist */
-    0,                      /* tp_del */
-    0,                      /* tp_version_tag */
-    0,                      /* tp_finalize */
-    0,                      /* tp_vectorcall */
-};
+#include "sip_wrapper_type.h"
 
 
 /*
@@ -654,7 +588,6 @@ static sipPyObject *sipDisabledAutoconversions = NULL;  /* Python types whose au
 static PyInterpreterState *sipInterpreter = NULL;   /* The interpreter. */
 static EventHandler *event_handlers[sipEventNrEvents];  /* The event handler lists. */
 
-static void addClassSlots(sipWrapperType *wt, const sipClassTypeDef *ctd);
 static void *findSlot(PyObject *self, sipPySlotType st);
 static void *findSlotInClass(const sipClassTypeDef *psd, sipPySlotType st);
 static void *findSlotInSlotList(sipPySlotDef *psd, sipPySlotType st);
@@ -869,12 +802,16 @@ const sipAPIDef *sip_init_library(PyObject *module, sipSipModuleState *sms)
         return NULL;
 
     /* Initialise the types. */
-    // TODO
-    sipWrapperType_Type.tp_base = &PyType_Type;
+    sms->wrapper_type_type = (PyTypeObject *)PyType_FromModuleAndSpec(module,
+            &sipWrapperType_TypeSpec, &PyType_Type);
 
-    if (PyModule_AddType(module, &sipWrapperType_Type) < 0)
+    if (sms->wrapper_type_type == NULL)
         return NULL;
 
+    if (PyModule_AddType(module, sms->wrapper_type_type) < 0)
+        return NULL;
+
+    // TODO
     if (PyModule_AddType(module, (PyTypeObject *)&sipSimpleWrapper_Type) < 0)
         return NULL;
 
@@ -8565,149 +8502,6 @@ static int ssizeobjargprocSlot(PyObject *self, Py_ssize_t arg1,
 
 
 /*
- * The metatype alloc slot.
- */
-static PyObject *sipWrapperType_alloc(PyTypeObject *self, Py_ssize_t nitems)
-{
-    PyObject *o;
-
-    /* Call the standard super-metatype alloc. */
-    if ((o = PyType_Type.tp_alloc(self, nitems)) == NULL)
-        return NULL;
-
-    /*
-     * Consume any extra type specific information and use it to initialise the
-     * slots.  This only happens for directly wrapped classes (and not
-     * programmer written sub-classes).  This must be done in the alloc
-     * function because it is the only place we can break out of the default
-     * new() function before PyType_Ready() is called.
-     */
-    if (currentType != NULL)
-    {
-        assert(!sipTypeIsEnum(currentType));
-
-        ((sipWrapperType *)o)->wt_td = currentType;
-
-        if (sipTypeIsClass(currentType) || sipTypeIsNamespace(currentType))
-        {
-            const sipClassTypeDef *ctd = (const sipClassTypeDef *)currentType;
-            const char *docstring = ctd->ctd_docstring;
-
-            /*
-             * Skip the marker that identifies the docstring as being
-             * automatically generated.
-             */
-            if (docstring != NULL && *docstring == AUTO_DOCSTRING)
-                ++docstring;
-
-            ((PyTypeObject *)o)->tp_doc = docstring;
-
-            addClassSlots((sipWrapperType *)o, ctd);
-
-            /* Patch any mixin initialiser. */
-            if (ctd->ctd_init_mixin != NULL)
-                ((PyTypeObject *)o)->tp_init = ctd->ctd_init_mixin;
-        }
-    }
-
-    return o;
-}
-
-
-/*
- * The metatype init slot.
- */
-static int sipWrapperType_init(sipWrapperType *self, PyObject *args,
-        PyObject *kwds)
-{
-    /* Call the standard super-metatype init. */
-    if (PyType_Type.tp_init((PyObject *)self, args, kwds) < 0)
-        return -1;
-
-    /*
-     * If we don't yet have any extra type specific information (because we are
-     * a programmer defined sub-class) then get it from the (first) super-type.
-     */
-    if (self->wt_td == NULL)
-    {
-        PyTypeObject *base = ((PyTypeObject *)self)->tp_base;
-
-        self->wt_user_type = TRUE;
-
-        /*
-         * We allow the class to use this as a meta-type without being derived
-         * from a class that uses it.  This allows mixin classes that need
-         * their own meta-type to work so long as their meta-type is derived
-         * from this meta-type.  This condition is indicated by the pointer to
-         * the generated type structure being NULL.
-         */
-        if (base != NULL && PyObject_TypeCheck((PyObject *)base, (PyTypeObject *)&sipWrapperType_Type))
-        {
-            self->wt_td = ((sipWrapperType *)base)->wt_td;
-
-            if (self->wt_td != NULL)
-            {
-                EventHandler *eh;
-
-                /* Invoke any event handlers. */
-                for (eh = event_handlers[sipEventPySubclassCreated]; eh != NULL; eh = eh->next)
-                {
-                    if (sipTypeIsClass(eh->td) && is_subtype((const sipClassTypeDef *)self->wt_td, (const sipClassTypeDef *)eh->td))
-                    {
-                        sipPySubclassCreatedEventHandler handler = (sipPySubclassCreatedEventHandler)eh->handler;
-
-                        if (handler(self->wt_td, self) < 0)
-                            return -1;
-                    }
-                }
-            }
-        }
-    }
-    else
-    {
-        /*
-         * We must be a generated type so remember the type object in the
-         * generated type structure.
-         */
-        assert(self->wt_td->td_py_type == NULL);
-
-        self->wt_td->td_py_type = (PyTypeObject *)self;
-    }
-
-    return 0;
-}
-
-
-/*
- * The metatype getattro slot.
- */
-static PyObject *sipWrapperType_getattro(PyObject *self, PyObject *name)
-{
-    PyObject *wmod = PyType_GetModule(Py_TYPE(self));
-
-    if (sip_add_all_lazy_attrs(wmod, ((sipWrapperType *)self)->wt_td) < 0)
-        return NULL;
-
-    return PyType_Type.tp_getattro(self, name);
-}
-
-
-/*
- * The metatype setattro slot.
- */
-static int sipWrapperType_setattro(PyObject *self, PyObject *name,
-        PyObject *value)
-{
-    PyObject *wmod = PyType_GetModule(Py_TYPE(self));
-
-    if (sip_add_all_lazy_attrs(wmod, ((sipWrapperType *)self)->wt_td) < 0)
-        return -1;
-
-    return PyType_Type.tp_setattro(self, name, value);
-}
-
-
-/*
  * The instance new slot.
  */
 static PyObject *sipSimpleWrapper_new(sipWrapperType *wt, PyObject *args,
@@ -9823,27 +9617,6 @@ static int sipWrapper_traverse(sipWrapper *self, visitproc visit, void *arg)
     }
 
     return 0;
-}
-
-
-/*
- * Add the slots for a class type and all its super-types.
- */
-static void addClassSlots(sipWrapperType *wt, const sipClassTypeDef *ctd)
-{
-    PyHeapTypeObject *heap_to = &wt->super;
-    PyBufferProcs *bp = &heap_to->as_buffer;
-
-    /* Add the buffer interface. */
-    if (ctd->ctd_getbuffer != NULL)
-        bp->bf_getbuffer = (getbufferproc)sipSimpleWrapper_getbuffer;
-
-    if (ctd->ctd_releasebuffer != NULL)
-        bp->bf_releasebuffer = (releasebufferproc)sipSimpleWrapper_releasebuffer;
-
-    /* Add the slots for this type. */
-    if (ctd->ctd_pyslots != NULL)
-        sip_add_type_slots(heap_to, ctd->ctd_pyslots);
 }
 
 

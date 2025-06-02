@@ -39,8 +39,11 @@ typedef struct {
     // The variable descriptor type object.
     PyTypeObject *variable_descr_type;
 
-    // The void pointer type object.
+    // The sip.voidptr type object.
     PyTypeObject *void_ptr_type;
+
+    // The sip.wrappertype type object.
+    PyTypeObject *wrapper_type_type;
 } sipSipModuleState;
 
 
