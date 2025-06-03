@@ -58,7 +58,7 @@ static PyType_Slot MethodDescr_slots[] = {
     {0, NULL}
 };
 
-PyType_Spec sipMethodDescr_TypeSpec = {
+static PyType_Spec MethodDescr_TypeSpec = {
     .name = _SIP_MODULE_FQ_NAME ".methoddescriptor",
     .basicsize = sizeof (MethodDescr),
     .flags = Py_TPFLAGS_DEFAULT |
@@ -200,6 +200,21 @@ static void MethodDescr_dealloc(PyObject *self)
     PyTypeObject *type = Py_TYPE(self);
     type->tp_free(self);
     Py_DECREF(type);
+}
+
+
+/*
+ * Initialise the method descriptor.
+ */
+int sip_method_descr_init(PyObject *module, sipSipModuleState *sms)
+{
+    sms->method_descr_type = (PyTypeObject *)PyType_FromModuleAndSpec(module,
+            &MethodDescr_TypeSpec, NULL);
+
+    if (sms->method_descr_type == NULL)
+        return -1;
+
+    return 0;
 }
 
 

@@ -65,7 +65,7 @@ static PyType_Slot VariableDescr_slots[] = {
     {0, NULL}
 };
 
-PyType_Spec sipVariableDescr_TypeSpec = {
+static PyType_Spec VariableDescr_TypeSpec = {
     .name = _SIP_MODULE_FQ_NAME ".variabledescriptor",
     .basicsize = sizeof (VariableDescr),
     .flags = Py_TPFLAGS_DEFAULT |
@@ -208,6 +208,21 @@ static void VariableDescr_dealloc(PyObject *self)
     PyTypeObject *type = Py_TYPE(self);
     type->tp_free(self);
     Py_DECREF(type);
+}
+
+
+/*
+ * Initialise the variable descriptor.
+ */
+int sip_variable_descr_init(PyObject *module, sipSipModuleState *sms)
+{
+    sms->variable_descr_type = (PyTypeObject *)PyType_FromModuleAndSpec(module,
+            &sipVariableDescr_TypeSpec, NULL);
+
+    if (sms->variable_descr_type == NULL)
+        return -1;
+
+    return 0;
 }
 
 

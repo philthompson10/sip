@@ -13,6 +13,8 @@
 
 #include "sip_simple_wrapper.h"
 
+#include "sip_module.h"
+
 
 /* Forward declarations of slots. */
 static int SimpleWrapper_clear(PyObject *self);
@@ -59,7 +61,7 @@ static PyType_Slot SimpleWrapper_slots[] = {
     {0, NULL}
 };
 
-PyType_Spec sipSimpleWrapper_TypeSpec = {
+static PyType_Spec SimpleWrapper_TypeSpec = {
     .name = _SIP_MODULE_FQ_NAME ".simplewrapper",
     .basicsize = sizeof (sipSimpleWrapper),
     .flags = Py_TPFLAGS_DEFAULT |
@@ -620,3 +622,25 @@ static int SimpleWrapper_set_dict(PyObject *self, PyObject *value,
     return 0;
 }
 #endif
+
+
+/*
+ * Initialise the simple wrapper type.
+ */
+int sip_simple_wrapper_init(PyObject *module, sipSipModuleState *sms)
+{
+#if PY_VERSION_HEX >= 0x030c0000
+    sms->simple_wrapper_type = (PyTypeObject *)PyType_FromMetaclass(
+            sms->wrapper_type_type, module, &SimpleWrapper_TypeSpec, NULL);
+#else
+    // TODO support for version prior to v3.12.
+#endif
+
+    if (sms->simple_wrapper_type == NULL)
+        return -1;
+
+    if (PyModule_AddType(module, sms->simple_wrapper_type) < 0)
+        return -1;
+
+    return 0;
+}

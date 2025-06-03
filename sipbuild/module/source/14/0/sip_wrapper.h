@@ -15,6 +15,7 @@
 #define PY_SSIZE_T_CLEAN
 #include <Python.h>
 
+#include "sip_module.h"
 #include "sip_simple_wrapper.h"
 
 
@@ -44,7 +45,7 @@ struct _sipWrapper {
 };
 
 
-extern PyType_Spec sipWrapper_TypeSpec;
+int sip_wrapper_init(PyObject *module, sipSipModuleState *sms);
 
 
 #ifdef __cplusplus

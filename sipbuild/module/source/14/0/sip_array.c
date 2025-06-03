@@ -494,6 +494,24 @@ void sip_array_convert(PyObject *obj, void **data, Py_ssize_t *size)
 
 
 /*
+ * Initialise the array type.
+ */
+int sip_array_init(PyObject *module, sipSipModuleState *sms)
+{
+    sms->array_type = (PyTypeObject *)PyType_FromModuleAndSpec(module,
+            &Array_TypeSpec, NULL);
+
+    if (sms->array_type == NULL)
+        return -1;
+
+    if (PyModule_AddType(module, sms->array_type) < 0)
+        return -1;
+
+    return 0;
+}
+
+
+/*
  * Check that an array is writable.
  */
 static int check_writable(Array *array)

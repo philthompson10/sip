@@ -16,6 +16,7 @@
 #include <Python.h>
 
 #include "sip.h"
+#include "sip_module.h"
 
 
 #ifdef __cplusplus
@@ -57,7 +58,7 @@ struct _sipWrapperType {
 };
 
 
-extern PyType_Spec sipWrapperType_TypeSpec;
+int sip_wrapper_type_init(PyObject *module, sipSipModuleState *sms);
 
 
 #ifdef __cplusplus

@@ -650,79 +650,18 @@ const sipAPIDef *sip_init_library(PyObject *module, sipSipModuleState *sms)
     if (PyModule_AddFunctions(module, methods) < 0)
         return NULL;
 
-    /* Initialise the enum support. */
-    if (sip_enum_init(module, sms) < 0)
-        return NULL;
-
     /* Initialise the types. */
-    sms->wrapper_type_type = (PyTypeObject *)PyType_FromModuleAndSpec(module,
-            &sipWrapperType_TypeSpec, &PyType_Type);
-
-    if (sms->wrapper_type_type == NULL)
-        return NULL;
-
-    if (PyModule_AddType(module, sms->wrapper_type_type) < 0)
-        return NULL;
-
-#if PY_VERSION_HEX >= 0x030c0000
-    sms->simple_wrapper_type = (PyTypeObject *)PyType_FromMetaclass(
-            sms->wrapper_type_type, module, &sipSimpleWrapper_TypeSpec, NULL);
-#else
-    // TODO support for version prior to v3.12.
-#endif
-
-    if (sms->simple_wrapper_type == NULL)
-        return NULL;
-
-    if (PyModule_AddType(module, sms->simple_wrapper_type) < 0)
+    if (sip_wrapper_type_init(module, sms) < 0 ||
+        sip_simple_wrapper_init(module, sms) < 0 ||
+        sip_wrapper_init(module, sms) < 0 ||
+        sip_method_descr_init(module, sms) < 0 ||
+        sip_variable_descr_init(module, sms) < 0 ||
+        sip_enum_init(module, sms) < 0 ||
+        sip_void_ptr_init(module, sms) < 0 ||
+        sip_array_init(module, sms) < 0)
         return NULL;
 
     if (sip_api_register_py_type(sms->simple_wrapper_type) < 0)
-        return NULL;
-
-    // TODO
-#if PY_VERSION_HEX >= 0x030c0000
-    sms->wrapper_type = (PyTypeObject *)PyType_FromMetaclass(
-            sms->wrapper_type_type, module, &sipWrapper_TypeSpec,
-            sms->simple_wrapper_type);
-#else
-    // TODO support for version prior to v3.12.
-#endif
-
-    if (sms->wrapper_type == NULL)
-        return NULL;
-
-    if (PyModule_AddType(module, sms->wrapper_type) < 0)
-        return NULL;
-
-    sms->array_type = (PyTypeObject *)PyType_FromModuleAndSpec(module,
-            &sipArray_TypeSpec, NULL);
-
-    if (sms->array_type == NULL)
-        return NULL;
-
-    if (PyModule_AddType(module, sms->array_type) < 0)
-        return NULL;
-
-    sms->method_descr_type = (PyTypeObject *)PyType_FromModuleAndSpec(module,
-            &sipMethodDescr_TypeSpec, NULL);
-
-    if (sms->method_descr_type == NULL)
-        return NULL;
-
-    sms->variable_descr_type = (PyTypeObject *)PyType_FromModuleAndSpec(module,
-            &sipVariableDescr_TypeSpec, NULL);
-
-    if (sms->variable_descr_type == NULL)
-        return NULL;
-
-    sms->void_ptr_type = (PyTypeObject *)PyType_FromModuleAndSpec(module,
-            &sipVoidPtr_TypeSpec, NULL);
-
-    if (sms->void_ptr_type == NULL)
-        return NULL;
-
-    if (PyModule_AddType(module, sms->void_ptr_type) < 0)
         return NULL;
 
     /* These will always be needed. */

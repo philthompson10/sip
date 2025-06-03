@@ -15,7 +15,7 @@
 #define PY_SSIZE_T_CLEAN
 #include <Python.h>
 
-#include "sip.h"
+#include "sip_module.h"
 
 
 #ifdef __cplusplus
@@ -23,12 +23,11 @@ extern "C" {
 #endif
 
 
-extern PyType_Spec sipVariableDescr_TypeSpec;
-
 PyObject *sipVariableDescr_New(PyObject *wmod, sipVariableDef *vd,
         const sipTypeDef *td, const char *cod_name);
 PyObject *sipVariableDescr_Copy(PyObject *wmod, PyObject *orig,
         PyObject *mixin_name);
+int sip_variable_descr_init(PyObject *module, sipSipModuleState *sms);
 
 
 #ifdef __cplusplus

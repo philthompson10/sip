@@ -83,7 +83,7 @@ static PyType_slot VoidPtr_slots[] = {
     {0, NULL}
 };
 
-PyType_Spec sipVoidPtr_TypeSpec = {
+static PyType_Spec VoidPtr_TypeSpec = {
     .name = _SIP_MODULE_FQ_NAME ".voidptr",
     .basicsize = sizeof (VoidPtr),
     .flags = Py_TPFLAGS_DEFAULT |
@@ -537,6 +537,24 @@ PyObject *sip_api_convert_from_const_void_ptr_and_size(PyObject *wmod,
 {
     return create_voidptr(sip_get_sip_module_state(wmod), (void *)val, size,
             FALSE);
+}
+
+
+/*
+ * Initialise the void pointer type.
+ */
+int sip_void_ptr_init(PyObject *module, sipSipModuleState *sms)
+{
+    sms->void_ptr_type = (PyTypeObject *)PyType_FromModuleAndSpec(module,
+            &VoidPtr_TypeSpec, NULL);
+
+    if (sms->void_ptr_type == NULL)
+        return -1;
+
+    if (PyModule_AddType(module, sms->void_ptr_type) < 0)
+        return -1;
+
+    return 0;
 }
 
 

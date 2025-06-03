@@ -15,7 +15,7 @@
 #define PY_SSIZE_T_CLEAN
 #include <Python.h>
 
-#include "sip.h"
+#include "sip_module.h"
 
 
 #ifdef __cplusplus
@@ -23,11 +23,10 @@ extern "C" {
 #endif
 
 
-extern PyType_Spec sipMethodDescr_TypeSpec;
-
 PyObject *sipMethodDescr_New(PyObject *wmod, PyMethodDef *pmd);
 PyObject *sipMethodDescr_Copy(PyObject *wmod, PyObject *orig,
         PyObject *mixin_name);
+int sip_method_descr_init(PyObject *module, sipSipModuleState *sms);
 
 
 #ifdef __cplusplus

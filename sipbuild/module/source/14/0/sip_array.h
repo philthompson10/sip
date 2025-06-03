@@ -16,14 +16,13 @@
 #include <Python.h>
 
 #include "sip.h"
+#include "sip_module.h"
 
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-
-extern PyType_Spec sipArray_TypeSpec;
 
 PyObject *sip_api_convert_to_array(PyObject *wmod, void *data,
         const char *format, Py_ssize_t len, int flags);
@@ -33,6 +32,7 @@ PyObject *sip_api_convert_to_typed_array(PyObject *wmod, void *data,
 
 int sip_array_can_convert(PyObject *wmod, PyObject *obj, const sipTypeDef *td);
 void sip_array_convert(PyObject *obj, void **data, Py_ssize_t *size);
+int sip_array_init(PyObject *module, sipSipModuleState *sms);
 
 
 #ifdef __cplusplus

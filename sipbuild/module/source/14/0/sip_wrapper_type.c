@@ -14,6 +14,7 @@
 #include "sip_wrapper_type.h"
 
 #include "sip_core.h"
+#include "sip_module.h"
 
 
 /* Forward declarations of slots. */
@@ -40,7 +41,7 @@ static PyType_Slot WrapperType_slots[] = {
     {0, NULL}
 };
 
-PyType_Spec sipWrapperType_TypeSpec = {
+static PyType_Spec WrapperType_TypeSpec = {
     .name = _SIP_MODULE_FQ_NAME ".wrappertype",
     .basicsize = sizeof (sipWrapperType),
     .flags = Py_TPFLAGS_DEFAULT |
@@ -51,6 +52,7 @@ PyType_Spec sipWrapperType_TypeSpec = {
              Py_TPFLAGS_IMMUTABLETYPE |
 #endif
              Py_TPFLAGS_HAVE_GC,
+             Py_TPFLAGS_TYPE_SUBCLASS,
     .slots = WrapperType_slots,
 };
 
@@ -229,6 +231,24 @@ static int WrapperType_setattro(PyObject *self, PyObject *name,
 static int WrapperType_traverse(PyObject *self, visitproc visit, void *arg)
 {
     Py_VISIT(Py_TYPE(self));
+
+    return 0;
+}
+
+
+/*
+ * Initialise the metatype.
+ */
+int sip_wrapper_type_init(PyObject *module, sipSipModuleState *sms)
+{
+    sms->wrapper_type_type = (PyTypeObject *)PyType_FromModuleAndSpec(module,
+            &WrapperType_TypeSpec, &PyType_Type);
+
+    if (sms->wrapper_type_type == NULL)
+        return -1;
+
+    if (PyModule_AddType(module, sms->wrapper_type_type) < 0)
+        return -1;
 
     return 0;
 }
