@@ -433,7 +433,6 @@ static unsigned traceMask = 0;          /* The current trace mask. */
 static sipTypeDef *currentType = NULL;  /* The type being created. */
 static PyObject **unused_backdoor = NULL;   /* For passing dict of unused arguments. */
 
-static PyObject *init_name = NULL;      /* '__init__'. */
 static PyObject *empty_tuple;           /* The empty tuple. */
 static sipSymbol *sipSymbolList = NULL; /* The list of published symbols. */
 static sipPyObject *sipRegisteredPyTypes = NULL;    /* Registered Python types. */
@@ -664,10 +663,7 @@ const sipAPIDef *sip_init_library(PyObject *module, sipSipModuleState *sms)
     if (sip_api_register_py_type(sms->simple_wrapper_type) < 0)
         return NULL;
 
-    /* These will always be needed. */
-    if (sip_objectify("__init__", &init_name) < 0)
-        return NULL;
-
+    /* This will always be needed. */
     if ((empty_tuple = PyTuple_New(0)) == NULL)
         return NULL;
 
@@ -8475,15 +8471,22 @@ static PyObject *next_in_mro(PyObject *self, PyObject *after)
 
 
 /*
- * Call the equivalent of super()__init__() of an instance.
+ * Call the equivalent of super().__init__() of an instance.
  */
 static int super_init(PyObject *self, PyObject *args, PyObject *kwds,
         PyObject *type)
 {
     int i;
-    PyObject *init, *init_args, *init_res;
+    PyObject *dunder_init, *init, *init_args, *init_res;
 
-    if ((init = PyObject_GetAttr(type, init_name)) == NULL)
+    if ((dunder_init = PyUnicode_InternFromString("__init__")) == NULL)
+        return -1;
+
+    init = PyObject_GetAttr(type, dunder_init);
+
+    Py_DECREF(dunder_init);
+
+    if (init == NULL)
         return -1;
 
     if ((init_args = PyTuple_New(1 + PyTuple_GET_SIZE(args))) == NULL)
