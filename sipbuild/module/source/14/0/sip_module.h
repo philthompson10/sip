@@ -25,33 +25,45 @@ extern "C" {
 
 /* The sip module's state. */
 typedef struct {
-    // The sip.array type object.
+    /* The sip.array type object. */
     PyTypeObject *array_type;
 
 #if defined(SIP_CONFIGURATION_CustomEnums)
-    // The sip.enumtype type object.
+    /* The sip.enumtype type object. */
     PyTypeObject *custom_enum_type;
 #endif
 
-    // The method descriptor type object.
+    /*
+     * A 1-tuple of the sip.simplewrapper type object used for wrappers with no
+     * super-type.
+     */
+    PyObject *base_tuple_simple_wrapper;
+
+    /*
+     * A 1-tuple of the sip.wrapper type object used for wrappers with no
+     * super-type.
+     */
+    PyObject *base_tuple_wrapper;
+
+    /* The method descriptor type object. */
     PyTypeObject *method_descr_type;
 
-    // The sip.simplewrapper type object.
+    /* The sip.simplewrapper type object. */
     PyTypeObject *simple_wrapper_type;
 
-    // The trace mask.
+    /* The trace mask. */
     unsigned trace_mask;
 
-    // The variable descriptor type object.
+    /* The variable descriptor type object. */
     PyTypeObject *variable_descr_type;
 
-    // The sip.voidptr type object.
+    /* The sip.voidptr type object. */
     PyTypeObject *void_ptr_type;
 
-    // The sip.wrapper type object.
+    /* The sip.wrapper type object. */
     PyTypeObject *wrapper_type;
 
-    // The sip.wrappertype type object.
+    /* The sip.wrappertype type object. */
     PyTypeObject *wrapper_type_type;
 } sipSipModuleState;
 

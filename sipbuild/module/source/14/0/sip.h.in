@@ -1289,7 +1289,7 @@ struct _sipAPI {
     void (*api_release_buffer_info)(sipBufferInfoDef *);
     PyObject *(*api_get_user_object)(const sipSimpleWrapper *);
     void (*api_set_user_object)(sipSimpleWrapper *, PyObject *);
-    void (*api_instance_destroyed)(sipSimpleWrapper *sipSelf);
+    void (*api_instance_destroyed)(PyObject *wmod, sipSimpleWrapper *sipSelf);
     int (*api_is_owned_by_python)(sipSimpleWrapper *);
     int (*api_enable_gc)(int enable);
     void (*api_print_object)(PyObject *o);
@@ -1329,7 +1329,8 @@ struct _sipAPI {
     /*
      * The following are not part of the public API.
      */
-    int (*api_init_module)(sipExportedModuleDef *client, PyObject *mod_dict);
+    int (*api_init_module)(PyObject *wmod, sipExportedModuleDef *client,
+            PyObject *mod_dict);
     int (*api_parse_args)(PyObject *wmod, PyObject **parseErrp,
             PyObject *sipArgs, const char *fmt, ...);
     int (*api_parse_pair)(PyObject *wmod, PyObject **parseErrp, PyObject *arg0,
@@ -1385,7 +1386,8 @@ struct _sipAPI {
             PyObject *kwds, const sipClassTypeDef *ctd);
     PyObject *(*api_get_reference)(PyObject *self, int key);
     int (*api_is_derived_class)(sipSimpleWrapper *);
-    void (*api_instance_destroyed_ex)(sipSimpleWrapper **sipSelfp);
+    void (*api_instance_destroyed_ex)(PyObject *wmod,
+            sipSimpleWrapper **sipSelfp);
     PyObject *(*api_is_py_method_12_8)(sip_gilstate_t *gil, char *pymc,
             sipSimpleWrapper **sipSelfp, const char *cname, const char *mname);
     sipExceptionHandler (*api_next_exception_handler)(void **statep);
