@@ -11,12 +11,16 @@
 #define PY_SSIZE_T_CLEAN
 #include <Python.h>
 
-#include <stddef.h>
+//#include <stddef.h>
 #include <string.h>
 
 #include "sip_array.h"
 
+#include "sip.h"
+#include "sip_core.h"
+#include "sip_int_convertors.h"
 #include "sip_module.h"
+#include "sip_wrapper_type.h"
 
 
 /*
@@ -36,7 +40,7 @@ typedef struct {
 
 /* Forward declarations of slots. */
 static int Array_ass_subscript(PyObject *self, PyObject *key, PyObject *value);
-static void Array_clear(PyObject *self);
+static int Array_clear(PyObject *self);
 static void Array_dealloc(PyObject *self);
 static int Array_getbuffer(PyObject *self, Py_buffer *view, int flags);
 static PyObject *Array_item(PyObject *self, Py_ssize_t idx);
@@ -65,7 +69,7 @@ static PyType_Slot Array_slots[] = {
     {0, NULL}
 };
 
-PyType_Spec sipArray_TypeSpec = {
+static PyType_Spec Array_TypeSpec = {
     .name = _SIP_MODULE_FQ_NAME ".array",
     .basicsize = sizeof (Array),
     .flags = Py_TPFLAGS_DEFAULT |
@@ -431,14 +435,14 @@ static PyObject *Array_new(PyTypeObject *cls, PyObject *args, PyObject *kw)
     static char *kwlist[] = {"", "", NULL};
 #endif
 
+    sipSipModuleState *sms = (sipSipModuleState *)PyType_GetModuleState(cls);
+    PyObject *type;
     Py_ssize_t length;
-    PyObject *array, *type;
-    const sipClassTypeDef *ctd;
 
-    if (!PyArg_ParseTupleAndKeywords(args, kw, "O!n:array", kwlist, &sipWrapperType_Type, &type, &length))
+    if (!PyArg_ParseTupleAndKeywords(args, kw, "O!n:array", kwlist, sms->wrapper_type_type, &type, &length))
         return NULL;
 
-    ctd = (const sipClassTypeDef *)((sipWrapperType *)type)->wt_td;
+    const sipClassTypeDef *ctd = (const sipClassTypeDef *)((sipWrapperType *)type)->wt_td;
 
     if (ctd->ctd_array == NULL || ctd->ctd_sizeof == 0)
     {
@@ -456,6 +460,8 @@ static PyObject *Array_new(PyTypeObject *cls, PyObject *args, PyObject *kw)
     }
 
     /* Create the instance. */
+    PyObject *array;
+
     if ((array = cls->tp_alloc(cls, 0)) == NULL)
         return NULL;
 
@@ -651,7 +657,7 @@ static void *get_slice(Array *array, PyObject *value, Py_ssize_t len)
 {
     Array *other = (Array *)value;
 
-    if (!PyObject_IsInstance(value, Py_TYPE((PyObject *)array)) || array->td != other->td || strcmp(array->format, other->format) != 0)
+    if (!PyObject_IsInstance(value, (PyObject *)Py_TYPE((PyObject *)array)) || array->td != other->td || strcmp(array->format, other->format) != 0)
     {
         PyErr_Format(PyExc_TypeError,
                 "can only assign another array of %s to the slice",
@@ -742,7 +748,7 @@ static PyObject *create_array(sipSipModuleState *sms, void *data,
         const sipTypeDef *td, const char *format, size_t stride,
         Py_ssize_t len, int flags, PyObject *owner)
 {
-    Array *array = sms->array_type->tp_alloc(sms->array_type, 0);
+    Array *array = (Array *)sms->array_type->tp_alloc(sms->array_type, 0);
 
     if (array == NULL)
         return NULL;

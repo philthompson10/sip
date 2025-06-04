@@ -90,7 +90,7 @@ static int module_exec(PyObject *module)
     PyObject *module_dict = PyModule_GetDict(module);
 
     /* Initialise the module. */
-    const sipAPIDef *api = sip_init_library(module,
+    const sipAPI *api = sip_init_library(module,
             (sipSipModuleState *)PyModule_GetState(module));
 
     if (api == NULL)
@@ -153,10 +153,10 @@ sipSipModuleState *sip_get_sip_module_state(PyObject *wmod)
 
 
 /*
- * Return the state for the sip module for a type created by the module.  NULL
- * is returned if the type was created by another module.
+ * Return the state for the sip module for any type.  NULL is returned if the
+ * type wasn't created by the sip module.
  */
-sipSipModuleState *sip_get_sip_module_state_from_type(PyTypeObject *type)
+sipSipModuleState *sip_get_sip_module_state_from_any_type(PyTypeObject *type)
 {
     PyObject *mod = PyType_GetModuleByDef(type, &sip_module_def);
 

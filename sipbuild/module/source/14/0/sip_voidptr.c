@@ -673,7 +673,7 @@ static int vp_convertor(PyObject *arg, struct vp_values *vp)
     {
         ptr = PyCapsule_GetPointer(arg, NULL);
     }
-    else if ((sms = sip_get_sip_module_state_from_type(Py_TYPE(arg))) != NULL && PyObject_TypeCheck(arg, sms->void_ptr_type))
+    else if ((sms = sip_get_sip_module_state_from_any_type(Py_TYPE(arg))) != NULL && PyObject_TypeCheck(arg, sms->void_ptr_type))
     {
         ptr = ((VoidPtr *)arg)->voidptr;
         size = ((VoidPtr *)arg)->size;

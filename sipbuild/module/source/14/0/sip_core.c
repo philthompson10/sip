@@ -185,7 +185,7 @@ static PyFrameObject *sip_api_get_frame(int depth);
 /*
  * The data structure that represents the SIP API.
  */
-static const sipAPIDef sip_api = {
+static const sipAPI sip_api = {
     /* This must be first. */
     sip_api_export_module,
     /*
@@ -599,9 +599,9 @@ static PyObject *import_module_attr(const char *module, const char *attr);
 
 
 /*
- * Initialise the module as a library.
+ * Initialise the module.
  */
-const sipAPIDef *sip_init_library(PyObject *module, sipSipModuleState *sms)
+const sipAPI *sip_init_library(PyObject *module)
 {
     // TODO METH_FASTCALL
     static PyMethodDef methods[] = {
@@ -629,6 +629,8 @@ const sipAPIDef *sip_init_library(PyObject *module, sipSipModuleState *sms)
     static PyMethodDef sip_exit_md = {
         "_sip_exit", sip_exit, METH_NOARGS, NULL
     };
+
+    sipSipModuleState *sms = (sipSipModuleState *)PyModule_GetState(module);
 
     /* Add the SIP version number. */
     if (PyModule_AddIntMacro(module, SIP_VERSION) < 0)
