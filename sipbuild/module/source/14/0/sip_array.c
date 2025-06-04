@@ -11,7 +11,7 @@
 #define PY_SSIZE_T_CLEAN
 #include <Python.h>
 
-//#include <stddef.h>
+#include <stddef.h>
 #include <string.h>
 
 #include "sip_array.h"
@@ -88,16 +88,13 @@ static PyType_Spec Array_TypeSpec = {
 static void bad_key(PyObject *key);
 static int check_index(Array *array, Py_ssize_t idx);
 static int check_writable(Array *array);
-static PyObject *create_array(sipSipModuleState *sms, void *data,
+static PyObject *create_array(PyTypeObject *array_type, void *data,
         const sipTypeDef *td, const char *format, size_t stride,
         Py_ssize_t len, int flags, PyObject *owner);
 static void *element(Array *array, Py_ssize_t idx);
 static void *get_slice(Array *array, PyObject *value, Py_ssize_t len);
 static const char *get_type_name(Array *array);
 static void *get_value(Array *array, PyObject *value);
-static void init_array(Array *array, void *data, const sipTypeDef *td,
-        const char *format, size_t stride, Py_ssize_t len, int flags,
-        PyObject *owner);
 
 
 /*
@@ -205,10 +202,9 @@ static PyObject *Array_subscript(PyObject *self, PyObject *key)
             return NULL;
         }
 
-        return create_array(
-                (sipSipModuleState *)PyType_GetModuleState(Py_TYPE(self)),
-                element(array, start), array->td, array->format, array->stride,
-                slicelength, (array->flags & ~SIP_OWNS_MEMORY), array->owner);
+        return create_array(Py_TYPE(self), element(array, start), array->td,
+                array->format, array->stride, slicelength,
+                (array->flags & ~SIP_OWNS_MEMORY), array->owner);
     }
 
     bad_key(key);
@@ -460,15 +456,8 @@ static PyObject *Array_new(PyTypeObject *cls, PyObject *args, PyObject *kw)
     }
 
     /* Create the instance. */
-    PyObject *array;
-
-    if ((array = cls->tp_alloc(cls, 0)) == NULL)
-        return NULL;
-
-    init_array((Array *)array, ctd->ctd_array(length), &ctd->ctd_base, NULL,
+    return create_array(cls, ctd->ctd_array(length), &ctd->ctd_base, NULL,
             ctd->ctd_sizeof, length, SIP_OWNS_MEMORY, NULL);
-
-    return array;
 }
 
 
@@ -742,30 +731,17 @@ static const char *get_type_name(Array *array)
 
 
 /*
- * Create an array for the C API.
+ * Create an array.
  */
-static PyObject *create_array(sipSipModuleState *sms, void *data,
+static PyObject *create_array(PyTypeObject *array_type, void *data,
         const sipTypeDef *td, const char *format, size_t stride,
         Py_ssize_t len, int flags, PyObject *owner)
 {
-    Array *array = (Array *)sms->array_type->tp_alloc(sms->array_type, 0);
+    Array *array = (Array *)array_type->tp_alloc(array_type, 0);
 
     if (array == NULL)
         return NULL;
 
-    init_array(array, data, td, format, stride, len, flags, owner);
-
-    return (PyObject *)array;
-}
-
-
-/*
- * Initialise an array.
- */
-static void init_array(Array *array, void *data, const sipTypeDef *td,
-        const char *format, size_t stride, Py_ssize_t len, int flags,
-        PyObject *owner)
-{
     if (flags & SIP_OWNS_MEMORY)
         owner = (PyObject *)array;
 
@@ -778,6 +754,8 @@ static void init_array(Array *array, void *data, const sipTypeDef *td,
     array->len = len;
     array->flags = flags;
     array->owner = owner;
+
+    return (PyObject *)array;
 }
 
 
@@ -839,8 +817,8 @@ PyObject *sip_api_convert_to_array(PyObject *wmod, void *data,
         return NULL;
     }
 
-    return create_array(sip_get_sip_module_state(wmod), data, NULL, format,
-            stride, len, flags, NULL);
+    return create_array(sip_get_sip_module_state(wmod)->array_type, data, NULL,
+            format, stride, len, flags, NULL);
 }
 
 
@@ -860,6 +838,6 @@ PyObject *sip_api_convert_to_typed_array(PyObject *wmod, void *data,
     assert(stride > 0);
     assert(len >= 0);
 
-    return create_array(sip_get_sip_module_state(wmod), data, td, format,
-            stride, len, flags, NULL);
+    return create_array(sip_get_sip_module_state(wmod)->array_type, data, td,
+            format, stride, len, flags, NULL);
 }
