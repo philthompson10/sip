@@ -1381,8 +1381,8 @@ struct _sipAPI {
             const char *fmt, ...);
     void (*api_call_error_handler)(sipVirtErrorHandlerFunc,
             sipSimpleWrapper *, sip_gilstate_t);
-    int (*api_init_mixin)(PyObject *self, PyObject *args, PyObject *kwds,
-            const sipClassTypeDef *ctd);
+    int (*api_init_mixin)(PyObject *wmod, PyObject *self, PyObject *args,
+            PyObject *kwds, const sipClassTypeDef *ctd);
     PyObject *(*api_get_reference)(PyObject *self, int key);
     int (*api_is_derived_class)(sipSimpleWrapper *);
     void (*api_instance_destroyed_ex)(sipSimpleWrapper **sipSelfp);
