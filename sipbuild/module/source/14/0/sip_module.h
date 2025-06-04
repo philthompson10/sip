@@ -39,6 +39,9 @@ typedef struct {
     // The sip.simplewrapper type object.
     PyTypeObject *simple_wrapper_type;
 
+    // The trace mask.
+    unsigned trace_mask;
+
     // The variable descriptor type object.
     PyTypeObject *variable_descr_type;
 

@@ -1236,7 +1236,7 @@ struct _sipAPI {
     void *(*api_malloc)(size_t nbytes);
     int (*api_parse_result)(int *isErr, PyObject *method, PyObject *res,
             const char *fmt, ...);
-    void (*api_trace)(unsigned mask, const char *fmt, ...);
+    void (*api_trace)(PyObject *wmod, unsigned mask, const char *fmt, ...);
     void (*api_transfer_back)(PyObject *self);
     void (*api_transfer_to)(PyObject *self, PyObject *owner);
     unsigned long (*api_long_as_unsigned_long)(PyObject *o);

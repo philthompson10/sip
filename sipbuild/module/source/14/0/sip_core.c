@@ -73,7 +73,7 @@ static int sip_api_parse_result(int *isErr, PyObject *method, PyObject *res,
         const char *fmt, ...);
 static void sip_api_call_error_handler(sipVirtErrorHandlerFunc error_handler,
         sipSimpleWrapper *py_self, sip_gilstate_t gil_state);
-static void sip_api_trace(unsigned mask,const char *fmt,...);
+static void sip_api_trace(PyObject *wmod, unsigned mask,const char *fmt,...);
 static void sip_api_transfer_back(PyObject *self);
 static void sip_api_transfer_to(PyObject *self, PyObject *owner);
 static int sip_api_export_module(sipExportedModuleDef *client,
@@ -429,7 +429,6 @@ static PyObject *signatureName = NULL;
 
 static sipObjectMap cppPyMap;           /* The C/C++ to Python map. */
 static sipExportedModuleDef *moduleList = NULL; /* List of registered modules. */
-static unsigned traceMask = 0;          /* The current trace mask. */
 
 static sipTypeDef *currentType = NULL;  /* The type being created. */
 static PyObject **unused_backdoor = NULL;   /* For passing dict of unused arguments. */
@@ -508,7 +507,6 @@ static int addSingleTypeInstance(PyObject *dict, const char *name,
         void *cppPtr, const sipTypeDef *td, int initflags);
 static int addLicense(PyObject *dict, sipLicenseDef *lc);
 static void clear_wrapper(sipSimpleWrapper *sw);
-static void print_object(const char *label, PyObject *obj);
 static void addToParent(sipWrapper *self, sipWrapper *owner);
 static void removeFromParent(sipWrapper *self);
 static void detachChildren(sipWrapper *self);
@@ -611,7 +609,7 @@ const sipAPI *sip_init_library(PyObject *module)
         return NULL;
 
     /* Add the methods. */
-    if (PyModule_AddFunctions(module, &sipModuleMethods) < 0)
+    if (PyModule_AddFunctions(module, sipModuleMethods) < 0)
         return NULL;
 
     /* Initialise the types. */
@@ -684,33 +682,16 @@ static PyInterpreterState *sip_api_get_interpreter(void)
  * Display a printf() style message to stderr according to the current trace
  * mask.
  */
-static void sip_api_trace(unsigned mask, const char *fmt, ...)
+static void sip_api_trace(PyObject *wmod, unsigned mask, const char *fmt, ...)
 {
     va_list ap;
 
     va_start(ap,fmt);
 
-    if (mask & traceMask)
+    if (sip_get_sip_module_state(wmod)->trace_mask & mask)
         vfprintf(stderr, fmt, ap);
 
     va_end(ap);
-}
-
-
-/*
- * Write a reference to a wrapper to stdout.
- */
-static void print_object(const char *label, PyObject *obj)
-{
-    if (label != NULL)
-        printf("    %s: ", label);
-
-    if (obj != NULL)
-        PyObject_Print(obj, stdout, 0);
-    else
-        printf("NULL");
-
-    printf("\n");
 }
 
 
@@ -5139,6 +5120,46 @@ sipExportedModuleDef *sip_get_module(PyObject *mname_obj)
                 mname_obj);
 
     return em;
+}
+
+
+/*
+ * The type unpickler.
+ */
+PyObject *sip_unpickle_type(PyObject *mod, PyObject *args)
+{
+    PyObject *mname_obj, *init_args;
+    const char *tname;
+    sipExportedModuleDef *em;
+    int i;
+
+    (void)mod;
+
+    if (!PyArg_ParseTuple(args, "UsO!:_unpickle_type", &mname_obj, &tname, &PyTuple_Type, &init_args))
+        return NULL;
+
+    /* Get the module definition. */
+    if ((em = sip_get_module(mname_obj)) == NULL)
+        return NULL;
+
+    /* Find the class type object. */
+    for (i = 0; i < em->em_nrtypes; ++i)
+    {
+        sipTypeDef *td = em->em_types[i];
+
+        if (td != NULL && !sipTypeIsStub(td) && sipTypeIsClass(td))
+        {
+            const char *pyname = sipPyNameOfContainer(
+                    &((sipClassTypeDef *)td)->ctd_container, td);
+
+            if (strcmp(pyname, tname) == 0)
+                return PyObject_CallObject((PyObject *)sipTypeAsPyTypeObject(td), init_args);
+        }
+    }
+
+    PyErr_Format(PyExc_SystemError, "unable to find to find type: %s", tname);
+
+    return NULL;
 }
 
 
