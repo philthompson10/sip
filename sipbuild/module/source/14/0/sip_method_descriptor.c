@@ -105,7 +105,7 @@ PyObject *sipMethodDescr_Copy(sipSipModuleState *sms, PyObject *orig,
 
     if (descr != NULL)
     {
-        descr->vd = orig_descr->vd;
+        descr->pmd = orig_descr->pmd;
         descr->mixin_name = mixin_name;
 
         Py_INCREF(mixin_name);
@@ -223,5 +223,5 @@ int sip_method_descr_init(PyObject *module, sipSipModuleState *sms)
  */
 static MethodDescr *alloc_method_descr(sipSipModuleState *sms)
 {
-    return (MethodDescr *)PyType_GenericAlloc(sms->method_descr, 0);
+    return (MethodDescr *)PyType_GenericAlloc(sms->method_descr_type, 0);
 }

@@ -91,11 +91,8 @@ static int module_clear(PyObject *module)
  */
 static int module_exec(PyObject *module)
 {
-    PyObject *module_dict = PyModule_GetDict(module);
-
     /* Initialise the module. */
-    const sipAPI *api = sip_init_library(module,
-            (sipSipModuleState *)PyModule_GetState(module));
+    const sipAPI *api = sip_init_library(module);
 
     if (api == NULL)
         return -1;
@@ -173,7 +170,7 @@ sipSipModuleState *sip_get_sip_module_state(PyObject *wmod)
  */
 sipSipModuleState *sip_get_sip_module_state_from_any_type(PyTypeObject *type)
 {
-    PyObject *mod = PyType_GetModuleByDef(type, &sip_module_def);
+    PyObject *mod = PyType_GetModuleByDef(type, &module_def);
 
     if (mod == NULL)
     {
@@ -190,8 +187,8 @@ sipSipModuleState *sip_get_sip_module_state_from_any_type(PyTypeObject *type)
  */
 sipSipModuleState *sip_get_sip_module_state_from_wrapper(PyObject *wrapper)
 {
-    PyObject *mod = PyType_GetModuleByDef(Py_TYPE(wrapper), &sip_module_def);
-    assert(mod != NULL)
+    PyObject *mod = PyType_GetModuleByDef(Py_TYPE(wrapper), &module_def);
+    assert(mod != NULL);
 
     return (sipSipModuleState *)PyModule_GetState(mod);
 }

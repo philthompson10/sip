@@ -36,16 +36,18 @@ extern "C" {
 /*
  * These are part of the SIP API but are also used within the SIP module.
  */
-void *sip_api_malloc(size_t nbytes);
+int sip_api_convert_from_slice_object(PyObject *slice, Py_ssize_t length,
+        Py_ssize_t *start, Py_ssize_t *stop, Py_ssize_t *step,
+        Py_ssize_t *slicelength);
+int sip_api_deprecated(const char *classname, const char *method);
+int sip_api_deprecated_13_9(const char *classname, const char *method,
+        const char *message);
+int sip_api_enable_autoconversion(const sipTypeDef *td, int enable);
 void sip_api_free(void *mem);
 void *sip_api_get_address(sipSimpleWrapper *w);
 void *sip_api_get_cpp_ptr(sipSimpleWrapper *w, const sipTypeDef *td);
 void sip_api_instance_destroyed(PyObject *wmod, sipSimpleWrapper *sipSelf);
-int sip_api_convert_from_slice_object(PyObject *slice, Py_ssize_t length,
-        Py_ssize_t *start, Py_ssize_t *stop, Py_ssize_t *step,
-        Py_ssize_t *slicelength);
-  int sip_api_deprecated(const char *classname, const char *method);
-  int sip_api_deprecated_13_9(const char *classname, const char *method, const char* message);
+void *sip_api_malloc(size_t nbytes);
 const sipTypeDef *sip_api_type_scope(const sipTypeDef *td);
 
 
@@ -54,6 +56,8 @@ const sipTypeDef *sip_api_type_scope(const sipTypeDef *td);
  */
 int sip_add_all_lazy_attrs(sipSipModuleState *sms, const sipTypeDef *td);
 void sip_add_type_slots(PyHeapTypeObject *heap_to, sipPySlotDef *slots);
+int sip_check_pointer(void *ptr, sipSimpleWrapper *sw);
+void sip_clear_access_func(sipSimpleWrapper *sw);
 PyObject *sip_convert_from_type(sipSipModuleState *sms, void *cppPtr,
         const sipTypeDef *td, PyObject *transferObj);
 void *sip_force_convert_to_type_us(sipSipModuleState *sms, PyObject *pyObj,
@@ -67,11 +71,20 @@ const sipContainerDef *sip_get_container(const sipTypeDef *td);
 const sipClassTypeDef *sip_get_generated_class_type(
         const sipEncodedTypeDef *enc, const sipClassTypeDef *ctd);
 sipExportedModuleDef *sip_get_module(PyObject *mname_obj);
+void *sip_get_ptr_type_def(sipSimpleWrapper *self,
+        const sipClassTypeDef **ctd);
 PyObject *sip_get_qualname(const sipTypeDef *td, PyObject *name);
 PyObject *sip_get_scope_dict(sipSipModuleState *sms, sipTypeDef *td,
         PyObject *mod_dict, sipExportedModuleDef *client);
 int sip_objectify(const char *s, PyObject **objp);
+void sip_release(void *addr, const sipTypeDef *td, int state,
+        void *user_state);
+void sip_remove_from_parent(sipWrapper *self);
+void sip_transfer_back(sipSipModuleState *sms, PyObject *self);
+void sip_transfer_to(sipSipModuleState *sms, PyObject *self, PyObject *owner);
 PyObject *sip_unpickle_type(PyObject *mod, PyObject *args);
+PyObject *sip_wrap_simple_instance(void *cpp, const sipTypeDef *td,
+        sipWrapper *owner, int flags);
 
 #define sip_set_bool(p, v)    (*(_Bool *)(p) = (v))
 

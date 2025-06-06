@@ -233,7 +233,7 @@ static VariableDescr *alloc_variable_descr(PyObject *wmod)
 {
     SipModuleState *sms = sip_get_sip_module_state(wmod);
 
-    return (VariableDescr *)PyType_GenericAlloc(sms->variable_descr, 0);
+    return (VariableDescr *)PyType_GenericAlloc(sms->variable_descr_type, 0);
 }
 
 

@@ -441,8 +441,10 @@ static void enum_expected(PyObject *obj, const sipTypeDef *td)
 /*
  * Get the Python object for an enum type.
  */
+// TODO This cannot be implemented.
 static PyObject *get_enum_type(const sipTypeDef *td)
 {
+#if 0
     PyObject *type_obj;
 
     /* Make sure the enum object has been created. */
@@ -457,6 +459,9 @@ static PyObject *get_enum_type(const sipTypeDef *td)
     }
 
     return type_obj;
+#else
+    return NULL;
+#endif
 }
 
 

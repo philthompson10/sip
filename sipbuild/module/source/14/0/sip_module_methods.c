@@ -19,6 +19,8 @@
 #include "sip_enum.h"
 #include "sip_module.h"
 #include "sip_simple_wrapper.h"
+#include "sip_wrapper.h"
+#include "sip_wrapper_type.h"
 
 
 /* Forward declarations of method implementations. */
@@ -166,7 +168,7 @@ static PyObject *meth_cast(PyObject *mod, PyObject *args)
      * We don't put this new object into the map so that the original object is
      * always found.  It would also totally confuse the map logic.
      */
-    return wrap_simple_instance(addr, wt->wt_td, NULL,
+    return sip_wrap_simple_instance(addr, wt->wt_td, NULL,
             (sw->sw_flags | SIP_NOT_IN_MAP) & ~SIP_PY_OWNED);
 }
 
@@ -183,14 +185,14 @@ static PyObject *meth_delete(PyObject *mod, PyObject *args)
         return NULL;
 
     const sipClassTypeDef *ctd;
-    void *addr = getPtrTypeDef(sw, &ctd);
+    void *addr = sip_get_ptr_type_def(sw, &ctd);
 
-    if (checkPointer(addr, sw) < 0)
+    if (sip_check_pointer(addr, sw) < 0)
         return NULL;
 
     clear_wrapper(sms, sw);
 
-    release(addr, (const sipTypeDef *)ctd, sw->sw_flags, NULL);
+    sip_release(addr, (const sipTypeDef *)ctd, sw->sw_flags, NULL);
 
     Py_INCREF(Py_None);
     return Py_None;
@@ -250,7 +252,7 @@ static PyObject *meth_enableautoconversion(PyObject *mod, PyObject *args)
     if (!PyArg_ParseTuple(args, "O!i:enableautoconversion", sms->wrapper_type_type, &wt, &enable))
         return NULL;
 
-    sipTypeDef *td = wt->wt_td;
+    const sipTypeDef *td = wt->wt_td;
 
     if (!sipTypeIsClass(td) || ((sipClassTypeDef *)td)->ctd_cfrom == NULL)
     {
@@ -375,7 +377,7 @@ static PyObject *meth_transferback(PyObject *mod, PyObject *args)
     if (!PyArg_ParseTuple(args, "O!:transferback", sms->wrapper_type, &w))
         return NULL;
 
-    sip_api_transfer_back(w);
+    sip_transfer_back(sms, w);
 
     Py_INCREF(Py_None);
     return Py_None;
@@ -401,7 +403,7 @@ static PyObject *meth_transferto(PyObject *mod, PyObject *args)
          */
         owner = NULL;
     }
-    else if (!PyObject_TypeCheck(owner, (PyTypeObject *)&sipWrapper_Type))
+    else if (!PyObject_TypeCheck(owner, sms->wrapper_type))
     {
         PyErr_Format(PyExc_TypeError,
                 "transferto() argument 2 must be " _SIP_MODULE_FQ_NAME ".wrapper, not %s",
@@ -409,7 +411,7 @@ static PyObject *meth_transferto(PyObject *mod, PyObject *args)
         return NULL;
     }
 
-    sip_api_transfer_to(w, owner);
+    sip_transfer_to(sms, w, owner);
 
     Py_INCREF(Py_None);
     return Py_None;
@@ -453,7 +455,7 @@ static PyObject *meth_wrapinstance(PyObject *mod, PyObject *args)
     if (!PyArg_ParseTuple(args, "KO!:wrapinstance", &addr, sms->wrapper_type_type, &wt))
         return NULL;
 
-    return sip_api_convert_from_type((void *)addr, wt->wt_td, NULL);
+    return sip_convert_from_type(sms, (void *)addr, wt->wt_td, NULL);
 }
 
 
@@ -463,7 +465,7 @@ static PyObject *meth_wrapinstance(PyObject *mod, PyObject *args)
 static void clear_wrapper(sipSipModuleState *sms, sipSimpleWrapper *sw)
 {
     if (PyObject_TypeCheck((PyObject *)sw, sms->wrapper_type))
-        removeFromParent((sipWrapper *)sw);
+        sip_remove_from_parent((sipWrapper *)sw);
 
     /*
      * Transfer ownership to C++ so we don't try to release it when the
@@ -473,7 +475,7 @@ static void clear_wrapper(sipSipModuleState *sms, sipSimpleWrapper *sw)
 
     sipOMRemoveObject(&cppPyMap, sw);
 
-    clear_access_func(sw);
+    sip_clear_access_func(sw);
 }
 
 
