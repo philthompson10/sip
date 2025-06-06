@@ -11,6 +11,8 @@
 #define PY_SSIZE_T_CLEAN
 #include <Python.h>
 
+#include <assert.h>
+
 #include "sip_module.h"
 
 
@@ -147,6 +149,15 @@ static int module_traverse(PyObject *module, visitproc visit, void *arg)
 
 
 /*
+ * Return the sip module from a defining (ie. wrapped) class.
+ */
+PyObject *sip_get_sip_module(PyTypeObject *defining_class)
+{
+    return ((sipWrappedModuleState *)PyType_GetModuleState(defining_class))->wms_sip_module_interface->smh_module;
+}
+
+
+/*
  * Return the state for the sip module imported by a wrapped module.
  */
 sipSipModuleState *sip_get_sip_module_state(PyObject *wmod)
@@ -157,7 +168,7 @@ sipSipModuleState *sip_get_sip_module_state(PyObject *wmod)
 
 
 /*
- * Return the state for the sip module for any type.  NULL is returned if the
+ * Return the state for the sip module from any type.  NULL is returned if the
  * type wasn't created by the sip module.
  */
 sipSipModuleState *sip_get_sip_module_state_from_any_type(PyTypeObject *type)
@@ -169,6 +180,18 @@ sipSipModuleState *sip_get_sip_module_state_from_any_type(PyTypeObject *type)
         PyErr_Clear();
         return NULL;
     }
+
+    return (sipSipModuleState *)PyModule_GetState(mod);
+}
+
+
+/*
+ * Return the state for the sip module from a wrapper.
+ */
+sipSipModuleState *sip_get_sip_module_state_from_wrapper(PyObject *wrapper)
+{
+    PyObject *mod = PyType_GetModuleByDef(Py_TYPE(wrapper), &sip_module_def);
+    assert(mod != NULL)
 
     return (sipSipModuleState *)PyModule_GetState(mod);
 }

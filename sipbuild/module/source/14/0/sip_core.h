@@ -19,6 +19,7 @@
 #include <stdint.h>
 
 #include "sip.h"
+#include "sip_module.h"
 
 
 #ifdef __cplusplus
@@ -39,12 +40,7 @@ void *sip_api_malloc(size_t nbytes);
 void sip_api_free(void *mem);
 void *sip_api_get_address(sipSimpleWrapper *w);
 void *sip_api_get_cpp_ptr(sipSimpleWrapper *w, const sipTypeDef *td);
-PyObject *sip_api_convert_from_type(void *cppPtr, const sipTypeDef *td,
-        PyObject *transferObj);
 void sip_api_instance_destroyed(PyObject *wmod, sipSimpleWrapper *sipSelf);
-void *sip_api_force_convert_to_type_us(PyObject *pyObj, const sipTypeDef *td,
-        PyObject *transferObj, int flags, int *statep, void **user_statep,
-        int *iserrp);
 int sip_api_convert_from_slice_object(PyObject *slice, Py_ssize_t length,
         Py_ssize_t *start, Py_ssize_t *stop, Py_ssize_t *step,
         Py_ssize_t *slicelength);
@@ -56,21 +52,26 @@ const sipTypeDef *sip_api_type_scope(const sipTypeDef *td);
 /*
  * These are not part of the SIP API but are used within the SIP module.
  */
-int sip_add_all_lazy_attrs(const sipTypeDef *td);
+int sip_add_all_lazy_attrs(sipSipModuleState *sms, const sipTypeDef *td);
 void sip_add_type_slots(PyHeapTypeObject *heap_to, sipPySlotDef *slots);
+PyObject *sip_convert_from_type(sipSipModuleState *sms, void *cppPtr,
+        const sipTypeDef *td, PyObject *transferObj);
+void *sip_force_convert_to_type_us(sipSipModuleState *sms, PyObject *pyObj,
+        const sipTypeDef *td, PyObject *transferObj, int flags, int *statep,
+        void **user_statep, int *iserrp);
 PyObject *sip_create_type_dict(sipExportedModuleDef *em);
 int sip_dict_set_and_discard(PyObject *dict, const char *name, PyObject *obj);
 void sip_fix_slots(PyTypeObject *py_type, sipPySlotDef *psd);
+void sip_forget_object(sipSimpleWrapper *sw);
 const sipContainerDef *sip_get_container(const sipTypeDef *td);
+const sipClassTypeDef *sip_get_generated_class_type(
+        const sipEncodedTypeDef *enc, const sipClassTypeDef *ctd);
 sipExportedModuleDef *sip_get_module(PyObject *mname_obj);
 PyObject *sip_get_qualname(const sipTypeDef *td, PyObject *name);
-PyObject *sip_get_scope_dict(sipTypeDef *td, PyObject *mod_dict,
-        sipExportedModuleDef *client);
+PyObject *sip_get_scope_dict(sipSipModuleState *sms, sipTypeDef *td,
+        PyObject *mod_dict, sipExportedModuleDef *client);
 int sip_objectify(const char *s, PyObject **objp);
 PyObject *sip_unpickle_type(PyObject *mod, PyObject *args);
-
-sipClassTypeDef *sipGetGeneratedClassType(const sipEncodedTypeDef *enc,
-        const sipClassTypeDef *ctd);
 
 #define sip_set_bool(p, v)    (*(_Bool *)(p) = (v))
 

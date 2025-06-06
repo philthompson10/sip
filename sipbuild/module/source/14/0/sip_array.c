@@ -122,7 +122,9 @@ static PyObject *Array_item(PyObject *self, Py_ssize_t idx)
 
     if (array->td != NULL)
     {
-        py_item = sip_api_convert_from_type(data, array->td, NULL);
+        py_item = sip_convert_from_type(
+                sip_get_sip_module_state_from_wrapper((PyObject *)array),
+                data, array->td, NULL);
     }
     else
     {
@@ -464,10 +466,9 @@ static PyObject *Array_new(PyTypeObject *cls, PyObject *args, PyObject *kw)
 /*
  * Return TRUE if an object is a sip.array with elements of a given type.
  */
-int sip_array_can_convert(PyObject *wmod, PyObject *obj, const sipTypeDef *td)
+int sip_array_can_convert(sipSipModuleState *sms, PyObject *obj,
+        const sipTypeDef *td)
 {
-    sipSipModuleState *sms = sip_get_sip_module_state(wmod);
-
     if (!PyObject_TypeCheck(obj, sms->array_type))
         return FALSE;
 
@@ -578,8 +579,10 @@ static void *get_value(Array *array, PyObject *value)
     {
         int iserr = FALSE;
 
-        data = sip_api_force_convert_to_type_us(value, array->td, NULL,
-                SIP_NOT_NONE|SIP_NO_CONVERTORS, NULL, NULL, &iserr);
+        data = sip_force_convert_to_type_us(
+                sip_get_sip_module_state_from_wrapper((PyObject *)array),
+                value, array->td, NULL, SIP_NOT_NONE|SIP_NO_CONVERTORS, NULL,
+                NULL, &iserr);
     }
     else
     {

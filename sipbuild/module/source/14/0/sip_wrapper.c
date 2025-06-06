@@ -13,6 +13,7 @@
 
 #include "sip_wrapper.h"
 
+#include "sip_core.h"
 #include "sip_module.h"
 
 
@@ -53,13 +54,15 @@ static PyType_Spec Wrapper_TypeSpec = {
  */
 static int Wrapper_clear(PyObject *self)
 {
+    sipWrapper *sw = (sipWrapper *)self;
     int vret;
 
     // TODO Call super class some other way (or done automatically?)
     vret = SimpleWrapper_clear(self);
 
     /* Detach any children (which will be owned by C/C++). */
-    detachChildren((sipWrapper *)self);
+    while (sw->first_child != NULL)
+        removeFromParent(sw->first_child);
 
     return vret;
 }
@@ -74,7 +77,7 @@ static void Wrapper_dealloc(PyObject *self)
      * We can't simply call the super-type because things have to be done in a
      * certain order.  The first thing is to get rid of the wrapped instance.
      */
-    forgetObject((sipSimpleWrapper *)self);
+    sip_forget_object((sipSimpleWrapper *)self);
 
     Wrapper_clear(self);
 

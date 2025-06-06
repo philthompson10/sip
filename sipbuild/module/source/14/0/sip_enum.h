@@ -16,6 +16,7 @@
 #include <Python.h>
 
 #include "sip.h"
+#include "sip_module.h"
 
 
 #ifdef __cplusplus
@@ -52,8 +53,9 @@ typedef struct {
 
 extern PyObject *sip_enum_custom_enum_unpickler;
 
-int sip_enum_create_custom_enum(sipExportedModuleDef *client,
-        sipEnumTypeDef *etd, int enum_nr, PyObject *mod_dict);
+int sip_enum_create_custom_enum(sipSipModuleState *sms,
+        sipExportedModuleDef *client, sipEnumTypeDef *etd, int enum_nr,
+        PyObject *mod_dict);
 PyObject *sip_enum_pickle_custom_enum(PyObject *obj, PyObject *args);
 PyObject *sip_enum_unpickle_custom_enum(PyObject *obj, PyObject *args);
 #endif

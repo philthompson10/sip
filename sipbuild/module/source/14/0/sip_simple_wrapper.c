@@ -13,6 +13,7 @@
 
 #include "sip_simple_wrapper.h"
 
+#include "sip_core.h"
 #include "sip_module.h"
 
 
@@ -34,7 +35,6 @@ static int SimpleWrapper_set_dict(PyObject *self, PyObject *value,
 /*
  * The type specification.
  */
-#if !defined(Py_TPFLAGS_MANAGED_DICT)
 static PyGetSetDef SimpleWrapper_getset[] = {
     {"__dict__", SimpleWrapper_get_dict, SimpleWrapper_set_dict, NULL, NULL},
     {NULL, NULL, NULL, NULL, NULL}
@@ -44,7 +44,6 @@ static PyMemberDef SimpleWrapper_members[] = {
     {"__dictoffset__", Py_T_PYSSIZET, offsetof(sipSimpleWrapper, dict), Py_READONLY},
     {NULL}
 }
-#endif
 
 static PyType_Slot SimpleWrapper_slots[] = {
     {Py_tp_clear, SimpleWrapper_clear},
@@ -54,10 +53,8 @@ static PyType_Slot SimpleWrapper_slots[] = {
     {Py_tp_new, SimpleWrapper_new},
     {Py_tp_releasebuffer, SimpleWrapper_releasebuffer},
     {Py_tp_traverse, SimpleWrapper_traverse},
-#if !defined(Py_TPFLAGS_MANAGED_DICT)
     {Py_tp_getset, SimpleWrapper_getset},
     {Py_tp_members, SimpleWrapper_members},
-#endif
     {0, NULL}
 };
 
@@ -72,12 +69,15 @@ static PyType_Spec SimpleWrapper_TypeSpec = {
 #if defined(Py_TPFLAGS_IMMUTABLETYPE)
              Py_TPFLAGS_IMMUTABLETYPE |
 #endif
-#if defined(Py_TPFLAGS_MANAGED_DICT)
-             Py_TPFLAGS_MANAGED_DICT |
-#endif
              Py_TPFLAGS_HAVE_GC,
     .slots = WrapperType_slots,
 };
+
+
+/* Forward declarations. */
+static void *explicit_access_func(sipSimpleWrapper *sw, AccessFuncOp op);
+static sipFinalFunc find_finalisation(const sipClassTypeDef *ctd);
+static void *indirect_access_func(sipSimpleWrapper *sw, AccessFuncOp op);
 
 
 /*
@@ -97,12 +97,7 @@ static int SimpleWrapper_clear(PyObject *self)
         if (ctd->ctd_clear != NULL)
             vret = ctd->ctd_clear(ptr);
 
-#if defined(Py_TPFLAGS_MANAGED_DICT)
-    PyObject_ClearManagedDict(self);
-#else
     Py_CLEAR(sw->dict);
-#endif
-
     Py_CLEAR(sw->extra_refs);
     Py_CLEAR(sw->user);
     Py_CLEAR(sw->mixin_main);
@@ -116,7 +111,7 @@ static int SimpleWrapper_clear(PyObject *self)
  */
 static void SimpleWrapper_dealloc(PyObject *self)
 {
-    forgetObject((sipSimpleWrapper *)self);
+    sip_forget_object((sipSimpleWrapper *)self);
 
     /*
      * Now that the C++ object no longer exists we can tidy up the Python
@@ -554,15 +549,7 @@ static int SimpleWrapper_traverse(PyObject *self, visitproc visit, void *arg)
                 return vret;
         }
 
-#if defined(Py_TPFLAGS_MANAGED_DICT)
-    int vret;
-
-    if ((vret = PyObject_VisitManagedDict(self, visit, arg)) != 0)
-        return vret;
-#else
     Py_VISIT(sw->dict);
-#endif
-
     Py_VISIT(sw->extra_refs);
     Py_VISIT(sw->user);
     Py_VISIT(sw->mixin_main);
@@ -571,7 +558,6 @@ static int SimpleWrapper_traverse(PyObject *self, visitproc visit, void *arg)
 }
 
 
-#if !defined(Py_TPFLAGS_MANAGED_DICT)
 /*
  * The __dict__ getter.
  */
@@ -621,7 +607,6 @@ static int SimpleWrapper_set_dict(PyObject *self, PyObject *value,
 
     return 0;
 }
-#endif
 
 
 /*
@@ -649,4 +634,69 @@ int sip_simple_wrapper_init(PyObject *module, sipSipModuleState *sms)
         return -1;
 
     return 0;
+}
+
+
+/*
+ * The access function for handwritten access functions.
+ */
+static void *explicit_access_func(sipSimpleWrapper *sw, AccessFuncOp op)
+{
+    typedef void *(*explicitAccessFunc)(void);
+
+    if (op == ReleaseGuard)
+        return NULL;
+
+    return ((explicitAccessFunc)(sw->data))();
+}
+
+
+/*
+ * Find any finalisation function for a class, searching its super-classes if
+ * necessary.
+ */
+static sipFinalFunc find_finalisation(const sipClassTypeDef *ctd)
+{
+    sipEncodedTypeDef *sup;
+
+    if (ctd->ctd_final != NULL)
+        return ctd->ctd_final;
+
+    if ((sup = ctd->ctd_supers) != NULL)
+        do
+        {
+            const sipClassTypeDef *sup_ctd = sipGetGeneratedClassType(sup, ctd);
+            sipFinalFunc func;
+
+            if ((func = find_finalisation(sup_ctd)) != NULL)
+                return func;
+        }
+        while (!sup++->sc_flag);
+
+    return NULL;
+}
+
+
+/*
+ * The access function for indirect access.
+ */
+static void *indirect_access_func(sipSimpleWrapper *sw, AccessFuncOp op)
+{
+    void *addr;
+
+    switch (op)
+    {
+    case UnguardedPointer:
+        addr = sw->data;
+        break;
+
+    case GuardedPointer:
+        addr = *((void **)sw->data);
+        break;
+
+    default:
+        addr = NULL;
+    }
+
+    return addr;
 }

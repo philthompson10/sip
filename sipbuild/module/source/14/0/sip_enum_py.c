@@ -17,9 +17,11 @@
 
 #include <assert.h>
 
-#include "sip_core.h"
-
 #include "sip_enum.h"
+
+#include "sip_core.h"
+#include "sip_int_convertors.h"
+#include "sip_module.h"
 
 
 #define IS_UNSIGNED_ENUM(etd)   ((etd)->etd_base_type == SIP_ENUM_UINT_ENUM || (etd)->etd_base_type == SIP_ENUM_INT_FLAG || (etd)->etd_base_type == SIP_ENUM_FLAG)
@@ -188,7 +190,7 @@ const sipTypeDef *sip_enum_get_generated_type(PyTypeObject *py_type)
  * Initialise the enum support.  A negative value is returned (and an exception
  * set) if there was an error.
  */
-int sip_enum_init(PyObject *module, SipModuleDef *sms)
+int sip_enum_init(PyObject *module, sipSipModuleState *sms)
 {
     // TODO
     PyObject *builtins, *enum_module;

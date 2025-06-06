@@ -74,15 +74,15 @@ static PyType_Spec MethodDescr_TypeSpec = {
 
 
 /* Forward declarations. */
-static MethodDescr *alloc_method_descr(PyObject *wmod);
+static MethodDescr *alloc_method_descr(sipSipModuleState *sms);
 
 
 /*
  * Return a new method descriptor for the given method.
  */
-PyObject *sipMethodDescr_New(PyObject *wmod, PyMethodDef *pmd)
+PyObject *sipMethodDescr_New(sipSipModuleState *sms, PyMethodDef *pmd)
 {
-    MethodDescr *descr = alloc_method_descr(wmod);
+    MethodDescr *descr = alloc_method_descr(sms);
 
     if (descr != NULL)
     {
@@ -97,11 +97,11 @@ PyObject *sipMethodDescr_New(PyObject *wmod, PyMethodDef *pmd)
 /*
  * Return a new method descriptor based on an existing one and a mixin name.
  */
-PyObject *sipMethodDescr_Copy(PyObject *wmod, PyObject *orig,
+PyObject *sipMethodDescr_Copy(sipSipModuleState *sms, PyObject *orig,
         PyObject *mixin_name)
 {
     MethodDescr *orig_descr = (MethodDescr *)orig;
-    MethodDescr *descr = alloc_method_descr(wmod);
+    MethodDescr *descr = alloc_method_descr(sms);
 
     if (descr != NULL)
     {
@@ -221,9 +221,7 @@ int sip_method_descr_init(PyObject *module, sipSipModuleState *sms)
 /*
  * Allocate a new method descriptor for a wrapper type.
  */
-static MethodDescr *alloc_method_descr(PyObject *wmod)
+static MethodDescr *alloc_method_descr(sipSipModuleState *sms)
 {
-    sipSipModuleState *sms = sip_get_sip_module_state(wmod);
-
     return (MethodDescr *)PyType_GenericAlloc(sms->method_descr, 0);
 }

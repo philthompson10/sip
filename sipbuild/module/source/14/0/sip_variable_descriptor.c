@@ -81,7 +81,7 @@ static PyType_Spec VariableDescr_TypeSpec = {
 
 
 /* Forward declarations. */
-static VariableDescr *alloc_variable_descr(PyObject *wmod);
+static VariableDescr *alloc_variable_descr(sipSipModuleState *sms);
 static int get_instance_address(VariableDescr *vd, PyObject *obj,
         void **addrp);
 
@@ -89,10 +89,10 @@ static int get_instance_address(VariableDescr *vd, PyObject *obj,
 /*
  * Return a new method descriptor for the given getter/setter.
  */
-PyObject *sipVariableDescr_New(PyObject *wmod, sipVariableDef *vd,
+PyObject *sipVariableDescr_New(sipSipModuleState *sms, sipVariableDef *vd,
         const sipTypeDef *td, const char *cod_name)
 {
-    VariableDescr *descr = alloc_variable_descr(wmod);
+    VariableDescr *descr = alloc_variable_descr(sms);
 
     if (descr != NULL)
     {
@@ -109,11 +109,11 @@ PyObject *sipVariableDescr_New(PyObject *wmod, sipVariableDef *vd,
 /*
  * Return a new variable descriptor based on an existing one and a mixin name.
  */
-PyObject *sipVariableDescr_Copy(PyObject *wmod, PyObject *orig,
+PyObject *sipVariableDescr_Copy(sipSipModuleState *sms, PyObject *orig,
         PyObject *mixin_name)
 {
     VariableDescr *orig_descr = (VariableDescr *)orig;
-    VariableDescr *descr = alloc_variable_descr(wmod);
+    VariableDescr *descr = alloc_variable_descr(sms);
 
     if (descr != NULL)
     {

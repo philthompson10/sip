@@ -47,10 +47,8 @@ struct _sipSimpleWrapper {
     /* For the user to use. */
     PyObject *user;
 
-#if !defined(Py_TPFLAGS_MANAGED_DICT)
     /* The instance dictionary. */
     PyObject *dict;
-#endif
 
     /* The main instance if this is a mixin. */
     PyObject *mixin_main;

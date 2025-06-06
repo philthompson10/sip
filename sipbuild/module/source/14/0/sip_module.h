@@ -68,8 +68,10 @@ typedef struct {
 } sipSipModuleState;
 
 
+PyObject *sip_get_sip_module(PyTypeObject *defining_class);
 sipSipModuleState *sip_get_sip_module_state(PyObject *wmod);
 sipSipModuleState *sip_get_sip_module_state_from_any_type(PyTypeObject *type);
+sipSipModuleState *sip_get_sip_module_state_from_wrapper(PyObject *wrapper);
 
 
 #ifdef __cplusplus

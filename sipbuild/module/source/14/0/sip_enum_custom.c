@@ -232,8 +232,9 @@ int sip_enum_convert_to_constrained_enum(PyObject *obj, const sipTypeDef *td)
  * Create an enum object and add it to a dictionary.  A negative value is
  * returned (and an exception set) if there was an error.
  */
-int sip_enum_create_custom_enum(sipExportedModuleDef *client,
-        sipEnumTypeDef *etd, int enum_nr, PyObject *mod_dict)
+int sip_enum_create_custom_enum(sipSipModuleState *sms,
+        sipExportedModuleDef *client, sipEnumTypeDef *etd, int enum_nr,
+        PyObject *mod_dict)
 {
     int rc;
     PyObject *name, *dict, *enum_obj;
@@ -243,7 +244,7 @@ int sip_enum_create_custom_enum(sipExportedModuleDef *client,
     /* Get the dictionary into which the type will be placed. */
     if (etd->etd_scope < 0)
         dict = mod_dict;
-    else if ((dict = sip_get_scope_dict(client->em_types[etd->etd_scope], mod_dict, client)) == NULL)
+    else if ((dict = sip_get_scope_dict(sms, client->em_types[etd->etd_scope], mod_dict, client)) == NULL)
         return -1;
 
     /* Create an object corresponding to the type name. */

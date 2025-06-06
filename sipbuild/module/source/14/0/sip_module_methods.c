@@ -62,6 +62,7 @@ PyMethodDef sipModuleMethods[] = {
 
 
 /* Forward declarations. */
+static void clear_wrapper(sipSipModuleState *sms, sipSimpleWrapper *sw);
 static void print_object(const char *label, PyObject *obj);
 
 
@@ -187,7 +188,7 @@ static PyObject *meth_delete(PyObject *mod, PyObject *args)
     if (checkPointer(addr, sw) < 0)
         return NULL;
 
-    clear_wrapper(sw);
+    clear_wrapper(sms, sw);
 
     release(addr, (const sipTypeDef *)ctd, sw->sw_flags, NULL);
 
@@ -338,7 +339,7 @@ static PyObject *meth_setdeleted(PyObject *mod, PyObject *args)
     if (!PyArg_ParseTuple(args, "O!:setdeleted", sms->simple_wrapper_type, &sw))
         return NULL;
 
-    clear_wrapper(sw);
+    clear_wrapper(sms, sw);
 
     Py_INCREF(Py_None);
     return Py_None;
@@ -453,6 +454,26 @@ static PyObject *meth_wrapinstance(PyObject *mod, PyObject *args)
         return NULL;
 
     return sip_api_convert_from_type((void *)addr, wt->wt_td, NULL);
+}
+
+
+/*
+ * Clear a simple wrapper.
+ */
+static void clear_wrapper(sipSipModuleState *sms, sipSimpleWrapper *sw)
+{
+    if (PyObject_TypeCheck((PyObject *)sw, sms->wrapper_type))
+        removeFromParent((sipWrapper *)sw);
+
+    /*
+     * Transfer ownership to C++ so we don't try to release it when the
+     * Python object is garbage collected.
+     */
+    sipResetPyOwned(sw);
+
+    sipOMRemoveObject(&cppPyMap, sw);
+
+    clear_access_func(sw);
 }
 
 

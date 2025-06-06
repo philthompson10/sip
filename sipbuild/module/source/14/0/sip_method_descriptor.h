@@ -23,8 +23,8 @@ extern "C" {
 #endif
 
 
-PyObject *sipMethodDescr_New(PyObject *wmod, PyMethodDef *pmd);
-PyObject *sipMethodDescr_Copy(PyObject *wmod, PyObject *orig,
+PyObject *sipMethodDescr_New(sipSipModuleState *sms, PyMethodDef *pmd);
+PyObject *sipMethodDescr_Copy(sipSipModuleState *sms, PyObject *orig,
         PyObject *mixin_name);
 int sip_method_descr_init(PyObject *module, sipSipModuleState *sms);
 

@@ -169,7 +169,8 @@ static void add_aliases(sipObjectMap *om, void *addr, sipSimpleWrapper *val,
     /* See if there are any super-classes. */
     if ((sup = ctd->ctd_supers) != NULL)
     {
-        sipClassTypeDef *sup_ctd = sipGetGeneratedClassType(sup, ctd);
+        const sipClassTypeDef *sup_ctd = sip_get_generated_class_type(sup,
+                ctd);
 
         /* Recurse up the hierachy for the first super-class. */
         add_aliases(om, addr, val, base_ctd, sup_ctd);
@@ -182,7 +183,7 @@ static void add_aliases(sipObjectMap *om, void *addr, sipSimpleWrapper *val,
         {
             void *sup_addr;
 
-            sup_ctd = sipGetGeneratedClassType(sup, ctd);
+            sup_ctd = sip_get_generated_class_type(sup, ctd);
 
             /* Recurse up the hierachy for the remaining super-classes. */
             add_aliases(om, addr, val, base_ctd, sup_ctd);
@@ -379,7 +380,8 @@ static void remove_aliases(sipObjectMap *om, void *addr, sipSimpleWrapper *val,
     /* See if there are any super-classes. */
     if ((sup = ctd->ctd_supers) != NULL)
     {
-        sipClassTypeDef *sup_ctd = sipGetGeneratedClassType(sup, ctd);
+        const sipClassTypeDef *sup_ctd = sip_get_generated_class_type(sup,
+                ctd);
 
         /* Recurse up the hierachy for the first super-class. */
         remove_aliases(om, addr, val, base_ctd, sup_ctd);
@@ -392,7 +394,7 @@ static void remove_aliases(sipObjectMap *om, void *addr, sipSimpleWrapper *val,
         {
             void *sup_addr;
 
-            sup_ctd = sipGetGeneratedClassType(sup, ctd);
+            sup_ctd = sip_get_generated_class_type(sup, ctd);
 
             /* Recurse up the hierachy for the remaining super-classes. */
             remove_aliases(om, addr, val, base_ctd, sup_ctd);
