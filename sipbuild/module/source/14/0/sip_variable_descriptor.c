@@ -141,7 +141,7 @@ static PyObject *VariableDescr_descr_get(PyObject *self, PyObject *obj,
     if (get_instance_address(descr, obj, &addr) < 0)
         return NULL;
 
-    return ((VariableGetterFunc)descr->vd->vd_getter)(addr, obj, type);
+    return ((sipVariableGetterFunc)descr->vd->vd_getter)(addr, obj, type);
 }
 
 
@@ -167,7 +167,7 @@ static int VariableDescr_descr_set(PyObject *self, PyObject *obj,
     if (get_instance_address(descr, obj, &addr) < 0)
         return -1;
 
-    return ((VariableSetterFunc)descr->vd->vd_setter)(addr, value, obj);
+    return ((sipVariableSetterFunc)descr->vd->vd_setter)(addr, value, obj);
 }
 
 
@@ -217,7 +217,7 @@ static void VariableDescr_dealloc(PyObject *self)
 int sip_variable_descr_init(PyObject *module, sipSipModuleState *sms)
 {
     sms->variable_descr_type = (PyTypeObject *)PyType_FromModuleAndSpec(module,
-            &sipVariableDescr_TypeSpec, NULL);
+            &VariableDescr_TypeSpec, NULL);
 
     if (sms->variable_descr_type == NULL)
         return -1;
@@ -229,10 +229,8 @@ int sip_variable_descr_init(PyObject *module, sipSipModuleState *sms)
 /*
  * Allocate a new variable descriptor for a wrapper type.
  */
-static VariableDescr *alloc_variable_descr(PyObject *wmod)
+static VariableDescr *alloc_variable_descr(sipSipModuleState *sms)
 {
-    SipModuleState *sms = sip_get_sip_module_state(wmod);
-
     return (VariableDescr *)PyType_GenericAlloc(sms->variable_descr_type, 0);
 }
 

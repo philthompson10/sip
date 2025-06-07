@@ -15,6 +15,8 @@
 #define PY_SSIZE_T_CLEAN
 #include <Python.h>
 
+#include "sip.h"
+
 
 #ifdef __cplusplus
 extern "C" {
