@@ -47,6 +47,9 @@ typedef struct _sipSipModuleState {
      */
     PyObject *base_tuple_wrapper;
 
+    /* The empty tuple. */
+    PyObject *empty_tuple;
+
     /* The event handler lists. */
     sipEventHandler *event_handlers[sipEventNrEvents];
 
@@ -61,6 +64,10 @@ typedef struct _sipSipModuleState {
 
     /* The trace mask. */
     unsigned trace_mask;
+
+    /* For passing a dict of unused arguments. */
+    // TODO Try and get rid of this.
+    PyObject **unused_backdoor;
 
     /* The variable descriptor type object. */
     PyTypeObject *variable_descr_type;
@@ -79,7 +86,8 @@ typedef struct _sipSipModuleState {
 PyObject *sip_get_sip_module(PyTypeObject *defining_class);
 sipSipModuleState *sip_get_sip_module_state(PyObject *wmod);
 sipSipModuleState *sip_get_sip_module_state_from_any_type(PyTypeObject *type);
-sipSipModuleState *sip_get_sip_module_state_from_wrapper(PyObject *wrapper);
+sipSipModuleState *sip_get_sip_module_state_from_wrapper_type(
+        PyTypeObject *wt);
 
 
 #ifdef __cplusplus

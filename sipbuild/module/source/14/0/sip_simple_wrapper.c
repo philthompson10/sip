@@ -169,7 +169,8 @@ static int SimpleWrapper_getbuffer(PyObject *self, Py_buffer *buf, int flags)
  */
 static int SimpleWrapper_init(PyObject *self, PyObject *args, PyObject *kwds)
 {
-    sipSipModuleState *sms = sip_get_sip_module_state_from_wrapper(self);
+    sipSipModuleState *sms = sip_get_sip_module_state_from_wrapper_type(
+            Py_TYPE(self));
     sipSimpleWrapper *sw = (sipSimpleWrapper *)self;
 
     void *sipNew;
@@ -314,7 +315,7 @@ static int SimpleWrapper_init(PyObject *self, PyObject *args, PyObject *kwds)
 
             for (eh = sms->event_handlers[sipEventWrappedInstance]; eh != NULL; eh = eh->next)
             {
-                if (sipTypeIsClass(eh->td) && is_subtype(ctd, (const sipClassTypeDef *)eh->td))
+                if (sipTypeIsClass(eh->td) && sip_is_subtype(ctd, (const sipClassTypeDef *)eh->td))
                 {
                     sipWrappedInstanceEventHandler handler = (sipWrappedInstanceEventHandler)eh->handler;
 
@@ -369,7 +370,7 @@ static int SimpleWrapper_init(PyObject *self, PyObject *args, PyObject *kwds)
         PyObject *next;
 
         /* Find the next type in the MRO. */
-        next = next_in_mro(self, (PyObject *)&sipSimpleWrapper_Type);
+        next = sip_next_in_mro(self, (PyObject *)sms->simple_wrapper_type);
 
         /*
          * If the next type in the MRO is object then take a shortcut by not
@@ -381,7 +382,7 @@ static int SimpleWrapper_init(PyObject *self, PyObject *args, PyObject *kwds)
          */
         if (next != (PyObject *)&PyBaseObject_Type)
         {
-            int rc = super_init(self, empty_tuple, unused, next);
+            int rc = sip_super_init(self, sms->empty_tuple, unused, next);
 
             Py_XDECREF(unused);
 
@@ -389,13 +390,13 @@ static int SimpleWrapper_init(PyObject *self, PyObject *args, PyObject *kwds)
         }
     }
 
-    if (unused_backdoor != NULL)
+    if (sms->unused_backdoor != NULL)
     {
         /*
          * We are being called by a mixin's __init__ so save any unused
          * arguments for it to pass on to the main class's __init__.
          */
-        *unused_backdoor = unused;
+        *sms->unused_backdoor = unused;
     }
     else if (unused != NULL)
     {
@@ -429,25 +430,25 @@ static int SimpleWrapper_init(PyObject *self, PyObject *args, PyObject *kwds)
 static PyObject *SimpleWrapper_new(PyTypeObject *cls, PyObject *args,
         PyObject *kwds)
 {
+    sipSipModuleState *sms = sip_get_sip_module_state_from_wrapper_type(cls);
     sipWrapperType *wt = (sipWrapperType *)cls;
-
-    PyObject *wmod = PyType_GetModule((PyObject *)cls);
-    sipTypeDef *td = wt->wt_td;
+    const sipTypeDef *td = wt->wt_td;
 
     (void)args;
     (void)kwds;
 
     /* Check the base types are not being used directly. */
-    if (wt == &sipSimpleWrapper_Type || wt == &sipWrapper_Type)
+    // TODO Is this still necessary with the current TP_FLAGS?
+    if (cls == sms->simple_wrapper_type || cls == sms->wrapper_type)
     {
         PyErr_Format(PyExc_TypeError,
                 "the %s type cannot be instantiated or sub-classed",
-                ((PyTypeObject *)wt)->tp_name);
+                cls->tp_name);
 
         return NULL;
     }
 
-    if (sip_add_all_lazy_attrs(wmod, td) < 0)
+    if (sip_add_all_lazy_attrs(sms, td) < 0)
         return NULL;
 
     /* See if it is a mapped type. */
@@ -505,7 +506,7 @@ static PyObject *SimpleWrapper_new(PyTypeObject *cls, PyObject *args,
     }
 
     /* Call the standard super-type new. */
-    return PyBaseObject_Type.tp_new(cls, empty_tuple, NULL);
+    return PyBaseObject_Type.tp_new(cls, sms->empty_tuple, NULL);
 }
 
 
@@ -540,7 +541,7 @@ static int SimpleWrapper_traverse(PyObject *self, visitproc visit, void *arg)
 {
     sipSimpleWrapper *sw = (sipSimpleWrapper *)self;
 
-    Py_VISIT(Py_Type(self));
+    Py_VISIT(Py_TYPE(self));
 
     /* Call any handwritten traverse code. */
     void *ptr;
@@ -671,7 +672,8 @@ static sipFinalFunc find_finalisation(const sipClassTypeDef *ctd)
     if ((sup = ctd->ctd_supers) != NULL)
         do
         {
-            const sipClassTypeDef *sup_ctd = sipGetGeneratedClassType(sup, ctd);
+            const sipClassTypeDef *sup_ctd = sip_get_generated_class_type(sup,
+                    ctd);
             sipFinalFunc func;
 
             if ((func = find_finalisation(sup_ctd)) != NULL)

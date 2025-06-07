@@ -1358,7 +1358,8 @@ struct _sipAPI {
     void (*api_call_hook)(const char *hookname);
     void (*api_end_thread)(void);
     void (*api_raise_unknown_exception)(void);
-    void (*api_raise_type_exception)(const sipTypeDef *td, void *ptr);
+    void (*api_raise_type_exception)(PyObject *wmod, const sipTypeDef *td,
+            void *ptr);
     int (*api_add_type_instance)(PyObject *wmod, PyObject *dict,
             const char *name, void *cppPtr, const sipTypeDef *td);
     void (*api_bad_operator_arg)(PyObject *self, PyObject *arg,

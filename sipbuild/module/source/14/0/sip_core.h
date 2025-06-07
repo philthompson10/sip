@@ -95,16 +95,21 @@ PyObject *sip_get_scope_dict(struct _sipSipModuleState *sms, sipTypeDef *td,
         PyObject *mod_dict, sipExportedModuleDef *client);
 void sip_instance_destroyed(struct _sipSipModuleState *sms,
         sipSimpleWrapper **sipSelfp);
+int sip_is_subtype(const sipClassTypeDef *ctd,
+        const sipClassTypeDef *base_ctd);
+PyObject *sip_next_in_mro(PyObject *self, PyObject *after);
 int sip_objectify(const char *s, PyObject **objp);
 void sip_release(void *addr, const sipTypeDef *td, int state,
         void *user_state);
 void sip_remove_from_parent(sipWrapper *self);
+int sip_super_init(PyObject *self, PyObject *args, PyObject *kwds,
+        PyObject *type);
 void sip_transfer_back(struct _sipSipModuleState *sms, PyObject *self);
 void sip_transfer_to(struct _sipSipModuleState *sms, PyObject *self,
         PyObject *owner);
 PyObject *sip_unpickle_type(PyObject *mod, PyObject *args);
-PyObject *sip_wrap_simple_instance(void *cpp, const sipTypeDef *td,
-        sipWrapper *owner, int flags);
+PyObject *sip_wrap_simple_instance(struct _sipSipModuleState *sms, void *cpp,
+        const sipTypeDef *td, sipWrapper *owner, int flags);
 
 #define sip_set_bool(p, v)    (*(_Bool *)(p) = (v))
 

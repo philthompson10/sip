@@ -123,7 +123,8 @@ static PyObject *Array_item(PyObject *self, Py_ssize_t idx)
     if (array->td != NULL)
     {
         py_item = sip_convert_from_type(
-                sip_get_sip_module_state_from_wrapper((PyObject *)array),
+                sip_get_sip_module_state_from_wrapper_type(
+                        Py_TYPE((PyObject *)array)),
                 data, array->td, NULL);
     }
     else
@@ -580,7 +581,8 @@ static void *get_value(Array *array, PyObject *value)
         int iserr = FALSE;
 
         data = sip_force_convert_to_type_us(
-                sip_get_sip_module_state_from_wrapper((PyObject *)array),
+                sip_get_sip_module_state_from_wrapper_type(
+                        Py_TYPE((PyObject *)array)),
                 value, array->td, NULL, SIP_NOT_NONE|SIP_NO_CONVERTORS, NULL,
                 NULL, &iserr);
     }

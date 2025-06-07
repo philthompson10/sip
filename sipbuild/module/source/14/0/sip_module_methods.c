@@ -169,7 +169,7 @@ static PyObject *meth_cast(PyObject *mod, PyObject *args)
      * We don't put this new object into the map so that the original object is
      * always found.  It would also totally confuse the map logic.
      */
-    return sip_wrap_simple_instance(addr, wt->wt_td, NULL,
+    return sip_wrap_simple_instance(sms, addr, wt->wt_td, NULL,
             (sw->sw_flags | SIP_NOT_IN_MAP) & ~SIP_PY_OWNED);
 }
 

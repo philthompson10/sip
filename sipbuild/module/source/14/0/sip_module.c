@@ -77,6 +77,7 @@ static int module_clear(PyObject *module)
 #endif
     Py_CLEAR(sms->base_tuple_simple_wrapper);
     Py_CLEAR(sms->base_tuple_wrapper);
+    Py_CLEAR(sms->empty_tuple);
     Py_CLEAR(sms->method_descr_type);
     Py_CLEAR(sms->simple_wrapper_type);
     Py_CLEAR(sms->variable_descr_type);
@@ -157,6 +158,7 @@ static int module_traverse(PyObject *module, visitproc visit, void *arg)
 #endif
     Py_VISIT(sms->base_tuple_simple_wrapper);
     Py_VISIT(sms->base_tuple_wrapper);
+    Py_VISIT(sms->empty_tuple);
     Py_VISIT(sms->method_descr_type);
     Py_VISIT(sms->simple_wrapper_type);
     Py_VISIT(sms->variable_descr_type);
@@ -206,11 +208,12 @@ sipSipModuleState *sip_get_sip_module_state_from_any_type(PyTypeObject *type)
 
 
 /*
- * Return the state for the sip module from a wrapper.
+ * Return the state for the sip module from a wrapper type (or a type known to
+ * be associated with the sip module).
  */
-sipSipModuleState *sip_get_sip_module_state_from_wrapper(PyObject *wrapper)
+sipSipModuleState *sip_get_sip_module_state_from_wrapper_type(PyTypeObject *wt)
 {
-    PyObject *mod = PyType_GetModuleByDef(Py_TYPE(wrapper), &module_def);
+    PyObject *mod = PyType_GetModuleByDef(wt, &module_def);
     assert(mod != NULL);
 
     return (sipSipModuleState *)PyModule_GetState(mod);
