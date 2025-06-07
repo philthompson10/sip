@@ -16,12 +16,15 @@
 #include <Python.h>
 
 #include "sip.h"
-#include "sip_module.h"
 
 
 #ifdef __cplusplus
 extern "C" {
 #endif
+
+
+struct _sipSipModuleState;
+
 
 /* These are part of the module API. */
 PyObject *sip_api_convert_from_enum(int member, const sipTypeDef *td);
@@ -53,7 +56,7 @@ typedef struct {
 
 extern PyObject *sip_enum_custom_enum_unpickler;
 
-int sip_enum_create_custom_enum(sipSipModuleState *sms,
+int sip_enum_create_custom_enum(struct _sipSipModuleState *sms,
         sipExportedModuleDef *client, sipEnumTypeDef *etd, int enum_nr,
         PyObject *mod_dict);
 PyObject *sip_enum_pickle_custom_enum(PyObject *obj, PyObject *args);
@@ -62,7 +65,7 @@ PyObject *sip_enum_unpickle_custom_enum(PyObject *obj, PyObject *args);
 
 int sip_enum_convert_to_constrained_enum(PyObject *obj, const sipTypeDef *td);
 const sipTypeDef *sip_enum_get_generated_type(PyTypeObject *py_type);
-int sip_enum_init(PyObject *module, sipSipModuleState *sms);
+int sip_enum_init(PyObject *module, struct _sipSipModuleState *sms);
 int sip_enum_is_enum(PyObject *obj);
 
 

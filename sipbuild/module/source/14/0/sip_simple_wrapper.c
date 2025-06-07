@@ -11,11 +11,15 @@
 #define PY_SSIZE_T_CLEAN
 #include <Python.h>
 
+#include <stddef.h>
+
 #include "sip_simple_wrapper.h"
 
 #include "sip_core.h"
 #include "sip_module.h"
 #include "sip_object_map.h"
+#include "sip_threads.h"
+#include "sip_wrapper_type.h"
 
 
 /* Forward declarations of slots. */
@@ -44,15 +48,15 @@ static PyGetSetDef SimpleWrapper_getset[] = {
 static PyMemberDef SimpleWrapper_members[] = {
     {"__dictoffset__", Py_T_PYSSIZET, offsetof(sipSimpleWrapper, dict), Py_READONLY},
     {NULL}
-}
+};
 
 static PyType_Slot SimpleWrapper_slots[] = {
+    {Py_bf_getbuffer, SimpleWrapper_getbuffer},
+    {Py_bf_releasebuffer, SimpleWrapper_releasebuffer},
     {Py_tp_clear, SimpleWrapper_clear},
     {Py_tp_dealloc, SimpleWrapper_dealloc},
-    {Py_tp_getbuffer, SimpleWrapper_getbuffer},
     {Py_tp_init, SimpleWrapper_init},
     {Py_tp_new, SimpleWrapper_new},
-    {Py_tp_releasebuffer, SimpleWrapper_releasebuffer},
     {Py_tp_traverse, SimpleWrapper_traverse},
     {Py_tp_getset, SimpleWrapper_getset},
     {Py_tp_members, SimpleWrapper_members},
@@ -71,7 +75,7 @@ static PyType_Spec SimpleWrapper_TypeSpec = {
              Py_TPFLAGS_IMMUTABLETYPE |
 #endif
              Py_TPFLAGS_HAVE_GC,
-    .slots = WrapperType_slots,
+    .slots = SimpleWrapper_slots,
 };
 
 
@@ -94,7 +98,7 @@ static int SimpleWrapper_clear(PyObject *self)
     void *ptr;
     const sipClassTypeDef *ctd;
 
-    if ((ptr = getPtrTypeDef(sw, &ctd)) != NULL)
+    if ((ptr = sip_get_ptr_type_def(sw, &ctd)) != NULL)
         if (ctd->ctd_clear != NULL)
             vret = ctd->ctd_clear(ptr);
 
@@ -134,7 +138,7 @@ static int SimpleWrapper_getbuffer(PyObject *self, Py_buffer *buf, int flags)
     void *ptr;
     const sipClassTypeDef *ctd;
 
-    if ((ptr = getPtrTypeDef((sipSimpleWrapper *)self, &ctd)) == NULL)
+    if ((ptr = sip_get_ptr_type_def((sipSimpleWrapper *)self, &ctd)) == NULL)
         return -1;
 
     if (sipTypeUseLimitedAPI(&ctd->ctd_base))
@@ -172,8 +176,8 @@ static int SimpleWrapper_init(PyObject *self, PyObject *args, PyObject *kwds)
     int sipFlags, from_cpp = TRUE;
     sipWrapper *owner;
     sipWrapperType *wt = (sipWrapperType *)Py_TYPE(self);
-    sipTypeDef *td = wt->wt_td;
-    sipClassTypeDef *ctd = (sipClassTypeDef *)td;
+    const sipTypeDef *td = wt->wt_td;
+    const sipClassTypeDef *ctd = (sipClassTypeDef *)td;
     PyObject *unused = NULL;
     sipFinalFunc final_func = find_finalisation(ctd);
 
@@ -267,20 +271,20 @@ static int SimpleWrapper_init(PyObject *self, PyObject *args, PyObject *kwds)
     }
 
     /* Handler any owner if the type supports the concept. */
-    if (PyObject_TypeCheck(self, (PyTypeObject *)&sipWrapper_Type))
+    if (PyObject_TypeCheck(self, sms->wrapper_type))
     {
         /*
          * The application may be doing something very unadvisable (like
          * calling __init__() for a second time), so make sure we don't already
          * have a parent.
          */
-        removeFromParent((sipWrapper *)self);
+        sip_remove_from_parent((sipWrapper *)self);
 
         if (owner != NULL)
         {
-            assert(PyObject_TypeCheck((PyObject *)owner, (PyTypeObject *)&sipWrapper_Type));
+            assert(PyObject_TypeCheck((PyObject *)owner, sms->wrapper_type));
 
-            addToParent((sipWrapper *)self, (sipWrapper *)owner);
+            sip_add_to_parent((sipWrapper *)self, (sipWrapper *)owner);
         }
     }
 
@@ -306,9 +310,9 @@ static int SimpleWrapper_init(PyObject *self, PyObject *args, PyObject *kwds)
          */
         if (sw->access_func == NULL)
         {
-            EventHandler *eh;
+            sipEventHandler *eh;
 
-            for (eh = event_handlers[sipEventWrappedInstance]; eh != NULL; eh = eh->next)
+            for (eh = sms->event_handlers[sipEventWrappedInstance]; eh != NULL; eh = eh->next)
             {
                 if (sipTypeIsClass(eh->td) && is_subtype(ctd, (const sipClassTypeDef *)eh->td))
                 {
@@ -513,7 +517,7 @@ static void SimpleWrapper_releasebuffer(PyObject *self, Py_buffer *buf)
     void *ptr;
     const sipClassTypeDef *ctd;
 
-    if ((ptr = getPtrTypeDef((sipSimpleWrapper *)self, &ctd)) == NULL)
+    if ((ptr = sip_get_ptr_type_def((sipSimpleWrapper *)self, &ctd)) == NULL)
         return;
 
     if (sipTypeUseLimitedAPI(&ctd->ctd_base))
@@ -542,7 +546,7 @@ static int SimpleWrapper_traverse(PyObject *self, visitproc visit, void *arg)
     void *ptr;
     const sipClassTypeDef *ctd;
 
-    if ((ptr = getPtrTypeDef(sw, &ctd)) != NULL)
+    if ((ptr = sip_get_ptr_type_def(sw, &ctd)) != NULL)
         if (ctd->ctd_traverse != NULL)
         {
             int vret;

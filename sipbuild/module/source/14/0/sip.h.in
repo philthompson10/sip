@@ -1231,8 +1231,8 @@ struct _sipAPI {
             void *user_state);
     PyObject *(*api_convert_from_type)(PyObject *wmod, void *cpp,
             const sipTypeDef *td, PyObject *transferObj);
-    PyObject *(*api_convert_from_new_type)(void *cpp, const sipTypeDef *td,
-            PyObject *transferObj);
+    PyObject *(*api_convert_from_new_type)(PyObject *wmod, void *cpp,
+            const sipTypeDef *td, PyObject *transferObj);
     PyObject *(*api_convert_from_enum)(int eval, const sipTypeDef *td);
     int (*api_get_state)(PyObject *transferObj);
     void (*api_free)(void *mem);
@@ -1301,8 +1301,8 @@ struct _sipAPI {
     int (*api_is_owned_by_python)(sipSimpleWrapper *);
     int (*api_enable_gc)(int enable);
     void (*api_print_object)(PyObject *o);
-    int (*api_register_event_handler)(sipEventType type, const sipTypeDef *td,
-            void *handler);
+    int (*api_register_event_handler)(PyObject *wmod, sipEventType type,
+            const sipTypeDef *td, void *handler);
     int (*api_convert_to_enum)(PyObject *obj, const sipTypeDef *td);
     int (*api_convert_to_bool)(PyObject *obj);
     char (*api_long_as_char)(PyObject *o);

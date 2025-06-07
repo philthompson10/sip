@@ -16,12 +16,14 @@
 #include <Python.h>
 
 #include "sip.h"
-#include "sip_module.h"
 
 
 #ifdef __cplusplus
 extern "C" {
 #endif
+
+
+struct _sipSipModuleState;
 
 
 /*
@@ -58,7 +60,7 @@ struct _sipWrapperType {
 };
 
 
-int sip_wrapper_type_init(PyObject *module, sipSipModuleState *sms);
+int sip_wrapper_type_init(PyObject *module, struct _sipSipModuleState *sms);
 
 
 #ifdef __cplusplus

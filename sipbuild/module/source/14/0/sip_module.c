@@ -122,6 +122,23 @@ static void module_free(void *module_ptr)
 
     module_clear(module);
 
+    /* Free the event handlers. */
+    int i;
+
+    for (i = 0; i < sipEventNrEvents; ++i)
+    {
+        sipEventHandler *eh = sms->event_handlers[i];
+
+        while (eh != NULL)
+        {
+            sipEventHandler *next = eh->next;
+
+            sip_api_free(eh);
+            eh = next;
+        }
+    }
+
+    /* Free the object map. */
     sip_om_finalise(&sms->object_map);
 }
 

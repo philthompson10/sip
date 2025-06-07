@@ -16,6 +16,7 @@
 #include <Python.h>
 
 #include "sip.h"
+#include "sip_core.h"
 #include "sip_object_map.h"
 
 
@@ -45,6 +46,9 @@ typedef struct _sipSipModuleState {
      * super-type.
      */
     PyObject *base_tuple_wrapper;
+
+    /* The event handler lists. */
+    sipEventHandler *event_handlers[sipEventNrEvents];
 
     /* The method descriptor type object. */
     PyTypeObject *method_descr_type;

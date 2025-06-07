@@ -15,18 +15,19 @@
 #define PY_SSIZE_T_CLEAN
 #include <Python.h>
 
-#include "sip_module.h"
-
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
 
-PyObject *sipMethodDescr_New(sipSipModuleState *sms, PyMethodDef *pmd);
-PyObject *sipMethodDescr_Copy(sipSipModuleState *sms, PyObject *orig,
+struct _sipSipModuleState;
+
+
+PyObject *sipMethodDescr_New(struct _sipSipModuleState *sms, PyMethodDef *pmd);
+PyObject *sipMethodDescr_Copy(struct _sipSipModuleState *sms, PyObject *orig,
         PyObject *mixin_name);
-int sip_method_descr_init(PyObject *module, sipSipModuleState *sms);
+int sip_method_descr_init(PyObject *module, struct _sipSipModuleState *sms);
 
 
 #ifdef __cplusplus

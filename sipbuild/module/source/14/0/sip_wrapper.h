@@ -15,13 +15,14 @@
 #define PY_SSIZE_T_CLEAN
 #include <Python.h>
 
-#include "sip_module.h"
-#include "sip_simple_wrapper.h"
-
 
 #ifdef __cplusplus
 extern "C" {
 #endif
+
+
+struct _sipSimpleWrapper;
+struct _sipSipModuleState;
 
 
 /*
@@ -45,7 +46,7 @@ struct _sipWrapper {
 };
 
 
-int sip_wrapper_init(PyObject *module, sipSipModuleState *sms);
+int sip_wrapper_init(PyObject *module, struct _sipSipModuleState *sms);
 
 
 #ifdef __cplusplus
