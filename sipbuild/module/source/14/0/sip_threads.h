@@ -15,23 +15,21 @@
 #define PY_SSIZE_T_CLEAN
 #include <Python.h>
 
-#include "sip.h"
-
-
-void sip_api_end_thread(void);
-
-int sipGetPending(void **pp, sipWrapper **op, int *fp);
-int sipIsPending(void);
-PyObject *sipWrapInstance(void *cpp,  PyTypeObject *py_type, PyObject *args,
-        sipWrapper *owner, int flags);
-
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
 
+struct _sipWrapper;
 
+
+void sip_api_end_thread(void);
+
+int sip_get_pending(void **pp, struct _sipWrapper **op, int *fp);
+int sip_is_pending(void);
+PyObject *sip_wrap_instance(void *cpp,  PyTypeObject *py_type, PyObject *args,
+        struct _sipWrapper *owner, int flags);
 
 
 #ifdef __cplusplus

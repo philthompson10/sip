@@ -1228,7 +1228,7 @@ static PyObject *sip_api_convert_from_new_pytype(PyObject *wmod, void *cpp,
 
     if ((args = PyTuple_New(strlen(fmt))) != NULL && build_object(sms, args, fmt, va) != NULL)
     {
-        res = sipWrapInstance(cpp, py_type, args, owner,
+        res = sip_wrap_instance(cpp, py_type, args, owner,
                 (selfp != NULL ? SIP_DERIVED_CLASS : 0));
 
         /* Initialise the rest of an instance of a derived class. */
@@ -9401,7 +9401,7 @@ static sipSimpleWrapper *deref_mixin(sipSimpleWrapper *w)
 PyObject *sip_wrap_simple_instance(sipSipModuleState *sms, void *cpp,
         const sipTypeDef *td, sipWrapper *owner, int flags)
 {
-    return sipWrapInstance(cpp, sipTypeAsPyTypeObject(td), sms->empty_tuple,
+    return sip_wrap_instance(cpp, sipTypeAsPyTypeObject(td), sms->empty_tuple,
             owner, flags);
 }
 

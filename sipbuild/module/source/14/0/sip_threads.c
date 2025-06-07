@@ -9,7 +9,9 @@
  */
 
 
-#include <pythread.h>
+/* Remove when Python v3.12 is no longer supported. */
+#define PY_SSIZE_T_CLEAN
+#include <Python.h>
 
 #include "sip_threads.h"
 
@@ -39,14 +41,14 @@ static threadDef *threads = NULL;   /* Linked list of threads. */
 
 
 /* Forward references. */
-static threadDef *currentThreadDef(int auto_alloc);
+static threadDef *current_thread_def(int auto_alloc);
 static pendingDef *get_pending(int auto_alloc);
 
 
 /*
  * Get the address etc. of any C/C++ object waiting to be wrapped.
  */
-int sipGetPending(void **pp, sipWrapper **op, int *fp)
+int sip_get_pending(void **pp, sipWrapper **op, int *fp)
 {
     pendingDef *pd;
 
@@ -67,7 +69,7 @@ int sipGetPending(void **pp, sipWrapper **op, int *fp)
 /*
  * Return TRUE if anything is pending.
  */
-int sipIsPending(void)
+int sip_is_pending(void)
 {
     pendingDef *pd;
 
@@ -81,7 +83,7 @@ int sipIsPending(void)
 /*
  * Convert a new C/C++ pointer to a Python instance.
  */
-PyObject *sipWrapInstance(void *cpp, PyTypeObject *py_type, PyObject *args,
+PyObject *sip_wrap_instance(void *cpp, PyTypeObject *py_type, PyObject *args,
         sipWrapper *owner, int flags)
 {
     pendingDef old_pending, *pd;
@@ -124,7 +126,7 @@ void sip_api_end_thread(void)
     threadDef *thread;
     PyGILState_STATE gil = PyGILState_Ensure();
 
-    if ((thread = currentThreadDef(FALSE)) != NULL)
+    if ((thread = current_thread_def(FALSE)) != NULL)
         thread->thr_ident = 0;
 
     PyGILState_Release(gil);
@@ -139,7 +141,7 @@ static pendingDef *get_pending(int auto_alloc)
 {
     threadDef *thread;
 
-    if ((thread = currentThreadDef(auto_alloc)) == NULL)
+    if ((thread = current_thread_def(auto_alloc)) == NULL)
         return NULL;
 
     return &thread->pending;
@@ -150,7 +152,7 @@ static pendingDef *get_pending(int auto_alloc)
  * Return the thread data for the current thread, allocating it if necessary,
  * or NULL if there was an error.
  */
-static threadDef *currentThreadDef(int auto_alloc)
+static threadDef *current_thread_def(int auto_alloc)
 {
     threadDef *thread, *empty = NULL;
     long ident = PyThread_get_thread_ident();
