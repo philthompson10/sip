@@ -72,7 +72,8 @@ static PyObject *sip_api_convert_from_new_pytype(PyObject *wmod, void *cpp,
         PyTypeObject *py_type, sipWrapper *owner, sipSimpleWrapper **selfp,
         const char *fmt, ...);
 static int sip_api_get_state(PyObject *transferObj);
-static PyObject *sip_api_get_pyobject(void *cppPtr, const sipTypeDef *td);
+static PyObject *sip_api_get_pyobject(PyObject *wmod, void *cppPtr,
+        const sipTypeDef *td);
 static int sip_api_parse_result_ex(PyObject *wmod, sip_gilstate_t gil_state,
         sipVirtErrorHandlerFunc error_handler, sipSimpleWrapper *py_self,
         PyObject *method, PyObject *res, const char *fmt, ...);
@@ -103,9 +104,6 @@ static void sip_api_abstract_method(const char *classname, const char *method);
 static void sip_api_bad_class(const char *classname);
 static void *sip_api_get_complex_cpp_ptr(sipSimpleWrapper *sw);
 static PyObject *sip_api_is_py_method(PyObject *wmod, sip_gilstate_t *gil,
-        char *pymc, sipSimpleWrapper *sipSelf, const char *cname,
-        const char *mname);
-static PyObject *sip_api_is_py_method_12_8(PyObject *wmod, sip_gilstate_t *gil,
         char *pymc, sipSimpleWrapper **sipSelfp, const char *cname,
         const char *mname);
 static void sip_api_call_hook(const char *hookname);
@@ -185,10 +183,10 @@ static int sip_api_enable_gc(int enable);
 static void sip_api_print_object(PyObject *o);
 static int sip_api_register_event_handler(sipEventType type,
         const sipTypeDef *td, void *handler);
-static void sip_api_instance_destroyed_ex(PyObject *wmod,
+static void sip_api_instance_destroyed(PyObject *wmod,
         sipSimpleWrapper **sipSelfp);
-static void sip_api_visit_wrappers(sipWrapperVisitorFunc visitor,
-        void *closure);
+static void sip_api_visit_wrappers(PyObject *wmod,
+        sipWrapperVisitorFunc visitor, void *closure);
 static int sip_api_register_exit_notifier(PyMethodDef *md);
 static sipExceptionHandler sip_api_next_exception_handler(void **statep);
 static PyFrameObject *sip_api_get_frame(int depth);
@@ -343,8 +341,6 @@ static const sipAPI sip_api = {
     sip_api_init_mixin,
     sip_api_get_reference,
     sip_api_is_derived_class,
-    sip_api_instance_destroyed_ex,
-    sip_api_is_py_method_12_8,
     sip_api_next_exception_handler,
     sip_api_deprecated_13_9,
     NULL,
@@ -438,7 +434,6 @@ static PyObject *typeName = NULL;
 static PyObject *timestampName = NULL;
 static PyObject *signatureName = NULL;
 
-static sipObjectMap cppPyMap;           /* The C/C++ to Python map. */
 static sipExportedModuleDef *moduleList = NULL; /* List of registered modules. */
 
 static sipTypeDef *currentType = NULL;  /* The type being created. */
@@ -462,6 +457,7 @@ static PyObject *build_object(sipSipModuleState *sms, PyObject *tup,
         const char *fmt, va_list va);
 static PyObject *call_method(sipSipModuleState *sms, PyObject *method,
         const char *fmt, va_list va);
+static void call_py_dtor(sipSipModuleState *sms, sipSimpleWrapper *self);
 static int convert_from_sequence(sipSipModuleState *sms, PyObject *seq,
         const sipTypeDef *td, void **array, Py_ssize_t *nr_elem);
 static void *convert_to_type_us(sipSipModuleState *sms, PyObject *pyObj,
@@ -478,6 +474,11 @@ static int create_mapped_type(sipSipModuleState *sms,
         sipExportedModuleDef *client, sipMappedTypeDef *mtd,
         PyObject *mod_dict);
 static void *find_slot(PyObject *self, sipPySlotType st);
+static PyObject *get_pyobject(sipSipModuleState *sms, void *cppPtr,
+        const sipTypeDef *td);
+static PyObject *is_py_method(sipSipModuleState *sms, sip_gilstate_t *gil,
+        char *pymc, sipSimpleWrapper **sipSelfp, const char *cname,
+        const char *mname);
 static int parse_kwd_args(sipSipModuleState *sms, PyObject **parseErrp,
         PyObject *sipArgs, PyObject *sipKwdArgs, const char **kwdlist,
         PyObject **unused, const char *fmt, va_list va_orig);
@@ -532,7 +533,6 @@ static int addSingleTypeInstance(PyObject *dict, const char *name,
         void *cppPtr, const sipTypeDef *td, int initflags);
 static int addLicense(PyObject *dict, sipLicenseDef *lc);
 static void addToParent(sipWrapper *self, sipWrapper *owner);
-static void callPyDtor(PyObject *wmod, sipSimpleWrapper *self);
 static int parseBytes_AsCharArray(PyObject *obj, const char **ap,
         Py_ssize_t *aszp);
 static int parseBytes_AsChar(PyObject *obj, char *ap);
@@ -638,7 +638,7 @@ const sipAPI *sip_init_library(PyObject *module)
         return NULL;
 
     /* Initialise the object map. */
-    sipOMInit(&cppPyMap);
+    sip_om_init(&sms->object_map);
 
     /* Make sure we are notified at the end of the exit process. */
     if (Py_AtExit(finalise) < 0)
@@ -1037,6 +1037,7 @@ static int sip_api_init_module(PyObject *wmod, sipExportedModuleDef *client,
  * Called by the interpreter to do any final clearing up, just in case the
  * interpreter will re-start.
  */
+// TODO Make this part of the module dealloc.
 static void finalise(void)
 {
     sipExportedModuleDef *em;
@@ -1069,9 +1070,6 @@ static void finalise(void)
     typeName = NULL;
     timestampName = NULL;
     signatureName = NULL;
-
-    /* Release all memory we've allocated directly. */
-    sipOMFinalise(&cppPyMap);
 
     /* Re-initialise those globals that (might) need it. */
     moduleList = NULL;
@@ -4570,19 +4568,19 @@ static PyObject *convertToSequence(void *array, Py_ssize_t nr_elem,
 
 
 /*
- * Perform housekeeping after a C++ instance has been destroyed.
+ * Carry out actions common to all dtors.
  */
-// TODO Remove this
-void sip_api_instance_destroyed(PyObject *wmod, sipSimpleWrapper *sw)
+static void sip_api_instance_destroyed(PyObject *wmod,
+        sipSimpleWrapper **sipSelfp)
 {
-    sip_api_instance_destroyed_ex(wmod, &sw);
+    sip_instance_destroyed(sip_get_sip_module_state(wmod), sipSelfp);
 }
 
 
 /*
- * Carry out actions common to all dtors.
+ * Implement the actions common to all dtors.
  */
-static void sip_api_instance_destroyed_ex(PyObject *wmod,
+void sip_instance_destroyed(sipSipModuleState *sms,
         sipSimpleWrapper **sipSelfp)
 {
     /* If there is no interpreter just to the minimum and get out. */
@@ -4598,15 +4596,14 @@ static void sip_api_instance_destroyed_ex(PyObject *wmod,
 
     if (sipSelf != NULL)
     {
-        sipSipModuleState *sms = sip_get_sip_module_state(wmod);
         PyObject *xtype, *xvalue, *xtb;
 
         /* We may be tidying up after an exception so preserve it. */
         PyErr_Fetch(&xtype, &xvalue, &xtb);
-        callPyDtor(wmod, sipSelf);
+        call_py_dtor(sms, sipSelf);
         PyErr_Restore(xtype, xvalue, xtb);
 
-        sipOMRemoveObject(&cppPyMap, sipSelf);
+        sip_om_remove_object(&sms->object_map, sipSelf);
 
         /*
          * This no longer points to anything useful.  Actually it might do as
@@ -4661,20 +4658,19 @@ void sip_clear_access_func(sipSimpleWrapper *sw)
 /*
  * Call self.__dtor__() if it is implemented.
  */
-static void callPyDtor(PyObject *wmod, sipSimpleWrapper *self)
+static void call_py_dtor(sipSipModuleState *sms, sipSimpleWrapper *self)
 {
     sip_gilstate_t sipGILState;
     char pymc = 0;
-    PyObject *meth;
 
-    meth = sip_api_is_py_method_12_8(wmod, &sipGILState, &pymc, &self, NULL,
+    PyObject *method = is_py_method(sms, &sipGILState, &pymc, &self, NULL,
             "__dtor__");
 
-    if (meth != NULL)
+    if (method != NULL)
     {
-        PyObject *res = sip_api_call_method(wmod, 0, meth, "", NULL);
+        PyObject *res = PyObject_CallObject(method, NULL);
 
-        Py_DECREF(meth);
+        Py_DECREF(method);
 
         /* Discard any result. */
         Py_XDECREF(res);
@@ -6580,27 +6576,25 @@ static int sip_api_add_type_instance(PyObject *wmod, PyObject *dict,
 
 /*
  * Return a Python reimplementation corresponding to a C/C++ virtual function,
- * if any.  If one was found then the GIL is acquired.  This is deprecated, use
- * sip_api_is_python_method_12_8() instead.
+ * if any.  If one was found then the GIL is acquired.
  */
-// TODO Remove this
 static PyObject *sip_api_is_py_method(PyObject *wmod, sip_gilstate_t *gil,
-        char *pymc, sipSimpleWrapper *sipSelf, const char *cname,
+        char *pymc, sipSimpleWrapper **sipSelfp, const char *cname,
         const char *mname)
 {
-    return sip_api_is_py_method_12_8(wmod, gil, pymc, &sipSelf, cname, mname);
+    return is_py_method(sip_get_sip_module_state(wmod), gil, pymc, sipSelfp,
+            cname, mname);
 }
 
 
 /*
- * Return a Python reimplementation corresponding to a C/C++ virtual function,
- * if any.  If one was found then the GIL is acquired.
+ * Implement the return of a Python reimplementation corresponding to a C/C++
+ * virtual function, if any.  If one was found then the GIL is acquired.
  */
-static PyObject *sip_api_is_py_method_12_8(PyObject *wmod, sip_gilstate_t *gil,
+static PyObject *is_py_method(sipSipModuleState *sms, sip_gilstate_t *gil,
         char *pymc, sipSimpleWrapper **sipSelfp, const char *cname,
         const char *mname)
 {
-    sipSipModuleState *sms = sip_get_sip_module_state(wmod);
     sipSimpleWrapper *sipSelf;
     PyObject *mname_obj, *reimp, *mro, *cls;
     Py_ssize_t i;
@@ -6762,9 +6756,20 @@ release_gil:
 /*
  * Convert a C/C++ pointer to the object that wraps it.
  */
-static PyObject *sip_api_get_pyobject(void *cppPtr, const sipTypeDef *td)
+static PyObject *sip_api_get_pyobject(PyObject *wmod, void *cppPtr,
+        const sipTypeDef *td)
 {
-    return (PyObject *)sipOMFindObject(&cppPyMap, cppPtr, td);
+    return get_pyobject(sip_get_sip_module_state(wmod), cppPtr, td);
+}
+
+
+/*
+ * Implement the conversion of a C/C++ pointer to the object that wraps it.
+ */
+static PyObject *get_pyobject(sipSipModuleState *sms, void *cppPtr,
+        const sipTypeDef *td)
+{
+    return (PyObject *)sip_om_find_object(&sms->object_map, cppPtr, td);
 }
 
 
@@ -7273,7 +7278,7 @@ PyObject *sip_convert_from_type(sipSipModuleState *sms, void *cpp,
      * expensive so we check the cache first, even though the sub-class code
      * might perform a down-cast.
      */
-    if ((py = sip_api_get_pyobject(cpp, td)) == NULL && sipTypeHasSCC(td))
+    if ((py = get_pyobject(sms, cpp, td)) == NULL && sipTypeHasSCC(td))
     {
         void *orig_cpp = cpp;
         const sipTypeDef *orig_td = td;
@@ -7286,7 +7291,7 @@ PyObject *sip_convert_from_type(sipSipModuleState *sms, void *cpp,
          * again using the modified values.
          */
         if (cpp != orig_cpp || td != orig_td)
-            py = sip_api_get_pyobject(cpp, td);
+            py = get_pyobject(sms, cpp, td);
     }
 
     if (py != NULL)
@@ -8434,6 +8439,8 @@ void sip_add_type_slots(PyHeapTypeObject *heap_to, sipPySlotDef *slots)
  */
 void sip_forget_object(sipSimpleWrapper *sw)
 {
+    sipSipModuleState *sms = sip_get_sip_module_state_from_wrapper(
+            (PyObject *)sw);
     EventHandler *eh;
     const sipClassTypeDef *ctd = (const sipClassTypeDef *)((sipWrapperType *)Py_TYPE(sw))->wt_td;
 
@@ -8460,7 +8467,7 @@ void sip_forget_object(sipSimpleWrapper *sw)
      * Python.)  By removing it from the map first we ensure that a new Python
      * object is created.
      */
-    sipOMRemoveObject(&cppPyMap, sw);
+    sip_om_remove_object(&sms->object_map, sw);
 
     if (sipInterpreter != NULL)
     {
@@ -10141,22 +10148,11 @@ int sip_api_convert_from_slice_object(PyObject *slice, Py_ssize_t length,
 /*
  * Call a visitor function for every wrapped object.
  */
-static void sip_api_visit_wrappers(sipWrapperVisitorFunc visitor,
-        void *closure)
+static void sip_api_visit_wrappers(PyObject *wmod,
+        sipWrapperVisitorFunc visitor, void *closure)
 {
-    const sipHashEntry *he;
-    unsigned long i;
-
-    for (he = cppPyMap.hash_array, i = 0; i < cppPyMap.size; ++i, ++he)
-    {
-        if (he->key != NULL)
-        {
-            sipSimpleWrapper *sw;
-
-            for (sw = he->first; sw != NULL; sw = sw->next)
-                visitor(sw, closure);
-        }
-    }
+    sip_om_visit_wrappers(&sip_get_sip_module_state(wmod)->object_map, visitor,
+            closure);
 }
 
 

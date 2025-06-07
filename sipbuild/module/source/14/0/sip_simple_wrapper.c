@@ -15,6 +15,7 @@
 
 #include "sip_core.h"
 #include "sip_module.h"
+#include "sip_object_map.h"
 
 
 /* Forward declarations of slots. */
@@ -164,6 +165,7 @@ static int SimpleWrapper_getbuffer(PyObject *self, Py_buffer *buf, int flags)
  */
 static int SimpleWrapper_init(PyObject *self, PyObject *args, PyObject *kwds)
 {
+    sipSipModuleState *sms = sip_get_sip_module_state_from_wrapper(self);
     sipSimpleWrapper *sw = (sipSimpleWrapper *)self;
 
     void *sipNew;
@@ -294,7 +296,7 @@ static int SimpleWrapper_init(PyObject *self, PyObject *args, PyObject *kwds)
         sw->access_func = NULL;
 
     if (!sipNotInMap(sw))
-        sipOMAddObject(&cppPyMap, sw);
+        sip_om_add_object(sms, sw);
 
     /* If we are wrapping an instance returned from C/C++ then we are done. */
     if (from_cpp)

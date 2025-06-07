@@ -39,7 +39,7 @@ typedef struct
  */
 typedef struct
 {
-    int primeIdx;               /* Index into table sizes. */
+    int prime_idx;              /* Index into table sizes. */
     uintptr_t size;             /* Size of hash table. */
     uintptr_t unused;           /* Nr. unused in hash table. */
     uintptr_t stale;            /* Nr. stale in hash table. */
@@ -47,12 +47,18 @@ typedef struct
 } sipObjectMap;
 
 
-void sipOMInit(sipObjectMap *om);
-void sipOMFinalise(sipObjectMap *om);
-sipSimpleWrapper *sipOMFindObject(sipObjectMap *om, void *key,
+struct _sipSimpleWrapper;
+struct _sipSipModuleState;
+
+void sip_om_add_object(struct _sipSipModuleState *sms,
+        struct _sipSimpleWrapper *val);
+void sip_om_finalise(sipObjectMap *om);
+sipSimpleWrapper *sip_om_find_object(sipObjectMap *om, void *key,
         const sipTypeDef *td);
-void sipOMAddObject(sipObjectMap *om, sipSimpleWrapper *val);
-int sipOMRemoveObject(sipObjectMap *om, sipSimpleWrapper *val);
+void sip_om_init(sipObjectMap *om);
+int sip_om_remove_object(sipObjectMap *om, struct _sipSimpleWrapper *val);
+void sip_om_visit_wrappers(sipObjectMap *om, sipWrapperVisitorFunc visitor,
+        void *closure);
 
 
 #ifdef __cplusplus

@@ -16,6 +16,7 @@
 #include <Python.h>
 
 #include "sip.h"
+#include "sip_object_map.h"
 
 
 #ifdef __cplusplus
@@ -24,7 +25,7 @@ extern "C" {
 
 
 /* The sip module's state. */
-typedef struct {
+typedef struct _sipSipModuleState {
     /* The sip.array type object. */
     PyTypeObject *array_type;
 
@@ -47,6 +48,9 @@ typedef struct {
 
     /* The method descriptor type object. */
     PyTypeObject *method_descr_type;
+
+    /* The object map. */
+    sipObjectMap object_map;
 
     /* The sip.simplewrapper type object. */
     PyTypeObject *simple_wrapper_type;

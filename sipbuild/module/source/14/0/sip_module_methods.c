@@ -18,6 +18,7 @@
 #include "sip_core.h"
 #include "sip_enum.h"
 #include "sip_module.h"
+#include "sip_object_map.h"
 #include "sip_simple_wrapper.h"
 #include "sip_wrapper.h"
 #include "sip_wrapper_type.h"
@@ -473,8 +474,7 @@ static void clear_wrapper(sipSipModuleState *sms, sipSimpleWrapper *sw)
      */
     sipResetPyOwned(sw);
 
-    sipOMRemoveObject(&cppPyMap, sw);
-
+    sip_om_remove_object(&sms->object_map, sw);
     sip_clear_access_func(sw);
 }
 

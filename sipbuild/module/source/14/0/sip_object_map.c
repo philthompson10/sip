@@ -13,6 +13,11 @@
 
 #include "sip_object_map.h"
 
+#include "sip_core.h"
+#include "sip_module.h"
+#include "sip_simple_wrapper.h"
+#include "sip_wrapper_type.h"
+
 
 #define hash_1(k,s) (((uintptr_t)(k)) % (s))
 #define hash_2(k,s) ((s) - 2 - (hash_1((k),(s)) % ((s) - 2)))
@@ -28,43 +33,46 @@ static uintptr_t hash_primes[] = {
 };
 
 
-static sipHashEntry *newHashTable(uintptr_t);
-static sipHashEntry *findHashEntry(sipObjectMap *,void *);
-static void add_object(sipObjectMap *om, void *addr, sipSimpleWrapper *val);
-static void add_aliases(sipObjectMap *om, void *addr, sipSimpleWrapper *val,
-        const sipClassTypeDef *base_ctd, const sipClassTypeDef *ctd);
-static int remove_object(sipObjectMap *om, void *addr, sipSimpleWrapper *val);
+/* Forward declarations. */
+static void add_aliases(sipSipModuleState *sms, void *addr,
+        sipSimpleWrapper *val, const sipClassTypeDef *base_ctd,
+        const sipClassTypeDef *ctd);
+static void add_object(sipSipModuleState *sms, void *addr,
+        sipSimpleWrapper *val);
+static sipHashEntry *find_hash_entry(sipObjectMap *om, void *key);
+static void *get_unguarded_pointer(sipSimpleWrapper *sw);
+static sipHashEntry *new_hash_table(uintptr_t size);
 static void remove_aliases(sipObjectMap *om, void *addr, sipSimpleWrapper *val,
         const sipClassTypeDef *base_ctd, const sipClassTypeDef *ctd);
-static void reorganiseMap(sipObjectMap *om);
-static void *getUnguardedPointer(sipSimpleWrapper *w);
+static int remove_object(sipObjectMap *om, void *addr, sipSimpleWrapper *val);
+static void reorganise_map(sipObjectMap *om);
 
 
 /*
  * Initialise an object map.
  */
-void sipOMInit(sipObjectMap *om)
+void sip_om_init(sipObjectMap *om)
 {
-    om -> primeIdx = 0;
-    om -> unused = om -> size = hash_primes[om -> primeIdx];
-    om -> stale = 0;
-    om -> hash_array = newHashTable(om -> size);
+    om->prime_idx = 0;
+    om->unused = om->size = hash_primes[om->prime_idx];
+    om->stale = 0;
+    om->hash_array = new_hash_table(om->size);
 }
 
 
 /*
  * Finalise an object map.
  */
-void sipOMFinalise(sipObjectMap *om)
+void sip_sm_finalise(sipObjectMap *om)
 {
-    sip_api_free(om -> hash_array);
+    sip_api_free(om->hash_array);
 }
 
 
 /*
  * Allocate and initialise a new hash table.
  */
-static sipHashEntry *newHashTable(uintptr_t size)
+static sipHashEntry *new_hash_table(uintptr_t size)
 {
     size_t nbytes;
     sipHashEntry *hashtab;
@@ -82,18 +90,18 @@ static sipHashEntry *newHashTable(uintptr_t size)
  * Return a pointer to the hash entry that is used, or should be used, for the
  * given C/C++ address.
  */
-static sipHashEntry *findHashEntry(sipObjectMap *om,void *key)
+static sipHashEntry *find_hash_entry(sipObjectMap *om, void *key)
 {
     uintptr_t hash, inc;
     void *hek;
 
-    hash = hash_1(key,om -> size);
-    inc = hash_2(key,om -> size);
+    hash = hash_1(key, om->size);
+    inc = hash_2(key, om->size);
 
-    while ((hek = om -> hash_array[hash].key) != NULL && hek != key)
-        hash = (hash + inc) % om -> size;
+    while ((hek = om->hash_array[hash].key) != NULL && hek != key)
+        hash = (hash + inc) % om->size;
 
-    return &om -> hash_array[hash];
+    return &om->hash_array[hash];
 }
 
 
@@ -101,10 +109,10 @@ static sipHashEntry *findHashEntry(sipObjectMap *om,void *key)
  * Return the wrapped Python object of a specific type for a C/C++ address or
  * NULL if it wasn't found.
  */
-sipSimpleWrapper *sipOMFindObject(sipObjectMap *om, void *key,
+sipSimpleWrapper *sip_om_find_object(sipObjectMap *om, void *key,
         const sipTypeDef *td)
 {
-    sipHashEntry *he = findHashEntry(om, key);
+    sipHashEntry *he = find_hash_entry(om, key);
     sipSimpleWrapper *sw;
     PyTypeObject *py_type = sipTypeAsPyTypeObject(td);
 
@@ -144,25 +152,26 @@ sipSimpleWrapper *sipOMFindObject(sipObjectMap *om, void *key,
 /*
  * Add a C/C++ address and the corresponding wrapped Python object to the map.
  */
-void sipOMAddObject(sipObjectMap *om, sipSimpleWrapper *val)
+void sip_om_add_object(sipSipModuleState *sms, sipSimpleWrapper *val)
 {
-    void *addr = getUnguardedPointer(val);
+    void *addr = get_unguarded_pointer(val);
     const sipClassTypeDef *base_ctd;
 
     /* Add the object. */
-    add_object(om, addr, val);
+    add_object(sms, addr, val);
 
     /* Add any aliases. */
     base_ctd = (const sipClassTypeDef *)((sipWrapperType *)Py_TYPE(val))->wt_td;
-    add_aliases(om, addr, val, base_ctd, base_ctd);
+    add_aliases(sms, addr, val, base_ctd, base_ctd);
 }
 
 
 /*
  * Add an alias for any address that is different when cast to a super-type.
  */
-static void add_aliases(sipObjectMap *om, void *addr, sipSimpleWrapper *val,
-        const sipClassTypeDef *base_ctd, const sipClassTypeDef *ctd)
+static void add_aliases(sipSipModuleState *sms, void *addr,
+        sipSimpleWrapper *val, const sipClassTypeDef *base_ctd,
+        const sipClassTypeDef *ctd)
 {
     const sipEncodedTypeDef *sup;
 
@@ -173,7 +182,7 @@ static void add_aliases(sipObjectMap *om, void *addr, sipSimpleWrapper *val,
                 ctd);
 
         /* Recurse up the hierachy for the first super-class. */
-        add_aliases(om, addr, val, base_ctd, sup_ctd);
+        add_aliases(sms, addr, val, base_ctd, sup_ctd);
 
         /*
          * We only check for aliases for subsequent super-classes because the
@@ -186,7 +195,7 @@ static void add_aliases(sipObjectMap *om, void *addr, sipSimpleWrapper *val,
             sup_ctd = sip_get_generated_class_type(sup, ctd);
 
             /* Recurse up the hierachy for the remaining super-classes. */
-            add_aliases(om, addr, val, base_ctd, sup_ctd);
+            add_aliases(sms, addr, val, base_ctd, sup_ctd);
 
             sup_addr = (*base_ctd->ctd_cast)(addr, (sipTypeDef *)sup_ctd);
 
@@ -209,7 +218,7 @@ static void add_aliases(sipObjectMap *om, void *addr, sipSimpleWrapper *val,
                     alias->data = val;
                     alias->next = NULL;
 
-                    add_object(om, sup_addr, alias);
+                    add_object(sms, sup_addr, alias);
                 }
             }
         }
@@ -220,9 +229,10 @@ static void add_aliases(sipObjectMap *om, void *addr, sipSimpleWrapper *val,
 /*
  * Add a wrapper (which may be an alias) to the map.
  */
-static void add_object(sipObjectMap *om, void *addr, sipSimpleWrapper *val)
+static void add_object(sipSipModuleState *sms, void *addr,
+        sipSimpleWrapper *val)
 {
-    sipHashEntry *he = findHashEntry(om, addr);
+    sipHashEntry *he = find_hash_entry(&sms->object_map, addr);
 
     /*
      * If the bucket is in use then we appear to have several objects at the
@@ -267,7 +277,7 @@ static void add_object(sipObjectMap *om, void *addr, sipSimpleWrapper *val)
                      * up trying to remove the wrapper and its aliases from the
                      * map.
                      */
-                    sip_api_instance_destroyed(sw);
+                    sip_instance_destroyed(sms, &sw);
                 }
 
                 sw = next;
@@ -284,31 +294,31 @@ static void add_object(sipObjectMap *om, void *addr, sipSimpleWrapper *val)
     if (he->key == NULL)
     {
         he->key = addr;
-        om->unused--;
+        sms->object_map.unused--;
     }
     else
     {
-        om->stale--;
+        sms->object_map.stale--;
     }
 
     /* Add the rest of the new value. */
     he->first = val;
     val->next = NULL;
 
-    reorganiseMap(om);
+    reorganise_map(&sms->object_map);
 }
 
 
 /*
  * Reorganise a map if it is running short of space.
  */
-static void reorganiseMap(sipObjectMap *om)
+static void reorganise_map(sipObjectMap *om)
 {
     uintptr_t old_size, i;
     sipHashEntry *ohe, *old_tab;
 
     /* Don't bother if it still has more than 12% available. */
-    if (om -> unused > om -> size >> 3)
+    if (om->unused > om->size >> 3)
         return;
 
     /*
@@ -316,15 +326,15 @@ static void reorganiseMap(sipObjectMap *om)
      * sized table would make 25% available then do that.  Otherwise use a
      * bigger table (if possible).
      */
-    if (om -> unused + om -> stale < om -> size >> 2 && hash_primes[om -> primeIdx + 1] != 0)
-        om -> primeIdx++;
+    if (om->unused + om->stale < om->size >> 2 && hash_primes[om->prime_idx + 1] != 0)
+        om->prime_idx++;
 
-    old_size = om -> size;
-    old_tab = om -> hash_array;
+    old_size = om->size;
+    old_tab = om->hash_array;
 
-    om -> unused = om -> size = hash_primes[om -> primeIdx];
-    om -> stale = 0;
-    om -> hash_array = newHashTable(om -> size);
+    om->unused = om->size = hash_primes[om->prime_idx];
+    om->stale = 0;
+    om->hash_array = new_hash_table(om->size);
 
     /* Transfer the entries from the old table to the new one. */
     ohe = old_tab;
@@ -333,8 +343,8 @@ static void reorganiseMap(sipObjectMap *om)
     {
         if (ohe -> key != NULL && ohe -> first != NULL)
         {
-            *findHashEntry(om,ohe -> key) = *ohe;
-            om -> unused--;
+            *find_hash_entry(om, ohe->key) = *ohe;
+            om->unused--;
         }
 
         ++ohe;
@@ -348,7 +358,7 @@ static void reorganiseMap(sipObjectMap *om)
  * Remove a C/C++ object from the table.  Return 0 if it was removed
  * successfully.
  */
-int sipOMRemoveObject(sipObjectMap *om, sipSimpleWrapper *val)
+int sip_om_remove_object(sipObjectMap *om, sipSimpleWrapper *val)
 {
     void *addr;
     const sipClassTypeDef *base_ctd;
@@ -357,7 +367,7 @@ int sipOMRemoveObject(sipObjectMap *om, sipSimpleWrapper *val)
     if (sipNotInMap(val))
         return 0;
 
-    if ((addr = getUnguardedPointer(val)) == NULL)
+    if ((addr = get_unguarded_pointer(val)) == NULL)
         return 0;
 
     /* Remove any aliases. */
@@ -413,7 +423,7 @@ static void remove_aliases(sipObjectMap *om, void *addr, sipSimpleWrapper *val,
  */
 static int remove_object(sipObjectMap *om, void *addr, sipSimpleWrapper *val)
 {
-    sipHashEntry *he = findHashEntry(om, addr);
+    sipHashEntry *he = find_hash_entry(om, addr);
     sipSimpleWrapper **swp;
 
     for (swp = &he->first; *swp != NULL; swp = &(*swp)->next)
@@ -468,7 +478,29 @@ static int remove_object(sipObjectMap *om, void *addr, sipSimpleWrapper *val)
  * Return the unguarded pointer to a C/C++ instance, ie. the pointer was valid
  * but may longer be.
  */
-static void *getUnguardedPointer(sipSimpleWrapper *w)
+static void *get_unguarded_pointer(sipSimpleWrapper *sw)
 {
-    return (w->access_func != NULL) ? w->access_func(w, UnguardedPointer) : w->data;
+    return (sw->access_func != NULL) ? sw->access_func(sw, UnguardedPointer) : sw->data;
+}
+
+
+/*
+ * Call a visitor function for every wrapped object.
+ */
+void sip_om_visit_wrappers(sipObjectMap *om, sipWrapperVisitorFunc visitor,
+        void *closure)
+{
+    const sipHashEntry *he;
+    uintptr_t i;
+
+    for (he = om->hash_array, i = 0; i < om->size; ++i, ++he)
+    {
+        if (he->key != NULL)
+        {
+            sipSimpleWrapper *sw;
+
+            for (sw = he->first; sw != NULL; sw = sw->next)
+                visitor(sw, closure);
+        }
+    }
 }

@@ -1236,7 +1236,8 @@ struct _sipAPI {
     PyObject *(*api_convert_from_enum)(int eval, const sipTypeDef *td);
     int (*api_get_state)(PyObject *transferObj);
     void (*api_free)(void *mem);
-    PyObject *(*api_get_pyobject)(void *cppPtr, const sipTypeDef *td);
+    PyObject *(*api_get_pyobject)(PyObject *wmod, void *cppPtr,
+            const sipTypeDef *td);
     void *(*api_malloc)(size_t nbytes);
     int (*api_parse_result)(PyObject *wmod, int *isErr, PyObject *method,
             PyObject *res, const char *fmt, ...);
@@ -1295,7 +1296,8 @@ struct _sipAPI {
     void (*api_release_buffer_info)(sipBufferInfoDef *);
     PyObject *(*api_get_user_object)(const sipSimpleWrapper *);
     void (*api_set_user_object)(sipSimpleWrapper *, PyObject *);
-    void (*api_instance_destroyed)(PyObject *wmod, sipSimpleWrapper *sipSelf);
+    void (*api_instance_destroyed)(PyObject *wmod,
+            sipSimpleWrapper **sipSelfp);
     int (*api_is_owned_by_python)(sipSimpleWrapper *);
     int (*api_enable_gc)(int enable);
     void (*api_print_object)(PyObject *o);
@@ -1317,7 +1319,8 @@ struct _sipAPI {
             Py_ssize_t *start, Py_ssize_t *stop, Py_ssize_t *step,
             Py_ssize_t *slicelength);
     size_t (*api_long_as_size_t)(PyObject *o);
-    void (*api_visit_wrappers)(sipWrapperVisitorFunc visitor, void *closure);
+    void (*api_visit_wrappers)(PyObject *wmod, sipWrapperVisitorFunc visitor,
+            void *closure);
     int (*api_register_exit_notifier)(PyMethodDef *md);
 #if defined(SIP_CONFIGURATION_PyEnums)
     int (*api_is_enum_flag)(PyObject *o);
@@ -1350,7 +1353,7 @@ struct _sipAPI {
     void *(*api_get_cpp_ptr)(sipSimpleWrapper *w, const sipTypeDef *td);
     void *(*api_get_complex_cpp_ptr)(sipSimpleWrapper *w);
     PyObject *(*api_is_py_method)(PyObject *wmod, sip_gilstate_t *gil,
-            char *pymc, sipSimpleWrapper *sipSelf, const char *cname,
+            char *pymc, sipSimpleWrapper **sipSelfp, const char *cname,
             const char *mname);
     void (*api_call_hook)(const char *hookname);
     void (*api_end_thread)(void);
@@ -1393,11 +1396,6 @@ struct _sipAPI {
             PyObject *kwds, const sipClassTypeDef *ctd);
     PyObject *(*api_get_reference)(PyObject *self, int key);
     int (*api_is_derived_class)(sipSimpleWrapper *);
-    void (*api_instance_destroyed_ex)(PyObject *wmod,
-            sipSimpleWrapper **sipSelfp);
-    PyObject *(*api_is_py_method_12_8)(PyObject *wmod, sip_gilstate_t *gil,
-            char *pymc, sipSimpleWrapper **sipSelfp, const char *cname,
-            const char *mname);
     sipExceptionHandler (*api_next_exception_handler)(void **statep);
     int (*api_deprecated_13_9)(const char *classname, const char *method, const char *message);
     void (*unused_private_3)(void);

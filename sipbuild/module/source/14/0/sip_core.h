@@ -46,7 +46,6 @@ int sip_api_enable_autoconversion(const sipTypeDef *td, int enable);
 void sip_api_free(void *mem);
 void *sip_api_get_address(sipSimpleWrapper *w);
 void *sip_api_get_cpp_ptr(sipSimpleWrapper *w, const sipTypeDef *td);
-void sip_api_instance_destroyed(PyObject *wmod, sipSimpleWrapper *sipSelf);
 void *sip_api_malloc(size_t nbytes);
 const sipTypeDef *sip_api_type_scope(const sipTypeDef *td);
 
@@ -76,6 +75,8 @@ void *sip_get_ptr_type_def(sipSimpleWrapper *self,
 PyObject *sip_get_qualname(const sipTypeDef *td, PyObject *name);
 PyObject *sip_get_scope_dict(sipSipModuleState *sms, sipTypeDef *td,
         PyObject *mod_dict, sipExportedModuleDef *client);
+void sip_instance_destroyed(sipSipModuleState *sms,
+        sipSimpleWrapper **sipSelfp);
 int sip_objectify(const char *s, PyObject **objp);
 void sip_release(void *addr, const sipTypeDef *td, int state,
         void *user_state);

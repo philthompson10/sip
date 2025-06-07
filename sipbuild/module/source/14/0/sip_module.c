@@ -14,6 +14,7 @@
 #include <assert.h>
 
 #include "sip_module.h"
+#include "sip_object_map.h"
 
 
 /* Forward declarations. */
@@ -116,7 +117,12 @@ static int module_exec(PyObject *module)
 // TODO This has to be exposed to be called for when the sip module is a lib.
 static void module_free(void *module_ptr)
 {
-    module_clear((PyObject *)module_ptr);
+    PyObject *module = (PyObject *)module_ptr;
+    sipSipModuleState *sms = (sipSipModuleState *)PyModule_GetState(module);
+
+    module_clear(module);
+
+    sip_om_finalise(&sms->object_map);
 }
 
 
