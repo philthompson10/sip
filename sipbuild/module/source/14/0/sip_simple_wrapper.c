@@ -23,14 +23,12 @@
 
 
 /* Forward declarations of slots. */
-static int SimpleWrapper_clear(PyObject *self);
 static void SimpleWrapper_dealloc(PyObject *self);
 static int SimpleWrapper_getbuffer(PyObject *self, Py_buffer *buf, int flags);
 static int SimpleWrapper_init(PyObject *self, PyObject *args, PyObject *kwds);
 static PyObject *SimpleWrapper_new(PyTypeObject *cls, PyObject *args,
         PyObject *kwds);
 static void SimpleWrapper_releasebuffer(PyObject *self, Py_buffer *buf);
-static int SimpleWrapper_traverse(PyObject *self, visitproc visit, void *arg);
 
 static PyObject *SimpleWrapper_get_dict(PyObject *self, void *closure);
 static int SimpleWrapper_set_dict(PyObject *self, PyObject *value,
@@ -88,7 +86,7 @@ static void *indirect_access_func(sipSimpleWrapper *sw, AccessFuncOp op);
 /*
  * The simple wrapper clear slot.
  */
-static int SimpleWrapper_clear(PyObject *self)
+int SimpleWrapper_clear(PyObject *self)
 {
     sipSimpleWrapper *sw = (sipSimpleWrapper *)self;
 
@@ -537,7 +535,7 @@ static void SimpleWrapper_releasebuffer(PyObject *self, Py_buffer *buf)
 /*
  * The simple wrapper traverse slot.
  */
-static int SimpleWrapper_traverse(PyObject *self, visitproc visit, void *arg)
+int SimpleWrapper_traverse(PyObject *self, visitproc visit, void *arg)
 {
     sipSimpleWrapper *sw = (sipSimpleWrapper *)self;
 

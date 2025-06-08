@@ -15,6 +15,7 @@
 
 #include "sip_core.h"
 #include "sip_module.h"
+#include "sip_simple_wrapper.h"
 
 
 /* Forward declarations of slots. */
@@ -31,7 +32,7 @@ static PyType_Slot Wrapper_slots[] = {
     {Py_tp_dealloc, Wrapper_dealloc},
     {Py_tp_traverse, Wrapper_traverse},
     {0, NULL}
-}
+};
 
 static PyType_Spec Wrapper_TypeSpec = {
     .name = _SIP_MODULE_FQ_NAME ".wrapper",
@@ -45,7 +46,7 @@ static PyType_Spec Wrapper_TypeSpec = {
              Py_TPFLAGS_IMMUTABLETYPE |
 #endif
              Py_TPFLAGS_HAVE_GC,
-    .slots = WrapperType_slots,
+    .slots = Wrapper_slots,
 };
 
 
@@ -57,12 +58,11 @@ static int Wrapper_clear(PyObject *self)
     sipWrapper *sw = (sipWrapper *)self;
     int vret;
 
-    // TODO Call super class some other way (or done automatically?)
     vret = SimpleWrapper_clear(self);
 
     /* Detach any children (which will be owned by C/C++). */
     while (sw->first_child != NULL)
-        removeFromParent(sw->first_child);
+        sip_remove_from_parent(sw->first_child);
 
     return vret;
 }
@@ -93,7 +93,6 @@ static int Wrapper_traverse(PyObject *self, visitproc visit, void *arg)
 {
     int vret;
 
-    // TODO Call super class some other way (or done automatically?)
     if ((vret = SimpleWrapper_traverse(self, visit, arg)) != 0)
         return vret;
 
@@ -108,7 +107,7 @@ static int Wrapper_traverse(PyObject *self, visitproc visit, void *arg)
          * plugins implemented in Python have a chance of working.
          */
         // TODO Need to collect everything.
-        if (w != self)
+        if ((PyObject *)w != self)
             if ((vret = visit((PyObject *)w, arg)) != 0)
                 return vret;
     }
@@ -125,7 +124,7 @@ int sip_wrapper_init(PyObject *module, sipSipModuleState *sms)
 #if PY_VERSION_HEX >= 0x030c0000
     sms->wrapper_type = (PyTypeObject *)PyType_FromMetaclass(
             sms->wrapper_type_type, module, &Wrapper_TypeSpec,
-            sms->simple_wrapper_type);
+            (PyObject *)sms->simple_wrapper_type);
 #else
     // TODO support for version prior to v3.12.
 #endif
