@@ -1245,12 +1245,13 @@ struct _sipAPI {
     void (*api_transfer_back)(PyObject *wmod, PyObject *self);
     void (*api_transfer_to)(PyObject *wmod, PyObject *self, PyObject *owner);
     unsigned long (*api_long_as_unsigned_long)(PyObject *o);
-    PyObject *(*api_convert_from_void_ptr)(void *val);
-    PyObject *(*api_convert_from_const_void_ptr)(const void *val);
-    PyObject *(*api_convert_from_void_ptr_and_size)(void *val,
+    PyObject *(*api_convert_from_void_ptr)(PyObject *wmod, void *val);
+    PyObject *(*api_convert_from_const_void_ptr)(PyObject *wmod,
+            const void *val);
+    PyObject *(*api_convert_from_void_ptr_and_size)(PyObject *wmod, void *val,
             Py_ssize_t size);
-    PyObject *(*api_convert_from_const_void_ptr_and_size)(const void *val,
-            Py_ssize_t size);
+    PyObject *(*api_convert_from_const_void_ptr_and_size)(PyObject *wmod,
+            const void *val, Py_ssize_t size);
     void *(*api_convert_to_void_ptr)(PyObject *obj);
     int (*api_export_symbol)(const char *name, void *sym);
     void *(*api_import_symbol)(const char *name);

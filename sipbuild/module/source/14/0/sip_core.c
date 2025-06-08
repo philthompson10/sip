@@ -442,6 +442,8 @@ static int add_single_type_instance(sipSipModuleState *sms, PyObject *dict,
         const char *name, void *cppPtr, const sipTypeDef *td, int initflags);
 static int add_type_instances(sipSipModuleState *sms, PyObject *dict,
         sipTypeInstanceDef *ti);
+static int add_void_ptr_instances(sipSipModuleState *sms, PyObject *dict,
+        sipVoidPtrInstanceDef *vi);
 static PyObject *build_object(sipSipModuleState *sms, PyObject *tup,
         const char *fmt, va_list va);
 static PyObject *call_method(sipSipModuleState *sms, PyObject *method,
@@ -509,7 +511,6 @@ static sipTypeDef *getGeneratedType(const sipEncodedTypeDef *enc,
         sipExportedModuleDef *em);
 static const sipTypeDef *convertSubClass(const sipTypeDef *td, void **cppPtr);
 static int convertPass(const sipTypeDef **tdp, void **cppPtr);
-static int addVoidPtrInstances(PyObject *dict, sipVoidPtrInstanceDef *vi);
 static int addCharInstances(PyObject *dict, sipCharInstanceDef *ci);
 static int addStringInstances(PyObject *dict, sipStringInstanceDef *si);
 static int addIntInstances(PyObject *dict, sipIntInstanceDef *ii);
@@ -1626,7 +1627,7 @@ static PyObject *build_object(sipSipModuleState *sms, PyObject *obj,
             break;
 
         case 'V':
-            el = sip_api_convert_from_void_ptr(va_arg(va, void *));
+            el = sip_convert_from_void_ptr(sms, va_arg(va, void *));
             break;
 
         case 'z':
@@ -5080,14 +5081,12 @@ sipExportedModuleDef *sip_get_module(PyObject *mname_obj)
 /*
  * The type unpickler.
  */
-PyObject *sip_unpickle_type(PyObject *mod, PyObject *args)
+PyObject *sip_unpickle_type(PyObject *Py_UNUSED(mod), PyObject *args)
 {
     PyObject *mname_obj, *init_args;
     const char *tname;
     sipExportedModuleDef *em;
     int i;
-
-    (void)mod;
 
     if (!PyArg_ParseTuple(args, "UsO!:_unpickle_type", &mname_obj, &tname, &PyTuple_Type, &init_args))
         return NULL;
@@ -5121,13 +5120,10 @@ PyObject *sip_unpickle_type(PyObject *mod, PyObject *args)
  * The type pickler.
  */
 static PyObject *pickle_type(PyObject *self, PyTypeObject *defining_class,
-        PyObject *const *args, Py_ssize_t nargs, PyObject *kwd_args)
+        PyObject *const *Py_UNUSED(args), Py_ssize_t Py_UNUSED(nargs),
+        PyObject *Py_UNUSED(kwd_args))
 {
     sipExportedModuleDef *em;
-
-    (void)args;
-    (void)nargs;
-    (void)kwd_args;
 
     /* Find the type definition and defining module. */
     for (em = moduleList; em != NULL; em = em->em_next)
@@ -5257,16 +5253,16 @@ static int add_instances(sipSipModuleState *sms, PyObject *dict,
     if (id->id_type != NULL && add_type_instances(sms, dict, id->id_type) < 0)
         return -1;
 
-    if (id->id_voidp != NULL && addVoidPtrInstances(dict,id->id_voidp) < 0)
+    if (id->id_voidp != NULL && add_void_ptr_instances(sms, dict,id->id_voidp) < 0)
         return -1;
 
-    if (id->id_char != NULL && addCharInstances(dict,id->id_char) < 0)
+    if (id->id_char != NULL && addCharInstances(dict, id->id_char) < 0)
         return -1;
 
-    if (id->id_string != NULL && addStringInstances(dict,id->id_string) < 0)
+    if (id->id_string != NULL && addStringInstances(dict, id->id_string) < 0)
         return -1;
 
-    if (id->id_long != NULL && addLongInstances(dict,id->id_long) < 0)
+    if (id->id_long != NULL && addLongInstances(dict, id->id_long) < 0)
         return -1;
 
     if (id->id_ulong != NULL && addUnsignedLongInstances(dict, id->id_ulong) < 0)
@@ -5278,7 +5274,7 @@ static int add_instances(sipSipModuleState *sms, PyObject *dict,
     if (id->id_ullong != NULL && addUnsignedLongLongInstances(dict, id->id_ullong) < 0)
         return -1;
 
-    if (id->id_double != NULL && addDoubleInstances(dict,id->id_double) < 0)
+    if (id->id_double != NULL && addDoubleInstances(dict, id->id_double) < 0)
         return -1;
 
     return 0;
@@ -6265,11 +6261,12 @@ deldict:
 /*
  * Add the void pointer instances to a dictionary.
  */
-static int addVoidPtrInstances(PyObject *dict,sipVoidPtrInstanceDef *vi)
+static int addVoidPtrInstances(sipSipModuleState *sms, PyObject *dict,
+        sipVoidPtrInstanceDef *vi)
 {
     while (vi->vi_name != NULL)
     {
-        PyObject *w = sip_api_convert_from_void_ptr(vi->vi_val);
+        PyObject *w = sip_convert_from_void_ptr(sms, vi->vi_val);
 
         if (sip_dict_set_and_discard(dict, vi->vi_name, w) < 0)
             return -1;

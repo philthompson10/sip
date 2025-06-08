@@ -25,11 +25,14 @@ struct _sipSipModuleState;
 
 
 void *sip_api_convert_to_void_ptr(PyObject *obj);
-PyObject *sip_api_convert_from_void_ptr(void *val);
-PyObject *sip_api_convert_from_const_void_ptr(const void *val);
-PyObject *sip_api_convert_from_void_ptr_and_size(void *val, Py_ssize_t size);
-PyObject *sip_api_convert_from_const_void_ptr_and_size(const void *val,
+PyObject *sip_api_convert_from_void_ptr(PyObject *wmod, void *val);
+PyObject *sip_api_convert_from_const_void_ptr(PyObject *wmod, const void *val);
+PyObject *sip_api_convert_from_void_ptr_and_size(PyObject *wmod, void *val,
         Py_ssize_t size);
+PyObject *sip_api_convert_from_const_void_ptr_and_size(PyObject *wmod,
+        const void *val, Py_ssize_t size);
+
+PyObject *sip_convert_from_void_ptr(struct _sipSipModuleState *sms, void *val);
 int sip_void_ptr_init(PyObject *module, struct _sipSipModuleState *sms);
 
 

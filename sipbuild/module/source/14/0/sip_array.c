@@ -742,7 +742,7 @@ static PyObject *create_array(PyTypeObject *array_type, void *data,
         const sipTypeDef *td, const char *format, size_t stride,
         Py_ssize_t len, int flags, PyObject *owner)
 {
-    Array *array = (Array *)array_type->tp_alloc(array_type, 0);
+    Array *array = (Array *)PyType_GenericAlloc(array_type, 0);
 
     if (array == NULL)
         return NULL;
@@ -845,4 +845,15 @@ PyObject *sip_api_convert_to_typed_array(PyObject *wmod, void *data,
 
     return create_array(sip_get_sip_module_state(wmod)->array_type, data, td,
             format, stride, len, flags, NULL);
+}
+
+
+/*
+ * Wrap an arbitrary block of data to an array.
+ */
+PyObject *sip_array_from_bytes(struct _sipSipModuleState *sms, void *data,
+        Py_ssize_t size, int rw)
+{
+    return create_array(sms->array_type, data, NULL, "B",
+            sizeof (unsigned char), size, (rw ? 0 : SIP_READ_ONLY), NULL);
 }

@@ -36,6 +36,8 @@ int sip_array_can_convert(struct _sipSipModuleState *sms, PyObject *obj,
         const sipTypeDef *td);
 void sip_array_convert(PyObject *obj, void **data, Py_ssize_t *size);
 int sip_array_init(PyObject *module, struct _sipSipModuleState *sms);
+PyObject *sip_array_from_bytes(struct _sipSipModuleState *sms, void *data,
+        Py_ssize_t size, int rw);
 
 
 #ifdef __cplusplus
