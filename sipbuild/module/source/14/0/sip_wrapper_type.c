@@ -15,6 +15,7 @@
 
 #include "sip_core.h"
 #include "sip_module.h"
+#include "sip_simple_wrapper.h"
 
 
 /* Forward declarations of slots. */
@@ -51,7 +52,7 @@ static PyType_Spec WrapperType_TypeSpec = {
 #if defined(Py_TPFLAGS_IMMUTABLETYPE)
              Py_TPFLAGS_IMMUTABLETYPE |
 #endif
-             Py_TPFLAGS_HAVE_GC,
+             Py_TPFLAGS_HAVE_GC |
              Py_TPFLAGS_TYPE_SUBCLASS,
     .slots = WrapperType_slots,
 };
@@ -75,15 +76,17 @@ static PyObject *WrapperType_alloc(PyTypeObject *self, Py_ssize_t nitems)
      * function because it is the only place we can break out of the default
      * new() function before PyType_Ready() is called.
      */
-    if (currentType != NULL)
+     sipSipModuleState *sms = sip_get_sip_module_state_from_wrapper_type(self);
+
+    if (sms->current_type_def_backdoor != NULL)
     {
-        assert(!sipTypeIsEnum(currentType));
+        assert(!sipTypeIsEnum(sms->current_type_def_backdoor));
 
-        ((sipWrapperType *)o)->wt_td = currentType;
+        ((sipWrapperType *)o)->wt_td = sms->current_type_def_backdoor;
 
-        if (sipTypeIsClass(currentType) || sipTypeIsNamespace(currentType))
+        if (sipTypeIsClass(sms->current_type_def_backdoor) || sipTypeIsNamespace(sms->current_type_def_backdoor))
         {
-            const sipClassTypeDef *ctd = (const sipClassTypeDef *)currentType;
+            const sipClassTypeDef *ctd = (const sipClassTypeDef *)sms->current_type_def_backdoor;
             const char *docstring = ctd->ctd_docstring;
 
             /*
@@ -95,15 +98,15 @@ static PyObject *WrapperType_alloc(PyTypeObject *self, Py_ssize_t nitems)
 
             ((PyTypeObject *)o)->tp_doc = docstring;
 
-            PyHeapTypeObject *heap_to = &((sipWrapperType *)o->super);
+            PyHeapTypeObject *heap_to = &(((sipWrapperType *)o)->super);
             PyBufferProcs *bp = &heap_to->as_buffer;
 
             /* Add the buffer interface. */
             if (ctd->ctd_getbuffer != NULL)
-                bp->bf_getbuffer = (getbufferproc)sipSimpleWrapper_getbuffer;
+                bp->bf_getbuffer = (getbufferproc)SimpleWrapper_getbuffer;
 
             if (ctd->ctd_releasebuffer != NULL)
-                bp->bf_releasebuffer = (releasebufferproc)sipSimpleWrapper_releasebuffer;
+                bp->bf_releasebuffer = (releasebufferproc)SimpleWrapper_releasebuffer;
 
             /* Add the slots for this type. */
             if (ctd->ctd_pyslots != NULL)
@@ -136,9 +139,10 @@ static void WrapperType_dealloc(PyObject *self)
  */
 static PyObject *WrapperType_getattro(PyObject *self, PyObject *name)
 {
-    PyObject *wmod = PyType_GetModule(Py_TYPE(self));
+    sipSipModuleState *sms = sip_get_sip_module_state_from_wrapper_type(
+            (PyTypeObject *)self);
 
-    if (sip_add_all_lazy_attrs(wmod, ((sipWrapperType *)self)->wt_td) < 0)
+    if (sip_add_all_lazy_attrs(sms, ((sipWrapperType *)self)->wt_td) < 0)
         return NULL;
 
     return PyType_Type.tp_getattro(self, name);
@@ -151,6 +155,9 @@ static PyObject *WrapperType_getattro(PyObject *self, PyObject *name)
 static int WrapperType_init(sipWrapperType *self, PyObject *args,
         PyObject *kwds)
 {
+    sipSipModuleState *sms = sip_get_sip_module_state_from_wrapper_type(
+            (PyTypeObject *)self);
+
     /* Call the standard super-metatype init. */
     if (PyType_Type.tp_init((PyObject *)self, args, kwds) < 0)
         return -1;
@@ -172,19 +179,18 @@ static int WrapperType_init(sipWrapperType *self, PyObject *args,
          * from this meta-type.  This condition is indicated by the pointer to
          * the generated type structure being NULL.
          */
-        if (base != NULL && PyObject_TypeCheck((PyObject *)base, (PyTypeObject *)&sipWrapperType_Type))
+        if (base != NULL && PyObject_TypeCheck((PyObject *)base, sms->wrapper_type_type))
         {
             self->wt_td = ((sipWrapperType *)base)->wt_td;
 
             if (self->wt_td != NULL)
             {
-                EventHandler *eh;
+                sipEventHandler *eh;
 
                 /* Invoke any event handlers. */
-                // TODO move event handlers to module state
-                for (eh = event_handlers[sipEventPySubclassCreated]; eh != NULL; eh = eh->next)
+                for (eh = sms->event_handlers[sipEventPySubclassCreated]; eh != NULL; eh = eh->next)
                 {
-                    if (sipTypeIsClass(eh->td) && is_subtype((const sipClassTypeDef *)self->wt_td, (const sipClassTypeDef *)eh->td))
+                    if (sipTypeIsClass(eh->td) && sip_is_subtype((const sipClassTypeDef *)self->wt_td, (const sipClassTypeDef *)eh->td))
                     {
                         sipPySubclassCreatedEventHandler handler = (sipPySubclassCreatedEventHandler)eh->handler;
 
@@ -203,7 +209,7 @@ static int WrapperType_init(sipWrapperType *self, PyObject *args,
          */
         assert(self->wt_td->td_py_type == NULL);
 
-        self->wt_td->td_py_type = (PyTypeObject *)self;
+        ((sipTypeDef *)(self->wt_td))->td_py_type = (PyTypeObject *)self;
     }
 
     return 0;

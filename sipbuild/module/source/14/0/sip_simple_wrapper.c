@@ -24,11 +24,9 @@
 
 /* Forward declarations of slots. */
 static void SimpleWrapper_dealloc(PyObject *self);
-static int SimpleWrapper_getbuffer(PyObject *self, Py_buffer *buf, int flags);
 static int SimpleWrapper_init(PyObject *self, PyObject *args, PyObject *kwds);
 static PyObject *SimpleWrapper_new(PyTypeObject *cls, PyObject *args,
         PyObject *kwds);
-static void SimpleWrapper_releasebuffer(PyObject *self, Py_buffer *buf);
 
 static PyObject *SimpleWrapper_get_dict(PyObject *self, void *closure);
 static int SimpleWrapper_set_dict(PyObject *self, PyObject *value,
@@ -131,7 +129,7 @@ static void SimpleWrapper_dealloc(PyObject *self)
 /*
  * The simple wrapper get buffer slot.
  */
-static int SimpleWrapper_getbuffer(PyObject *self, Py_buffer *buf, int flags)
+int SimpleWrapper_getbuffer(PyObject *self, Py_buffer *buf, int flags)
 {
     void *ptr;
     const sipClassTypeDef *ctd;
@@ -511,7 +509,7 @@ static PyObject *SimpleWrapper_new(PyTypeObject *cls, PyObject *args,
 /*
  * The simple wrapper release buffer slot.
  */
-static void SimpleWrapper_releasebuffer(PyObject *self, Py_buffer *buf)
+void SimpleWrapper_releasebuffer(PyObject *self, Py_buffer *buf)
 {
     void *ptr;
     const sipClassTypeDef *ctd;

@@ -63,7 +63,7 @@ void sip_om_init(sipObjectMap *om)
 /*
  * Finalise an object map.
  */
-void sip_sm_finalise(sipObjectMap *om)
+void sip_om_finalise(sipObjectMap *om)
 {
     sip_api_free(om->hash_array);
 }

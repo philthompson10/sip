@@ -422,8 +422,6 @@ static PyObject *signatureName = NULL;
 
 static sipExportedModuleDef *moduleList = NULL; /* List of registered modules. */
 
-static sipTypeDef *currentType = NULL;  /* The type being created. */
-
 static sipSymbol *sipSymbolList = NULL; /* The list of published symbols. */
 static sipPyObject *sipRegisteredPyTypes = NULL;    /* Registered Python types. */
 static sipPyObject *sipDisabledAutoconversions = NULL;  /* Python types whose auto-conversion is disabled. */
@@ -603,6 +601,7 @@ const sipAPI *sip_init_library(PyObject *module)
         return NULL;
 
     /* Other simple initialisations. */
+    sms->current_type_def_backdoor = NULL;
     sms->unused_backdoor = NULL;
 
     /* Initialise the types. */
@@ -4810,10 +4809,10 @@ static PyObject *create_container_type(sipSipModuleState *sms,
         goto relname;
 
     /* Pass the type via the back door. */
-    assert(currentType == NULL);
-    currentType = td;
+    assert(sms->current_type_def_backdoor == NULL);
+    sms->current_type_def_backdoor = td;
     py_type = PyObject_Call(metatype, args, NULL);
-    currentType = NULL;
+    sms->current_type_def_backdoor = NULL;
 
     if (py_type == NULL)
         goto relargs;
@@ -6261,7 +6260,7 @@ deldict:
 /*
  * Add the void pointer instances to a dictionary.
  */
-static int addVoidPtrInstances(sipSipModuleState *sms, PyObject *dict,
+static int add_void_ptr_instances(sipSipModuleState *sms, PyObject *dict,
         sipVoidPtrInstanceDef *vi)
 {
     while (vi->vi_name != NULL)
