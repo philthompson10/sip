@@ -10043,7 +10043,7 @@ static int sip_api_register_event_handler(PyObject *wmod, sipEventType type,
     sipSipModuleState *sms = sip_get_sip_module_state(wmod);
     sipEventHandler *eh;
 
-    assert(sipTypeIsClass(td) || sipTypeIsMappedType(td));
+    assert(sipTypeIsClass(td) || sipTypeIsMapped(td));
 
     if ((eh = sip_api_malloc(sizeof (sipEventHandler))) == NULL)
         return -1;

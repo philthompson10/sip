@@ -61,10 +61,10 @@ struct _sipSimpleWrapper {
 };
 
 
-int SimpleWrapper_clear(PyObject *self);
-int SimpleWrapper_traverse(PyObject *self, visitproc visit, void *arg);
-int SimpleWrapper_getbuffer(PyObject *self, Py_buffer *buf, int flags);
-void SimpleWrapper_releasebuffer(PyObject *self, Py_buffer *buf);
+int sipSimpleWrapper_clear(PyObject *self);
+int sipSimpleWrapper_traverse(PyObject *self, visitproc visit, void *arg);
+int sipSimpleWrapper_getbuffer(PyObject *self, Py_buffer *buf, int flags);
+void sipSimpleWrapper_releasebuffer(PyObject *self, Py_buffer *buf);
 
 int sip_simple_wrapper_init(PyObject *module, struct _sipSipModuleState *sms);
 

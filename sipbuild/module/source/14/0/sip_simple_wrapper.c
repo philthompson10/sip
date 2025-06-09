@@ -47,13 +47,13 @@ static PyMemberDef SimpleWrapper_members[] = {
 };
 
 static PyType_Slot SimpleWrapper_slots[] = {
-    {Py_bf_getbuffer, SimpleWrapper_getbuffer},
-    {Py_bf_releasebuffer, SimpleWrapper_releasebuffer},
-    {Py_tp_clear, SimpleWrapper_clear},
+    {Py_bf_getbuffer, sipSimpleWrapper_getbuffer},
+    {Py_bf_releasebuffer, sipSimpleWrapper_releasebuffer},
+    {Py_tp_clear, sipSimpleWrapper_clear},
     {Py_tp_dealloc, SimpleWrapper_dealloc},
     {Py_tp_init, SimpleWrapper_init},
     {Py_tp_new, SimpleWrapper_new},
-    {Py_tp_traverse, SimpleWrapper_traverse},
+    {Py_tp_traverse, sipSimpleWrapper_traverse},
     {Py_tp_getset, SimpleWrapper_getset},
     {Py_tp_members, SimpleWrapper_members},
     {0, NULL}
@@ -84,7 +84,7 @@ static void *indirect_access_func(sipSimpleWrapper *sw, AccessFuncOp op);
 /*
  * The simple wrapper clear slot.
  */
-int SimpleWrapper_clear(PyObject *self)
+int sipSimpleWrapper_clear(PyObject *self)
 {
     sipSimpleWrapper *sw = (sipSimpleWrapper *)self;
 
@@ -129,7 +129,7 @@ static void SimpleWrapper_dealloc(PyObject *self)
 /*
  * The simple wrapper get buffer slot.
  */
-int SimpleWrapper_getbuffer(PyObject *self, Py_buffer *buf, int flags)
+int sipSimpleWrapper_getbuffer(PyObject *self, Py_buffer *buf, int flags)
 {
     void *ptr;
     const sipClassTypeDef *ctd;
@@ -509,7 +509,7 @@ static PyObject *SimpleWrapper_new(PyTypeObject *cls, PyObject *args,
 /*
  * The simple wrapper release buffer slot.
  */
-void SimpleWrapper_releasebuffer(PyObject *self, Py_buffer *buf)
+void sipSimpleWrapper_releasebuffer(PyObject *self, Py_buffer *buf)
 {
     void *ptr;
     const sipClassTypeDef *ctd;
@@ -533,7 +533,7 @@ void SimpleWrapper_releasebuffer(PyObject *self, Py_buffer *buf)
 /*
  * The simple wrapper traverse slot.
  */
-int SimpleWrapper_traverse(PyObject *self, visitproc visit, void *arg)
+int sipSimpleWrapper_traverse(PyObject *self, visitproc visit, void *arg)
 {
     sipSimpleWrapper *sw = (sipSimpleWrapper *)self;
 
