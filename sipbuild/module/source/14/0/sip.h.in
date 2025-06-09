@@ -1257,14 +1257,15 @@ struct _sipAPI {
     int (*api_export_symbol)(PyObject *wmod, const char *name, void *sym);
     void *(*api_import_symbol)(PyObject *wmod, const char *name);
     const sipTypeDef *(*api_find_type)(PyObject *wmod, const char *type);
-    int (*api_register_py_type)(PyTypeObject *type);
+    int (*api_register_py_type)(PyObject *wmod, PyTypeObject *type);
     const sipTypeDef *(*api_type_from_py_type_object)(PyObject *wmod,
             PyTypeObject *py_type);
     const sipTypeDef *(*api_type_scope)(const sipTypeDef *td);
     const char *(*api_resolve_typedef)(PyObject *wmod, const char *name);
     sipErrorState (*api_bad_callable_arg)(int arg_nr, PyObject *arg);
     void *(*api_get_address)(struct _sipSimpleWrapper *w);
-    int (*api_enable_autoconversion)(const sipTypeDef *td, int enable);
+    int (*api_enable_autoconversion)(PyObject *wmod, const sipTypeDef *td,
+            int enable);
     void *(*api_get_mixin_address)(struct _sipSimpleWrapper *w,
             const sipTypeDef *td);
     PyObject *(*api_convert_from_new_pytype)(PyObject *wmod, void *cpp,

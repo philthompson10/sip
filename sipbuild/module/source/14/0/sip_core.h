@@ -45,12 +45,21 @@ typedef struct _sipEventHandler {
 
 
 /*
+ * An entry in a linked list of Python type objects.
+ */
+typedef struct _sipPyTypeObject {
+    PyTypeObject *object;           /* The Python type object. */
+    struct _sipPyTypeObject *next;  /* The next in the list. */
+} sipPyTypeObject;
+
+
+/*
  * An entry in a linked list of name/symbol pairs.
  */
 typedef struct _sipSymbol {
-    const char *name;           /* The name. */
-    void *symbol;               /* The symbol. */
-    struct _sipSymbol *next;    /* The next in the list. */
+    const char *name;               /* The name. */
+    void *symbol;                   /* The symbol. */
+    struct _sipSymbol *next;        /* The next in the list. */
 } sipSymbol;
 
 
@@ -66,7 +75,6 @@ int sip_api_convert_from_slice_object(PyObject *slice, Py_ssize_t length,
 int sip_api_deprecated(const char *classname, const char *method);
 int sip_api_deprecated_13_9(const char *classname, const char *method,
         const char *message);
-int sip_api_enable_autoconversion(const sipTypeDef *td, int enable);
 void sip_api_free(void *mem);
 void *sip_api_get_address(sipSimpleWrapper *w);
 void *sip_api_get_cpp_ptr(sipSimpleWrapper *w, const sipTypeDef *td);
@@ -87,6 +95,8 @@ int sip_check_pointer(void *ptr, sipSimpleWrapper *sw);
 void sip_clear_access_func(sipSimpleWrapper *sw);
 PyObject *sip_convert_from_type(struct _sipSipModuleState *sms, void *cppPtr,
         const sipTypeDef *td, PyObject *transferObj);
+int sip_enable_autoconversion(struct _sipSipModuleState *sms,
+        const sipTypeDef *td, int enable);
 void *sip_force_convert_to_type_us(struct _sipSipModuleState *sms,
         PyObject *pyObj, const sipTypeDef *td, PyObject *transferObj,
         int flags, int *statep, void **user_statep, int *iserrp);
@@ -94,7 +104,6 @@ PyObject *sip_create_type_dict(sipExportedModuleDef *em);
 int sip_dict_set_and_discard(PyObject *dict, const char *name, PyObject *obj);
 void sip_fix_slots(PyTypeObject *py_type, sipPySlotDef *psd);
 void sip_forget_object(sipSimpleWrapper *sw);
-void sip_free_symbols(struct _sipSipModuleState *sms);
 const sipContainerDef *sip_get_container(const sipTypeDef *td);
 const sipClassTypeDef *sip_get_generated_class_type(
         const sipEncodedTypeDef *enc, const sipClassTypeDef *ctd);

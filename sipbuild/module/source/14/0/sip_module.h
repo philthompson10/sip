@@ -51,6 +51,11 @@ typedef struct _sipSipModuleState {
     // TODO Try and get rid of this.
     const sipTypeDef *current_type_def_backdoor;
 
+    /*
+     * The list of Python type objects for which auto-conversions are disabled.
+     */
+    sipPyTypeObject *disabled_autoconversions;
+
     /* The empty tuple. */
     PyObject *empty_tuple;
 
@@ -65,6 +70,9 @@ typedef struct _sipSipModuleState {
 
     /* The object map. */
     sipObjectMap object_map;
+
+    /* The list of registered Python type objects. */
+    sipPyTypeObject *registered_py_types;
 
     /* The sip.simplewrapper type object. */
     PyTypeObject *simple_wrapper_type;

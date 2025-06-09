@@ -265,7 +265,7 @@ static PyObject *meth_enableautoconversion(PyObject *mod, PyObject *args)
 
     int was_enabled;
 
-    if ((was_enabled = sip_api_enable_autoconversion(td, enable)) < 0)
+    if ((was_enabled = sip_enable_autoconversion(sms, td, enable)) < 0)
         return NULL;
 
     PyObject *res = (was_enabled ? Py_True : Py_False);

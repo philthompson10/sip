@@ -85,6 +85,14 @@ static int module_clear(PyObject *module)
     Py_CLEAR(sms->wrapper_type);
     Py_CLEAR(sms->wrapper_type_type);
 
+    sipPyTypeObject *pto;
+
+    for (pto = sms->disabled_autoconversions; pto != NULL; pto = pto->next)
+        Py_CLEAR(pto->object);
+
+    for (pto = sms->registered_py_types; pto != NULL; pto = pto->next)
+        Py_CLEAR(pto->object);
+
     return 0;
 }
 
@@ -160,7 +168,36 @@ static void module_free(void *module_ptr)
     }
 
     /* Free the symbols. */
-    sip_free_symbols(sms);
+    sipSymbol *ss = sms->symbol_list;;
+
+    while (ss != NULL)
+    {
+        sipSymbol *next = ss->next;
+
+        sip_api_free(ss);
+        ss = next;
+    }
+
+    /* Free the type object lists. */
+    sipPyTypeObject *pto;
+
+    pto = sms->disabled_autoconversions;
+    while (pto != NULL)
+    {
+        sipPyTypeObject *next = pto->next;
+
+        sip_api_free(pto);
+        pto = next;
+    }
+
+    pto = sms->registered_py_types;
+    while (pto != NULL)
+    {
+        sipPyTypeObject *next = pto->next;
+
+        sip_api_free(pto);
+        pto = next;
+    }
 
     /* Free the object map. */
     sip_om_finalise(&sms->object_map);
@@ -188,6 +225,14 @@ static int module_traverse(PyObject *module, visitproc visit, void *arg)
     Py_VISIT(sms->void_ptr_type);
     Py_VISIT(sms->wrapper_type);
     Py_VISIT(sms->wrapper_type_type);
+
+    sipPyTypeObject *pto;
+
+    for (pto = sms->disabled_autoconversions; pto != NULL; pto = pto->next)
+        Py_VISIT(pto->object);
+
+    for (pto = sms->registered_py_types; pto != NULL; pto = pto->next)
+        Py_VISIT(pto->object);
 
     return 0;
 }
