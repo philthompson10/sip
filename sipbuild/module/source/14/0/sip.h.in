@@ -1276,7 +1276,7 @@ struct _sipAPI {
             Py_ssize_t len, int flags);
     PyObject *(*api_convert_to_array)(PyObject *wmod, void *data,
             const char *format, Py_ssize_t len, int flags);
-    PyInterpreterState *(*api_get_interpreter)(void);
+    PyInterpreterState *(*api_get_interpreter)(PyObject *wmod);
     void (*api_set_type_user_data)(sipWrapperType *, void *);
     void *(*api_get_type_user_data)(const sipWrapperType *);
     PyObject *(*api_py_type_dict)(const PyTypeObject *);

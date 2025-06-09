@@ -47,6 +47,7 @@ typedef struct _sipEventHandler {
 /*
  * An entry in a linked list of Python type objects.
  */
+// TODO Replace these with a regular Python list.
 typedef struct _sipPyTypeObject {
     PyTypeObject *object;           /* The Python type object. */
     struct _sipPyTypeObject *next;  /* The next in the list. */

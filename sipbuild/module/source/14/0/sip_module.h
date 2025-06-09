@@ -62,6 +62,9 @@ typedef struct _sipSipModuleState {
     /* The event handler lists. */
     sipEventHandler *event_handlers[sipEventNrEvents];
 
+    /* The interpreter state. */
+    PyInterpreterState *interpreter_state;
+
     /* The method descriptor type object. */
     PyTypeObject *method_descr_type;
 

@@ -129,6 +129,10 @@ static void module_free(void *module_ptr)
     PyObject *module = (PyObject *)module_ptr;
     sipSipModuleState *sms = (sipSipModuleState *)PyModule_GetState(module);
 
+    /* Shutdown all virtual reimplementations. */
+    // TODO Review the timing of this.
+    sms->interpreter_state = NULL;
+
     module_clear(module);
 
     /* Handle any delayed dtors. */

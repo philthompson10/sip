@@ -150,7 +150,7 @@ static int sip_api_init_mixin(PyObject *wmod, PyObject *self, PyObject *args,
         PyObject *kwds, const sipClassTypeDef *ctd);
 static void *sip_api_get_mixin_address(sipSimpleWrapper *w,
         const sipTypeDef *td);
-static PyInterpreterState *sip_api_get_interpreter(void);
+static PyInterpreterState *sip_api_get_interpreter(PyObject *wmod);
 static void sip_api_set_type_user_data(sipWrapperType *wt, void *data);
 static void *sip_api_get_type_user_data(const sipWrapperType *wt);
 static PyObject *sip_api_py_type_dict(const PyTypeObject *py_type);
@@ -396,24 +396,13 @@ typedef struct _sipParseFailure {
 } sipParseFailure;
 
 
-/*
- * Various strings as Python objects created as and when needed.
- */
-static PyObject *licenseName = NULL;
-static PyObject *licenseeName = NULL;
-static PyObject *typeName = NULL;
-static PyObject *timestampName = NULL;
-static PyObject *signatureName = NULL;
-
-static PyInterpreterState *sipInterpreter = NULL;   /* The interpreter. */
-
-
 /* Forward references. */
 static int add_instances(sipSipModuleState *sms, PyObject *dict,
         sipInstancesDef *id);
 static int add_lazy_attrs(sipSipModuleState *sms, const sipTypeDef *td);
 static int add_lazy_container_attrs(sipSipModuleState *sms, sipWrapperType *wt,
         const sipTypeDef *td, sipContainerDef *cod);
+static int add_license(PyObject *dict, sipLicenseDef *lc);
 static int add_method(sipSipModuleState *sms, PyObject *dict,
         PyMethodDef *pmd);
 static int add_py_type_object_to_list(sipPyTypeObject **head,
@@ -508,7 +497,6 @@ static int addLongLongInstances(PyObject *dict, sipLongLongInstanceDef *lli);
 static int addUnsignedLongLongInstances(PyObject *dict,
         sipUnsignedLongLongInstanceDef *ulli);
 static int addDoubleInstances(PyObject *dict, sipDoubleInstanceDef *di);
-static int addLicense(PyObject *dict, sipLicenseDef *lc);
 static int parseBytes_AsCharArray(PyObject *obj, const char **ap,
         Py_ssize_t *aszp);
 static int parseBytes_AsChar(PyObject *obj, char *ap);
@@ -539,7 +527,6 @@ static int check_encoded_string(PyObject *obj);
 static int isNonlazyMethod(PyMethodDef *pmd);
 static PyObject *create_property(sipVariableDef *vd);
 static PyObject *create_function(PyMethodDef *ml);
-static PyObject *sip_exit(PyObject *self, PyObject *args);
 static sipSimpleWrapper *deref_mixin(sipSimpleWrapper *w);
 static int importTypes(sipExportedModuleDef *client, sipImportedModuleDef *im,
         sipExportedModuleDef *em);
@@ -560,10 +547,6 @@ static PyObject *import_module_attr(const char *module, const char *attr);
  */
 const sipAPI *sip_init_library(PyObject *module)
 {
-    static PyMethodDef sip_exit_md = {
-        "_sip_exit", sip_exit, METH_NOARGS, NULL
-    };
-
     sipSipModuleState *sms = (sipSipModuleState *)PyModule_GetState(module);
 
     /* Add the SIP version number. */
@@ -618,15 +601,11 @@ const sipAPI *sip_init_library(PyObject *module)
     /* Initialise the object map. */
     sip_om_init(&sms->object_map);
 
-    /* Make sure we are notified at the start of the exit process. */
-    // TODO Review this.
-    if (sip_api_register_exit_notifier(&sip_exit_md) < 0)
-        return NULL;
-
     /*
-     * Get the current interpreter.  This will be shared between all threads.
+     * Get the current interpreter state.  This will be shared between all
+     * threads.
      */
-    sipInterpreter = PyThreadState_Get()->interp;
+    sms->interpreter_state = PyThreadState_Get()->interp;
 
     return &sip_api;
 }
@@ -654,9 +633,9 @@ int sip_dict_set_and_discard(PyObject *dict, const char *name, PyObject *obj)
 /*
  * Return the current interpreter, if there is one.
  */
-static PyInterpreterState *sip_api_get_interpreter(void)
+static PyInterpreterState *sip_api_get_interpreter(PyObject *wmod)
 {
-    return sipInterpreter;
+    return sip_get_sip_module_state(wmod)->interpreter_state;
 }
 
 
@@ -970,7 +949,7 @@ static int sip_api_init_module(PyObject *wmod, sipExportedModuleDef *client,
         return -1;
 
     /* Add any license. */
-    if (client->em_license != NULL && addLicense(mod_dict, client->em_license) < 0)
+    if (client->em_license != NULL && add_license(mod_dict, client->em_license) < 0)
         return -1;
 
     /* See if the new module satisfies any outstanding external types. */
@@ -4532,7 +4511,7 @@ void sip_instance_destroyed(sipSipModuleState *sms,
         sipSimpleWrapper **sipSelfp)
 {
     /* If there is no interpreter just to the minimum and get out. */
-    if (sipInterpreter == NULL)
+    if (sms->interpreter_state == NULL)
     {
         *sipSelfp = NULL;
         return;
@@ -6125,27 +6104,10 @@ void sip_transfer_to(sipSipModuleState *sms, PyObject *self,
 /*
  * Add a license to a dictionary.
  */
-static int addLicense(PyObject *dict, sipLicenseDef *lc)
+static int add_license(PyObject *dict, sipLicenseDef *lc)
 {
     int rc;
     PyObject *ldict, *proxy, *o;
-
-    /* Convert the strings we use to objects if not already done. */
-
-    if (sip_objectify("__license__", &licenseName) < 0)
-        return -1;
-
-    if (sip_objectify("Licensee", &licenseeName) < 0)
-        return -1;
-
-    if (sip_objectify("Type", &typeName) < 0)
-        return -1;
-
-    if (sip_objectify("Timestamp", &timestampName) < 0)
-        return -1;
-
-    if (sip_objectify("Signature", &signatureName) < 0)
-        return -1;
 
     /* We use a dictionary to hold the license information. */
     if ((ldict = PyDict_New()) == NULL)
@@ -6158,7 +6120,7 @@ static int addLicense(PyObject *dict, sipLicenseDef *lc)
     if ((o = PyUnicode_FromString(lc->lc_type)) == NULL)
         goto deldict;
 
-    rc = PyDict_SetItem(ldict,typeName,o);
+    rc = PyDict_SetItemString(ldict, "Type", o);
     Py_DECREF(o);
 
     if (rc < 0)
@@ -6169,7 +6131,7 @@ static int addLicense(PyObject *dict, sipLicenseDef *lc)
         if ((o = PyUnicode_FromString(lc->lc_licensee)) == NULL)
             goto deldict;
 
-        rc = PyDict_SetItem(ldict,licenseeName,o);
+        rc = PyDict_SetItemString(ldict, "Licensee", o);
         Py_DECREF(o);
 
         if (rc < 0)
@@ -6181,7 +6143,7 @@ static int addLicense(PyObject *dict, sipLicenseDef *lc)
         if ((o = PyUnicode_FromString(lc->lc_timestamp)) == NULL)
             goto deldict;
 
-        rc = PyDict_SetItem(ldict,timestampName,o);
+        rc = PyDict_SetItemString(ldict, "Timestamp", o);
         Py_DECREF(o);
 
         if (rc < 0)
@@ -6193,7 +6155,7 @@ static int addLicense(PyObject *dict, sipLicenseDef *lc)
         if ((o = PyUnicode_FromString(lc->lc_signature)) == NULL)
             goto deldict;
 
-        rc = PyDict_SetItem(ldict,signatureName,o);
+        rc = PyDict_SetItemString(ldict, "Signature", o);
         Py_DECREF(o);
 
         if (rc < 0)
@@ -6206,7 +6168,7 @@ static int addLicense(PyObject *dict, sipLicenseDef *lc)
 
     Py_DECREF(ldict);
 
-    rc = PyDict_SetItem(dict, licenseName, proxy);
+    rc = PyDict_SetItemString(dict, "__license__", proxy);
     Py_DECREF(proxy);
 
     return rc;
@@ -6555,7 +6517,7 @@ static PyObject *is_py_method(sipSipModuleState *sms, sip_gilstate_t *gil,
         return NULL;
 
     /* We might still have C++ going after the interpreter has gone. */
-    if (sipInterpreter == NULL)
+    if (sms->interpreter_state == NULL)
         return NULL;
 
     *gil = PyGILState_Ensure();
@@ -8438,7 +8400,7 @@ void sip_forget_object(sipSimpleWrapper *sw)
      */
     sip_om_remove_object(&sms->object_map, sw);
 
-    if (sipInterpreter != NULL)
+    if (sms->interpreter_state != NULL)
     {
         const sipClassTypeDef *ctd;
 
@@ -9215,22 +9177,6 @@ static int check_encoded_string(PyObject *obj)
     }
 
     return -1;
-}
-
-
-/*
- * This is called by the atexit module.
- */
-static PyObject *sip_exit(PyObject *self, PyObject *args)
-{
-    (void)self;
-    (void)args;
-
-    /* Disable all Python reimplementations of virtuals. */
-    sipInterpreter = NULL;
-
-    Py_INCREF(Py_None);
-    return Py_None;
 }
 
 
