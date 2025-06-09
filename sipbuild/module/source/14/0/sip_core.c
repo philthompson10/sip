@@ -117,8 +117,8 @@ static PyObject *sip_api_pyslot_extend(PyObject *wmod,
         sipExportedModuleDef *mod, sipPySlotType st, const sipTypeDef *td,
         PyObject *arg0, PyObject *arg1);
 static void sip_api_add_delayed_dtor(sipSimpleWrapper *w);
-static int sip_api_export_symbol(const char *name, void *sym);
-static void *sip_api_import_symbol(const char *name);
+static int sip_api_export_symbol(PyObject *wmod, const char *name, void *sym);
+static void *sip_api_import_symbol(PyObject *wmod, const char *name);
 static const sipTypeDef *sip_api_find_type(PyObject *wmod, const char *type);
 static char sip_api_bytes_as_char(PyObject *obj);
 static const char *sip_api_bytes_as_string(PyObject *obj);
@@ -395,16 +395,6 @@ typedef struct _sipParseFailure {
 
 
 /*
- * An entry in a linked list of name/symbol pairs.
- */
-typedef struct _sipSymbol {
-    const char *name;           /* The name. */
-    void *symbol;               /* The symbol. */
-    struct _sipSymbol *next;    /* The next in the list. */
-} sipSymbol;
-
-
-/*
  * An entry in a linked list of Python objects.
  */
 typedef struct _sipPyObject {
@@ -604,6 +594,7 @@ const sipAPI *sip_init_library(PyObject *module)
     /* Other simple initialisations. */
     sms->current_type_def_backdoor = NULL;
     sms->module_list = NULL;
+    sms->symbol_list = NULL;
     sms->unused_backdoor = NULL;
 
     /* Initialise the types. */
@@ -8520,21 +8511,23 @@ static int addPyObjectToList(sipPyObject **head, PyObject *object)
  * Register a symbol with a name.  A negative value is returned if the name was
  * already registered.
  */
-static int sip_api_export_symbol(const char *name, void *sym)
+static int sip_api_export_symbol(PyObject *wmod, const char *name, void *sym)
 {
-    sipSymbol *ss;
-
-    if (sip_api_import_symbol(name) != NULL)
+    if (sip_api_import_symbol(wmod, name) != NULL)
         return -1;
+
+    sipSymbol *ss;
 
     if ((ss = sip_api_malloc(sizeof (sipSymbol))) == NULL)
         return -1;
 
+    sipSipModuleState *sms = sip_get_sip_module_state(wmod);
+
     ss->name = name;
     ss->symbol = sym;
-    ss->next = sipSymbolList;
+    ss->next = sms->symbol_list;
 
-    sipSymbolList = ss;
+    sms->symbol_list = ss;
 
     return 0;
 }
@@ -8544,15 +8537,32 @@ static int sip_api_export_symbol(const char *name, void *sym)
  * Return the symbol registered with the given name.  NULL is returned if the
  * name was not registered.
  */
-static void *sip_api_import_symbol(const char *name)
+static void *sip_api_import_symbol(PyObject *wmod, const char *name)
 {
     sipSymbol *ss;
 
-    for (ss = sipSymbolList; ss != NULL; ss = ss->next)
+    for (ss = sip_get_sip_module_state(wmod)->symbol_list; ss != NULL; ss = ss->next)
         if (strcmp(ss->name, name) == 0)
             return ss->symbol;
 
     return NULL;
+}
+
+
+/*
+ * Free the memory related to symbols.
+ */
+void sip_free_symbols(sipSipModuleState *sms)
+{
+    sipSymbol *ss = sms->symbol_list;;
+
+    while (ss != NULL)
+    {
+        sipSymbol *next = ss->next;
+
+        sip_api_free(ss);
+        ss = next;
+    }
 }
 
 

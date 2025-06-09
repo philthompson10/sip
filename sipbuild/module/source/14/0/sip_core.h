@@ -44,6 +44,16 @@ typedef struct _sipEventHandler {
 } sipEventHandler;
 
 
+/*
+ * An entry in a linked list of name/symbol pairs.
+ */
+typedef struct _sipSymbol {
+    const char *name;           /* The name. */
+    void *symbol;               /* The symbol. */
+    struct _sipSymbol *next;    /* The next in the list. */
+} sipSymbol;
+
+
 struct _sipSipModuleState;
 
 
@@ -84,6 +94,7 @@ PyObject *sip_create_type_dict(sipExportedModuleDef *em);
 int sip_dict_set_and_discard(PyObject *dict, const char *name, PyObject *obj);
 void sip_fix_slots(PyTypeObject *py_type, sipPySlotDef *psd);
 void sip_forget_object(sipSimpleWrapper *sw);
+void sip_free_symbols(struct _sipSipModuleState *sms);
 const sipContainerDef *sip_get_container(const sipTypeDef *td);
 const sipClassTypeDef *sip_get_generated_class_type(
         const sipEncodedTypeDef *enc, const sipClassTypeDef *ctd);

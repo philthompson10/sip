@@ -69,6 +69,9 @@ typedef struct _sipSipModuleState {
     /* The sip.simplewrapper type object. */
     PyTypeObject *simple_wrapper_type;
 
+    /* The list of symbols. */
+    sipSymbol *symbol_list;
+
     /* The trace mask. */
     unsigned trace_mask;
 

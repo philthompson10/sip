@@ -159,6 +159,9 @@ static void module_free(void *module_ptr)
         }
     }
 
+    /* Free the symbols. */
+    sip_free_symbols(sms);
+
     /* Free the object map. */
     sip_om_finalise(&sms->object_map);
 }

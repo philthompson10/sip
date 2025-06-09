@@ -1254,8 +1254,8 @@ struct _sipAPI {
     PyObject *(*api_convert_from_const_void_ptr_and_size)(PyObject *wmod,
             const void *val, Py_ssize_t size);
     void *(*api_convert_to_void_ptr)(PyObject *obj);
-    int (*api_export_symbol)(const char *name, void *sym);
-    void *(*api_import_symbol)(const char *name);
+    int (*api_export_symbol)(PyObject *wmod, const char *name, void *sym);
+    void *(*api_import_symbol)(PyObject *wmod, const char *name);
     const sipTypeDef *(*api_find_type)(PyObject *wmod, const char *type);
     int (*api_register_py_type)(PyTypeObject *type);
     const sipTypeDef *(*api_type_from_py_type_object)(PyObject *wmod,
