@@ -5120,23 +5120,27 @@ static PyObject *pickle_type(PyObject *self, PyTypeObject *defining_class,
  */
 static int setReduce(PyTypeObject *type, PyMethodDef *pickler)
 {
-    static PyObject *rstr = NULL;
     PyObject *descr;
     int rc;
-
-    if (sip_objectify("__reduce__", &rstr) < 0)
-        return -1;
 
     /* Create the method descripter. */
     if ((descr = PyDescr_NewMethod(type, pickler)) == NULL)
         return -1;
+
+    PyObject *rstr = PyUnicode_InternFromString("__reduce__");
+
+    if (rstr == NULL)
+    {
+        Py_DECREF(descr);
+        return -1;
+    }
 
     /*
      * Save the method.  Note that we don't use PyObject_SetAttr() as we want
      * to bypass any lazy attribute loading (which may not be safe yet).
      */
     rc = PyType_Type.tp_setattro((PyObject *)type, rstr, descr);
-
+    Py_DECREF(rstr);
     Py_DECREF(descr);
 
     return rc;
@@ -5148,37 +5152,31 @@ static int setReduce(PyTypeObject *type, PyMethodDef *pickler)
  */
 PyObject *sip_create_type_dict(sipExportedModuleDef *em)
 {
-    static PyObject *mstr = NULL;
     PyObject *dict;
-
-    if (sip_objectify("__module__", &mstr) < 0)
-        return NULL;
 
     /* Create the dictionary. */
     if ((dict = PyDict_New()) == NULL)
         return NULL;
 
+    PyObject *mstr = PyUnicode_InternFromString("__module__");
+
+    if (mstr == NULL)
+    {
+        Py_DECREF(dict);
+        return NULL;
+    }
+
     /* We need to set the module name as an attribute for dynamic types. */
-    if (PyDict_SetItem(dict, mstr, em->em_nameobj) < 0)
+    int rc = PyDict_SetItem(dict, mstr, em->em_nameobj);
+    Py_DECREF(mstr);
+
+    if (rc < 0)
     {
         Py_DECREF(dict);
         return NULL;
     }
 
     return dict;
-}
-
-
-/*
- * Convert an ASCII string to a Python object if it hasn't already been done.
- */
-int sip_objectify(const char *s, PyObject **objp)
-{
-    if (*objp == NULL)
-        if ((*objp = PyUnicode_FromString(s)) == NULL)
-            return -1;
-
-    return 0;
 }
 
 
@@ -7549,13 +7547,9 @@ static int convert_pass(sipSipModuleState *sms, const sipTypeDef **tdp,
  */
 static void sip_api_raise_unknown_exception(void)
 {
-    static PyObject *mobj = NULL;
-
     SIP_BLOCK_THREADS
 
-    sip_objectify("unknown", &mobj);
-
-    PyErr_SetObject(PyExc_Exception, mobj);
+    PyErr_SetObject(PyExc_Exception, PyUnicode_InternFromString("unknown"));
 
     SIP_UNBLOCK_THREADS
 }
@@ -7823,11 +7817,6 @@ static int sip_api_init_mixin(PyObject *wmod, PyObject *self, PyObject *args,
 {
     sipSipModuleState *sms = sip_get_sip_module_state(wmod);
 
-    static PyObject *double_us = NULL;
-
-    if (sip_objectify("__", &double_us) < 0)
-        return -1;
-
     /* If we are not a mixin to another wrapped class then behave as normal. */
     PyTypeObject *self_wt = sipTypeAsPyTypeObject(
             ((sipWrapperType *)Py_TYPE(self))->wt_td);
@@ -7871,6 +7860,11 @@ static int sip_api_init_mixin(PyObject *wmod, PyObject *self, PyObject *args,
         goto gc_mixin_name;
 
     /* Add the mixin's useful attributes to the main class. */
+    PyObject *double_us = PyUnicode_InternFromString("__");
+
+    if (double_us == NULL)
+        goto gc_mixin_name;
+
     Py_ssize_t pos = 0;
     PyObject *key, *value;
 
@@ -7891,7 +7885,7 @@ static int sip_api_init_mixin(PyObject *wmod, PyObject *self, PyObject *args,
         rc = (int)PyUnicode_Tailmatch(key, double_us, 0, 2, -1);
 
         if (rc < 0)
-            goto gc_mixin_name;
+            goto gc_double_us;
 
         if (rc > 0)
             continue;
@@ -7899,12 +7893,12 @@ static int sip_api_init_mixin(PyObject *wmod, PyObject *self, PyObject *args,
         if (PyObject_IsInstance(value, (PyObject *)sms->method_descr_type))
         {
             if ((value = sipMethodDescr_Copy(sms, value, mixin_name)) == NULL)
-                goto gc_mixin_name;
+                goto gc_double_us;
         }
         else if (PyObject_IsInstance(value, (PyObject *)sms->variable_descr_type))
         {
             if ((value = sipVariableDescr_Copy(sms, value, mixin_name)) == NULL)
-                goto gc_mixin_name;
+                goto gc_double_us;
         }
         else
         {
@@ -7916,9 +7910,10 @@ static int sip_api_init_mixin(PyObject *wmod, PyObject *self, PyObject *args,
         Py_DECREF(value);
 
         if (rc < 0)
-            goto gc_mixin_name;
+            goto gc_double_us;
     }
 
+    Py_DECREF(double_us);
     Py_DECREF(mixin_name);
 
     /* Call the super-class's __init__ with any remaining arguments. */
@@ -7927,6 +7922,9 @@ static int sip_api_init_mixin(PyObject *wmod, PyObject *self, PyObject *args,
     Py_XDECREF(unused);
 
     return rc;
+
+gc_double_us:
+    Py_DECREF(double_us);
 
 gc_mixin_name:
     Py_DECREF(mixin_name);

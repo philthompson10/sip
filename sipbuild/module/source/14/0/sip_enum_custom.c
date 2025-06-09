@@ -377,19 +377,21 @@ static int convert_to_enum(PyObject *obj, const sipTypeDef *td, int allow_int)
 
     if (sipTypeIsScopedEnum(td))
     {
-        static PyObject *value = NULL;
-        PyObject *val_obj;
-
         if (PyObject_IsInstance(obj, (PyObject *)sipTypeAsPyTypeObject(td)) <= 0)
         {
             enum_expected(obj, td);
             return -1;
         }
 
-        if (sip_objectify("value", &value) < 0)
+        PyObject *value = PyUnicode_InternFromString("value");
+
+        if (value == NULL)
             return -1;
 
-        if ((val_obj = PyObject_GetAttr(obj, value)) == NULL)
+        PyObject *val_obj = PyObject_GetAttr(obj, value);
+        Py_DECREF(value);
+
+        if (val_obj == NULL)
             return -1;
 
         /* This will never overflow. */
@@ -431,9 +433,7 @@ static int convert_to_enum(PyObject *obj, const sipTypeDef *td, int allow_int)
 static PyObject *create_scoped_enum(sipExportedModuleDef *client,
         sipEnumTypeDef *etd, int enum_nr, PyObject *name)
 {
-    static PyObject *module_arg = NULL;
-    static PyObject *qualname_arg = NULL;
-    int i, nr_members;
+    int i, nr_members, rc;
     sipEnumMemberDef *enm;
     PyObject *members, *enum_obj, *args, *kw_args;
 
@@ -482,28 +482,38 @@ static PyObject *create_scoped_enum(sipExportedModuleDef *client,
     if ((kw_args = PyDict_New()) == NULL)
         goto rel_args;
 
-    if (sip_objectify("module", &module_arg) < 0)
+    PyObject *module_arg = PyUnicode_InternFromString("module");
+
+    if (module_arg == NULL);
         goto rel_kw_args;
 
-    if (PyDict_SetItem(kw_args, module_arg, client->em_nameobj) < 0)
+    rc = PyDict_SetItem(kw_args, module_arg, client->em_nameobj);
+    Py_DECREF(module_arg);
+
+    if (rc < 0)
         goto rel_kw_args;
 
     /*
      * If the enum has a scope then the default __qualname__ will be incorrect.
      */
+     // TODO Review this.
      if (etd->etd_scope >= 0)
      {
-        int rc;
+        PyObject *qualname_arg = PyUnicode_InternFromString("qualname");
+
+        if (qualname_arg == NULL)
+            goto rel_kw_args;
+
         PyObject *qualname;
 
-        if (sip_objectify("qualname", &qualname_arg) < 0)
-            goto rel_kw_args;
-
         if ((qualname = sip_get_qualname(client->em_types[etd->etd_scope], name)) == NULL)
+        {
+            Py_DECREF(qualname_arg);
             goto rel_kw_args;
+        }
 
         rc = PyDict_SetItem(kw_args, qualname_arg, qualname);
-
+        Py_DECREF(qualname_arg);
         Py_DECREF(qualname);
 
         if (rc < 0)

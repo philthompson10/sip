@@ -120,7 +120,6 @@ void sip_instance_destroyed(struct _sipSipModuleState *sms,
 int sip_is_subtype(const sipClassTypeDef *ctd,
         const sipClassTypeDef *base_ctd);
 PyObject *sip_next_in_mro(PyObject *self, PyObject *after);
-int sip_objectify(const char *s, PyObject **objp);
 void sip_release(void *addr, const sipTypeDef *td, int state,
         void *user_state);
 void sip_remove_from_parent(sipWrapper *self);

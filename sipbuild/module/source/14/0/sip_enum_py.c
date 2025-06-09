@@ -35,16 +35,6 @@ static PyObject *int_enum_type = NULL;          /* The enum.IntEnum type. */
 static PyObject *flag_type = NULL;              /* The enum.Flag type. */
 static PyObject *int_flag_type = NULL;          /* The enum.IntFlag type. */
 
-static PyObject *str_dunder_new = NULL;         /* '__new__' */
-static PyObject *str_dunder_sip = NULL;         /* '__sip__' */
-static PyObject *str_sunder_missing = NULL;     /* '_missing_' */
-static PyObject *str_sunder_name = NULL;        /* '_name_' */
-static PyObject *str_sunder_sip_missing = NULL; /* '_sip_missing_' */
-static PyObject *str_sunder_value = NULL;       /* '_value_' */
-static PyObject *str_module = NULL;             /* 'module' */
-static PyObject *str_qualname = NULL;           /* 'qualname' */
-static PyObject *str_value = NULL;              /* 'value' */
-
 
 /* Forward references. */
 static PyObject *create_enum_object(sipExportedModuleDef *client,
@@ -94,7 +84,15 @@ int sip_api_convert_to_enum(PyObject *obj, const sipTypeDef *td)
     }
 
     /* Get the value from the object. */
-    if ((val_obj = PyObject_GetAttr(obj, str_value)) == NULL)
+    PyObject *value_s = PyUnicode_InternFromString("value");
+
+    if (value_s == NULL)
+        return -1;
+
+    val_obj = PyObject_GetAttr(obj, value_s);
+    Py_DECREF(value_s);
+
+    if (val_obj == NULL)
         return -1;
 
     /* Flags are implicitly unsigned. */
@@ -168,9 +166,15 @@ const sipTypeDef *sip_enum_get_generated_type(PyTypeObject *py_type)
 {
     if (sip_enum_is_enum((PyObject *)py_type))
     {
-        PyObject *etd_cap;
+        PyObject *dunder_sip = PyUnicode_InternFromString("__sip__");
 
-        if ((etd_cap = PyObject_GetAttr((PyObject *)py_type, str_dunder_sip)) != NULL)
+        if (dunder_sip == NULL)
+            return NULL;
+
+        PyObject *etd_cap = PyObject_GetAttr((PyObject *)py_type, dunder_sip);
+        Py_DECREF(dunder_sip);
+
+        if (etd_cap != NULL)
         {
             sipTypeDef *td = (sipTypeDef *)PyCapsule_GetPointer(etd_cap, NULL);
 
@@ -225,34 +229,6 @@ int sip_enum_init(PyObject *module, sipSipModuleState *sms)
         return -1;
     }
 
-    /* Objectify the strings. */
-    if (sip_objectify("__new__", &str_dunder_new) < 0)
-        return -1;
-
-    if (sip_objectify("__sip__", &str_dunder_sip) < 0)
-        return -1;
-
-    if (sip_objectify("_missing_", &str_sunder_missing) < 0)
-        return -1;
-
-    if (sip_objectify("_name_", &str_sunder_name) < 0)
-        return -1;
-
-    if (sip_objectify("_sip_missing_", &str_sunder_sip_missing) < 0)
-        return -1;
-
-    if (sip_objectify("_value_", &str_sunder_value) < 0)
-        return -1;
-
-    if (sip_objectify("module", &str_module) < 0)
-        return -1;
-
-    if (sip_objectify("qualname", &str_qualname) < 0)
-        return -1;
-
-    if (sip_objectify("value", &str_value) < 0)
-        return -1;
-
     return 0;
 }
 
@@ -272,7 +248,7 @@ int sip_enum_is_enum(PyObject *obj)
 static PyObject *create_enum_object(sipExportedModuleDef *client,
         sipEnumTypeDef *etd, sipIntInstanceDef **next_int_p, PyObject *name)
 {
-    int i;
+    int i, rc;
     PyObject *members, *enum_factory, *enum_obj, *args, *kw_args, *etd_cap;
     PyMethodDef *missing_md;
     sipIntInstanceDef *next_int;
@@ -310,7 +286,15 @@ static PyObject *create_enum_object(sipExportedModuleDef *client,
     if ((kw_args = PyDict_New()) == NULL)
         goto rel_args;
 
-    if (PyDict_SetItem(kw_args, str_module, client->em_nameobj) < 0)
+    PyObject *module_s = PyUnicode_InternFromString("module");
+
+    if (module_s == NULL)
+        goto rel_kw_args;
+
+    rc = PyDict_SetItem(kw_args, module_s, client->em_nameobj);
+    Py_DECREF(module_s);
+
+    if (rc < 0)
         goto rel_kw_args;
 
     /*
@@ -318,14 +302,21 @@ static PyObject *create_enum_object(sipExportedModuleDef *client,
      */
      if (etd->etd_scope >= 0)
      {
-        int rc;
         PyObject *qualname;
 
         if ((qualname = sip_get_qualname(client->em_types[etd->etd_scope], name)) == NULL)
             goto rel_kw_args;
 
-        rc = PyDict_SetItem(kw_args, str_qualname, qualname);
+        PyObject *qualname_s = PyUnicode_InternFromString("qualname");
 
+        if (qualname_s == NULL)
+        {
+            Py_DECREF(qualname);
+            goto rel_kw_args;
+        }
+
+        rc = PyDict_SetItem(kw_args, qualname_s, qualname);
+        Py_DECREF(qualname_s);
         Py_DECREF(qualname);
 
         if (rc < 0)
@@ -381,14 +372,24 @@ static PyObject *create_enum_object(sipExportedModuleDef *client,
             return NULL;
         }
 
-        if (PyObject_SetAttr(enum_obj, str_sunder_missing, missing_cfunc) < 0)
+        PyObject *sunder_missing = PyUnicode_InternFromString("_missing_");
+
+        if (sunder_missing == NULL)
         {
             Py_DECREF(missing_cfunc);
             Py_DECREF(enum_obj);
             return NULL;
         }
 
+        rc = PyObject_SetAttr(enum_obj, sunder_missing, missing_cfunc);
+        Py_DECREF(sunder_missing);
         Py_DECREF(missing_cfunc);
+
+        if (rc < 0)
+        {
+            Py_DECREF(enum_obj);
+            return NULL;
+        }
     }
 
     /* Wrap the generated type definition in a capsule. */
@@ -398,14 +399,24 @@ static PyObject *create_enum_object(sipExportedModuleDef *client,
         return NULL;
     }
 
-    if (PyObject_SetAttr(enum_obj, str_dunder_sip, etd_cap) < 0)
+    PyObject *dunder_sip = PyUnicode_InternFromString("__sip__");
+
+    if (dunder_sip == NULL)
     {
         Py_DECREF(etd_cap);
         Py_DECREF(enum_obj);
         return NULL;
     }
 
+    rc = PyObject_SetAttr(enum_obj, dunder_sip, etd_cap);
+    Py_DECREF(dunder_sip);
     Py_DECREF(etd_cap);
+
+    if (rc < 0)
+    {
+        Py_DECREF(enum_obj);
+        return NULL;
+    }
 
     if (etd->etd_pyslots != NULL)
         sip_add_type_slots((PyHeapTypeObject *)enum_obj, etd->etd_pyslots);
@@ -471,11 +482,20 @@ static PyObject *get_enum_type(const sipTypeDef *td)
 static PyObject *missing(PyObject *cls, PyObject *value, int int_enum)
 {
     PyObject *sip_missing, *member, *value_str;
+    int rc;
+
+    PyObject *sunder_sip_missing = PyUnicode_InternFromString("_sip_missing_");
+
+    if (sunder_sip_missing == NULL)
+        return NULL;
 
     /* Get the dict of previously missing members. */
-    if ((sip_missing = PyObject_GetAttr(cls, str_sunder_sip_missing)) != NULL)
+    if ((sip_missing = PyObject_GetAttr(cls, sunder_sip_missing)) != NULL)
     {
-        if ((member = PyDict_GetItemWithError(sip_missing, value)) != NULL)
+        member = PyDict_GetItemWithError(sip_missing, value);
+        Py_DECREF(sunder_sip_missing);
+
+        if (member != NULL)
         {
             /* Return the already missing member. */
             Py_INCREF(member);
@@ -495,9 +515,15 @@ static PyObject *missing(PyObject *cls, PyObject *value, int int_enum)
 
         /* Create the dict and save it in the class. */
         if ((sip_missing = PyDict_New()) == NULL)
+        {
+            Py_DECREF(sunder_sip_missing);
             return NULL;
+        }
 
-        if (PyObject_SetAttr(cls, str_sunder_sip_missing, sip_missing) < 0)
+        rc = PyObject_SetAttr(cls, sunder_sip_missing, sip_missing);
+        Py_DECREF(sunder_sip_missing);
+
+        if (rc < 0)
         {
             Py_DECREF(sip_missing);
             return NULL;
@@ -505,17 +531,29 @@ static PyObject *missing(PyObject *cls, PyObject *value, int int_enum)
     }
     else
     {
+        Py_DECREF(sunder_sip_missing);
+
         /* The exception is unexpected. */
         return NULL;
     }
 
     /* Create a member for the missing value. */
+    PyObject *dunder_new = PyUnicode_InternFromString("__new__");
+
+    if (dunder_new == NULL)
+    {
+        Py_DECREF(sip_missing);
+        return NULL;
+    }
+
     if (int_enum)
-        member = PyObject_CallMethodObjArgs(int_type, str_dunder_new, cls,
-                value, NULL);
-    else
-        member = PyObject_CallMethodObjArgs(object_type, str_dunder_new, cls,
+        member = PyObject_CallMethodObjArgs(int_type, dunder_new, cls, value,
                 NULL);
+    else
+        member = PyObject_CallMethodObjArgs(object_type, dunder_new, cls,
+                NULL);
+
+    Py_DECREF(dunder_new);
 
     if (member == NULL)
     {
@@ -531,7 +569,9 @@ static PyObject *missing(PyObject *cls, PyObject *value, int int_enum)
         return NULL;
     }
 
-    if (PyObject_SetAttr(member, str_sunder_name, value_str) < 0)
+    PyObject *sunder_name = PyUnicode_InternFromString("_name_");
+
+    if (sunder_name == NULL)
     {
         Py_DECREF(value_str);
         Py_DECREF(member);
@@ -539,9 +579,29 @@ static PyObject *missing(PyObject *cls, PyObject *value, int int_enum)
         return NULL;
     }
 
+    rc = PyObject_SetAttr(member, sunder_name, value_str);
+    Py_DECREF(sunder_name);
     Py_DECREF(value_str);
 
-    if (PyObject_SetAttr(member, str_sunder_value, value) < 0)
+    if (rc < 0)
+    {
+        Py_DECREF(member);
+        Py_DECREF(sip_missing);
+        return NULL;
+    }
+
+    PyObject *sunder_value = PyUnicode_InternFromString(sunder_value);
+
+    if (sunder_value == NULL)
+    {
+        Py_DECREF(member);
+        Py_DECREF(sip_missing);
+    }
+
+    rc = PyObject_SetAttr(member, sunder_value, value);
+    Py_DECREF(sunder_value);
+
+    if (rc < 0)
     {
         Py_DECREF(member);
         Py_DECREF(sip_missing);
@@ -549,14 +609,14 @@ static PyObject *missing(PyObject *cls, PyObject *value, int int_enum)
     }
 
     /* Save the member so that it is a singleton. */
-    if (PyDict_SetItem(sip_missing, value, member) < 0)
+    rc = PyDict_SetItem(sip_missing, value, member);
+    Py_DECREF(sip_missing);
+
+    if (rc < 0)
     {
         Py_DECREF(member);
-        Py_DECREF(sip_missing);
         return NULL;
     }
-
-    Py_DECREF(sip_missing);
 
     return member;
 }
