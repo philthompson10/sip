@@ -1195,8 +1195,9 @@ struct _sipAPI {
      * This must be the first entry and it's signature must not change so that
      * version number mismatches can be detected and reported.
      */
-    int (*api_export_module)(sipExportedModuleDef *client, unsigned api_major,
-            unsigned api_minor, void *unused);
+    // TODO The signature has changed.
+    int (*api_export_module)(PyObject *wmod, sipExportedModuleDef *client,
+            unsigned api_major, unsigned api_minor, void *unused);
 
     /*
      * The following are part of the public API.
@@ -1255,12 +1256,12 @@ struct _sipAPI {
     void *(*api_convert_to_void_ptr)(PyObject *obj);
     int (*api_export_symbol)(const char *name, void *sym);
     void *(*api_import_symbol)(const char *name);
-    const sipTypeDef *(*api_find_type)(const char *type);
+    const sipTypeDef *(*api_find_type)(PyObject *wmod, const char *type);
     int (*api_register_py_type)(PyTypeObject *type);
     const sipTypeDef *(*api_type_from_py_type_object)(PyObject *wmod,
             PyTypeObject *py_type);
     const sipTypeDef *(*api_type_scope)(const sipTypeDef *td);
-    const char *(*api_resolve_typedef)(const char *name);
+    const char *(*api_resolve_typedef)(PyObject *wmod, const char *name);
     sipErrorState (*api_bad_callable_arg)(int arg_nr, PyObject *arg);
     void *(*api_get_address)(struct _sipSimpleWrapper *w);
     int (*api_enable_autoconversion)(const sipTypeDef *td, int enable);
@@ -1365,8 +1366,9 @@ struct _sipAPI {
             const char *name, void *cppPtr, const sipTypeDef *td);
     void (*api_bad_operator_arg)(PyObject *self, PyObject *arg,
             sipPySlotType st);
-    PyObject *(*api_pyslot_extend)(sipExportedModuleDef *mod, sipPySlotType st,
-            const sipTypeDef *type, PyObject *arg0, PyObject *arg1);
+    PyObject *(*api_pyslot_extend)(PyObject *wmod, sipExportedModuleDef *mod,
+            sipPySlotType st, const sipTypeDef *type, PyObject *arg0,
+            PyObject *arg1);
     void (*api_add_delayed_dtor)(sipSimpleWrapper *w);
     char (*api_bytes_as_char)(PyObject *obj);
     const char *(*api_bytes_as_string)(PyObject *obj);
@@ -1398,7 +1400,8 @@ struct _sipAPI {
             PyObject *kwds, const sipClassTypeDef *ctd);
     PyObject *(*api_get_reference)(PyObject *self, int key);
     int (*api_is_derived_class)(sipSimpleWrapper *);
-    sipExceptionHandler (*api_next_exception_handler)(void **statep);
+    sipExceptionHandler (*api_next_exception_handler)(PyObject *wmod,
+            void **statep);
     int (*api_deprecated_13_9)(const char *classname, const char *method, const char *message);
     void (*unused_private_3)(void);
     void (*unused_private_4)(void);

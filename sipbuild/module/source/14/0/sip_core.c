@@ -85,7 +85,7 @@ static void sip_api_trace(PyObject *wmod, unsigned mask,const char *fmt,...);
 static void sip_api_transfer_back(PyObject *wmod, PyObject *self);
 static void sip_api_transfer_to(PyObject *wmod, PyObject *self,
         PyObject *owner);
-static int sip_api_export_module(sipExportedModuleDef *client,
+static int sip_api_export_module(PyObject *wmod, sipExportedModuleDef *client,
         unsigned api_major, unsigned api_minor, void *unused);
 static int sip_api_init_module(PyObject *wmod, sipExportedModuleDef *client,
         PyObject *mod_dict);
@@ -113,13 +113,13 @@ static int sip_api_add_type_instance(PyObject *wmod, PyObject *dict,
 static sipErrorState sip_api_bad_callable_arg(int arg_nr, PyObject *arg);
 static void sip_api_bad_operator_arg(PyObject *self, PyObject *arg,
         sipPySlotType st);
-static PyObject *sip_api_pyslot_extend(sipExportedModuleDef *mod,
-        sipPySlotType st, const sipTypeDef *td, PyObject *arg0,
-        PyObject *arg1);
+static PyObject *sip_api_pyslot_extend(PyObject *wmod,
+        sipExportedModuleDef *mod, sipPySlotType st, const sipTypeDef *td,
+        PyObject *arg0, PyObject *arg1);
 static void sip_api_add_delayed_dtor(sipSimpleWrapper *w);
 static int sip_api_export_symbol(const char *name, void *sym);
 static void *sip_api_import_symbol(const char *name);
-static const sipTypeDef *sip_api_find_type(const char *type);
+static const sipTypeDef *sip_api_find_type(PyObject *wmod, const char *type);
 static char sip_api_bytes_as_char(PyObject *obj);
 static const char *sip_api_bytes_as_string(PyObject *obj);
 static char sip_api_string_as_ascii_char(PyObject *obj);
@@ -138,7 +138,7 @@ static int *sip_api_unicode_as_wstring(PyObject *obj);
 static int sip_api_register_py_type(PyTypeObject *supertype);
 static const sipTypeDef *sip_api_type_from_py_type_object(PyObject *wmod,
         PyTypeObject *py_type);
-static const char *sip_api_resolve_typedef(const char *name);
+static const char *sip_api_resolve_typedef(PyObject *wmod, const char *name);
 static void sip_api_keep_reference(PyObject *self, int key, PyObject *obj);
 static PyObject *sip_api_get_reference(PyObject *self, int key);
 static int sip_api_is_owned_by_python(sipSimpleWrapper *sw);
@@ -187,7 +187,8 @@ static void sip_api_instance_destroyed(PyObject *wmod,
 static void sip_api_visit_wrappers(PyObject *wmod,
         sipWrapperVisitorFunc visitor, void *closure);
 static int sip_api_register_exit_notifier(PyMethodDef *md);
-static sipExceptionHandler sip_api_next_exception_handler(void **statep);
+static sipExceptionHandler sip_api_next_exception_handler(PyObject *wmod,
+        void **statep);
 static PyFrameObject *sip_api_get_frame(int depth);
 
 
@@ -196,6 +197,7 @@ static PyFrameObject *sip_api_get_frame(int depth);
  */
 static const sipAPI sip_api = {
     /* This must be first. */
+    // TODO
     sip_api_export_module,
     /*
      * The following are part of the public API.
@@ -420,8 +422,6 @@ static PyObject *typeName = NULL;
 static PyObject *timestampName = NULL;
 static PyObject *signatureName = NULL;
 
-static sipExportedModuleDef *moduleList = NULL; /* List of registered modules. */
-
 static sipSymbol *sipSymbolList = NULL; /* The list of published symbols. */
 static sipPyObject *sipRegisteredPyTypes = NULL;    /* Registered Python types. */
 static sipPyObject *sipDisabledAutoconversions = NULL;  /* Python types whose auto-conversion is disabled. */
@@ -451,6 +451,10 @@ static PyObject *convert_from_new_type(sipSipModuleState *sms, void *cpp,
         const sipTypeDef *td, PyObject *transferObj);
 static int convert_from_sequence(sipSipModuleState *sms, PyObject *seq,
         const sipTypeDef *td, void **array, Py_ssize_t *nr_elem);
+static int convert_pass(sipSipModuleState *sms, const sipTypeDef **tdp,
+        void **cppPtr);
+static const sipTypeDef *convert_subclass(sipSipModuleState *sms,
+        const sipTypeDef *td, void **cppPtr);
 static PyObject *convert_to_sequence(sipSipModuleState *sms, void *array,
         Py_ssize_t nr_elem, const sipTypeDef *td);
 static void *convert_to_type_us(sipSipModuleState *sms, PyObject *pyObj,
@@ -501,14 +505,11 @@ static int getSelfFromArgs(sipTypeDef *td, PyObject *args, int argnr,
 static int compareTypedefName(const void *key, const void *el);
 static void *cast_cpp_ptr(void *ptr, PyTypeObject *src_type,
         const sipTypeDef *dst_type);
-static void finalise(void);
 static PyObject *pickle_type(PyObject *self, PyTypeObject *defining_class,
         PyObject *const *args, Py_ssize_t nargs, PyObject *kwd_args);
 static int setReduce(PyTypeObject *type, PyMethodDef *pickler);
 static sipTypeDef *getGeneratedType(const sipEncodedTypeDef *enc,
         sipExportedModuleDef *em);
-static const sipTypeDef *convertSubClass(const sipTypeDef *td, void **cppPtr);
-static int convertPass(const sipTypeDef **tdp, void **cppPtr);
 static int addCharInstances(PyObject *dict, sipCharInstanceDef *ci);
 static int addStringInstances(PyObject *dict, sipStringInstanceDef *si);
 static int addIntInstances(PyObject *dict, sipIntInstanceDef *ii);
@@ -602,6 +603,7 @@ const sipAPI *sip_init_library(PyObject *module)
 
     /* Other simple initialisations. */
     sms->current_type_def_backdoor = NULL;
+    sms->module_list = NULL;
     sms->unused_backdoor = NULL;
 
     /* Initialise the types. */
@@ -629,11 +631,8 @@ const sipAPI *sip_init_library(PyObject *module)
     /* Initialise the object map. */
     sip_om_init(&sms->object_map);
 
-    /* Make sure we are notified at the end of the exit process. */
-    if (Py_AtExit(finalise) < 0)
-        return NULL;
-
     /* Make sure we are notified at the start of the exit process. */
+    // TODO Review this.
     if (sip_api_register_exit_notifier(&sip_exit_md) < 0)
         return NULL;
 
@@ -695,9 +694,12 @@ static void sip_api_trace(PyObject *wmod, unsigned mask, const char *fmt, ...)
  * Register a client module.  A negative value is returned and an exception
  * raised if there was an error.
  */
-static int sip_api_export_module(sipExportedModuleDef *client,
+// TODO Changed "Exported" to "Wrapped".  Only pass abi_minor.
+// sip_api_initialise_wrapped_module().  Don't use 'client'.
+static int sip_api_export_module(PyObject *wmod, sipExportedModuleDef *client,
         unsigned abi_major, unsigned abi_minor, void *unused)
 {
+    sipSipModuleState *sms = sip_get_sip_module_state(wmod);
     sipExportedModuleDef *em;
     const char *full_name = sipNameOfModule(client);
 
@@ -742,7 +744,7 @@ static int sip_api_export_module(sipExportedModuleDef *client,
             if ((mod = PyImport_ImportModule(im->im_name)) == NULL)
                 return -1;
 
-            for (em = moduleList; em != NULL; em = em->em_next)
+            for (em = sms->module_list; em != NULL; em = em->em_next)
                 if (strcmp(sipNameOfModule(em), im->im_name) == 0)
                     break;
 
@@ -768,7 +770,7 @@ static int sip_api_export_module(sipExportedModuleDef *client,
         }
     }
 
-    for (em = moduleList; em != NULL; em = em->em_next)
+    for (em = sms->module_list; em != NULL; em = em->em_next)
     {
         /* SIP clients must have unique names. */
         if (strcmp(sipNameOfModule(em), full_name) == 0)
@@ -786,8 +788,8 @@ static int sip_api_export_module(sipExportedModuleDef *client,
         return -1;
 
     /* Add it to the list of client modules. */
-    client->em_next = moduleList;
-    moduleList = client;
+    client->em_next = sms->module_list;
+    sms->module_list = client;
 
     return 0;
 }
@@ -985,7 +987,7 @@ static int sip_api_init_module(PyObject *wmod, sipExportedModuleDef *client,
         return -1;
 
     /* See if the new module satisfies any outstanding external types. */
-    for (em = moduleList; em != NULL; em = em->em_next)
+    for (em = sms->module_list; em != NULL; em = em->em_next)
     {
         sipExternalTypeDef *etd;
 
@@ -1023,49 +1025,6 @@ static int sip_api_init_module(PyObject *wmod, sipExportedModuleDef *client,
 
 
 /*
- * Called by the interpreter to do any final clearing up, just in case the
- * interpreter will re-start.
- */
-// TODO Make this part of the module dealloc.
-static void finalise(void)
-{
-    sipExportedModuleDef *em;
-
-    /*
-     * Mark the Python API as unavailable.  This should already have been done,
-     * but just in case...
-     */
-    sipInterpreter = NULL;
-
-    /* Handle any delayed dtors. */
-    for (em = moduleList; em != NULL; em = em->em_next)
-        if (em->em_ddlist != NULL)
-        {
-            em->em_delayeddtors(em->em_ddlist);
-
-            /* Free the list. */
-            do
-            {
-                sipDelayedDtor *dd = em->em_ddlist;
-
-                em->em_ddlist = dd->dd_next;
-                sip_api_free(dd);
-            }
-            while (em->em_ddlist != NULL);
-        }
-
-    licenseName = NULL;
-    licenseeName = NULL;
-    typeName = NULL;
-    timestampName = NULL;
-    signatureName = NULL;
-
-    /* Re-initialise those globals that (might) need it. */
-    moduleList = NULL;
-}
-
-
-/*
  * Register the given Python type.
  */
 static int sip_api_register_py_type(PyTypeObject *type)
@@ -1099,8 +1058,11 @@ static PyObject *findPyType(const char *name)
 /*
  * Add a wrapped C/C++ pointer to the list of delayed dtors.
  */
+// TODO Review this - remove if possible.
 static void sip_api_add_delayed_dtor(sipSimpleWrapper *sw)
 {
+    sipSipModuleState *sms = sip_get_sip_module_state_from_wrapper_type(
+            Py_TYPE((PyObject *)sw));
     void *ptr;
     const sipClassTypeDef *ctd;
     sipExportedModuleDef *em;
@@ -1109,7 +1071,7 @@ static void sip_api_add_delayed_dtor(sipSimpleWrapper *sw)
         return;
 
     /* Find the defining module. */
-    for (em = moduleList; em != NULL; em = em->em_next)
+    for (em = sms->module_list; em != NULL; em = em->em_next)
     {
         int i;
 
@@ -1164,14 +1126,15 @@ void sip_api_free(void *mem)
  * Extend a Python slot by looking in other modules to see if there is an
  * extender function that can handle the arguments.
  */
-static PyObject *sip_api_pyslot_extend(sipExportedModuleDef *mod,
-        sipPySlotType st, const sipTypeDef *td, PyObject *arg0,
-        PyObject *arg1)
+static PyObject *sip_api_pyslot_extend(PyObject *wmod,
+        sipExportedModuleDef *mod, sipPySlotType st, const sipTypeDef *td,
+        PyObject *arg0, PyObject *arg1)
 {
+    sipSipModuleState *sms = sip_get_sip_module_state(wmod);
     sipExportedModuleDef *em;
 
     /* Go through each module. */
-    for (em = moduleList; em != NULL; em = em->em_next)
+    for (em = sms->module_list; em != NULL; em = em->em_next)
     {
         sipPySlotExtenderDef *ex;
 
@@ -5053,7 +5016,8 @@ reterr:
 /*
  * Return the module definition for a named module.
  */
-sipExportedModuleDef *sip_get_module(PyObject *mname_obj)
+sipExportedModuleDef *sip_get_module(sipSipModuleState *sms,
+        PyObject *mname_obj)
 {
     PyObject *mod;
     sipExportedModuleDef *em;
@@ -5063,7 +5027,7 @@ sipExportedModuleDef *sip_get_module(PyObject *mname_obj)
         return NULL;
 
     /* Find the module definition. */
-    for (em = moduleList; em != NULL; em = em->em_next)
+    for (em = sms->module_list; em != NULL; em = em->em_next)
         if (PyUnicode_Compare(mname_obj, em->em_nameobj) == 0)
             break;
 
@@ -5080,8 +5044,9 @@ sipExportedModuleDef *sip_get_module(PyObject *mname_obj)
 /*
  * The type unpickler.
  */
-PyObject *sip_unpickle_type(PyObject *Py_UNUSED(mod), PyObject *args)
+PyObject *sip_unpickle_type(PyObject *mod, PyObject *args)
 {
+    sipSipModuleState *sms = (sipSipModuleState *)PyModule_GetState(mod);
     PyObject *mname_obj, *init_args;
     const char *tname;
     sipExportedModuleDef *em;
@@ -5091,7 +5056,7 @@ PyObject *sip_unpickle_type(PyObject *Py_UNUSED(mod), PyObject *args)
         return NULL;
 
     /* Get the module definition. */
-    if ((em = sip_get_module(mname_obj)) == NULL)
+    if ((em = sip_get_module(sms, mname_obj)) == NULL)
         return NULL;
 
     /* Find the class type object. */
@@ -5122,10 +5087,12 @@ static PyObject *pickle_type(PyObject *self, PyTypeObject *defining_class,
         PyObject *const *Py_UNUSED(args), Py_ssize_t Py_UNUSED(nargs),
         PyObject *Py_UNUSED(kwd_args))
 {
+    PyObject *sip_mod = sip_get_sip_module(defining_class);
+    sipSipModuleState *sms = (sipSipModuleState *)PyModule_GetState(sip_mod);
     sipExportedModuleDef *em;
 
     /* Find the type definition and defining module. */
-    for (em = moduleList; em != NULL; em = em->em_next)
+    for (em = sms->module_list; em != NULL; em = em->em_next)
     {
         int i;
 
@@ -5159,9 +5126,7 @@ static PyObject *pickle_type(PyObject *self, PyTypeObject *defining_class,
                     }
 
                     return Py_BuildValue("N(OsN)",
-                            PyObject_GetAttrString(
-                                    sip_get_sip_module(defining_class),
-                                    "_unpickle_type"),
+                            PyObject_GetAttrString(sip_mod, "_unpickle_type"),
                             em->em_nameobj, pyname, init_args);
                 }
         }
@@ -7271,7 +7236,7 @@ PyObject *sip_convert_from_type(sipSipModuleState *sms, void *cpp,
         const sipTypeDef *orig_td = td;
 
         /* Apply the sub-class convertor. */
-        td = convertSubClass(td, &cpp);
+        td = convert_subclass(sms, td, &cpp);
 
         /*
          * If the sub-class convertor has done something then check the cache
@@ -7358,7 +7323,7 @@ static PyObject *convert_from_new_type(sipSipModuleState *sms, void *cpp,
 
     /* Apply any sub-class convertor. */
     if (sipTypeHasSCC(td))
-        td = convertSubClass(td, &cpp);
+        td = convert_subclass(sms, td, &cpp);
 
     /* Handle any ownership transfer. */
     if (transferObj == NULL || transferObj == Py_None)
@@ -7386,6 +7351,8 @@ int sip_api_get_state(PyObject *transferObj)
  * table for the module.  This is a hack that works around the problem of
  * unresolved externally defined types.
  */
+// TODO This is problematic because the helper won't have access to the module
+// state.
 static sipExportedModuleDef *module_searched;
 
 
@@ -7454,11 +7421,12 @@ static int compareTypeDef(const void *key, const void *el)
 /*
  * Return the type structure for a particular type.
  */
-static const sipTypeDef *sip_api_find_type(const char *type)
+static const sipTypeDef *sip_api_find_type(PyObject *wmod, const char *type)
 {
+    sipSipModuleState *sms = sip_get_sip_module_state(wmod);
     sipExportedModuleDef *em;
 
-    for (em = moduleList; em != NULL; em = em->em_next)
+    for (em = sms->module_list; em != NULL; em = em->em_next)
     {
         sipTypeDef **tdp;
 
@@ -7518,14 +7486,15 @@ static void sip_api_call_hook(const char *hookname)
  * sub-type object, and possibly modifying the C++ address (in the case of
  * multiple inheritence).
  */
-static const sipTypeDef *convertSubClass(const sipTypeDef *td, void **cppPtr)
+static const sipTypeDef *convert_subclass(sipSipModuleState *sms,
+        const sipTypeDef *td, void **cppPtr)
 {
     /* Handle the trivial case. */
     if (*cppPtr == NULL)
         return NULL;
 
     /* Try the conversions until told to stop. */
-    while (convertPass(&td, cppPtr))
+    while (convert_pass(sms, &td, cppPtr))
         ;
 
     return td;
@@ -7535,7 +7504,8 @@ static const sipTypeDef *convertSubClass(const sipTypeDef *td, void **cppPtr)
 /*
  * Do a single pass through the available convertors.
  */
-static int convertPass(const sipTypeDef **tdp, void **cppPtr)
+static int convert_pass(sipSipModuleState *sms, const sipTypeDef **tdp,
+        void **cppPtr)
 {
     PyTypeObject *py_type = sipTypeAsPyTypeObject(*tdp);
     sipExportedModuleDef *em;
@@ -7545,7 +7515,7 @@ static int convertPass(const sipTypeDef **tdp, void **cppPtr)
      * list of modules before any module it imports, ie. sub-class convertors
      * will be invoked for more specific types first.
      */
-    for (em = moduleList; em != NULL; em = em->em_next)
+    for (em = sms->module_list; em != NULL; em = em->em_next)
     {
         sipSubClassConvertorDef *scc;
 
@@ -8488,8 +8458,9 @@ void sip_forget_object(sipSimpleWrapper *sw)
  * If the given name is that of a typedef then the corresponding type is
  * returned.
  */
-static const char *sip_api_resolve_typedef(const char *name)
+static const char *sip_api_resolve_typedef(PyObject *wmod, const char *name)
 {
+    sipSipModuleState *sms = sip_get_sip_module_state(wmod);
     const sipExportedModuleDef *em;
 
     /*
@@ -8497,7 +8468,7 @@ static const char *sip_api_resolve_typedef(const char *name)
      * possible if more than one completely independent modules are being
      * used) then we might pick the wrong one.
      */
-    for (em = moduleList; em != NULL; em = em->em_next)
+    for (em = sms->module_list; em != NULL; em = em->em_next)
     {
         if (em->em_nrtypedefs > 0)
         {
@@ -10204,14 +10175,16 @@ static int user_state_is_valid(const sipTypeDef *td, void **user_statep)
 /*
  * Return the next exception handler.  The order is undefined.
  */
-sipExceptionHandler sip_api_next_exception_handler(void **statep)
+static sipExceptionHandler sip_api_next_exception_handler(PyObject *wmod,
+        void **statep)
 {
+    sipSipModuleState *sms = sip_get_sip_module_state(wmod);
     sipExportedModuleDef *em = *(sipExportedModuleDef **)statep;
 
     if (em != NULL)
         em = em->em_next;
     else
-        em = moduleList;
+        em = sms->module_list;
 
     while (em->em_exception_handler == NULL)
         if ((em = em->em_next) == NULL)

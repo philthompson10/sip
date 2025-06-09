@@ -103,10 +103,10 @@ static PyObject *WrapperType_alloc(PyTypeObject *self, Py_ssize_t nitems)
 
             /* Add the buffer interface. */
             if (ctd->ctd_getbuffer != NULL)
-                bp->bf_getbuffer = (getbufferproc)SimpleWrapper_getbuffer;
+                bp->bf_getbuffer = (getbufferproc)sipSimpleWrapper_getbuffer;
 
             if (ctd->ctd_releasebuffer != NULL)
-                bp->bf_releasebuffer = (releasebufferproc)SimpleWrapper_releasebuffer;
+                bp->bf_releasebuffer = (releasebufferproc)sipSimpleWrapper_releasebuffer;
 
             /* Add the slots for this type. */
             if (ctd->ctd_pyslots != NULL)

@@ -123,6 +123,26 @@ static void module_free(void *module_ptr)
 
     module_clear(module);
 
+    /* Handle any delayed dtors. */
+    // TODO Review the timing and purpose of this.
+    sipExportedModuleDef *em;
+
+    for (em = sms->module_list; em != NULL; em = em->em_next)
+        if (em->em_ddlist != NULL)
+        {
+            em->em_delayeddtors(em->em_ddlist);
+
+            /* Free the list. */
+            do
+            {
+                sipDelayedDtor *dd = em->em_ddlist;
+
+                em->em_ddlist = dd->dd_next;
+                sip_api_free(dd);
+            }
+            while (em->em_ddlist != NULL);
+        }
+
     /* Free the event handlers. */
     int i;
 

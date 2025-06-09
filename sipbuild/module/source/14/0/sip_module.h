@@ -60,6 +60,9 @@ typedef struct _sipSipModuleState {
     /* The method descriptor type object. */
     PyTypeObject *method_descr_type;
 
+    /* The list of registered modules. */
+    sipExportedModuleDef *module_list;
+
     /* The object map. */
     sipObjectMap object_map;
 

@@ -118,7 +118,7 @@ static void SimpleWrapper_dealloc(PyObject *self)
      * Now that the C++ object no longer exists we can tidy up the Python
      * object.
      */
-    SimpleWrapper_clear(self);
+    sipSimpleWrapper_clear(self);
 
     PyTypeObject *type = Py_TYPE(self);
     type->tp_free(self);

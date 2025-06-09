@@ -334,20 +334,19 @@ PyObject *sip_enum_pickle_custom_enum(PyObject *obj, PyObject *args)
 /*
  * The enum unpickler.
  */
-PyObject *sip_enum_unpickle_custom_enum(PyObject *obj, PyObject *args)
+PyObject *sip_enum_unpickle_custom_enum(PyObject *mod, PyObject *args)
 {
+    sipSipModuleState *sms = (sipSipModuleState *)PyModule_GetState(mod);
     PyObject *mname_obj, *evalue_obj;
     const char *ename;
     sipExportedModuleDef *em;
     int i;
 
-    (void)obj;
-
     if (!PyArg_ParseTuple(args, "UsO:_unpickle_enum", &mname_obj, &ename, &evalue_obj))
         return NULL;
 
     /* Get the module definition. */
-    if ((em = sip_get_module(mname_obj)) == NULL)
+    if ((em = sip_get_module(sms, mname_obj)) == NULL)
         return NULL;
 
     /* Find the enum type object. */

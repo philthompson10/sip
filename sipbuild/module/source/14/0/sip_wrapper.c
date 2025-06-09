@@ -58,7 +58,7 @@ static int Wrapper_clear(PyObject *self)
     sipWrapper *sw = (sipWrapper *)self;
     int vret;
 
-    vret = SimpleWrapper_clear(self);
+    vret = sipSimpleWrapper_clear(self);
 
     /* Detach any children (which will be owned by C/C++). */
     while (sw->first_child != NULL)
@@ -93,7 +93,7 @@ static int Wrapper_traverse(PyObject *self, visitproc visit, void *arg)
 {
     int vret;
 
-    if ((vret = SimpleWrapper_traverse(self, visit, arg)) != 0)
+    if ((vret = sipSimpleWrapper_traverse(self, visit, arg)) != 0)
         return vret;
 
     sipWrapper *w;

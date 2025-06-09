@@ -87,7 +87,8 @@ void sip_forget_object(sipSimpleWrapper *sw);
 const sipContainerDef *sip_get_container(const sipTypeDef *td);
 const sipClassTypeDef *sip_get_generated_class_type(
         const sipEncodedTypeDef *enc, const sipClassTypeDef *ctd);
-sipExportedModuleDef *sip_get_module(PyObject *mname_obj);
+sipExportedModuleDef *sip_get_module(struct _sipSipModuleState *sms,
+        PyObject *mname_obj);
 void *sip_get_ptr_type_def(sipSimpleWrapper *self,
         const sipClassTypeDef **ctd);
 PyObject *sip_get_qualname(const sipTypeDef *td, PyObject *name);
