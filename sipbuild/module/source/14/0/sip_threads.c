@@ -16,43 +16,23 @@
 #include "sip_threads.h"
 
 #include "sip_core.h"
-
-
-/*
- * The data associated with pending request to wrap an object.
- */
-typedef struct {
-    void *cpp;                      /* The C/C++ object ot be wrapped. */
-    sipWrapper *owner;              /* The owner of the object. */
-    int flags;                      /* The flags. */
-} pendingDef;
-
-
-/*
- * The per thread data we need to maintain.
- */
-typedef struct _threadDef {
-    long thr_ident;                 /* The thread identifier. */
-    pendingDef pending;             /* An object waiting to be wrapped. */
-    struct _threadDef *next;        /* Next in the list. */
-} threadDef;
-
-static threadDef *threads = NULL;   /* Linked list of threads. */
+#include "sip_module.h"
 
 
 /* Forward references. */
-static threadDef *current_thread_def(int auto_alloc);
-static pendingDef *get_pending(int auto_alloc);
+static sipThread *get_current_thread(sipSipModuleState *sms, int auto_alloc);
+static sipPendingDef *get_pending(sipSipModuleState *sms, int auto_alloc);
 
 
 /*
  * Get the address etc. of any C/C++ object waiting to be wrapped.
  */
-int sip_get_pending(void **pp, sipWrapper **op, int *fp)
+int sip_get_pending(sipSipModuleState *sms, void **pp, sipWrapper **op,
+        int *fp)
 {
-    pendingDef *pd;
+    sipPendingDef *pd;
 
-    if ((pd = get_pending(TRUE)) == NULL)
+    if ((pd = get_pending(sms, TRUE)) == NULL)
         return -1;
 
     *pp = pd->cpp;
@@ -69,11 +49,11 @@ int sip_get_pending(void **pp, sipWrapper **op, int *fp)
 /*
  * Return TRUE if anything is pending.
  */
-int sip_is_pending(void)
+int sip_is_pending(sipSipModuleState *sms)
 {
-    pendingDef *pd;
+    sipPendingDef *pd;
 
-    if ((pd = get_pending(FALSE)) == NULL)
+    if ((pd = get_pending(sms, FALSE)) == NULL)
         return FALSE;
 
     return (pd->cpp != NULL);
@@ -83,10 +63,10 @@ int sip_is_pending(void)
 /*
  * Convert a new C/C++ pointer to a Python instance.
  */
-PyObject *sip_wrap_instance(void *cpp, PyTypeObject *py_type, PyObject *args,
-        sipWrapper *owner, int flags)
+PyObject *sip_wrap_instance(sipSipModuleState *sms, void *cpp,
+        PyTypeObject *py_type, PyObject *args, sipWrapper *owner, int flags)
 {
-    pendingDef old_pending, *pd;
+    sipPendingDef old_pending, *pd;
     PyObject *self;
 
     if (cpp == NULL)
@@ -101,7 +81,7 @@ PyObject *sip_wrap_instance(void *cpp, PyTypeObject *py_type, PyObject *args,
      * recursively.  Therefore we save any existing pending object before
      * setting the new one.
      */
-    if ((pd = get_pending(TRUE)) == NULL)
+    if ((pd = get_pending(sms, TRUE)) == NULL)
         return NULL;
 
     old_pending = *pd;
@@ -121,12 +101,12 @@ PyObject *sip_wrap_instance(void *cpp, PyTypeObject *py_type, PyObject *args,
 /*
  * Handle the termination of a thread.
  */
-void sip_api_end_thread(void)
+void sip_api_end_thread(PyObject *wmod)
 {
-    threadDef *thread;
+    sipThread *thread;
     PyGILState_STATE gil = PyGILState_Ensure();
 
-    if ((thread = current_thread_def(FALSE)) != NULL)
+    if ((thread = get_current_thread(sip_get_sip_module_state(wmod), FALSE)) != NULL)
         thread->thr_ident = 0;
 
     PyGILState_Release(gil);
@@ -137,11 +117,11 @@ void sip_api_end_thread(void)
  * Return the pending data for the current thread, allocating it if necessary,
  * or NULL if there was an error.
  */
-static pendingDef *get_pending(int auto_alloc)
+static sipPendingDef *get_pending(sipSipModuleState *sms, int auto_alloc)
 {
-    threadDef *thread;
+    sipThread *thread;
 
-    if ((thread = current_thread_def(auto_alloc)) == NULL)
+    if ((thread = get_current_thread(sms, auto_alloc)) == NULL)
         return NULL;
 
     return &thread->pending;
@@ -152,13 +132,13 @@ static pendingDef *get_pending(int auto_alloc)
  * Return the thread data for the current thread, allocating it if necessary,
  * or NULL if there was an error.
  */
-static threadDef *current_thread_def(int auto_alloc)
+static sipThread *get_current_thread(sipSipModuleState *sms, int auto_alloc)
 {
-    threadDef *thread, *empty = NULL;
+    sipThread *thread, *empty = NULL;
     long ident = PyThread_get_thread_ident();
 
     /* See if we already know about the thread. */
-    for (thread = threads; thread != NULL; thread = thread->next)
+    for (thread = sms->thread_list; thread != NULL; thread = thread->next)
     {
         if (thread->thr_ident == ident)
             return thread;
@@ -178,14 +158,14 @@ static threadDef *current_thread_def(int auto_alloc)
         /* Use an empty entry in the list. */
         thread = empty;
     }
-    else if ((thread = sip_api_malloc(sizeof (threadDef))) == NULL)
+    else if ((thread = sip_api_malloc(sizeof (sipThread))) == NULL)
     {
         return NULL;
     }
     else
     {
-        thread->next = threads;
-        threads = thread;
+        thread->next = sms->thread_list;
+        sms->thread_list = thread;
     }
 
     thread->thr_ident = ident;

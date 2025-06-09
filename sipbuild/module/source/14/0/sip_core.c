@@ -467,6 +467,7 @@ static int parse_pass_2(sipSipModuleState *sms, PyObject *self, int selfarg,
 static int parse_result(sipSipModuleState *sms, PyObject *method,
         PyObject *res, sipSimpleWrapper *py_self, const char *fmt, va_list va);
 static int register_py_type(sipSipModuleState *sms, PyTypeObject *supertype);
+static int set_reduce(PyTypeObject *type, PyMethodDef *pickler);
 
 static void *findSlotInClass(const sipClassTypeDef *psd, sipPySlotType st);
 static void *findSlotInSlotList(sipPySlotDef *psd, sipPySlotType st);
@@ -484,7 +485,6 @@ static void *cast_cpp_ptr(void *ptr, PyTypeObject *src_type,
         const sipTypeDef *dst_type);
 static PyObject *pickle_type(PyObject *self, PyTypeObject *defining_class,
         PyObject *const *args, Py_ssize_t nargs, PyObject *kwd_args);
-static int setReduce(PyTypeObject *type, PyMethodDef *pickler);
 static sipTypeDef *getGeneratedType(const sipEncodedTypeDef *enc,
         sipExportedModuleDef *em);
 static int addCharInstances(PyObject *dict, sipCharInstanceDef *ci);
@@ -574,6 +574,7 @@ const sipAPI *sip_init_library(PyObject *module)
     sms->module_list = NULL;
     sms->registered_py_types = NULL;
     sms->symbol_list = NULL;
+    sms->thread_list = NULL;
     sms->unused_backdoor = NULL;
 
     /* Initialise the types. */
@@ -809,7 +810,7 @@ static int sip_api_init_module(PyObject *wmod, sipExportedModuleDef *client,
              */
             td->td_module = client;
 
-            if (etd->etd_scope < 0 && sip_enum_create_py_enum(client, etd, &next_int, mod_dict) < 0)
+            if (etd->etd_scope < 0 && sip_enum_create_py_enum(sms, client, etd, &next_int, mod_dict) < 0)
                 return -1;
         }
 #endif
@@ -828,11 +829,10 @@ static int sip_api_init_module(PyObject *wmod, sipExportedModuleDef *client,
             if (sipTypeIsEnum(td) && etd->etd_scope >= 0)
             {
                 static PyMethodDef md = {
-                    "_pickle_enum", sip_enum_pickle_custom_enum, METH_NOARGS,
-                    NULL
+                    "_pickle_enum", (PyCFunction)sip_enum_pickle_custom_enum, METH_METHOD|METH_FASTCALL|METH_KEYWORDS, NULL
                 };
 
-                if (setReduce(sipTypeAsPyTypeObject(td), &md) < 0)
+                if (set_reduce(sipTypeAsPyTypeObject(td), &md) < 0)
                     return -1;
             }
         }
@@ -937,7 +937,7 @@ static int sip_api_init_module(PyObject *wmod, sipExportedModuleDef *client,
         if (sipTypeIsScopedEnum(etd))
             continue;
 
-        mo = sip_api_convert_from_enum(emd->em_val, etd);
+        mo = sip_enum_convert_from_enum(sms, emd->em_val, etd);
 
         if (sip_dict_set_and_discard(mod_dict, emd->em_name, mo) < 0)
             return -1;
@@ -1166,7 +1166,7 @@ static PyObject *sip_api_convert_from_new_pytype(PyObject *wmod, void *cpp,
 
     if ((args = PyTuple_New(strlen(fmt))) != NULL && build_object(sms, args, fmt, va) != NULL)
     {
-        res = sip_wrap_instance(cpp, py_type, args, owner,
+        res = sip_wrap_instance(sms, cpp, py_type, args, owner,
                 (selfp != NULL ? SIP_DERIVED_CLASS : 0));
 
         /* Initialise the rest of an instance of a derived class. */
@@ -1424,7 +1424,7 @@ static PyObject *build_object(sipSipModuleState *sms, PyObject *obj,
                 int ev = va_arg(va, int);
                 const sipTypeDef *td = va_arg(va, const sipTypeDef *);
 
-                el = sip_api_convert_from_enum(ev, td);
+                el = sip_enum_convert_from_enum(sms, ev, td);
             }
 
             break;
@@ -1869,7 +1869,7 @@ static int parse_result(sipSipModuleState *sms, PyObject *method,
                 {
                     sipTypeDef *td = va_arg(va, sipTypeDef *);
                     int *p = va_arg(va, int *);
-                    int v = sip_api_convert_to_enum(arg, td);
+                    int v = sip_enum_convert_to_enum(sms, arg, td);
 
                     if (PyErr_Occurred())
                         invalid = TRUE;
@@ -2318,7 +2318,7 @@ static int parse_result(sipSipModuleState *sms, PyObject *method,
                 {
                     PyObject **p = va_arg(va, PyObject **);
 
-                    if (sip_enum_is_enum(arg))
+                    if (sip_enum_is_enum(sms, arg))
                     {
                         if (p != NULL)
                         {
@@ -2338,7 +2338,7 @@ static int parse_result(sipSipModuleState *sms, PyObject *method,
                 {
                     PyObject **p = va_arg(va, PyObject **);
 
-                    if (arg == Py_None || sip_enum_is_enum(arg))
+                    if (arg == Py_None || sip_enum_is_enum(sms, arg))
                     {
                         if (p != NULL)
                         {
@@ -3330,7 +3330,7 @@ static int parse_pass_1(sipSipModuleState *sms, PyObject **parseErrp,
 
                 if (arg != NULL)
                 {
-                    if (sip_enum_is_enum(arg))
+                    if (sip_enum_is_enum(sms, arg))
                         *p = arg;
                     else
                         handle_failed_type_conversion(&failure, arg);
@@ -3349,7 +3349,7 @@ static int parse_pass_1(sipSipModuleState *sms, PyObject **parseErrp,
 
                 if (arg != NULL)
                 {
-                    if (arg == Py_None || sip_enum_is_enum(arg))
+                    if (arg == Py_None || sip_enum_is_enum(sms, arg))
                         *p = arg;
                     else
                         handle_failed_type_conversion(&failure, arg);
@@ -3448,7 +3448,7 @@ static int parse_pass_1(sipSipModuleState *sms, PyObject **parseErrp,
 
                 if (arg != NULL)
                 {
-                    int v = sip_api_convert_to_enum(arg, td);
+                    int v = sip_enum_convert_to_enum(sms, arg, td);
 
                     if (PyErr_Occurred())
                         handle_failed_type_conversion(&failure, arg);
@@ -3738,7 +3738,8 @@ static int parse_pass_1(sipSipModuleState *sms, PyObject **parseErrp,
 
                     if (arg != NULL)
                     {
-                        *p = sip_enum_convert_to_constrained_enum(arg, td);
+                        *p = sip_enum_convert_to_constrained_enum(sms, arg,
+                                td);
 
                         if (PyErr_Occurred())
                             handle_failed_type_conversion(&failure, arg);
@@ -4923,7 +4924,7 @@ static int create_class_type(sipSipModuleState *sms,
             "_pickle_type", (PyCFunction)pickle_type, METH_METHOD|METH_FASTCALL|METH_KEYWORDS, NULL
         };
 
-        if (setReduce((PyTypeObject *)py_type, &md) < 0)
+        if (set_reduce((PyTypeObject *)py_type, &md) < 0)
             goto reltype;
     }
 
@@ -5056,7 +5057,7 @@ PyObject *sip_unpickle_type(PyObject *mod, PyObject *args)
 
 
 /*
- * The type pickler.
+ * The type pickler, ie. the implementation of __reduce__.
  */
 static PyObject *pickle_type(PyObject *self, PyTypeObject *defining_class,
         PyObject *const *Py_UNUSED(args), Py_ssize_t Py_UNUSED(nargs),
@@ -5100,6 +5101,7 @@ static PyObject *pickle_type(PyObject *self, PyTypeObject *defining_class,
                         return NULL;
                     }
 
+                    // TODO Why not save the callable in the module state?
                     return Py_BuildValue("N(OsN)",
                             PyObject_GetAttrString(sip_mod, "_unpickle_type"),
                             em->em_nameobj, pyname, init_args);
@@ -5118,7 +5120,7 @@ static PyObject *pickle_type(PyObject *self, PyTypeObject *defining_class,
 /*
  * Set the __reduce__method for a type.
  */
-static int setReduce(PyTypeObject *type, PyMethodDef *pickler)
+static int set_reduce(PyTypeObject *type, PyMethodDef *pickler)
 {
     PyObject *descr;
     int rc;
@@ -5181,8 +5183,7 @@ PyObject *sip_create_type_dict(sipExportedModuleDef *em)
 
 
 /*
- * Add a set of static instances to a dictionary.  Note that ints are handled
- * separately.
+ * Add a set of static instances to a dictionary.
  */
 static int add_instances(sipSipModuleState *sms, PyObject *dict,
         sipInstancesDef *id)
@@ -5198,6 +5199,11 @@ static int add_instances(sipSipModuleState *sms, PyObject *dict,
 
     if (id->id_string != NULL && addStringInstances(dict, id->id_string) < 0)
         return -1;
+
+#if defined(SIP_CONFIGURATION_CustomEnums)
+    if (id->id_int != NULL && addIntInstances(dict, id->id_int) < 0)
+        return -1;
+#endif
 
     if (id->id_long != NULL && addLongInstances(dict, id->id_long) < 0)
         return -1;
@@ -5323,7 +5329,7 @@ static int add_lazy_container_attrs(sipSipModuleState *sms, sipWrapperType *wt,
                 sipEnumTypeDef *etd = (sipEnumTypeDef *)enum_td;
 
                 if (module->em_types[etd->etd_scope] == td)
-                    if (sip_enum_create_py_enum(module, etd, &next_int, dict) < 0)
+                    if (sip_enum_create_py_enum(sms, module, etd, &next_int, dict) < 0)
                         return -1;
             }
         }
@@ -5358,7 +5364,7 @@ static int add_lazy_container_attrs(sipSipModuleState *sms, sipWrapperType *wt,
             if (sipTypeIsScopedEnum(etd))
                 continue;
 
-            val = sip_api_convert_from_enum(enm->em_val, etd);
+            val = sip_enum_convert_from_enum(sms, enm->em_val, etd);
         }
 
         if (sip_dict_set_and_discard(dict, enm->em_name, val) < 0)
@@ -5534,7 +5540,7 @@ static const sipTypeDef *sip_api_type_from_py_type_object(PyObject *wmod,
     if (PyObject_TypeCheck((PyObject *)py_type, sms->wrapper_type_type))
         return ((sipWrapperType *)py_type)->wt_td;
 
-    return sip_enum_get_generated_type(py_type);
+    return sip_enum_get_generated_type(sms, py_type);
 }
 
 
@@ -6436,7 +6442,7 @@ static int add_single_type_instance(sipSipModuleState *sms, PyObject *dict,
 
     if (sipTypeIsEnum(td))
     {
-        obj = sip_api_convert_from_enum(*(int *)cppPtr, td);
+        obj = sip_enum_convert_from_enum(sms, *(int *)cppPtr, td);
     }
     else
     {
@@ -9328,8 +9334,8 @@ static sipSimpleWrapper *deref_mixin(sipSimpleWrapper *w)
 PyObject *sip_wrap_simple_instance(sipSipModuleState *sms, void *cpp,
         const sipTypeDef *td, sipWrapper *owner, int flags)
 {
-    return sip_wrap_instance(cpp, sipTypeAsPyTypeObject(td), sms->empty_tuple,
-            owner, flags);
+    return sip_wrap_instance(sms, cpp, sipTypeAsPyTypeObject(td),
+            sms->empty_tuple, owner, flags);
 }
 
 

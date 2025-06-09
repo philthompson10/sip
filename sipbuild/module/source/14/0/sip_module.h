@@ -18,6 +18,7 @@
 #include "sip.h"
 #include "sip_core.h"
 #include "sip_object_map.h"
+#include "sip_threads.h"
 
 
 #ifdef __cplusplus
@@ -47,6 +48,20 @@ typedef struct _sipSipModuleState {
      */
     PyObject *base_tuple_wrapper;
 
+#if defined(SIP_CONFIGURATION_PyEnums)
+    /* The builtin int type object. */
+    PyObject *builtin_int_type;
+
+    /* The builtin object type object. */
+    PyObject *builtin_object_type;
+#endif
+
+#if defined(SIP_CONFIGURATION_CustomEnums)
+    /* The type definition used in creating the current custom enum. */
+    // TODO Try and get rid of this.
+    const sipTypeDef *current_enum_backdoor;
+#endif
+
     /* The type definition used in creating the current type. */
     // TODO Try and get rid of this.
     const sipTypeDef *current_type_def_backdoor;
@@ -58,6 +73,28 @@ typedef struct _sipSipModuleState {
 
     /* The empty tuple. */
     PyObject *empty_tuple;
+
+#if defined(SIP_CONFIGURATION_CustomEnums)
+    /* The enum.Enum type object. */
+    PyObject *enum_enum_type;
+
+    /* The enum.IntEnum type object. */
+    PyObject *enum_int_enum_type;
+#endif
+
+#if defined(SIP_CONFIGURATION_PyEnums)
+    /* The enum.Enum type object. */
+    PyObject *enum_enum_type;
+
+    /* The enum.IntEnum type object. */
+    PyObject *enum_int_enum_type;
+
+    /* The enum.Flag type object. */
+    PyObject *enum_flag_type;
+
+    /* The enum.IntFlag type object. */
+    PyObject *enum_int_flag_type;
+#endif
 
     /* The event handler lists. */
     sipEventHandler *event_handlers[sipEventNrEvents];
@@ -82,6 +119,9 @@ typedef struct _sipSipModuleState {
 
     /* The list of symbols. */
     sipSymbol *symbol_list;
+
+    /* The list of threads. */
+    sipThread *thread_list;
 
     /* The trace mask. */
     unsigned trace_mask;

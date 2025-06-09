@@ -1234,7 +1234,8 @@ struct _sipAPI {
             const sipTypeDef *td, PyObject *transferObj);
     PyObject *(*api_convert_from_new_type)(PyObject *wmod, void *cpp,
             const sipTypeDef *td, PyObject *transferObj);
-    PyObject *(*api_convert_from_enum)(int eval, const sipTypeDef *td);
+    PyObject *(*api_convert_from_enum)(PyObject *wmod, int eval,
+            const sipTypeDef *td);
     int (*api_get_state)(PyObject *transferObj);
     void (*api_free)(void *mem);
     PyObject *(*api_get_pyobject)(PyObject *wmod, void *cppPtr,
@@ -1306,7 +1307,8 @@ struct _sipAPI {
     void (*api_print_object)(PyObject *o);
     int (*api_register_event_handler)(PyObject *wmod, sipEventType type,
             const sipTypeDef *td, void *handler);
-    int (*api_convert_to_enum)(PyObject *obj, const sipTypeDef *td);
+    int (*api_convert_to_enum)(PyObject *wmod, PyObject *obj,
+            const sipTypeDef *td);
     int (*api_convert_to_bool)(PyObject *obj);
     char (*api_long_as_char)(PyObject *o);
     signed char (*api_long_as_signed_char)(PyObject *o);
@@ -1326,7 +1328,7 @@ struct _sipAPI {
             void *closure);
     int (*api_register_exit_notifier)(PyMethodDef *md);
 #if defined(SIP_CONFIGURATION_PyEnums)
-    int (*api_is_enum_flag)(PyObject *o);
+    int (*api_is_enum_flag)(PyObject *wmod, PyObject *o);
 #else
     void (*reserved_1)(void);
 #endif
@@ -1359,7 +1361,7 @@ struct _sipAPI {
             char *pymc, sipSimpleWrapper **sipSelfp, const char *cname,
             const char *mname);
     void (*api_call_hook)(const char *hookname);
-    void (*api_end_thread)(void);
+    void (*api_end_thread)(PyObject *wmod);
     void (*api_raise_unknown_exception)(void);
     void (*api_raise_type_exception)(PyObject *wmod, const sipTypeDef *td,
             void *ptr);

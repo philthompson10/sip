@@ -27,20 +27,12 @@
 #define IS_UNSIGNED_ENUM(etd)   ((etd)->etd_base_type == SIP_ENUM_UINT_ENUM || (etd)->etd_base_type == SIP_ENUM_INT_FLAG || (etd)->etd_base_type == SIP_ENUM_FLAG)
 
 
-static PyObject *int_type = NULL;               /* The int type. */
-static PyObject *object_type = NULL;            /* The object type. */
-
-static PyObject *enum_type = NULL;              /* The enum.Enum type. */
-static PyObject *int_enum_type = NULL;          /* The enum.IntEnum type. */
-static PyObject *flag_type = NULL;              /* The enum.Flag type. */
-static PyObject *int_flag_type = NULL;          /* The enum.IntFlag type. */
-
-
 /* Forward references. */
-static PyObject *create_enum_object(sipExportedModuleDef *client,
-        sipEnumTypeDef *etd, sipIntInstanceDef **next_int_p, PyObject *name);
+static PyObject *create_enum_object(sipSipModuleState *sms,
+        sipExportedModuleDef *client, sipEnumTypeDef *etd,
+        sipIntInstanceDef **next_int_p, PyObject *name);
 static void enum_expected(PyObject *obj, const sipTypeDef *td);
-static PyObject *get_enum_type(const sipTypeDef *td);
+static PyObject *get_enum_type(sipSipModuleState *sms, const sipTypeDef *td);
 static PyObject *missing(PyObject *cls, PyObject *value, int int_enum);
 static PyObject *missing_enum(PyObject *cls, PyObject *value);
 static PyObject *missing_int_enum(PyObject *cls, PyObject *value);
@@ -49,13 +41,25 @@ static PyObject *missing_int_enum(PyObject *cls, PyObject *value);
 /*
  * Create a Python object for a member of a named enum.
  */
-PyObject *sip_api_convert_from_enum(int member, const sipTypeDef *td)
+PyObject *sip_api_convert_from_enum(PyObject *wmod, int member,
+        const sipTypeDef *td)
+{
+    return sip_enum_convert_from_enum(sip_get_sip_module_state(wmod), member,
+            td);
+}
+
+
+/*
+ * Implement the creation of a Python object for a member of a named enum.
+ */
+PyObject *sip_enum_convert_from_enum(sipSipModuleState *sms, int member,
+        const sipTypeDef *td)
 {
     PyObject *et;
 
     assert(sipTypeIsEnum(td));
 
-    et = get_enum_type(td);
+    et = get_enum_type(sms, td);
 
     return PyObject_CallFunction(et,
             IS_UNSIGNED_ENUM((sipEnumTypeDef *)td) ? "(I)" : "(i)", member);
@@ -66,7 +70,19 @@ PyObject *sip_api_convert_from_enum(int member, const sipTypeDef *td)
  * Convert a Python object implementing an enum to an integer value.  An
  * exception is raised if there was an error.
  */
-int sip_api_convert_to_enum(PyObject *obj, const sipTypeDef *td)
+int sip_api_convert_to_enum(PyObject *wmod, PyObject *obj,
+        const sipTypeDef *td)
+{
+    return sip_enum_convert_to_enum(sip_get_sip_module_state(wmod), obj, td);
+}
+
+
+/*
+ * Implement the conversion from a Python object implementing an enum to an
+ * integer value.
+ */
+int sip_enum_convert_to_enum(sipSipModuleState *sms, PyObject *obj,
+        const sipTypeDef *td)
 {
     PyObject *val_obj, *type_obj;
     int val;
@@ -74,7 +90,7 @@ int sip_api_convert_to_enum(PyObject *obj, const sipTypeDef *td)
     assert(sipTypeIsEnum(td));
 
     /* Make sure the enum object has been created. */
-    type_obj = get_enum_type(td);
+    type_obj = get_enum_type(sms, td);
 
     /* Check the type of the Python object. */
     if (PyObject_IsInstance(obj, type_obj) <= 0)
@@ -110,19 +126,22 @@ int sip_api_convert_to_enum(PyObject *obj, const sipTypeDef *td)
 /*
  * Return a non-zero value if an object is a sub-class of enum.Flag.
  */
-int sip_api_is_enum_flag(PyObject *obj)
+int sip_api_is_enum_flag(PyObject *wmod, PyObject *obj)
 {
-    return (PyObject_IsSubclass(obj, flag_type) == 1);
+    sipSipModuleState *sms = sip_get_sip_module_state(wmod);
+
+    return (PyObject_IsSubclass(obj, sms->enum_flag_type) == 1);
 }
 
 
 /*
  * Convert a Python object implementing a constrained enum to an integer value.
  */
-int sip_enum_convert_to_constrained_enum(PyObject *obj, const sipTypeDef *td)
+int sip_enum_convert_to_constrained_enum(sipSipModuleState *sms, PyObject *obj,
+        const sipTypeDef *td)
 {
     /* There is no difference between constrained and unconstrained enums. */
-    return sip_api_convert_to_enum(obj, td);
+    return sip_enum_convert_to_enum(sms, obj, td);
 }
 
 
@@ -130,7 +149,8 @@ int sip_enum_convert_to_constrained_enum(PyObject *obj, const sipTypeDef *td)
  * Create an enum object and add it to a dictionary.  A negative value is
  * returned (and an exception set) if there was an error.
  */
-int sip_enum_create_py_enum(sipExportedModuleDef *client, sipEnumTypeDef *etd,
+int sip_enum_create_py_enum(sipSipModuleState *sms,
+        sipExportedModuleDef *client, sipEnumTypeDef *etd,
         sipIntInstanceDef **next_int_p, PyObject *dict)
 {
     int rc;
@@ -141,7 +161,7 @@ int sip_enum_create_py_enum(sipExportedModuleDef *client, sipEnumTypeDef *etd,
         return -1;
 
     /* Create the enum object. */
-    if ((enum_obj = create_enum_object(client, etd, next_int_p, name)) == NULL)
+    if ((enum_obj = create_enum_object(sms, client, etd, next_int_p, name)) == NULL)
     {
         Py_DECREF(name);
         return -1;
@@ -162,9 +182,10 @@ int sip_enum_create_py_enum(sipExportedModuleDef *client, sipEnumTypeDef *etd,
  * Return the generated type structure for a Python enum object that wraps a
  * C/C++ enum or NULL (and no exception set) if the object is something else.
  */
-const sipTypeDef *sip_enum_get_generated_type(PyTypeObject *py_type)
+const sipTypeDef *sip_enum_get_generated_type(sipSipModuleState *sms,
+        PyTypeObject *py_type)
 {
-    if (sip_enum_is_enum((PyObject *)py_type))
+    if (sip_enum_is_enum(sms, (PyObject *)py_type))
     {
         PyObject *dunder_sip = PyUnicode_InternFromString("__sip__");
 
@@ -196,35 +217,45 @@ const sipTypeDef *sip_enum_get_generated_type(PyTypeObject *py_type)
  */
 int sip_enum_init(PyObject *module, sipSipModuleState *sms)
 {
-    // TODO
-    PyObject *builtins, *enum_module;
+    /* Get the containers of the types */
+    PyObject *enum_module = PyImport_ImportModule("enum");
+
+    if (enum_module == NULL)
+        return -1;
+
+    PyObject *builtins = PyEval_GetBuiltins();
 
     /* Get the builtin types. */
-    builtins = PyEval_GetBuiltins();
+    sms->builtin_int_type = PyDict_GetItemString(builtins, "int");
+    sms->builtin_object_type = PyDict_GetItemString(builtins, "object");
 
-    if ((int_type = PyDict_GetItemString(builtins, "int")) == NULL)
-        return -1;
+    if (sms->builtin_int_type == NULL || sms->builtin_object_type == NULL)
+    {
+        Py_XDECREF(sms->builtin_int_type);
+        Py_XDECREF(sms->builtin_object_type);
 
-    if ((object_type = PyDict_GetItemString(builtins, "object")) == NULL)
+        Py_DECREF(enum_module);
+
         return -1;
+    }
 
     /* Get the enum types. */
-    if ((enum_module = PyImport_ImportModule("enum")) == NULL)
-        return -1;
-
-    enum_type = PyObject_GetAttrString(enum_module, "Enum");
-    int_enum_type = PyObject_GetAttrString(enum_module, "IntEnum");
-    flag_type = PyObject_GetAttrString(enum_module, "Flag");
-    int_flag_type = PyObject_GetAttrString(enum_module, "IntFlag");
+    sms->enum_enum_type = PyObject_GetAttrString(enum_module, "Enum");
+    sms->enum_int_enum_type = PyObject_GetAttrString(enum_module, "IntEnum");
+    sms->enum_flag_type = PyObject_GetAttrString(enum_module, "Flag");
+    sms->enum_int_flag_type = PyObject_GetAttrString(enum_module, "IntFlag");
 
     Py_DECREF(enum_module);
 
-    if (enum_type == NULL || int_enum_type == NULL || flag_type == NULL || int_flag_type == NULL)
+    if (sms->enum_enum_type == NULL || sms->enum_int_enum_type == NULL || sms->enum_flag_type == NULL || sms->enum_int_flag_type == NULL)
     {
-        Py_XDECREF(enum_type);
-        Py_XDECREF(int_enum_type);
-        Py_XDECREF(flag_type);
-        Py_XDECREF(int_flag_type);
+        Py_XDECREF(sms->enum_enum_type);
+        Py_XDECREF(sms->enum_int_enum_type);
+        Py_XDECREF(sms->enum_flag_type);
+        Py_XDECREF(sms->enum_int_flag_type);
+
+        Py_DECREF(sms->builtin_int_type);
+        Py_DECREF(sms->builtin_object_type);
 
         return -1;
     }
@@ -236,17 +267,18 @@ int sip_enum_init(PyObject *module, sipSipModuleState *sms)
 /*
  * Return a non-zero value if an object is a sub-class of enum.Enum.
  */
-int sip_enum_is_enum(PyObject *obj)
+int sip_enum_is_enum(sipSipModuleState *sms, PyObject *obj)
 {
-    return (PyObject_IsSubclass(obj, enum_type) == 1);
+    return (PyObject_IsSubclass(obj, sms->enum_enum_type) == 1);
 }
 
 
 /*
  * Create an enum object.
  */
-static PyObject *create_enum_object(sipExportedModuleDef *client,
-        sipEnumTypeDef *etd, sipIntInstanceDef **next_int_p, PyObject *name)
+static PyObject *create_enum_object(sipSipModuleState *sms,
+        sipExportedModuleDef *client, sipEnumTypeDef *etd,
+        sipIntInstanceDef **next_int_p, PyObject *name)
 {
     int i, rc;
     PyObject *members, *enum_factory, *enum_obj, *args, *kw_args, *etd_cap;
@@ -327,11 +359,11 @@ static PyObject *create_enum_object(sipExportedModuleDef *client,
 
     if (etd->etd_base_type == SIP_ENUM_INT_FLAG)
     {
-        enum_factory = int_flag_type;
+        enum_factory = sms->enum_int_flag_type;
     }
     else if (etd->etd_base_type == SIP_ENUM_FLAG)
     {
-        enum_factory = flag_type;
+        enum_factory = sms->enum_flag_type;
     }
     else if (etd->etd_base_type == SIP_ENUM_INT_ENUM || etd->etd_base_type == SIP_ENUM_UINT_ENUM)
     {
@@ -339,7 +371,7 @@ static PyObject *create_enum_object(sipExportedModuleDef *client,
             "_missing_", missing_int_enum, METH_O|METH_CLASS, NULL
         };
 
-        enum_factory = int_enum_type;
+        enum_factory = sms->enum_int_enum_type;
         missing_md = &missing_int_enum_md;
     }
     else
@@ -348,7 +380,7 @@ static PyObject *create_enum_object(sipExportedModuleDef *client,
             "_missing_", missing_enum, METH_O|METH_CLASS, NULL
         };
 
-        enum_factory = enum_type;
+        enum_factory = sms->enum_enum_type;
         missing_md = &missing_enum_md;
     }
 
@@ -452,10 +484,8 @@ static void enum_expected(PyObject *obj, const sipTypeDef *td)
 /*
  * Get the Python object for an enum type.
  */
-// TODO This cannot be implemented.
-static PyObject *get_enum_type(const sipTypeDef *td)
+static PyObject *get_enum_type(sipSipModuleState *sms, const sipTypeDef *td)
 {
-#if 0
     PyObject *type_obj;
 
     /* Make sure the enum object has been created. */
@@ -463,16 +493,13 @@ static PyObject *get_enum_type(const sipTypeDef *td)
 
     if (type_obj == NULL)
     {
-        if (sip_add_all_lazy_attrs(sip_api_type_scope(td)) < 0)
+        if (sip_add_all_lazy_attrs(sms, sip_api_type_scope(td)) < 0)
             return NULL;
 
         type_obj = (PyObject *)sipTypeAsPyTypeObject(td);
     }
 
     return type_obj;
-#else
-    return NULL;
-#endif
 }
 
 
@@ -481,6 +508,8 @@ static PyObject *get_enum_type(const sipTypeDef *td)
  */
 static PyObject *missing(PyObject *cls, PyObject *value, int int_enum)
 {
+    sipSipModuleState *sms = sip_get_sip_module_state_from_wrapper_type(
+            (PyTypeObject *)cls);
     PyObject *sip_missing, *member, *value_str;
     int rc;
 
@@ -547,10 +576,10 @@ static PyObject *missing(PyObject *cls, PyObject *value, int int_enum)
     }
 
     if (int_enum)
-        member = PyObject_CallMethodObjArgs(int_type, dunder_new, cls, value,
+        member = PyObject_CallMethodObjArgs(sms->builtin_int_type, dunder_new, cls, value,
                 NULL);
     else
-        member = PyObject_CallMethodObjArgs(object_type, dunder_new, cls,
+        member = PyObject_CallMethodObjArgs(sms->builtin_object_type, dunder_new, cls,
                 NULL);
 
     Py_DECREF(dunder_new);
@@ -623,7 +652,7 @@ static PyObject *missing(PyObject *cls, PyObject *value, int int_enum)
 
 
 /*
- * The replacment implementation of _missing_ that handles missing members in
+ * The replacement implementation of _missing_ that handles missing members in
  * Enums.
  */
 static PyObject *missing_enum(PyObject *cls, PyObject *value)

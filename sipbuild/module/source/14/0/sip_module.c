@@ -72,12 +72,26 @@ static int module_clear(PyObject *module)
     sipSipModuleState *sms = (sipSipModuleState *)PyModule_GetState(module);
 
     Py_CLEAR(sms->array_type);
+#if defined(SIP_CONFIGURATION_PyEnums)
+    Py_CLEAR(sms->builtin_int_type);
+    Py_CLEAR(sms->builtin_object_type);
+#endif
 #if defined(SIP_CONFIGURATION_CustomEnums)
     Py_CLEAR(sms->custom_enum_type);
 #endif
     Py_CLEAR(sms->base_tuple_simple_wrapper);
     Py_CLEAR(sms->base_tuple_wrapper);
     Py_CLEAR(sms->empty_tuple);
+#if defined(SIP_CONFIGURATION_CustomEnums)
+    Py_CLEAR(sms->enum_enum_type);
+    Py_CLEAR(sms->enum_int_enum_type);
+#endif
+#if defined(SIP_CONFIGURATION_PyEnums)
+    Py_CLEAR(sms->enum_enum_type);
+    Py_CLEAR(sms->enum_int_enum_type);
+    Py_CLEAR(sms->enum_flag_type);
+    Py_CLEAR(sms->enum_int_flag_type);
+#endif
     Py_CLEAR(sms->method_descr_type);
     Py_CLEAR(sms->simple_wrapper_type);
     Py_CLEAR(sms->variable_descr_type);
@@ -182,6 +196,17 @@ static void module_free(void *module_ptr)
         ss = next;
     }
 
+    /* Free the threads. */
+    sipThread *thread = sms->thread_list;
+
+    while (thread != NULL)
+    {
+        sipThread *next = thread->next;
+
+        sip_api_free(thread);
+        thread = next;
+    }
+
     /* Free the type object lists. */
     sipPyTypeObject *pto;
 
@@ -217,12 +242,26 @@ static int module_traverse(PyObject *module, visitproc visit, void *arg)
     sipSipModuleState *sms = (sipSipModuleState *)PyModule_GetState(module);
 
     Py_VISIT(sms->array_type);
+#if defined(SIP_CONFIGURATION_PyEnums)
+    Py_VISIT(sms->builtin_int_type);
+    Py_VISIT(sms->builtin_object_type);
+#endif
 #if defined(SIP_CONFIGURATION_CustomEnums)
     Py_VISIT(sms->custom_enum_type);
 #endif
     Py_VISIT(sms->base_tuple_simple_wrapper);
     Py_VISIT(sms->base_tuple_wrapper);
     Py_VISIT(sms->empty_tuple);
+#if defined(SIP_CONFIGURATION_CustomEnums)
+    Py_VISIT(sms->enum_enum_type);
+    Py_VISIT(sms->enum_int_enum_type);
+#endif
+#if defined(SIP_CONFIGURATION_PyEnums)
+    Py_VISIT(sms->enum_enum_type);
+    Py_VISIT(sms->enum_int_enum_type);
+    Py_VISIT(sms->enum_flag_type);
+    Py_VISIT(sms->enum_int_flag_type);
+#endif
     Py_VISIT(sms->method_descr_type);
     Py_VISIT(sms->simple_wrapper_type);
     Py_VISIT(sms->variable_descr_type);

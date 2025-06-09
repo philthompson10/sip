@@ -27,15 +27,18 @@ struct _sipSipModuleState;
 
 
 /* These are part of the module API. */
-PyObject *sip_api_convert_from_enum(int member, const sipTypeDef *td);
-int sip_api_convert_to_enum(PyObject *obj, const sipTypeDef *td);
+PyObject *sip_api_convert_from_enum(PyObject *wmod, int member,
+        const sipTypeDef *td);
+int sip_api_convert_to_enum(PyObject *wmod, PyObject *obj,
+        const sipTypeDef *td);
 #if defined(SIP_CONFIGURATION_PyEnums)
-int sip_api_is_enum_flag(PyObject *obj);
+int sip_api_is_enum_flag(PyObject *wmod, PyObject *obj);
 #endif
 
 /* These are internal. */
 #if defined(SIP_CONFIGURATION_PyEnums)
-int sip_enum_create_py_enum(sipExportedModuleDef *client, sipEnumTypeDef *etd,
+int sip_enum_create_py_enum(struct _sipSipModuleState *sms,
+        sipExportedModuleDef *client, sipEnumTypeDef *etd,
         sipIntInstanceDef **next_int_p, PyObject *dict);
 #endif
 
@@ -51,22 +54,29 @@ typedef struct {
     PyHeapTypeObject super;
 
     /* The generated type structure. */
-    sipTypeDef *type;
+    const sipTypeDef *type;
 } sipEnumTypeObject;
 
-extern PyObject *sip_enum_custom_enum_unpickler;
 
 int sip_enum_create_custom_enum(struct _sipSipModuleState *sms,
         sipExportedModuleDef *client, sipEnumTypeDef *etd, int enum_nr,
         PyObject *mod_dict);
-PyObject *sip_enum_pickle_custom_enum(PyObject *obj, PyObject *args);
-PyObject *sip_enum_unpickle_custom_enum(PyObject *obj, PyObject *args);
+PyObject *sip_enum_pickle_custom_enum(PyObject *self,
+        PyTypeObject *defining_class, PyObject *const *args, Py_ssize_t nargs,
+        PyObject *kwd_args);
+PyObject *sip_enum_unpickle_custom_enum(PyObject *mod, PyObject *args);
 #endif
 
-int sip_enum_convert_to_constrained_enum(PyObject *obj, const sipTypeDef *td);
-const sipTypeDef *sip_enum_get_generated_type(PyTypeObject *py_type);
+PyObject *sip_enum_convert_from_enum(struct _sipSipModuleState *sms,
+        int member, const sipTypeDef *td);
+int sip_enum_convert_to_constrained_enum(struct _sipSipModuleState *,
+        PyObject *obj, const sipTypeDef *td);
+int sip_enum_convert_to_enum(struct _sipSipModuleState *sms, PyObject *obj,
+        const sipTypeDef *td);
+const sipTypeDef *sip_enum_get_generated_type(struct _sipSipModuleState *sms,
+        PyTypeObject *py_type);
 int sip_enum_init(PyObject *module, struct _sipSipModuleState *sms);
-int sip_enum_is_enum(PyObject *obj);
+int sip_enum_is_enum(struct _sipSipModuleState *sms, PyObject *obj);
 
 
 #ifdef __cplusplus
