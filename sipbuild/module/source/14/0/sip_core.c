@@ -294,16 +294,9 @@ static const sipAPI sip_api = {
     sip_api_register_exit_notifier,
 #if defined(SIP_CONFIGURATION_PyEnums)
     sip_api_is_enum_flag,
-#else
-    NULL,
 #endif
     sip_api_py_type_dict_ref,
     sip_api_get_frame,
-    NULL,
-    NULL,
-    NULL,
-    NULL,
-    NULL,
     /*
      * The following are not part of the public API.
      */
@@ -345,10 +338,6 @@ static const sipAPI sip_api = {
     sip_api_get_reference,
     sip_api_is_derived_class,
     sip_api_next_exception_handler,
-    sip_api_deprecated_13_9,
-    NULL,
-    NULL,
-    NULL,
 };
 
 
@@ -5836,18 +5825,9 @@ static void sip_api_abstract_method(const char *classname, const char *method)
 
 
 /*
- * Report a deprecated class or method.
- */
-int sip_api_deprecated(const char *classname, const char *method)
-{
-    return sip_api_deprecated_13_9(classname, method, NULL);
-}
-
-
-/*
  * Report a deprecated class or method with an optional message.
  */
-int sip_api_deprecated_13_9(const char *classname, const char *method,
+int sip_api_deprecated(const char *classname, const char *method,
         const char *message)
 {
     const unsigned int bufsize = 100 + ( message ? strlen(message) : 0 );

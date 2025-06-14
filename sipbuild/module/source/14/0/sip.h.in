@@ -1329,16 +1329,9 @@ struct _sipAPI {
     int (*api_register_exit_notifier)(PyMethodDef *md);
 #if defined(SIP_CONFIGURATION_PyEnums)
     int (*api_is_enum_flag)(PyObject *wmod, PyObject *o);
-#else
-    void (*reserved_1)(void);
 #endif
     PyObject *(*api_py_type_dict_ref)(PyTypeObject *);
     PyFrameObject *(*api_get_frame)(int);
-    void (*unused_public_1)(void);
-    void (*unused_public_2)(void);
-    void (*unused_public_3)(void);
-    void (*unused_public_4)(void);
-    void (*unused_public_5)(void);
 
     /*
      * The following are not part of the public API.
@@ -1388,7 +1381,8 @@ struct _sipAPI {
     int (*api_unicode_as_wchar)(PyObject *obj);
     int *(*api_unicode_as_wstring)(PyObject *obj);
 #endif
-    int (*api_deprecated)(const char *classname, const char *method);
+    int (*api_deprecated)(const char *classname, const char *method,
+            const char *message);
     void (*api_keep_reference)(PyObject *self, int key, PyObject *obj);
     int (*api_parse_kwd_args)(PyObject *wmod, PyObject **parseErrp,
             PyObject *sipArgs, PyObject *sipKwdArgs, const char **kwdlist,
@@ -1405,10 +1399,6 @@ struct _sipAPI {
     int (*api_is_derived_class)(sipSimpleWrapper *);
     sipExceptionHandler (*api_next_exception_handler)(PyObject *wmod,
             void **statep);
-    int (*api_deprecated_13_9)(const char *classname, const char *method, const char *message);
-    void (*unused_private_3)(void);
-    void (*unused_private_4)(void);
-    void (*unused_private_5)(void);
 };
 
 
