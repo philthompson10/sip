@@ -619,7 +619,7 @@ static PyObject *missing(PyObject *cls, PyObject *value, int int_enum)
         return NULL;
     }
 
-    PyObject *sunder_value = PyUnicode_InternFromString(sunder_value);
+    PyObject *sunder_value = PyUnicode_InternFromString("_value_");
 
     if (sunder_value == NULL)
     {

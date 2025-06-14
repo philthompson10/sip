@@ -222,9 +222,10 @@ static int WrapperType_init(sipWrapperType *self, PyObject *args,
 static int WrapperType_setattro(PyObject *self, PyObject *name,
         PyObject *value)
 {
-    PyObject *wmod = PyType_GetModule(Py_TYPE(self));
+    sipSipModuleState *sms = sip_get_sip_module_state_from_wrapper_type(
+            (PyTypeObject *)self);
 
-    if (sip_add_all_lazy_attrs(wmod, ((sipWrapperType *)self)->wt_td) < 0)
+    if (sip_add_all_lazy_attrs(sms, ((sipWrapperType *)self)->wt_td) < 0)
         return -1;
 
     return PyType_Type.tp_setattro(self, name, value);
@@ -248,7 +249,7 @@ static int WrapperType_traverse(PyObject *self, visitproc visit, void *arg)
 int sip_wrapper_type_init(PyObject *module, sipSipModuleState *sms)
 {
     sms->wrapper_type_type = (PyTypeObject *)PyType_FromModuleAndSpec(module,
-            &WrapperType_TypeSpec, &PyType_Type);
+            &WrapperType_TypeSpec, (PyObject *)&PyType_Type);
 
     if (sms->wrapper_type_type == NULL)
         return -1;
