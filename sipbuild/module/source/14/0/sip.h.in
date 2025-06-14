@@ -136,8 +136,8 @@ typedef PyGILState_STATE sip_gilstate_t;
  */
 
 /* Forward declare the API structure. */
-struct _sipAPI;
-typedef struct _sipAPI sipAPI;
+struct _sipAPIDef;
+typedef struct _sipAPIDef sipAPIDef;
 
 /*
  * The structure defining the interface between the sip module and wrapped
@@ -155,7 +155,7 @@ typedef struct {
     PyObject *smh_module;
 
     /* The pointers to the functions that implement the sip module API. */
-    const sipAPI *smh_api;
+    const sipAPIDef *smh_api;
 } sipSipModuleInterface;
 
 /*
@@ -1190,7 +1190,7 @@ typedef struct _sipTypeInstanceDef {
  * functions that can be used by generated code.  Note that the offset of each
  * field doesn't change if the module configuration options do change.
  */
-struct _sipAPI {
+struct _sipAPIDef {
     /*
      * This must be the first entry and it's signature must not change so that
      * version number mismatches can be detected and reported.
@@ -1406,7 +1406,7 @@ struct _sipAPI {
  * These implement parts of the sip module lifecycle to be used when the module
  * is standalone or embedded in another.
  */
-const sipAPI *sip_init_library(PyObject *module);
+const sipAPIDef *sip_init_library(PyObject *module);
 
 
 /*

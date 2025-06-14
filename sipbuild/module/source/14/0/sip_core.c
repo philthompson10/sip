@@ -197,7 +197,7 @@ static PyFrameObject *sip_api_get_frame(int depth);
 /*
  * The data structure that represents the SIP API.
  */
-static const sipAPI sip_api = {
+static const sipAPIDef sip_api = {
     /* This must be first. */
     // TODO
     sip_api_export_module,
@@ -534,7 +534,7 @@ static PyObject *import_module_attr(const char *module, const char *attr);
 /*
  * Initialise the module.
  */
-const sipAPI *sip_init_library(PyObject *module)
+const sipAPIDef *sip_init_library(PyObject *module)
 {
     sipSipModuleState *sms = (sipSipModuleState *)PyModule_GetState(module);
 

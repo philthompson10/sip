@@ -116,7 +116,7 @@ static int module_clear(PyObject *module)
 static int module_exec(PyObject *module)
 {
     /* Initialise the module. */
-    const sipAPI *api = sip_init_library(module);
+    const sipAPIDef *api = sip_init_library(module);
 
     if (api == NULL)
         return -1;
