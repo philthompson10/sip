@@ -15,6 +15,9 @@ from .sip_base_test_case import SIPBaseTestCase
 class SIPTestCase(SIPBaseTestCase):
     """ Encapsulate a test case that tests the execution of  bindings. """
 
+    # The optional list of sip module configuration options.
+    sip_module_configuration = None
+
     # Set if a separate sip module should be generated.  It will be built
     # automatically if more than one module is being built.
     use_sip_module = False

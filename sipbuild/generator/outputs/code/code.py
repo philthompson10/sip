@@ -251,7 +251,7 @@ f'''#define sipGetFrame                 sipAPI_{module_name}->api_get_frame
             sf.write(
 f'''#define sipDeprecated               sipAPI_{module_name}->api_deprecated
 ''')
-        else if spec.target_abi >= (13, 9):
+        elif spec.target_abi >= (13, 9):
             # ABI v13.9 and later.
             sf.write(
 f'''#define sipDeprecated               sipAPI_{module_name}->api_deprecated_13_9
@@ -332,7 +332,7 @@ f'''#define sipSetNewUserTypeHandler    sipAPI_{module_name}->api_set_new_user_t
         sf.write(
 f'''#define sipIsPyMethod               sipAPI_{module_name}->api_is_py_method
 ''')
-    else if spec.target_abi >= (12, 8):
+    elif spec.target_abi >= (12, 8):
         # ABI v12.8 and later.
         sf.write(
 f'''#define sipIsPyMethod               sipAPI_{module_name}->api_is_py_method_12_8
