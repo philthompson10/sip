@@ -26,21 +26,24 @@ from ..formatters import (fmt_argument_as_cpp_type, fmt_argument_as_name,
         fmt_signature_as_cpp_definition, fmt_signature_as_type_hint,
         fmt_value_list_as_cpp_expression)
 
+from .code_backend import CodeBackend
+
 
 def output_code(spec, bindings, project, buildable):
     """ Output the C/C++ code and add it to the given buildable. """
 
     module = spec.module
     py_debug = project.py_debug
+    backend = CodeBackend.factory(spec)
 
     if spec.is_composite:
         source_name = os.path.join(buildable.build_dir,
                 'sip' + module.py_name + 'cmodule.c')
 
         with CompilationUnit(source_name, "Composite module code.", module, project, buildable, sip_api_file=False) as sf:
-            _composite_module_code(sf, spec, py_debug)
+            _composite_module_code(backend, sf, py_debug)
     else:
-        _module_code(spec, bindings, project, py_debug, buildable)
+        _module_code(backend, bindings, project, py_debug, buildable)
 
 
 def _internal_api_header(sf, spec, bindings, py_debug, name_cache_list):
@@ -409,9 +412,10 @@ def _make_part_name(buildable, module_name, part_nr, source_suffix):
             f'sip{module_name}part{part_nr}{source_suffix}')
 
 
-def _composite_module_code(sf, spec, py_debug):
+def _composite_module_code(backend, sf, py_debug):
     """ Output the code for a composite module. """
 
+    spec = backend.spec
     module = spec.module
 
     _declare_limited_api(sf, py_debug)
@@ -469,9 +473,10 @@ f'    sip_import_component_module(sipModuleDict, "{mod.fq_py_name}");\n')
 ''')
 
 
-def _module_code(spec, bindings, project, py_debug, buildable):
+def _module_code(backend, bindings, project, py_debug, buildable):
     """ Generate the C/C++ code for a module. """
 
+    spec = backend.spec
     module = spec.module
     module_name = module.py_name
     parts = bindings.concatenate
