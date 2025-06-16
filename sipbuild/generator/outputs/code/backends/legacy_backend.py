@@ -3,14 +3,15 @@
 # Copyright (c) 2025 Phil Thompson <phil@riverbankcomputing.com>
 
 
-from .code_backend import CodeBackend
+from .backend import Backend
 
 
-class LegacyCodeBackend(CodeBackend):
+class LegacyBackend(Backend):
     """ The backend code generator that handles legacy ABI versions. """
 
-    def g_wrapped_module_def(self, sf, bindings,
+    def g_create_wrapped_module(self, sf, bindings,
         # TODO These will probably be generated here at some point.
+        has_name_cache,
         has_external,
         nr_enum_members,
         has_virtual_error_handlers,
@@ -28,7 +29,7 @@ class LegacyCodeBackend(CodeBackend):
         slot_extenders,
         init_extenders
     ):
-        """ Generate the definition of a wrapped module. """
+        """ Generate the code to create a wrapped module. """
 
         spec = self.spec
         target_abi = spec.target_abi
@@ -126,6 +127,19 @@ f'''    {module.nr_typedefs},
 f'''    {exception_handler},
 }};
 ''')
+
+        self.g_module_docstring(sf)
+
+        # Generate the storage for the external API pointers.
+        sf.write(
+f'''
+
+/* The SIP API and the APIs of any imported modules. */
+const sipAPIDef *sipAPI_{module_name};
+''')
+
+        self.g_pyqt_helper_defns(sf)
+        self.g_module_init_start(sf)
 
     def abi_has_deprecated_message(self):
         """ Return True if the ABI implements sipDeprecated() with a message.

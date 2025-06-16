@@ -3,4 +3,4 @@
 # Copyright (c) 2024 Phil Thompson <phil@riverbankcomputing.com>
 
 
-from .code_backend import CodeBackend
+from .backend import Backend

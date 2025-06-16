@@ -6,7 +6,7 @@
 from .....sip_module_configuration import SipModuleConfiguration
 
 
-class CodeBackend:
+class Backend:
     """ The backend code generator for the latest ABI. """
 
     def __init__(self, spec):
@@ -21,12 +21,13 @@ class CodeBackend:
         if spec.target_abi >= (14, 0):
             return cls(spec)
 
-        from .legacy_code_backend import LegacyCodeBackend
+        from .legacy_backend import LegacyBackend
 
-        return LegacyCodeBackend(spec)
+        return LegacyBackend(spec)
 
-    def g_wrapped_module_def(self, sf, bindings,
+    def g_create_wrapped_module(self, sf, bindings,
         # TODO These will probably be generated here at some point.
+        has_name_cache,
         has_external,
         nr_enum_members,
         has_virtual_error_handlers,
@@ -44,7 +45,7 @@ class CodeBackend:
         slot_extenders,
         init_extenders
     ):
-        """ Generate the definition of a wrapped module. """
+        """ Generate the code to generate a wrapped module. """
 
         spec = self.spec
         target_abi = spec.target_abi
@@ -52,14 +53,15 @@ class CodeBackend:
         module_name = module.py_name
 
         sf.write(
-f'''/* This defines this module. */
-sipWrappedModuleDef sipModuleAPI_{module_name} = {{
+f'''/* This is the immutable definition of the wrapped module. */
+static sipWrappedModuleDef sipWrappedModule_{module_name} = {{
     .wm_abi_major = {target_abi[0]},
     .wm_abi_minor = {target_abi[1]},
     .wm_sip_configuration = 0x{spec.sip_module_configuration:04x},
-    .wm_name = sipNameNr_{self.get_normalised_cached_name(module.fq_py_name)},
-    .wm_strings = sipStrings_{module_name},
 ''')
+
+        if has_name_cache:
+            sf.write(f'    .wm_strings = sipStrings_{module_name},\n')
 
         if len(module.all_imports) != 0:
             sf.write('    .wm_imports = importsTable,\n')
@@ -136,6 +138,61 @@ sipWrappedModuleDef sipModuleAPI_{module_name} = {{
 
         sf.write('};\n')
 
+        self.g_module_docstring(sf)
+        self.g_pyqt_helper_defns(sf)
+        self.g_module_init_start(sf)
+
+    def g_module_docstring(self, sf):
+        """ Generate the definition of the module's optional docstring. """
+
+        module = self.spec.module
+
+        if module.docstring is not None:
+            sf.write(
+f'''
+"PyDoc_STRVAR(doc_mod_{module.py_name}, "{_docstring_text(module.docstring)}");
+''')
+
+    def g_module_init_start(self, sf):
+        """ Generate the start of the Python module initialisation function.
+        """
+
+        spec = self.spec
+
+        if spec.is_composite or spec.c_bindings:
+            extern_c = ''
+            arg_type = 'void'
+        else:
+            extern_c = 'extern "C" '
+            arg_type = ''
+
+        module_name = spec.module.py_name
+
+        sf.write(
+f'''
+
+/* The Python module initialisation function. */
+#if defined(SIP_STATIC_MODULE)
+{extern_c}PyObject *PyInit_{module_name}({arg_type})
+#else
+PyMODINIT_FUNC PyInit_{module_name}({arg_type})
+#endif
+{{
+''')
+
+    def g_pyqt_helper_defns(self, sf):
+        """ Generate the PyQt helper definitions. """
+
+        if self.pyqt5_supported() or self.pyqt6_supported():
+            module_name = self.spec.module.py_name
+
+            sf.write(
+f'''
+sip_qt_metaobject_func sip_{module_name}_qt_metaobject;
+sip_qt_metacall_func sip_{module_name}_qt_metacall;
+sip_qt_metacast_func sip_{module_name}_qt_metacast;
+''')
+
     def abi_has_deprecated_message(self):
         """ Return True if the ABI implements sipDeprecated() with a message.
         """
@@ -175,3 +232,13 @@ sipWrappedModuleDef sipModuleAPI_{module_name} = {{
 
         # Handle C++ and Python scopes.
         return cached_name.name.replace(':', '_').replace('.', '_')
+
+    def pyqt5_supported(self):
+        """ Return True if the PyQt5 plugin was specified. """
+
+        return 'PyQt5' in self.spec.plugins
+
+    def pyqt6_supported(self):
+        """ Return True if the PyQt6 plugin was specified. """
+
+        return 'PyQt6' in self.spec.plugins

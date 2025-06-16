@@ -26,7 +26,7 @@ from ..formatters import (fmt_argument_as_cpp_type, fmt_argument_as_name,
         fmt_signature_as_cpp_definition, fmt_signature_as_type_hint,
         fmt_value_list_as_cpp_expression)
 
-from .code_backend import CodeBackend
+from .backends import Backend
 
 
 def output_code(spec, bindings, project, buildable):
@@ -34,7 +34,7 @@ def output_code(spec, bindings, project, buildable):
 
     module = spec.module
     py_debug = project.py_debug
-    backend = CodeBackend.factory(spec)
+    backend = Backend.factory(spec)
 
     if spec.is_composite:
         source_name = os.path.join(buildable.build_dir,
@@ -64,7 +64,7 @@ f'''#ifndef _{module_name}API_H
     _declare_limited_api(sf, py_debug, module=module)
     _include_sip_h(sf, module)
 
-    if _pyqt5(spec) or _pyqt6(spec):
+    if backend.pyqt5_supported() or backend.pyqt6_supported():
         sf.write(
 '''
 #include <QMetaType>
@@ -380,7 +380,7 @@ extern sipExportedModuleDef sipModuleAPI_{module_name};
         if imported_module.nr_exceptions != 0:
             sf.write(f'extern sipImportedExceptionDef sipImportedExceptions_{module_name}_{imported_module_name}[];\n')
 
-    if _pyqt5(spec) or _pyqt6(spec):
+    if backend.pyqt5_supported() or backend.pyqt6_supported():
         sf.write(
 f'''
 typedef const QMetaObject *(*sip_qt_metaobject_func)(sipSimpleWrapper *, sipTypeDef *);
@@ -446,8 +446,8 @@ static void sip_import_component_module(PyObject *d, const char *name)
 }
 ''')
 
-    _module_docstring(sf, module)
-    _module_init_start(sf, spec)
+    backend.module_docstring(sf)
+    backend.module_init_start(sf)
     _module_definition(sf, module)
 
     sf.write(
@@ -525,11 +525,15 @@ def _module_code(backend, bindings, project, py_debug, buildable):
 #define sipQtDisconnectPySignal             0
 ''')
 
+    # Only the legacy ABIs use a cached version of the module name.
+    if spec.target_abi < (14, 0):
+        module.fq_py_name.used = True
+
     # Transform the name cache.
     name_cache_list = _name_cache_as_list(spec.name_cache)
 
     # Define the names.
-    _name_cache(sf, spec, name_cache_list)
+    has_name_cache = _name_cache(sf, spec, name_cache_list)
 
     # Generate the C++ code blocks.
     sf.write_code(module.module_code)
@@ -1030,8 +1034,9 @@ static sipQtAPI qtAPI = {{
 
     sf.write('\n\n')
 
-    # Generate the wrapped module definition structure.
-    backend.g_wrapped_module_def(sf, bindings,
+    # Generate the code to create the wrapped module
+    backend.g_create_wrapped_module(sf, bindings,
+        has_name_cache,
         has_external,
         nr_enum_members,
         has_virtual_error_handlers,
@@ -1049,27 +1054,6 @@ static sipQtAPI qtAPI = {{
         slot_extenders,
         init_extenders
     )
-
-    _module_docstring(sf, module)
-
-    # Generate the storage for the external API pointers.
-    sf.write(
-f'''
-
-/* The SIP API and the APIs of any imported modules. */
-const sipAPIDef *sipAPI_{module_name};
-''')
-
-    if _pyqt5(spec) or _pyqt6(spec):
-        sf.write(
-f'''
-sip_qt_metaobject_func sip_{module_name}_qt_metaobject;
-sip_qt_metacall_func sip_{module_name}_qt_metacall;
-sip_qt_metacast_func sip_{module_name}_qt_metacast;
-''')
-
-    # Generate the Python module initialisation function.
-    _module_init_start(sf, spec)
 
     # Generate the global functions.
     sf.write('    static PyMethodDef sip_methods[] = {\n')
@@ -1123,7 +1107,7 @@ f'''    /* Export the module and publish it's API. */
     }}
 ''')
 
-    if _pyqt5(spec) or _pyqt6(spec):
+    if backend.pyqt5_supported() or backend.pyqt6_supported():
         # Import the helpers.
         sf.write(
 f'''
@@ -1179,9 +1163,8 @@ f'''
     sipExportedExceptions_{module_name}[{module.nr_exceptions}] = SIP_NULLPTR;
 ''')
 
-    # Generate the enum and QFlag meta-type registrations for PyQt6.  (It may
-    # be possible to create these dynamically on demand.)
-    if _pyqt6(spec):
+    # Generate the enum and QFlag meta-type registrations for PyQt6.
+    if backend.pyqt6_supported():
         for enum in spec.enums:
             if enum.module is not module or enum.fq_cpp_name is None:
                 continue
@@ -1297,17 +1280,24 @@ def _name_cache_as_list(name_cache):
 
 
 def _name_cache(sf, spec, name_cache_list):
-    """ Generate the name cache definition. """
+    """ Generate the name cache definition and return True if something was
+    actually generated.
+    """
 
-    sf.write(
-f'''
-/* Define the strings used by this module. */
-const char sipStrings_{spec.module.py_name}[] = {{
-''')
+    has_name_cache = False
 
     for name in name_cache_list:
         if not name.used or name.is_substring:
             continue
+
+        if not has_name_cache:
+            has_name_cache = True
+
+            sf.write(
+f'''
+/* Define the strings used by this module. */
+const char sipStrings_{spec.module.py_name}[] = {{
+''')
 
         sf.write('    ')
 
@@ -1316,7 +1306,10 @@ const char sipStrings_{spec.module.py_name}[] = {{
 
         sf.write('0,\n')
 
-    sf.write('};\n')
+    if has_name_cache:
+        sf.write('};\n')
+
+    return has_name_cache
 
 
 def _types_table(sf, module, needed_enums):
@@ -1412,31 +1405,6 @@ f'''    sipAPI_{module_name} = {c_api};
 f'''    if ((sipAPI_{module_name} = sip_init_library(sipModuleDict)) == SIP_NULLPTR)
         return SIP_NULLPTR;
 
-''')
-
-
-def _module_init_start(sf, spec, generate_c=True):
-    """ Generate the start of the Python module initialisation function. """
-
-    if spec.is_composite or spec.c_bindings:
-        extern_c = ''
-        arg_type = 'void'
-    else:
-        extern_c = 'extern "C" '
-        arg_type = ''
-
-    module_name = spec.module.py_name
-
-    sf.write(
-f'''
-
-/* The Python module initialisation function. */
-#if defined(SIP_STATIC_MODULE)
-{extern_c}PyObject *PyInit_{module_name}({arg_type})
-#else
-PyMODINIT_FUNC PyInit_{module_name}({arg_type})
-#endif
-{{
 ''')
 
 
@@ -2281,7 +2249,7 @@ f'''static PyObject *convertFrom_{mapped_type_name}(void *sipCppV, PyObject *{xf
     if cod_nrmethods > 0:
         needs_namespace = True
 
-    if _pyqt6(spec) and mapped_type.pyqt_flags != 0:
+    if backend.pyqt6_supported() and mapped_type.pyqt_flags != 0:
         sf.write(f'\n\nstatic pyqt6MappedTypePluginDef plugin_{mapped_type_name} = {{{mapped_type.pyqt_flags}}};\n')
 
         td_plugin_data = '&plugin_' + mapped_type_name
@@ -3460,7 +3428,7 @@ f'''    if (targetType == {sc_gto_name})
         public_dtor = klass.dtor is AccessSpecifier.PUBLIC
 
         if klass.can_create or public_dtor:
-            if (_pyqt5(spec) or _pyqt6(spec)) and klass.is_qobject and public_dtor:
+            if (backend.pyqt5_supported() or backend.pyqt6_supported()) and klass.is_qobject and public_dtor:
                 need_ptr = need_cast_ptr = True
             elif klass.has_shadow:
                 need_ptr = need_state = True
@@ -3494,7 +3462,7 @@ f'''    if (targetType == {sc_gto_name})
             if release_gil:
                 sf.write('    Py_BEGIN_ALLOW_THREADS\n\n')
 
-            if (_pyqt5(spec) or _pyqt6(spec)) and klass.is_qobject and public_dtor:
+            if (backend.pyqt5_supported() or backend.pyqt6_supported()) and klass.is_qobject and public_dtor:
                 # QObjects should only be deleted in the threads that they
                 # belong to.
                 sf.write(
@@ -3854,7 +3822,7 @@ def _shadow_code(backend, sf, bindings, klass):
         sf.write('    sipInstanceDestroyedEx(&sipPySelf);\n}\n')
 
     # The meta methods if required.
-    if (_pyqt5(spec) or _pyqt6(spec)) and klass.is_qobject:
+    if (backend.pyqt5_supported() or backend.pyqt6_supported()) and klass.is_qobject:
         module_name = spec.module.py_name
         gto_name = _gto_name(klass)
 
@@ -5256,7 +5224,7 @@ f'''    class sip{protected_klass_base_name} : public {protected_klass_base_name
         sf.write(f'    {virtual_s}~sip{klass_name}(){throw_specifier};\n')
 
     # The metacall methods if required.
-    if (_pyqt5(spec) or _pyqt6(spec)) and klass.is_qobject:
+    if (backend.pyqt5_supported() or backend.pyqt6_supported()) and klass.is_qobject:
         sf.write(
 '''
     int qt_metacall(QMetaObject::Call, int, void **) SIP_OVERRIDE;
@@ -5700,7 +5668,7 @@ static sipPySlotDef slots_{klass_name}[] = {{
     # Generate any plugin-specific data structures.
     plugin_ref = 'SIP_NULLPTR'
 
-    if _pyqt5(spec) or _pyqt6(spec):
+    if backed.pyqt5_supported() or backed.pyqt6_supported():
         if _pyqt_class_plugin(backend, sf, bindings, klass):
             plugin_ref = '&plugin_' + klass_name
 
@@ -8558,16 +8526,6 @@ def _docstring_text(docstring):
     return s
 
 
-def _module_docstring(sf, module):
-    """ Generate the definition of a module's optional docstring. """
-
-    if module.docstring is not None:
-        sf.write(
-f'''
-"PyDoc_STRVAR(doc_mod_{module.py_name}, "{_docstring_text(module.docstring)}");
-''')
-
-
 def _get_void_ptr_cast(type):
     """ Return a void* cast for an argument if needed. """
 
@@ -8629,7 +8587,7 @@ def _plugin_signals_table(backend, sf, bindings, klass):
 
                 _pyqt_emitters(backend, sf, klass)
 
-                pyqt_version = '5' if _pyqt5(spec) else '6'
+                pyqt_version = '5' if backend.pyqt5_supported() else '6'
                 sf.write(
 f'''
 
@@ -8669,7 +8627,7 @@ def _pyqt_class_plugin(backend, sf, bindings, klass):
     is_signals = _plugin_signals_table(backend, sf, bindings, klass)
 
     # The PyQt6 support code doesn't assume the structure is generated.
-    if _pyqt6(spec):
+    if backend.pyqt6_supported():
         generated = is_signals
 
         if klass.is_qobject and not klass.pyqt_no_qmetaobject:
@@ -8683,13 +8641,13 @@ def _pyqt_class_plugin(backend, sf, bindings, klass):
 
     klass_name = klass.iface_file.fq_cpp_name.as_word
 
-    pyqt_version = '5' if _pyqt5(spec) else '6'
+    pyqt_version = '5' if backend.pyqt5_supported() else '6'
     sf.write(f'\n\nstatic pyqt{pyqt_version}ClassPluginDef plugin_{klass_name} = {{\n')
 
     mo_ref = f'&{_scoped_class_name(spec, klass)}::staticMetaObject' if klass.is_qobject and not klass.pyqt_no_qmetaobject else 'SIP_NULLPTR'
     sf.write(f'    {mo_ref},\n')
 
-    if _pyqt5(spec):
+    if backend.pyqt5_supported():
         sf.write(f'    {klass.pyqt_flags},\n')
 
     signals_ref = f'signals_{klass_name}' if is_signals else 'SIP_NULLPTR'
@@ -8823,18 +8781,6 @@ bool sipExceptionHandler_{spec.module.py_name}(std::exception_ptr sipExcPtr)
 ''')
  
  
-def _pyqt5(spec):
-    """ Return True if the PyQt5 plugin was specified. """
-
-    return 'PyQt5' in spec.plugins
-
-
-def _pyqt6(spec):
-    """ Return True if the PyQt6 plugin was specified. """
-
-    return 'PyQt6' in spec.plugins
-
-
 def _append_qualifier_defines(module, bindings, qualifier_defines):
     """ Append the #defines for each feature defined in a module to a list of
     them.
