@@ -153,9 +153,12 @@ static const sipWrappedModuleDef sipWrappedModule_{module_name} = {{
         has_module_functions = self.g_module_functions_table(sf, bindings)
         self.g_module_definition(sf, has_module_functions=has_module_functions)
 
+        # Generate any pre-initialisation code.
+        sf.write_code(module.preinitialisation_code)
+
         sf.write(
 '''
-    return PyModuleDef_Init(&wrapped_module_def);
+    return PyModuleDef_Init(&sip_wrapped_module_def);
 }
 ''')
 
@@ -169,7 +172,7 @@ static const sipWrappedModuleDef sipWrappedModule_{module_name} = {{
         interp_support = 'Py_MOD_MULTIPLE_INTERPRETERS_NOT_SUPPORTED'
 
         sf.write(
-f'''    static PyModuleDef_Slot wrapped_module_slots[] = {{
+f'''    static PyModuleDef_Slot sip_wrapped_module_slots[] = {{
         {{Py_mod_exec, (void *)wrapped_module_exec}},
 #if PY_VERSION_HEX >= 0x030c0000
         {{Py_mod_multiple_interpreters, {interp_support}}},
@@ -180,17 +183,18 @@ f'''    static PyModuleDef_Slot wrapped_module_slots[] = {{
         {{0, SIP_NULLPTR}}
     }};
 
-    static PyModuleDef wrapped_module_def = {{
+    static PyModuleDef sip_wrapped_module_def = {{
         .m_base = PyModuleDef_HEAD_INIT,
         .m_name = "{module.fq_py_name}",
         .m_size = sizeof (sipWrappedModuleState),
-        .m_slots = wrapped_module_slots,
+        .m_slots = sip_wrapped_module_slots,
         .m_clear = wrapped_module_clear,
         .m_traverse = wrapped_module_traverse,
         .m_free = wrapped_module_free,
 ''')
 
         if module.docstring is not None:
+            # TODO The name should have a sip_ prefix.
             sf.write(f'        .m_doc = doc_mod_{module.py_name},\n')
 
         if has_module_functions:
@@ -204,6 +208,7 @@ f'''    static PyModuleDef_Slot wrapped_module_slots[] = {{
         module = self.spec.module
 
         if module.docstring is not None:
+            # TODO Port _docstring_text().
             sf.write(
 f'''
 "PyDoc_STRVAR(doc_mod_{module.py_name}, "{_docstring_text(module.docstring)}");
@@ -407,43 +412,88 @@ sip_qt_metacast_func sip_{module_name}_qt_metacast;
         """ Generate the module clear slot. """
 
         sf.write(
-f'''
+'''
 
 /* The wrapped module's clear slot. */
 static int wrapped_module_clear(PyObject *wmod)
-{{
-    // TODO
+{
+    sipWrappedModuleState *wms = (sipWrappedModuleState *)PyModule_GetState(wmod);
+
+    Py_CLEAR(wms->wms_sip_module);
+
     return 0;
-}}
+}
 ''')
 
     def _g_module_exec(self, sf):
         """ Generate the module exec slot. """
 
-        # TODO Handle pre- and post-initialisation code.
+        spec = self.spec
+        sip_module_name = spec.sip_module
+        module_name = spec.module.py_name
 
         sf.write(
-f'''
+'''
 
 /* The wrapped module's exec function. */
-static int wrapped_module_exec(PyObject *wmod)
-{{
-    // TODO
-    return 0;
-}}
+static int wrapped_module_exec(PyObject *sipModule)
+{
+    sipWrappedModuleState *sip_wms = (sipWrappedModuleState *)PyModule_GetState(sipModule);
+    if (sip_wms == SIP_NULLPTR)
+        return -1;
 ''')
+
+        if sip_module_name:
+            sf.write(
+f'''
+    PyObject *sip_sip_module = PyImport_ImportModule("{sip_module_name}");
+    if (sip_sip_module == SIP_NULLPTR)
+        return -1;
+
+    PyObject *sip_capsule = PyDict_GetItemString(PyModule_GetDict(sip_sip_module), "_C_BOOTSTRAP");
+    if (!PyCapsule_IsValid(sip_capsule, "_C_BOOTSTRAP"))
+    {{
+        Py_XDECREF(sip_capsule);
+        Py_DECREF(sip_sip_module);
+        return -1;
+    }}
+
+    sipBootstrapFunc sip_bootstrap = (sipBootstrapFunc)PyCapsule_GetPointer(sip_capsule, "_C_BOOTSTRAP");
+    Py_DECREF(sip_capsule);
+
+    if ((sip_wms->wms_sip_api = sip_bootstrap({spec.target_abi[0]})) == SIP_NULLPTR)
+    {{
+        Py_DECREF(sip_sip_module);
+        return -1;
+    }}
+
+    sip_wms->wms_sip_module = sip_sip_module;
+''')
+            # TODO Handle post-initialisation code.  Get the module dict if the
+            # code uses it (sipModuleDict).
+        else:
+            # TODO
+            # If there is no sip module name then we are getting the API from a
+            # non-shared sip module.
+            sf.write(
+f'''    if ((sipAPI_{module_name} = sip_init_library(sipModuleDict)) == SIP_NULLPTR)
+        return -1;
+
+''')
+
+        sf.write('\n    return 0;\n}\n')
 
     def _g_module_free(self, sf):
         """ Generate the module free slot. """
 
         sf.write(
-f'''
+'''
 
 /* The wrapped module's free slot. */
 static void wrapped_module_free(void *wmod_ptr)
-{{
-    // TODO
-}}
+{
+    wrapped_module_clear((PyObject *)wmod_ptr);
+}
 ''')
 
     def _g_module_function_table_entries(self, sf, bindings, members,
@@ -478,12 +528,15 @@ static void wrapped_module_free(void *wmod_ptr)
         """ Generate the module traverse slot. """
 
         sf.write(
-f'''
+'''
 
 /* The wrapped module's traverse slot. */
 static int wrapped_module_traverse(PyObject *wmod, visitproc visit, void *arg)
-{{
-    // TODO
+{
+    sipWrappedModuleState *wms = (sipWrappedModuleState *)PyModule_GetState(wmod);
+
+    Py_VISIT(wms->wms_sip_module);
+
     return 0;
-}}
+}
 ''')
