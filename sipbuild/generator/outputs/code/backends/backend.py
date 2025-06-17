@@ -5,6 +5,11 @@
 
 from .....sip_module_configuration import SipModuleConfiguration
 
+from ....specification import (AccessSpecifier, PyQtMethodSpecifier,
+        WrappedClass, WrappedEnum)
+
+from ...formatters import fmt_class_as_scoped_name
+
 
 class Backend:
     """ The backend code generator for the latest ABI. """
@@ -53,8 +58,8 @@ class Backend:
         module_name = module.py_name
 
         sf.write(
-f'''/* This is the immutable definition of the wrapped module. */
-static sipWrappedModuleDef sipWrappedModule_{module_name} = {{
+f'''/* The wrapped module's immutable definition. */
+static const sipWrappedModuleDef sipWrappedModule_{module_name} = {{
     .wm_abi_major = {target_abi[0]},
     .wm_abi_minor = {target_abi[1]},
     .wm_sip_configuration = 0x{spec.sip_module_configuration:04x},
@@ -140,7 +145,58 @@ static sipWrappedModuleDef sipWrappedModule_{module_name} = {{
 
         self.g_module_docstring(sf)
         self.g_pyqt_helper_defns(sf)
+        self._g_module_clear(sf)
+        self._g_module_exec(sf)
+        self._g_module_free(sf)
+        self._g_module_traverse(sf)
         self.g_module_init_start(sf)
+        has_module_functions = self.g_module_functions_table(sf, bindings)
+        self.g_module_definition(sf, has_module_functions=has_module_functions)
+
+        sf.write(
+'''
+    return PyModuleDef_Init(&wrapped_module_def);
+}
+''')
+
+    def g_module_definition(self, sf, has_module_functions=False):
+        """ Generate the module definition structure. """
+
+        module = self.spec.module
+
+        # TODO This value should be taken from a new option of the %Module
+        # directive and default to Py_MOD_MULTIPLE_INTERPRETERS_NOT_SUPPORTED.
+        interp_support = 'Py_MOD_MULTIPLE_INTERPRETERS_NOT_SUPPORTED'
+
+        sf.write(
+f'''    static PyModuleDef_Slot wrapped_module_slots[] = {{
+        {{Py_mod_exec, (void *)wrapped_module_exec}},
+#if PY_VERSION_HEX >= 0x030c0000
+        {{Py_mod_multiple_interpreters, {interp_support}}},
+#endif
+#if PY_VERSION_HEX >= 0x030d0000
+        {{Py_mod_gil, Py_MOD_GIL_USED}},
+#endif
+        {{0, SIP_NULLPTR}}
+    }};
+
+    static PyModuleDef wrapped_module_def = {{
+        .m_base = PyModuleDef_HEAD_INIT,
+        .m_name = "{module.fq_py_name}",
+        .m_size = sizeof (sipWrappedModuleState),
+        .m_slots = wrapped_module_slots,
+        .m_clear = wrapped_module_clear,
+        .m_traverse = wrapped_module_traverse,
+        .m_free = wrapped_module_free,
+''')
+
+        if module.docstring is not None:
+            sf.write(f'        .m_doc = doc_mod_{module.py_name},\n')
+
+        if has_module_functions:
+            sf.write('        .m_methods = sip_methods,\n')
+
+        sf.write('    };\n')
 
     def g_module_docstring(self, sf):
         """ Generate the definition of the module's optional docstring. """
@@ -152,6 +208,31 @@ static sipWrappedModuleDef sipWrappedModule_{module_name} = {{
 f'''
 "PyDoc_STRVAR(doc_mod_{module.py_name}, "{_docstring_text(module.docstring)}");
 ''')
+
+    def g_module_functions_table(self, sf, bindings):
+        """ Generate the table of module functions and return True if anything
+        was actually generated.
+        """
+
+        spec = self.spec
+
+        has_module_functions = self._g_module_function_table_entries(sf,
+                bindings, spec.module.global_functions)
+
+        # Generate the module functions for any hidden namespaces.
+        for klass in spec.classes:
+            if klass.iface_file.module is module and klass.is_hidden_namespace:
+                has_module_functions = self._g_module_function_table_entries(
+                        sf, bindings, klass.members,
+                        has_module_functions=has_module_functions)
+
+        if has_module_functions:
+            sf.write(
+'''        {SIP_NULLPTR, SIP_NULLPTR, 0, SIP_NULLPTR}
+    };
+''')
+
+        return has_module_functions
 
     def g_module_init_start(self, sf):
         """ Generate the start of the Python module initialisation function.
@@ -216,6 +297,21 @@ sip_qt_metacast_func sip_{module_name}_qt_metacast;
 
         return True
 
+    def cached_name_ref(self, cached_name, as_nr=False):
+        """ Return a reference to a cached name. """
+
+        prefix = 'sipNameNr_' if as_nr else 'sipName_'
+
+        return prefix + self.get_normalised_cached_name(cached_name)
+
+    @staticmethod
+    def callable_overloads(member, overloads):
+        """ An iterator over the non-private and non-signal overloads. """
+
+        for overload in overloads:
+            if overload.common is member and overload.access_specifier is not AccessSpecifier.PRIVATE and overload.pyqt_method_specifier is not PyQtMethodSpecifier.SIGNAL:
+                yield overload
+
     def custom_enums_supported(self):
         """ Return True if custom enums are supported. """
 
@@ -233,6 +329,48 @@ sip_qt_metacast_func sip_{module_name}_qt_metacast;
         # Handle C++ and Python scopes.
         return cached_name.name.replace(':', '_').replace('.', '_')
 
+    @staticmethod
+    def gto_name(wrapped_object):
+        """ Return the name of the generated type object for a wrapped object.
+        """
+
+        fq_cpp_name = wrapped_object.fq_cpp_name if isinstance(wrapped_object, WrappedEnum) else wrapped_object.iface_file.fq_cpp_name
+
+        return 'sipType_' + fq_cpp_name.as_word
+
+    @classmethod
+    def has_member_docstring(cls, bindings, member, overloads):
+        """ Return True if a function/method has a docstring. """
+
+        auto_docstring = False
+
+        # Check for any explicit docstrings and remember if there were any that
+        # could be automatically generated.
+        for overload in cls.callable_overloads(member, overloads):
+            if overload.docstring is not None:
+                return True
+
+            if bindings.docstrings:
+                auto_docstring = True
+
+        if member.no_arg_parser:
+            return False
+
+        return auto_docstring
+
+    @staticmethod
+    def optional_ptr(is_ptr, name):
+        """ Return an appropriate reference to an optional pointer. """
+
+        return name if is_ptr else 'SIP_NULLPTR'
+
+    @staticmethod
+    def py_scope(scope):
+        """ Return the Python scope by accounting for hidden C++ namespaces.
+        """
+
+        return None if isinstance(scope, WrappedClass) and scope.is_hidden_namespace else scope
+
     def pyqt5_supported(self):
         """ Return True if the PyQt5 plugin was specified. """
 
@@ -242,3 +380,110 @@ sip_qt_metacast_func sip_{module_name}_qt_metacast;
         """ Return True if the PyQt6 plugin was specified. """
 
         return 'PyQt6' in self.spec.plugins
+
+    def scoped_class_name(self, klass):
+        """ Return a scoped class name as a string.  Protected classes have to
+        be explicitly scoped.
+        """
+
+        return fmt_class_as_scoped_name(backend.spec, klass,
+                scope=klass.iface_file)
+
+    def scoped_variable_name(self, variable):
+        """ Return a scoped variable name as a string.  This should be used
+        whenever the scope may be the instantiation of a template which
+        specified /NoTypeName/.
+        """
+
+        scope = variable.scope
+        fq_cpp_name = variable.fq_cpp_name
+
+        if scope is None:
+            return fq_cpp_name.as_cpp
+
+        return self.scoped_class_name(scope) + '::' + fq_cpp_name.base_name
+
+    def _g_module_clear(self, sf):
+        """ Generate the module clear slot. """
+
+        sf.write(
+f'''
+
+/* The wrapped module's clear slot. */
+static int wrapped_module_clear(PyObject *wmod)
+{{
+    // TODO
+    return 0;
+}}
+''')
+
+    def _g_module_exec(self, sf):
+        """ Generate the module exec slot. """
+
+        # TODO Handle pre- and post-initialisation code.
+
+        sf.write(
+f'''
+
+/* The wrapped module's exec function. */
+static int wrapped_module_exec(PyObject *wmod)
+{{
+    // TODO
+    return 0;
+}}
+''')
+
+    def _g_module_free(self, sf):
+        """ Generate the module free slot. """
+
+        sf.write(
+f'''
+
+/* The wrapped module's free slot. */
+static void wrapped_module_free(void *wmod_ptr)
+{{
+    // TODO
+}}
+''')
+
+    def _g_module_function_table_entries(self, sf, bindings, members,
+            has_module_functions=False):
+        """ Generate the entries in a table of PyMethodDef for module
+        functions.
+        """
+
+        for member in members:
+            if member.py_slot is None:
+                if not has_module_functions:
+                    sf.write('    static PyMethodDef sip_methods[] = {\n')
+                    has_module_functions = True
+
+                py_name = self.get_normalised_cached_name(member.py_name)
+                sf.write(f'        {{sipName_{py_name}, ')
+
+                if member.no_arg_parser or member.allow_keyword_args:
+                    sf.write(f'SIP_MLMETH_CAST(func_{member.py_name.name}), METH_VARARGS|METH_KEYWORDS')
+                else:
+                    sf.write(f'func_{member.py_name.name}, METH_VARARGS')
+
+                docstring = self.optional_ptr(
+                        self.has_member_docstring(bindings, member,
+                                self.spec.module.overloads),
+                        'doc_' + member.py_name.name)
+                sf.write(f', {docstring}}},\n')
+
+        return has_module_functions
+
+    def _g_module_traverse(self, sf):
+        """ Generate the module traverse slot. """
+
+        sf.write(
+f'''
+
+/* The wrapped module's traverse slot. */
+static int wrapped_module_traverse(PyObject *wmod, visitproc visit, void *arg)
+{{
+    // TODO
+    return 0;
+}}
+''')
