@@ -22,6 +22,7 @@ static int module_clear(PyObject *module);
 static int module_exec(PyObject *module);
 static void module_free(void *module_ptr);
 static int module_traverse(PyObject *module, visitproc visit, void *arg);
+static const sipAPIDef *bootstrap(int abi_major);
 
 
 /* The module definition. */
@@ -116,18 +117,13 @@ static int module_clear(PyObject *module)
 static int module_exec(PyObject *module)
 {
     /* Initialise the module. */
-    const sipAPIDef *api = sip_init_library(module);
-
-    if (api == NULL)
+    if (sip_init_library(module) < 0)
         return -1;
 
-    /* Publish the SIP API. */
-    PyObject *api_obj = PyCapsule_New((void *)api,
-            _SIP_MODULE_FQ_NAME "._C_API", NULL);
+    /* Publish the bootstrap function. */
+    PyObject *api_obj = PyCapsule_New((void *)bootstrap, "_C_BOOTSTRAP", NULL);
 
-    // TODO Add the bootstrap rather than the API structure.
-    int rc = PyModule_AddObjectRef(module, "_C_API", api_obj);
-
+    int rc = PyModule_AddObjectRef(module, "_C_BOOTSTRAP", api_obj);
     Py_XDECREF(api_obj);
 
     return rc;
@@ -296,7 +292,7 @@ PyObject *sip_get_sip_module(PyTypeObject *defining_class)
 sipSipModuleState *sip_get_sip_module_state(PyObject *wmod)
 {
     return (sipSipModuleState *)PyModule_GetState(
-            ((sipWrappedModuleState *)PyModule_GetState(wmod))->wms_sip_module_interface->smh_module);
+            ((sipWrappedModuleState *)PyModule_GetState(wmod))->wms_sip_module);
 }
 
 
@@ -328,4 +324,14 @@ sipSipModuleState *sip_get_sip_module_state_from_wrapper_type(PyTypeObject *wt)
     assert(mod != NULL);
 
     return (sipSipModuleState *)PyModule_GetState(mod);
+}
+
+
+/*
+ * The bootstrap function.
+ */
+static const sipAPIDef *bootstrap(int abi_major)
+{
+    // TODO Verify abi_major.
+    return &sip_api;
 }

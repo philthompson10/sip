@@ -51,6 +51,7 @@ static void reorganise_map(sipObjectMap *om);
 /*
  * Initialise an object map.
  */
+// TODO Add error handling if new_hash_table() returns NULL.
 void sip_om_init(sipObjectMap *om)
 {
     om->prime_idx = 0;

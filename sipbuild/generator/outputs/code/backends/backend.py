@@ -153,9 +153,6 @@ static const sipWrappedModuleDef sipWrappedModule_{module_name} = {{
         has_module_functions = self.g_module_functions_table(sf, bindings)
         self.g_module_definition(sf, has_module_functions=has_module_functions)
 
-        # Generate any pre-initialisation code.
-        sf.write_code(module.preinitialisation_code)
-
         sf.write(
 '''
     return PyModuleDef_Init(&sip_wrapped_module_def);
@@ -269,6 +266,8 @@ PyMODINIT_FUNC PyInit_{module_name}({arg_type})
     def g_pyqt_helper_defns(self, sf):
         """ Generate the PyQt helper definitions. """
 
+        # TODO Needs changing for ABI v14.
+
         if self.pyqt5_supported() or self.pyqt6_supported():
             module_name = self.spec.module.py_name
 
@@ -277,6 +276,25 @@ f'''
 sip_qt_metaobject_func sip_{module_name}_qt_metaobject;
 sip_qt_metacall_func sip_{module_name}_qt_metacall;
 sip_qt_metacast_func sip_{module_name}_qt_metacast;
+''')
+
+    def g_pyqt_helper_init(self, sf):
+        """ Initialise the PyQt helpers. """
+
+        # TODO Needs changing for ABI v14.
+
+        if self.pyqt5_supported() or self.pyqt6_supported():
+            module_name = self.spec.module.py_name
+
+            sf.write(
+f'''
+
+    sip_{module_name}_qt_metaobject = (sip_qt_metaobject_func)sipImportSymbol("qtcore_qt_metaobject");
+    sip_{module_name}_qt_metacall = (sip_qt_metacall_func)sipImportSymbol("qtcore_qt_metacall");
+    sip_{module_name}_qt_metacast = (sip_qt_metacast_func)sipImportSymbol("qtcore_qt_metacast");
+
+    if (!sip_{module_name}_qt_metacast)
+        Py_FatalError("Unable to import qtcore_qt_metacast");
 ''')
 
     def abi_has_deprecated_message(self):
@@ -430,7 +448,8 @@ static int wrapped_module_clear(PyObject *wmod)
 
         spec = self.spec
         sip_module_name = spec.sip_module
-        module_name = spec.module.py_name
+        module = spec.module
+        module_name = module.py_name
 
         sf.write(
 '''
@@ -438,7 +457,12 @@ static int wrapped_module_clear(PyObject *wmod)
 /* The wrapped module's exec function. */
 static int wrapped_module_exec(PyObject *sipModule)
 {
-    sipWrappedModuleState *sip_wms = (sipWrappedModuleState *)PyModule_GetState(sipModule);
+''')
+
+        sf.write_code(module.preinitialisation_code)
+
+        sf.write(
+'''    sipWrappedModuleState *sip_wms = (sipWrappedModuleState *)PyModule_GetState(sipModule);
     if (sip_wms == SIP_NULLPTR)
         return -1;
 ''')
@@ -468,20 +492,39 @@ f'''
     }}
 
     sip_wms->wms_sip_module = sip_sip_module;
+    sip_wms->wms_wrapped_module_definition = &sipWrappedModule_{module_name};
 ''')
-            # TODO Handle post-initialisation code.  Get the module dict if the
-            # code uses it (sipModuleDict).
         else:
             # TODO
             # If there is no sip module name then we are getting the API from a
             # non-shared sip module.
             sf.write(
-f'''    if ((sipAPI_{module_name} = sip_init_library(sipModuleDict)) == SIP_NULLPTR)
+f'''    if ((sipAPI_{module_name} = sip_init_library(sipModule)) == SIP_NULLPTR)
         return -1;
 
 ''')
 
-        sf.write('\n    return 0;\n}\n')
+        sf.write_code(module.initialisation_code)
+
+        self.g_pyqt_helper_init(sf)
+
+        sf.write(
+'''
+    if (sip_wms->wms_sip_api->api_init_wrapped_module(sipModule) < 0)
+    {
+        Py_CLEAR(sip_wms->wms_sip_module);
+        return -1;
+    }
+''')
+
+        # TODO Handle post-initialisation code.  Get the module dict if the
+        # code uses it (sipModuleDict).
+
+        sf.write(
+'''
+    return 0;
+}
+''')
 
     def _g_module_free(self, sf):
         """ Generate the module free slot. """

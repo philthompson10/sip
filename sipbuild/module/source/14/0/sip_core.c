@@ -87,10 +87,7 @@ static void sip_api_trace(PyObject *wmod, unsigned mask,const char *fmt,...);
 static void sip_api_transfer_back(PyObject *wmod, PyObject *self);
 static void sip_api_transfer_to(PyObject *wmod, PyObject *self,
         PyObject *owner);
-static int sip_api_export_module(PyObject *wmod, sipExportedModuleDef *client,
-        unsigned api_major, unsigned api_minor, void *unused);
-static int sip_api_init_module(PyObject *wmod, sipExportedModuleDef *client,
-        PyObject *mod_dict);
+static int sip_api_init_wrapped_module(PyObject *wmod);
 static int sip_api_parse_args(PyObject *wmod, PyObject **parseErrp,
         PyObject *sipArgs, const char *fmt, ...);
 static int sip_api_parse_kwd_args(PyObject *wmod, PyObject **parseErrp,
@@ -116,7 +113,7 @@ static sipErrorState sip_api_bad_callable_arg(int arg_nr, PyObject *arg);
 static void sip_api_bad_operator_arg(PyObject *self, PyObject *arg,
         sipPySlotType st);
 static PyObject *sip_api_pyslot_extend(PyObject *wmod,
-        sipExportedModuleDef *mod, sipPySlotType st, const sipTypeDef *td,
+        sipWrappedModuleDef *mod, sipPySlotType st, const sipTypeDef *td,
         PyObject *arg0, PyObject *arg1);
 static void sip_api_add_delayed_dtor(sipSimpleWrapper *w);
 static int sip_api_export_symbol(PyObject *wmod, const char *name, void *sym);
@@ -197,10 +194,7 @@ static PyFrameObject *sip_api_get_frame(int depth);
 /*
  * The data structure that represents the SIP API.
  */
-static const sipAPIDef sip_api = {
-    /* This must be first. */
-    // TODO
-    sip_api_export_module,
+const sipAPIDef sip_api = {
     /*
      * The following are part of the public API.
      */
@@ -300,7 +294,7 @@ static const sipAPIDef sip_api = {
     /*
      * The following are not part of the public API.
      */
-    sip_api_init_module,
+    sip_api_init_wrapped_module,
     sip_api_parse_args,
     sip_api_parse_pair,
     sip_api_no_function,
@@ -423,14 +417,14 @@ static void *convert_to_type_us(sipSipModuleState *sms, PyObject *pyObj,
         const sipTypeDef *td, PyObject *transferObj, int flags, int *statep,
         void **user_statep, int *iserrp);
 static int create_class_type(sipSipModuleState *sms,
-        sipExportedModuleDef *client, sipClassTypeDef *ctd,
+        sipWrappedModuleDef *client, sipClassTypeDef *ctd,
         PyObject *mod_dict);
 static PyObject *create_container_type(sipSipModuleState *sms,
         sipContainerDef *cod, sipTypeDef *td, PyObject *bases,
         PyObject *metatype, PyObject *mod_dict, PyObject *type_dict,
-        sipExportedModuleDef *client);
+        sipWrappedModuleDef *client);
 static int create_mapped_type(sipSipModuleState *sms,
-        sipExportedModuleDef *client, sipMappedTypeDef *mtd,
+        sipWrappedModuleDef *client, sipMappedTypeDef *mtd,
         PyObject *mod_dict);
 static PyTypeObject *find_py_type(sipSipModuleState *sms, const char *name);
 static void *find_slot(PyObject *self, sipPySlotType st);
@@ -475,7 +469,7 @@ static void *cast_cpp_ptr(void *ptr, PyTypeObject *src_type,
 static PyObject *pickle_type(PyObject *self, PyTypeObject *defining_class,
         PyObject *const *args, Py_ssize_t nargs, PyObject *kwd_args);
 static sipTypeDef *getGeneratedType(const sipEncodedTypeDef *enc,
-        sipExportedModuleDef *em);
+        sipWrappedModuleDef *em);
 static int addCharInstances(PyObject *dict, sipCharInstanceDef *ci);
 static int addStringInstances(PyObject *dict, sipStringInstanceDef *si);
 static int addIntInstances(PyObject *dict, sipIntInstanceDef *ii);
@@ -517,12 +511,12 @@ static int isNonlazyMethod(PyMethodDef *pmd);
 static PyObject *create_property(sipVariableDef *vd);
 static PyObject *create_function(PyMethodDef *ml);
 static sipSimpleWrapper *deref_mixin(sipSimpleWrapper *w);
-static int importTypes(sipExportedModuleDef *client, sipImportedModuleDef *im,
-        sipExportedModuleDef *em);
-static int importErrorHandlers(sipExportedModuleDef *client,
-        sipImportedModuleDef *im, sipExportedModuleDef *em);
-static int importExceptions(sipExportedModuleDef *client,
-        sipImportedModuleDef *im, sipExportedModuleDef *em);
+static int importTypes(sipWrappedModuleDef *client, sipImportedModuleDef *im,
+        sipWrappedModuleDef *em);
+static int importErrorHandlers(sipWrappedModuleDef *client,
+        sipImportedModuleDef *im, sipWrappedModuleDef *em);
+static int importExceptions(sipWrappedModuleDef *client,
+        sipImportedModuleDef *im, sipWrappedModuleDef *em);
 static void handle_failed_int_conversion(sipParseFailure *pf, PyObject *arg);
 static void handle_failed_type_conversion(sipParseFailure *pf, PyObject *arg);
 static void raise_no_convert_from(const sipTypeDef *td);
@@ -534,16 +528,17 @@ static PyObject *import_module_attr(const char *module, const char *attr);
 /*
  * Initialise the module.
  */
-const sipAPIDef *sip_init_library(PyObject *module)
+// TODO Need a way to pass the target ABI when embedded.
+int sip_init_library(PyObject *module)
 {
     sipSipModuleState *sms = (sipSipModuleState *)PyModule_GetState(module);
 
     /* Add the SIP version number. */
     if (PyModule_AddIntMacro(module, SIP_VERSION) < 0)
-        return NULL;
+        return -1;
 
     if (PyModule_AddStringMacro(module, SIP_VERSION_STR) < 0)
-        return NULL;
+        return -1;
 
     /* Add the SIP ABI version number. */
     const long abi_version = (SIP_ABI_MAJOR_VERSION << 16) +
@@ -551,11 +546,11 @@ const sipAPIDef *sip_init_library(PyObject *module)
             SIP_MODULE_PATCH_VERSION;
 
     if (PyModule_AddIntConstant(module, "SIP_ABI_VERSION", abi_version) < 0)
-        return NULL;
+        return -1;
 
     /* Add the methods. */
     if (PyModule_AddFunctions(module, sipModuleMethods) < 0)
-        return NULL;
+        return -1;
 
     /* Other simple initialisations. */
     sms->current_type_def_backdoor = NULL;
@@ -575,17 +570,17 @@ const sipAPIDef *sip_init_library(PyObject *module)
         sip_enum_init(module, sms) < 0 ||
         sip_void_ptr_init(module, sms) < 0 ||
         sip_array_init(module, sms) < 0)
-        return NULL;
+        return -1;
 
     if (register_py_type(sms, sms->simple_wrapper_type) < 0)
-        return NULL;
+        return -1;
 
     /* This will always be needed. */
 #if PY_VERSION_HEX >= 0x030d0000
     sms->empty_tuple = Py_GetConstant(Py_CONSTANT_EMPTY_TUPLE);
 #else
     if ((sms->empty_tuple = PyTuple_New(0)) == NULL)
-        return NULL;
+        return -1;
 #endif
 
     /* Initialise the object map. */
@@ -597,7 +592,7 @@ const sipAPIDef *sip_init_library(PyObject *module)
      */
     sms->interpreter_state = PyThreadState_Get()->interp;
 
-    return &sip_api;
+    return 0;
 }
 
 
@@ -647,48 +642,47 @@ static void sip_api_trace(PyObject *wmod, unsigned mask, const char *fmt, ...)
 
 
 /*
- * Register a client module.  A negative value is returned and an exception
+ * Initialise a wrapped module.  A negative value is returned and an exception
  * raised if there was an error.
  */
-// TODO Changed "Exported" to "Wrapped".  Only pass abi_minor.
-// sip_api_initialise_wrapped_module().  Don't use 'client'.
-static int sip_api_export_module(PyObject *wmod, sipExportedModuleDef *client,
-        unsigned abi_major, unsigned abi_minor, void *unused)
+static int sip_api_init_wrapped_module(PyObject *wmod)
 {
-    sipSipModuleState *sms = sip_get_sip_module_state(wmod);
-    sipExportedModuleDef *em;
-    const char *full_name = sipNameOfModule(client);
-
-    (void)unused;
+    sipWrappedModuleState *wms = (sipWrappedModuleState *)PyModule_GetState(
+            wmod);
+    const sipWrappedModuleDef *wmd = wms->wms_wrapped_module_definition;
 
     /* Check that we can support it. */
-
-    if (abi_major != SIP_ABI_MAJOR_VERSION || abi_minor > SIP_ABI_MINOR_VERSION)
+    if (wmd->wm_abi_major != SIP_ABI_MAJOR_VERSION || wmd->wm_abi_minor > SIP_ABI_MINOR_VERSION)
     {
 #if SIP_ABI_MINOR_VERSION > 0
         PyErr_Format(PyExc_RuntimeError,
                 "the sip module implements ABI v%d.0 to v%d.%d but the %s module requires ABI v%d.%d",
                 SIP_ABI_MAJOR_VERSION, SIP_ABI_MAJOR_VERSION,
-                SIP_ABI_MINOR_VERSION, full_name, abi_major, abi_minor);
+                SIP_ABI_MINOR_VERSION, PyModule_GetName(wmod),
+                wmd->wm_abi_major, wmd->wm_abi_minor);
 #else
         PyErr_Format(PyExc_RuntimeError,
                 "the sip module implements ABI v%d.0 but the %s module requires ABI v%d.%d",
-                SIP_ABI_MAJOR_VERSION, full_name, abi_major, abi_minor);
+                SIP_ABI_MAJOR_VERSION, PyModule_GetName(wmod),
+                wmd->wm_abi_major, wmd->wm_abi_minor);
 #endif
 
         return -1;
     }
 
-    if (client->em_sip_configuration != SIP_CONFIGURATION)
+    if (wmd->wm_sip_configuration != SIP_CONFIGURATION)
     {
         PyErr_Format(PyExc_RuntimeError,
                 "the sip module has a configuration of 0x%04x but the %s module requires 0x%04x",
-                SIP_CONFIGURATION, full_name, client->em_sip_configuration);
+                SIP_CONFIGURATION, PyModule_GetName(wmod),
+                wmd->wm_sip_configuration);
 
         return -1;
     }
 
     /* Import any required modules. */
+    sipSipModuleState *sms = sip_get_sip_module_state(wmod);
+
     if (client->em_imports != NULL)
     {
         sipImportedModuleDef *im = client->em_imports;
@@ -746,22 +740,6 @@ static int sip_api_export_module(PyObject *wmod, sipExportedModuleDef *client,
     /* Add it to the list of client modules. */
     client->em_next = sms->module_list;
     sms->module_list = client;
-
-    return 0;
-}
-
-
-/*
- * Initialise the contents of a client module.  By this time anything that
- * this depends on should have been initialised.  A negative value is returned
- * and an exception raised if there was an error.
- */
-static int sip_api_init_module(PyObject *wmod, sipExportedModuleDef *client,
-        PyObject *mod_dict)
-{
-    sipSipModuleState *sms = sip_get_sip_module_state(wmod);
-    sipExportedModuleDef *em;
-    int i;
 
 #if defined(SIP_CONFIGURATION_PyEnums)
     sipIntInstanceDef *next_int = client->em_instances.id_int;
@@ -1029,7 +1007,7 @@ static void sip_api_add_delayed_dtor(sipSimpleWrapper *sw)
             Py_TYPE((PyObject *)sw));
     void *ptr;
     const sipClassTypeDef *ctd;
-    sipExportedModuleDef *em;
+    sipWrappedModuleDef *em;
 
     if ((ptr = sip_get_ptr_type_def(sw, &ctd)) == NULL)
         return;
@@ -1091,11 +1069,11 @@ void sip_api_free(void *mem)
  * extender function that can handle the arguments.
  */
 static PyObject *sip_api_pyslot_extend(PyObject *wmod,
-        sipExportedModuleDef *mod, sipPySlotType st, const sipTypeDef *td,
+        sipWrappedModuleDef *mod, sipPySlotType st, const sipTypeDef *td,
         PyObject *arg0, PyObject *arg1)
 {
     sipSipModuleState *sms = sip_get_sip_module_state(wmod);
-    sipExportedModuleDef *em;
+    sipWrappedModuleDef *em;
 
     /* Go through each module. */
     for (em = sms->module_list; em != NULL; em = em->em_next)
@@ -4678,7 +4656,7 @@ static Py_ssize_t sip_api_convert_from_sequence_index(Py_ssize_t idx,
  * Return the dictionary of a type.
  */
 PyObject *sip_get_scope_dict(sipSipModuleState *sms, sipTypeDef *td,
-        PyObject *mod_dict, sipExportedModuleDef *client)
+        PyObject *mod_dict, sipWrappedModuleDef *client)
 {
     /*
      * Initialise the scoping type if necessary.  It will always be in the
@@ -4708,7 +4686,7 @@ PyObject *sip_get_scope_dict(sipSipModuleState *sms, sipTypeDef *td,
 static PyObject *create_container_type(sipSipModuleState *sms,
         sipContainerDef *cod, sipTypeDef *td, PyObject *bases,
         PyObject *metatype, PyObject *mod_dict, PyObject *type_dict,
-        sipExportedModuleDef *client)
+        sipWrappedModuleDef *client)
 {
     PyObject *py_type, *scope_dict, *name, *args;
     sipTypeDef *scope_td;
@@ -4789,7 +4767,7 @@ reterr:
  * Create a single class type object.
  */
 static int create_class_type(sipSipModuleState *sms,
-        sipExportedModuleDef *client, sipClassTypeDef *ctd, PyObject *mod_dict)
+        sipWrappedModuleDef *client, sipClassTypeDef *ctd, PyObject *mod_dict)
 {
     PyObject *bases, *metatype, *py_type, *type_dict;
     sipEncodedTypeDef *sup;
@@ -4944,7 +4922,7 @@ reterr:
  * Create a single mapped type object.
  */
 static int create_mapped_type(sipSipModuleState *sms,
-        sipExportedModuleDef *client, sipMappedTypeDef *mtd,
+        sipWrappedModuleDef *client, sipMappedTypeDef *mtd,
         PyObject *mod_dict)
 {
     /* Handle the trivial case where we have already been initialised. */
@@ -4981,11 +4959,11 @@ reterr:
 /*
  * Return the module definition for a named module.
  */
-sipExportedModuleDef *sip_get_module(sipSipModuleState *sms,
+sipWrappedModuleDef *sip_get_module(sipSipModuleState *sms,
         PyObject *mname_obj)
 {
     PyObject *mod;
-    sipExportedModuleDef *em;
+    sipWrappedModuleDef *em;
 
     /* Make sure the module is imported. */
     if ((mod = PyImport_Import(mname_obj)) == NULL)
@@ -5014,7 +4992,7 @@ PyObject *sip_unpickle_type(PyObject *mod, PyObject *args)
     sipSipModuleState *sms = (sipSipModuleState *)PyModule_GetState(mod);
     PyObject *mname_obj, *init_args;
     const char *tname;
-    sipExportedModuleDef *em;
+    sipWrappedModuleDef *em;
     int i;
 
     if (!PyArg_ParseTuple(args, "UsO!:_unpickle_type", &mname_obj, &tname, &PyTuple_Type, &init_args))
@@ -5054,7 +5032,7 @@ static PyObject *pickle_type(PyObject *self, PyTypeObject *defining_class,
 {
     PyObject *sip_mod = sip_get_sip_module(defining_class);
     sipSipModuleState *sms = (sipSipModuleState *)PyModule_GetState(sip_mod);
-    sipExportedModuleDef *em;
+    sipWrappedModuleDef *em;
 
     /* Find the type definition and defining module. */
     for (em = sms->module_list; em != NULL; em = em->em_next)
@@ -5141,7 +5119,7 @@ static int set_reduce(PyTypeObject *type, PyMethodDef *pickler)
 /*
  * Create a type dictionary for dynamic type being created in a module.
  */
-PyObject *sip_create_type_dict(sipExportedModuleDef *em)
+PyObject *sip_create_type_dict(sipWrappedModuleDef *em)
 {
     PyObject *dict;
 
@@ -5303,7 +5281,7 @@ static int add_lazy_container_attrs(sipSipModuleState *sms, sipWrapperType *wt,
 
     if (next_int != NULL)
     {
-        sipExportedModuleDef *module = td->td_module;
+        sipWrappedModuleDef *module = td->td_module;
 
         /*
          * Not ideal but we have to look through all types looking for enums
@@ -7295,7 +7273,7 @@ int sip_api_get_state(PyObject *transferObj)
  */
 // TODO This is problematic because the helper won't have access to the module
 // state.
-static sipExportedModuleDef *module_searched;
+static sipWrappedModuleDef *module_searched;
 
 
 /*
@@ -7366,7 +7344,7 @@ static int compareTypeDef(const void *key, const void *el)
 static const sipTypeDef *sip_api_find_type(PyObject *wmod, const char *type)
 {
     sipSipModuleState *sms = sip_get_sip_module_state(wmod);
-    sipExportedModuleDef *em;
+    sipWrappedModuleDef *em;
 
     for (em = sms->module_list; em != NULL; em = em->em_next)
     {
@@ -7450,7 +7428,7 @@ static int convert_pass(sipSipModuleState *sms, const sipTypeDef **tdp,
         void **cppPtr)
 {
     PyTypeObject *py_type = sipTypeAsPyTypeObject(*tdp);
-    sipExportedModuleDef *em;
+    sipWrappedModuleDef *em;
 
     /*
      * Note that this code depends on the fact that a module appears in the
@@ -7569,7 +7547,7 @@ static void sip_api_raise_type_exception(PyObject *wmod, const sipTypeDef *td,
  * Return the generated type structure of an encoded type.
  */
 static sipTypeDef *getGeneratedType(const sipEncodedTypeDef *enc,
-        sipExportedModuleDef *em)
+        sipWrappedModuleDef *em)
 {
     if (enc->sc_module == 255)
         return em->em_types[enc->sc_type];
@@ -8403,7 +8381,7 @@ void sip_forget_object(sipSimpleWrapper *sw)
 static const char *sip_api_resolve_typedef(PyObject *wmod, const char *name)
 {
     sipSipModuleState *sms = sip_get_sip_module_state(wmod);
-    const sipExportedModuleDef *em;
+    const sipWrappedModuleDef *em;
 
     /*
      * Note that if the same name is defined as more than one type (which is
@@ -9595,7 +9573,7 @@ static int sip_api_check_plugin_for_type(const sipTypeDef *td,
      * approach means that a plugin's user data structure can be opaque.
      */
 
-    sipExportedModuleDef *em = td->td_module;
+    sipWrappedModuleDef *em = td->td_module;
     sipImportedModuleDef *im;
 
     if (strcmp(sipNameOfModule(em), name) == 0)
@@ -9736,8 +9714,8 @@ static void sip_api_release_buffer_info(sipBufferInfoDef *bi)
 /*
  * Import all the required types from an imported module.
  */
-static int importTypes(sipExportedModuleDef *client, sipImportedModuleDef *im,
-        sipExportedModuleDef *em)
+static int importTypes(sipWrappedModuleDef *client, sipImportedModuleDef *im,
+        sipWrappedModuleDef *em)
 {
     const char *name;
     int i, e;
@@ -9781,8 +9759,8 @@ static int importTypes(sipExportedModuleDef *client, sipImportedModuleDef *im,
 /*
  * Import all the required virtual error handlers from an imported module.
  */
-static int importErrorHandlers(sipExportedModuleDef *client,
-        sipImportedModuleDef *im, sipExportedModuleDef *em)
+static int importErrorHandlers(sipWrappedModuleDef *client,
+        sipImportedModuleDef *im, sipWrappedModuleDef *em)
 {
     const char *name;
     int i;
@@ -9825,8 +9803,8 @@ static int importErrorHandlers(sipExportedModuleDef *client,
 /*
  * Import all the required exceptions from an imported module.
  */
-static int importExceptions(sipExportedModuleDef *client,
-        sipImportedModuleDef *im, sipExportedModuleDef *em)
+static int importExceptions(sipWrappedModuleDef *client,
+        sipImportedModuleDef *im, sipWrappedModuleDef *em)
 {
     const char *name;
     int i;
@@ -10125,7 +10103,7 @@ static sipExceptionHandler sip_api_next_exception_handler(PyObject *wmod,
         void **statep)
 {
     sipSipModuleState *sms = sip_get_sip_module_state(wmod);
-    sipExportedModuleDef *em = *(sipExportedModuleDef **)statep;
+    sipWrappedModuleDef *em = *(sipWrappedModuleDef **)statep;
 
     if (em != NULL)
         em = em->em_next;

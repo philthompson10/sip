@@ -68,6 +68,12 @@ struct _sipSipModuleState;
 
 
 /*
+ * The function pointers that implement the API.
+ */
+extern const sipAPIDef sip_api;
+
+
+/*
  * These are part of the SIP API but are also used within the SIP module.
  */
 int sip_api_convert_from_slice_object(PyObject *slice, Py_ssize_t length,

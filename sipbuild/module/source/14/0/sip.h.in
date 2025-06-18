@@ -132,50 +132,17 @@ typedef PyGILState_STATE sip_gilstate_t;
 /*
  * Define the types used for implementing module state and the interface to the
  * sip module API.  All of these structures may only ever be extended.  Fields
- * must not be removed or re-ordered.
+ * must not be removed or re-ordered.  Note that we wrongly use the term API
+ * when we actually mean ABI.
  */
-
-/* Forward declare the API structure. */
-struct _sipAPIDef;
-typedef struct _sipAPIDef sipAPIDef;
-
-/*
- * The structure defining the interface between the sip module and wrapped
- * modules that import and use it.
- */
-typedef struct {
-    /*
-     * The major version number of the ABI being used.  This allows the
-     * possibility of a sip module supporting multiple ABI major version
-     * although there are no plans to do so.
-     */
-    int smh_abi_major;
-
-    /* A strong reference to the sip module. */
-    PyObject *smh_module;
-
-    /* The pointers to the functions that implement the sip module API. */
-    const sipAPIDef *smh_api;
-} sipSipModuleInterface;
-
-/*
- * The state of a wrapped module.
- */
-typedef struct {
-    /* The interface to the sip module. */
-    const sipSipModuleInterface *wms_sip_module_interface;
-
-    /* TODO Extensions to the state provided by the bindings author. */
-    // sipStateExtension *wms_user;
-} sipWrappedModuleState;
-
-/* The signature of the sip module bootstrap function. */
-typedef const sipSipModuleInterface *(*sipBootstrapFunc)(int abi_major);
 
 
 /*
  * Forward declarations of structures.
  */
+struct _sipAPIDef;
+typedef struct _sipAPIDef sipAPIDef;
+
 struct _sipBufferDef;
 typedef struct _sipBufferDef sipBufferDef;
 
@@ -191,6 +158,9 @@ typedef struct _sipDateDef sipDateDef;
 struct _sipMethodDef;
 typedef struct _sipMethodDef sipMethodDef;
 
+struct _sipWrappedModuleDef;
+typedef struct _sipWrappedModuleDef sipWrappedModuleDef;
+
 struct _sipSimpleWrapper;
 typedef struct _sipSimpleWrapper sipSimpleWrapper;
 
@@ -205,6 +175,29 @@ typedef struct _sipWrapperType sipWrapperType;
 
 struct _sipWrapper;
 typedef struct _sipWrapper sipWrapper;
+
+
+/*
+ * The state of a wrapped module.
+ */
+typedef struct {
+    /* The pointers to the functions that implement the sip module API. */
+    const sipAPIDef *wms_sip_api;
+
+    /* A strong reference to the sip module. */
+    PyObject *wms_sip_module;
+
+    /* The definition of the wrapped module. */
+    // TOOD Is this needed after module initialisation?
+    const struct _sipWrappedModuleDef *wms_wrapped_module_definition;
+
+    /* TODO Extensions to the state provided by the bindings author. */
+    // sipStateExtension *wms_user;
+} sipWrappedModuleState;
+
+
+/* The signature of the sip module bootstrap function. */
+typedef const sipAPIDef *(*sipBootstrapFunc)(int abi_major);
 
 
 /*
@@ -639,7 +632,7 @@ struct _sipTypeDef {
     /*
      * The module, 0 if the type hasn't been initialised.
      */
-    struct _sipExportedModuleDef *td_module;
+    struct _sipWrappedModuleDef *td_module;
 
     /* Type flags, see the sipType*() macros. */
     int td_flags;
@@ -947,83 +940,80 @@ typedef struct _sipImportedModuleDef {
 
 
 /*
- * The main client module structure.
+ * The immutable wrapped module definition.
  */
-typedef struct _sipExportedModuleDef {
-    /* The next in the list. */
-    struct _sipExportedModuleDef *em_next;
+struct _sipWrappedModuleDef {
+    /* The SIP ABI major version number. */
+    unsigned wm_abi_major;
 
-    /* The SIP API minor version number. */
-    unsigned em_api_minor;
+    /* The SIP ABI minor version number. */
+    unsigned wm_abi_minor;
 
     /* The required sip module configuration. */
-    unsigned em_sip_configuration;
-
-    /* The module name. */
-    int em_name;
-
-    /* The module name as an object. */
-    PyObject *em_nameobj;
+    unsigned wm_sip_configuration;
 
     /* The string pool. */
-    const char *em_strings;
+    const char *wm_strings;
 
     /* The imported modules. */
-    sipImportedModuleDef *em_imports;
+    sipImportedModuleDef *wm_imports;
 
     /* The number of types. */
-    int em_nrtypes;
+    int wm_nrtypes;
 
     /* The table of types. */
-    sipTypeDef **em_types;
+    sipTypeDef **wm_types;
 
     /* The table of external types. */
-    sipExternalTypeDef *em_external;
+    sipExternalTypeDef *wm_external;
 
 #if defined(SIP_CONFIGURATION_CustomEnums)
     /* The number of members in global enums. */
-    int em_nrenummembers;
+    int wm_nrenummembers;
 
     /* The table of members in global enums. */
-    sipEnumMemberDef *em_enummembers;
+    sipEnumMemberDef *wm_enummembers;
 #endif
 
     /* The number of typedefs. */
-    int em_nrtypedefs;
+    int wm_nrtypedefs;
 
     /* The table of typedefs. */
-    sipTypedefDef *em_typedefs;
+    sipTypedefDef *wm_typedefs;
 
     /* The table of virtual error handlers. */
-    sipVirtErrorHandlerDef *em_virterrorhandlers;
+    sipVirtErrorHandlerDef *wm_virterrorhandlers;
 
     /* The sub-class convertors. */
-    sipSubClassConvertorDef *em_convertors;
+    sipSubClassConvertorDef *wm_convertors;
 
     /* The static instances. */
-    sipInstancesDef em_instances;
+    sipInstancesDef wm_instances;
 
     /* The license. */
-    struct _sipLicenseDef *em_license;
+    struct _sipLicenseDef *wm_license;
 
     /* The table of exception types. */
-    PyObject **em_exceptions;
+    // TODO Move to the module state.
+    PyObject **wm_exceptions;
 
     /* The table of Python slot extenders. */
-    sipPySlotExtenderDef *em_slotextend;
+    sipPySlotExtenderDef *wm_slotextend;
 
     /* The table of initialiser extenders. */
-    sipInitExtenderDef *em_initextend;
+    sipInitExtenderDef *wm_initextend;
 
     /* The delayed dtor handler. */
-    void (*em_delayeddtors)(const sipDelayedDtor *);
+    // TODO Move to the module state?
+    void (*wm_delayeddtors)(const sipDelayedDtor *);
 
     /* The list of delayed dtors. */
-    sipDelayedDtor *em_ddlist;
+    // TODO Move to the module state.
+    sipDelayedDtor *wm_ddlist;
 
     /* The exception handler. */
-    sipExceptionHandler em_exception_handler;
-} sipExportedModuleDef;
+    sipExceptionHandler wm_exception_handler;
+};
 
 
 /*
@@ -1192,14 +1182,6 @@ typedef struct _sipTypeInstanceDef {
  */
 struct _sipAPIDef {
     /*
-     * This must be the first entry and it's signature must not change so that
-     * version number mismatches can be detected and reported.
-     */
-    // TODO The signature has changed.
-    int (*api_export_module)(PyObject *wmod, sipExportedModuleDef *client,
-            unsigned api_major, unsigned api_minor, void *unused);
-
-    /*
      * The following are part of the public API.
      */
     void (*api_bad_catcher_result)(PyObject *method);
@@ -1336,8 +1318,7 @@ struct _sipAPIDef {
     /*
      * The following are not part of the public API.
      */
-    int (*api_init_module)(PyObject *wmod, sipExportedModuleDef *client,
-            PyObject *mod_dict);
+    int (*api_init_wrapped_module)(PyObject *wmod);
     int (*api_parse_args)(PyObject *wmod, PyObject **parseErrp,
             PyObject *sipArgs, const char *fmt, ...);
     int (*api_parse_pair)(PyObject *wmod, PyObject **parseErrp, PyObject *arg0,
@@ -1362,7 +1343,7 @@ struct _sipAPIDef {
             const char *name, void *cppPtr, const sipTypeDef *td);
     void (*api_bad_operator_arg)(PyObject *self, PyObject *arg,
             sipPySlotType st);
-    PyObject *(*api_pyslot_extend)(PyObject *wmod, sipExportedModuleDef *mod,
+    PyObject *(*api_pyslot_extend)(PyObject *wmod, sipWrappedModuleDef *mod,
             sipPySlotType st, const sipTypeDef *type, PyObject *arg0,
             PyObject *arg1);
     void (*api_add_delayed_dtor)(sipSimpleWrapper *w);

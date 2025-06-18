@@ -263,18 +263,7 @@ f'''    /* Export the module and publish it's API. */
     }}
 ''')
 
-        if self.pyqt5_supported() or self.pyqt6_supported():
-            # Import the helpers.
-            sf.write(
-f'''
-
-    sip_{module_name}_qt_metaobject = (sip_qt_metaobject_func)sipImportSymbol("qtcore_qt_metaobject");
-    sip_{module_name}_qt_metacall = (sip_qt_metacall_func)sipImportSymbol("qtcore_qt_metacall");
-    sip_{module_name}_qt_metacast = (sip_qt_metacast_func)sipImportSymbol("qtcore_qt_metacast");
-
-    if (!sip_{module_name}_qt_metacast)
-        Py_FatalError("Unable to import qtcore_qt_metacast");
-''')
+        self.g_pyqt_helper_init(sf)
 
         sf.write(
 f'''

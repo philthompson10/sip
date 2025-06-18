@@ -88,14 +88,8 @@ f'''#ifndef _{module_name}API_H
         sf.write('\n')
 
     # Generate references to (potentially) shared strings.
-    no_intro = True
-
-    for cached_name in name_cache_list:
-        if not cached_name.used:
-            continue
-
-        if no_intro:
-            sf.write(
+    if name_cache_list is not None:
+        sf.write(
 '''
 /*
  * Convenient names to refer to various strings defined in this module.
@@ -103,9 +97,8 @@ f'''#ifndef _{module_name}API_H
  */
 ''')
 
-            no_intro = False
-
-        sf.write(
+        for cached_name in name_cache_list:
+            sf.write(
 f'''#define {backend.cached_name_ref(cached_name, as_nr=True)} {cached_name.offset}
 #define {backend.cached_name_ref(cached_name)} &sipStrings_{module_name}[{cached_name.offset}]
 ''')
@@ -348,7 +341,8 @@ f'''#define sipIsPyMethod               sipAPI_{module_name}->api_is_py_method
 ''')
 
     # The name strings.
-    sf.write(
+    if name_cache_list is not None:
+        sf.write(
 f'''
 /* The strings used by this module. */
 extern const char sipStrings_{module_name}[];
@@ -356,7 +350,9 @@ extern const char sipStrings_{module_name}[];
 
     _module_api(sf, spec, bindings)
 
-    sf.write(
+    # TODO Move to the backend when everything else gets moved.
+    if spec.target_abi < (14, 0):
+        sf.write(
 f'''
 /* The SIP API, this module's API and the APIs of any imported modules. */
 extern const sipAPIDef *sipAPI_{module_name};
@@ -533,7 +529,8 @@ def _module_code(backend, bindings, project, py_debug, buildable):
     name_cache_list = _name_cache_as_list(spec.name_cache)
 
     # Define the names.
-    has_name_cache = _name_cache(sf, spec, name_cache_list)
+    if name_cache_list is not None:
+        _name_cache(sf, spec, name_cache_list)
 
     # Generate the C++ code blocks.
     sf.write_code(module.module_code)
@@ -1036,7 +1033,7 @@ static sipQtAPI qtAPI = {{
 
     # Generate the code to create the wrapped module
     backend.g_create_wrapped_module(sf, bindings,
-        has_name_cache,
+        name_cache_list is not None,
         has_external,
         nr_enum_members,
         has_virtual_error_handlers,
@@ -1097,6 +1094,7 @@ static sipQtAPI qtAPI = {{
 
 def _name_cache_as_list(name_cache):
     """ Return a name cache as a correctly ordered list of CachedName objects.
+    None is returned rather than an empty list.
     """
 
     name_cache_list = []
@@ -1134,28 +1132,21 @@ def _name_cache_as_list(name_cache):
             cached_name.offset = offset
             offset += name_len + 1
 
-    return name_cache_list
+    return None if offset == 0 else name_cache_list
 
 
 def _name_cache(sf, spec, name_cache_list):
-    """ Generate the name cache definition and return True if something was
-    actually generated.
-    """
+    """ Generate the name cache definition. """
 
-    has_name_cache = False
-
-    for name in name_cache_list:
-        if not name.used or name.is_substring:
-            continue
-
-        if not has_name_cache:
-            has_name_cache = True
-
-            sf.write(
+    sf.write(
 f'''
 /* Define the strings used by this module. */
 const char sipStrings_{spec.module.py_name}[] = {{
 ''')
+
+    for name in name_cache_list:
+        if name.is_substring:
+            continue
 
         sf.write('    ')
 
@@ -1164,10 +1155,7 @@ const char sipStrings_{spec.module.py_name}[] = {{
 
         sf.write('0,\n')
 
-    if has_name_cache:
-        sf.write('};\n')
-
-    return has_name_cache
+    sf.write('};\n')
 
 
 def _types_table(sf, module, needed_enums):
