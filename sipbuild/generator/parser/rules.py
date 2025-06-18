@@ -3058,7 +3058,6 @@ def p_opt_namespace_body(p):
     """opt_namespace_body : '{' namespace_body '}'
         | empty"""
 
-
 def p_namespace_body(p):
     """namespace_body : namespace_statement
         | namespace_body namespace_statement"""
