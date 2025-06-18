@@ -166,7 +166,7 @@ def _create_patches(sip_module, sip_module_configuration, module_source_dir,
         # We special case this because it should be the only package requiring
         # the support.
         legacy = (sip_module == 'PyQt5.sip')
-        patches['@_SIP_MODULE_LEGACY@'] = '1' if legacy else '0',
+        patches['@_SIP_MODULE_LEGACY@'] = '1' if legacy else '0'
 
     elif abi_major >= 14:
         for opt_name, opt_value in SipModuleConfiguration.__members__.items():

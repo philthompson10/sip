@@ -217,9 +217,10 @@ PyDoc_STRVAR(doc_mod_{module.py_name}, "{_docstring_text(module.docstring)}");
         """
 
         spec = self.spec
+        module = spec.module
 
         has_module_functions = self._g_module_function_table_entries(sf,
-                bindings, spec.module.global_functions)
+                bindings, module.global_functions)
 
         # Generate the module functions for any hidden namespaces.
         for klass in spec.classes:
@@ -409,7 +410,7 @@ f'''
         be explicitly scoped.
         """
 
-        return fmt_class_as_scoped_name(backend.spec, klass,
+        return fmt_class_as_scoped_name(self.spec, klass,
                 scope=klass.iface_file)
 
     def scoped_variable_name(self, variable):

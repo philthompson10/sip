@@ -162,7 +162,7 @@ const sipAPIDef *sipAPI_{module_name};
         else:
             docstring_ref = f'doc_mod_{module.py_name}'
 
-        method_table = self.opt_pointer(has_module_functions, 'sip_methods')
+        method_table = self.optional_ptr(has_module_functions, 'sip_methods')
 
         sf.write(
 f'''    static PyModuleDef sip_module_def = {{
@@ -365,7 +365,7 @@ f'''
             if variable.module is not spec.module:
                 continue
 
-            if variable.type.type not in _PY_OBJECT_TYPES:
+            if variable.type.type not in self._PY_OBJECT_TYPES:
                 continue
 
             if variable.needs_handler:
@@ -440,7 +440,7 @@ f'''    if ((sipAPI_{module_name} = sip_init_library(sipModuleDict)) == SIP_NULL
         to a dictionary.
         """
 
-        spec = backend.spec
+        spec = self.spec
         no_intro = True
 
         for variable in spec.variables:
