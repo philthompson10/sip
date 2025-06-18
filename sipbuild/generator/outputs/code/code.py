@@ -530,8 +530,7 @@ def _module_code(backend, bindings, project, py_debug, buildable):
     name_cache_list = _name_cache_as_list(spec.name_cache)
 
     # Define the names.
-    if name_cache_list is not None:
-        _name_cache(sf, spec, name_cache_list)
+    has_sip_strings = _name_cache(sf, spec, name_cache_list)
 
     # Generate the C++ code blocks.
     sf.write_code(module.module_code)
@@ -1034,7 +1033,7 @@ static sipQtAPI qtAPI = {{
 
     # Generate the code to create the wrapped module
     backend.g_create_wrapped_module(sf, bindings,
-        name_cache_list is not None,
+        has_sip_strings,
         has_external,
         nr_enum_members,
         has_virtual_error_handlers,
@@ -1090,12 +1089,12 @@ static sipQtAPI qtAPI = {{
     header_name = os.path.join(buildable.build_dir, f'sipAPI{module_name}.h')
 
     with SourceFile(header_name, "Internal module API header file.", module, project, buildable.headers) as sf:
-        _internal_api_header(backend, sf, bindings, py_debug, name_cache_list)
+        _internal_api_header(backend, sf, bindings, py_debug,
+                name_cache_list if has_sip_strings else None)
 
 
 def _name_cache_as_list(name_cache):
     """ Return a name cache as a correctly ordered list of CachedName objects.
-    None is returned rather than an empty list.
     """
 
     name_cache_list = []
@@ -1133,21 +1132,28 @@ def _name_cache_as_list(name_cache):
             cached_name.offset = offset
             offset += name_len + 1
 
-    return None if offset == 0 else name_cache_list
+    return name_cache_list
 
 
 def _name_cache(sf, spec, name_cache_list):
-    """ Generate the name cache definition. """
+    """ Generate the name cache definition.  Return True if something was
+    actually generated.
+    """
 
-    sf.write(
+    has_sip_strings = False
+
+    for name in name_cache_list:
+        if not name.used or name.is_substring:
+            continue
+
+        if not has_sip_strings:
+            has_sip_strings = True
+
+            sf.write(
 f'''
 /* Define the strings used by this module. */
 const char sipStrings_{spec.module.py_name}[] = {{
 ''')
-
-    for name in name_cache_list:
-        if name.is_substring:
-            continue
 
         sf.write('    ')
 
@@ -1156,7 +1162,10 @@ const char sipStrings_{spec.module.py_name}[] = {{
 
         sf.write('0,\n')
 
-    sf.write('};\n')
+    if has_sip_strings:
+        sf.write('};\n')
+
+    return has_sip_strings
 
 
 def _types_table(sf, module, needed_enums):

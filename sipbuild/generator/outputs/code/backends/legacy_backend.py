@@ -15,7 +15,7 @@ class LegacyBackend(Backend):
 
     def g_create_wrapped_module(self, sf, bindings,
         # TODO These will probably be generated here at some point.
-        has_name_cache,
+        has_sip_strings,
         has_external,
         nr_enum_members,
         has_virtual_error_handlers,
