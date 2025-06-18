@@ -1885,6 +1885,9 @@ def p_superclass(p):
         # In SIP v7 this will be an error.
         pm.deprecated(p, 1)
 
+        p[0] = None
+        return
+
     p[0] = p[2]
 
 
