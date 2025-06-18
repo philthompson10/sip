@@ -208,7 +208,7 @@ f'''    static PyModuleDef_Slot sip_wrapped_module_slots[] = {{
             # TODO Port _docstring_text().
             sf.write(
 f'''
-"PyDoc_STRVAR(doc_mod_{module.py_name}, "{_docstring_text(module.docstring)}");
+PyDoc_STRVAR(doc_mod_{module.py_name}, "{_docstring_text(module.docstring)}");
 ''')
 
     def g_module_functions_table(self, sf, bindings):

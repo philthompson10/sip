@@ -1904,6 +1904,9 @@ def p_superclass(p):
         # In SIP v7 this will be an error.
         pm.deprecated(p, 1)
 
+        p[0] = None
+        return
+
     p[0] = p[2]
 
 
@@ -3076,7 +3079,6 @@ def p_namespace_head(p):
 def p_opt_namespace_body(p):
     """opt_namespace_body : '{' namespace_body '}'
         | empty"""
-
 
 def p_namespace_body(p):
     """namespace_body : namespace_statement
