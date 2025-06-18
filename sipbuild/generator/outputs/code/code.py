@@ -8586,7 +8586,7 @@ def _module_docstring(sf, module):
     if module.docstring is not None:
         sf.write(
 f'''
-"PyDoc_STRVAR(doc_mod_{module.py_name}, "{_docstring_text(module.docstring)}");
+PyDoc_STRVAR(doc_mod_{module.py_name}, "{_docstring_text(module.docstring)}");
 ''')
 
 

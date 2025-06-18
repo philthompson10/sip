@@ -17,8 +17,8 @@ To run the tests of a particular test case, run:
 
 ## Writing Unit Tests
 
-Each test sub-directory should contain an empty `__init__.py` file, a Python
-test script with the prefix `test_` and one or more `.sip` files.
+Each test sub-directory should contain a Python test script with the prefix
+`test_` and one or more `.sip` files.
 
 The test script should contain a sub-class of `SIPTestCase`, which is imported
 from the `utils` module.  This will automatically build any modules (defined by
