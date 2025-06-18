@@ -185,6 +185,7 @@ f'''
 #define sipTypeFromPyTypeObject     sipAPI_{module_name}->api_type_from_py_type_object
 #define sipTypeScope                sipAPI_{module_name}->api_type_scope
 #define sipResolveTypedef           sipAPI_{module_name}->api_resolve_typedef
+#define sipRegisterAttributeGetter  sipAPI_{module_name}->api_register_attribute_getter
 #define sipEnableAutoconversion     sipAPI_{module_name}->api_enable_autoconversion
 #define sipInitMixin                sipAPI_{module_name}->api_init_mixin
 #define sipExportModule             sipAPI_{module_name}->api_export_module
