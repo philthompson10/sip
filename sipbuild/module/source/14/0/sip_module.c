@@ -147,7 +147,7 @@ static void module_free(void *module_ptr)
 
     /* Handle any delayed dtors. */
     // TODO Review the timing and purpose of this.
-    sipExportedModuleDef *em;
+    sipWrappedModuleDef *em;
 
     for (em = sms->module_list; em != NULL; em = em->em_next)
         if (em->em_ddlist != NULL)

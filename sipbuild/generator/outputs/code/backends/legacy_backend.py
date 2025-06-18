@@ -7,6 +7,8 @@ from ....specification import ArgumentType, WrappedClass
 
 from ...formatters import fmt_argument_as_cpp_type
 
+from ..utils import cached_name_ref, get_normalised_cached_name, py_scope
+
 from .backend import Backend
 
 
@@ -53,7 +55,7 @@ f'''/* This defines this module. */
 sipExportedModuleDef sipModuleAPI_{module_name} = {{
     SIP_NULLPTR,
     {target_abi[1]},
-    sipNameNr_{self.get_normalised_cached_name(module.fq_py_name)},
+    sipNameNr_{get_normalised_cached_name(module.fq_py_name)},
     0,
     sipStrings_{module_name},
     {imports_table},
@@ -375,7 +377,7 @@ f'''
                 sf.write('\n    /* Define the Python objects wrapped as such. */\n')
                 no_intro = False
 
-            py_name = self.cached_name_ref(variable.py_name)
+            py_name = cached_name_ref(variable.py_name)
             cpp_name = self.scoped_variable_name(variable)
 
             sf.write(f'    PyDict_SetItemString(sipModuleDict, {py_name}, {cpp_name});\n')
@@ -468,12 +470,12 @@ f'''    if ((sipAPI_{module_name} = sip_init_library(sipModuleDict)) == SIP_NULL
 
                 no_intro = False
 
-            if self.py_scope(variable.scope) is None:
+            if py_scope(variable.scope) is None:
                 dict_name = 'sipModuleDict'
             else:
                 dict_name = f'(PyObject *)sipTypeAsPyTypeObject({self.gto_name(variable.scope)})'
 
-            py_name = self.cached_name_ref(variable.py_name)
+            py_name = cached_name_ref(variable.py_name)
             ptr = '&' + self.scoped_variable_name(variable)
 
             if variable.type.is_const:

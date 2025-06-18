@@ -29,7 +29,7 @@
 
 /* Forward references. */
 static PyObject *create_enum_object(sipSipModuleState *sms,
-        sipExportedModuleDef *client, sipEnumTypeDef *etd,
+        sipWrappedModuleDef *client, sipEnumTypeDef *etd,
         sipIntInstanceDef **next_int_p, PyObject *name);
 static void enum_expected(PyObject *obj, const sipTypeDef *td);
 static PyObject *get_enum_type(sipSipModuleState *sms, const sipTypeDef *td);
@@ -150,7 +150,7 @@ int sip_enum_convert_to_constrained_enum(sipSipModuleState *sms, PyObject *obj,
  * returned (and an exception set) if there was an error.
  */
 int sip_enum_create_py_enum(sipSipModuleState *sms,
-        sipExportedModuleDef *client, sipEnumTypeDef *etd,
+        sipWrappedModuleDef *client, sipEnumTypeDef *etd,
         sipIntInstanceDef **next_int_p, PyObject *dict)
 {
     int rc;
@@ -277,7 +277,7 @@ int sip_enum_is_enum(sipSipModuleState *sms, PyObject *obj)
  * Create an enum object.
  */
 static PyObject *create_enum_object(sipSipModuleState *sms,
-        sipExportedModuleDef *client, sipEnumTypeDef *etd,
+        sipWrappedModuleDef *client, sipEnumTypeDef *etd,
         sipIntInstanceDef **next_int_p, PyObject *name)
 {
     int i, rc;

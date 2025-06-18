@@ -5,10 +5,11 @@
 
 from .....sip_module_configuration import SipModuleConfiguration
 
-from ....specification import (AccessSpecifier, PyQtMethodSpecifier,
-        WrappedClass, WrappedEnum)
+from ....specification import WrappedEnum
 
 from ...formatters import fmt_class_as_scoped_name
+
+from ..utils import get_normalised_cached_name, has_member_docstring
 
 
 class Backend:
@@ -321,37 +322,10 @@ f'''
 
         return True
 
-    def cached_name_ref(self, cached_name, as_nr=False):
-        """ Return a reference to a cached name. """
-
-        prefix = 'sipNameNr_' if as_nr else 'sipName_'
-
-        return prefix + self.get_normalised_cached_name(cached_name)
-
-    @staticmethod
-    def callable_overloads(member, overloads):
-        """ An iterator over the non-private and non-signal overloads. """
-
-        for overload in overloads:
-            if overload.common is member and overload.access_specifier is not AccessSpecifier.PRIVATE and overload.pyqt_method_specifier is not PyQtMethodSpecifier.SIGNAL:
-                yield overload
-
     def custom_enums_supported(self):
         """ Return True if custom enums are supported. """
 
         return SipModuleConfiguration.CustomEnums in self.spec.sip_module_configuration
-
-    @staticmethod
-    def get_normalised_cached_name(cached_name):
-        """ Return the normalised form of a cached name. """
-
-        # If the name seems to be a template then just use the offset to ensure
-        # that it is unique.
-        if '<' in cached_name.name:
-            return str(cached_name.offset)
-
-        # Handle C++ and Python scopes.
-        return cached_name.name.replace(':', '_').replace('.', '_')
 
     @staticmethod
     def gto_name(wrapped_object):
@@ -362,38 +336,11 @@ f'''
 
         return 'sipType_' + fq_cpp_name.as_word
 
-    @classmethod
-    def has_member_docstring(cls, bindings, member, overloads):
-        """ Return True if a function/method has a docstring. """
-
-        auto_docstring = False
-
-        # Check for any explicit docstrings and remember if there were any that
-        # could be automatically generated.
-        for overload in cls.callable_overloads(member, overloads):
-            if overload.docstring is not None:
-                return True
-
-            if bindings.docstrings:
-                auto_docstring = True
-
-        if member.no_arg_parser:
-            return False
-
-        return auto_docstring
-
     @staticmethod
     def optional_ptr(is_ptr, name):
         """ Return an appropriate reference to an optional pointer. """
 
         return name if is_ptr else 'SIP_NULLPTR'
-
-    @staticmethod
-    def py_scope(scope):
-        """ Return the Python scope by accounting for hidden C++ namespaces.
-        """
-
-        return None if isinstance(scope, WrappedClass) and scope.is_hidden_namespace else scope
 
     def pyqt5_supported(self):
         """ Return True if the PyQt5 plugin was specified. """
@@ -552,7 +499,7 @@ static void wrapped_module_free(void *wmod_ptr)
                     sf.write('    static PyMethodDef sip_methods[] = {\n')
                     has_module_functions = True
 
-                py_name = self.get_normalised_cached_name(member.py_name)
+                py_name = get_normalised_cached_name(member.py_name)
                 sf.write(f'        {{sipName_{py_name}, ')
 
                 if member.no_arg_parser or member.allow_keyword_args:
@@ -561,7 +508,7 @@ static void wrapped_module_free(void *wmod_ptr)
                     sf.write(f'func_{member.py_name.name}, METH_VARARGS')
 
                 docstring = self.optional_ptr(
-                        self.has_member_docstring(bindings, member,
+                        has_member_docstring(bindings, member,
                                 self.spec.module.overloads),
                         'doc_' + member.py_name.name)
                 sf.write(f', {docstring}}},\n')

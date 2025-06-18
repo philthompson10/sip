@@ -63,10 +63,10 @@ static PyType_Spec EnumType_TypeSpec = {
 static int convert_to_enum(sipSipModuleState *sms, PyObject *obj,
         const sipTypeDef *td, int allow_int);
 static PyObject *create_scoped_enum(sipSipModuleState *sms,
-        sipExportedModuleDef *client, sipEnumTypeDef *etd, int enum_nr,
+        sipWrappedModuleDef *client, sipEnumTypeDef *etd, int enum_nr,
         PyObject *name);
 static PyObject *create_unscoped_enum(sipSipModuleState *sms,
-        sipExportedModuleDef *client, sipEnumTypeDef *etd, PyObject *name);
+        sipWrappedModuleDef *client, sipEnumTypeDef *etd, PyObject *name);
 static void enum_expected(PyObject *obj, const sipTypeDef *td);
 static int init_enum_module_types(sipSipModuleState *sms);
 
@@ -132,7 +132,7 @@ static PyObject *EnumType_getattro(PyObject *self, PyObject *name)
             Py_TYPE(self));
     PyObject *res;
     sipEnumTypeDef *etd;
-    sipExportedModuleDef *client;
+    sipWrappedModuleDef *client;
     const sipEnumMemberDef *enm, *emd;
     int enum_nr, nr_members, m;
     const char *name_str;
@@ -261,7 +261,7 @@ int sip_enum_convert_to_constrained_enum(sipSipModuleState *sms, PyObject *obj,
  * returned (and an exception set) if there was an error.
  */
 int sip_enum_create_custom_enum(sipSipModuleState *sms,
-        sipExportedModuleDef *client, sipEnumTypeDef *etd, int enum_nr,
+        sipWrappedModuleDef *client, sipEnumTypeDef *etd, int enum_nr,
         PyObject *mod_dict)
 {
     int rc;
@@ -372,7 +372,7 @@ PyObject *sip_enum_unpickle_custom_enum(PyObject *mod, PyObject *args)
     sipSipModuleState *sms = (sipSipModuleState *)PyModule_GetState(mod);
     PyObject *mname_obj, *evalue_obj;
     const char *ename;
-    sipExportedModuleDef *em;
+    sipWrappedModuleDef *em;
     int i;
 
     if (!PyArg_ParseTuple(args, "UsO:_unpickle_enum", &mname_obj, &ename, &evalue_obj))
@@ -465,7 +465,7 @@ static int convert_to_enum(sipSipModuleState *sms, PyObject *obj,
  * Create a scoped enum.
  */
 static PyObject *create_scoped_enum(sipSipModuleState *sms,
-        sipExportedModuleDef *client, sipEnumTypeDef *etd, int enum_nr,
+        sipWrappedModuleDef *client, sipEnumTypeDef *etd, int enum_nr,
         PyObject *name)
 {
     int i, nr_members, rc;
@@ -587,7 +587,7 @@ ret_err:
  * Create an unscoped enum.
  */
 static PyObject *create_unscoped_enum(sipSipModuleState *sms,
-        sipExportedModuleDef *client, sipEnumTypeDef *etd, PyObject *name)
+        sipWrappedModuleDef *client, sipEnumTypeDef *etd, PyObject *name)
 {
     static PyObject *bases = NULL;
     PyObject *type_dict, *args;

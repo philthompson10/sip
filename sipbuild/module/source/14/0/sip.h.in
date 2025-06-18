@@ -1509,7 +1509,7 @@ const sipAPIDef *sip_init_library(PyObject *module);
 /*
  * Get various names from the string pool for various data types.
  */
-#define sipNameFromPool(em, mr) (&((em)->em_strings)[(mr)])
+#define sipNameFromPool(wm, mr) (&((wm)->wm_strings)[(mr)])
 #define sipNameOfModule(em)     sipNameFromPool((em), (em)->em_name)
 #define sipPyNameOfContainer(cod, td)   sipNameFromPool((td)->td_module, (cod)->cod_name)
 #define sipPyNameOfEnum(etd)    sipNameFromPool((etd)->etd_base.td_module, (etd)->etd_name)

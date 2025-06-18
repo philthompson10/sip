@@ -38,7 +38,7 @@ int sip_api_is_enum_flag(PyObject *wmod, PyObject *obj);
 /* These are internal. */
 #if defined(SIP_CONFIGURATION_PyEnums)
 int sip_enum_create_py_enum(struct _sipSipModuleState *sms,
-        sipExportedModuleDef *client, sipEnumTypeDef *etd,
+        sipWrappedModuleDef *client, sipEnumTypeDef *etd,
         sipIntInstanceDef **next_int_p, PyObject *dict);
 #endif
 
@@ -59,7 +59,7 @@ typedef struct {
 
 
 int sip_enum_create_custom_enum(struct _sipSipModuleState *sms,
-        sipExportedModuleDef *client, sipEnumTypeDef *etd, int enum_nr,
+        sipWrappedModuleDef *client, sipEnumTypeDef *etd, int enum_nr,
         PyObject *mod_dict);
 PyObject *sip_enum_pickle_custom_enum(PyObject *self,
         PyTypeObject *defining_class, PyObject *const *args, Py_ssize_t nargs,

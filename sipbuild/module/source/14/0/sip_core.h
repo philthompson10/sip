@@ -106,20 +106,20 @@ int sip_enable_autoconversion(struct _sipSipModuleState *sms,
 void *sip_force_convert_to_type_us(struct _sipSipModuleState *sms,
         PyObject *pyObj, const sipTypeDef *td, PyObject *transferObj,
         int flags, int *statep, void **user_statep, int *iserrp);
-PyObject *sip_create_type_dict(sipExportedModuleDef *em);
+PyObject *sip_create_type_dict(sipWrappedModuleDef *em);
 int sip_dict_set_and_discard(PyObject *dict, const char *name, PyObject *obj);
 void sip_fix_slots(PyTypeObject *py_type, sipPySlotDef *psd);
 void sip_forget_object(sipSimpleWrapper *sw);
 const sipContainerDef *sip_get_container(const sipTypeDef *td);
 const sipClassTypeDef *sip_get_generated_class_type(
         const sipEncodedTypeDef *enc, const sipClassTypeDef *ctd);
-sipExportedModuleDef *sip_get_module(struct _sipSipModuleState *sms,
+sipWrappedModuleDef *sip_get_module(struct _sipSipModuleState *sms,
         PyObject *mname_obj);
 void *sip_get_ptr_type_def(sipSimpleWrapper *self,
         const sipClassTypeDef **ctd);
 PyObject *sip_get_qualname(const sipTypeDef *td, PyObject *name);
 PyObject *sip_get_scope_dict(struct _sipSipModuleState *sms, sipTypeDef *td,
-        PyObject *mod_dict, sipExportedModuleDef *client);
+        PyObject *mod_dict, sipWrappedModuleDef *client);
 void sip_instance_destroyed(struct _sipSipModuleState *sms,
         sipSimpleWrapper **sipSelfp);
 int sip_is_subtype(const sipClassTypeDef *ctd,
