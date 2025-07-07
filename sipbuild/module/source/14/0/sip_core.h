@@ -31,128 +31,120 @@ extern "C" {
 #undef  FALSE
 #define FALSE       0
 
-
-/*
- * This defines a single entry in an object map's hash table.
- */
-typedef struct
-{
-    void *key;                  /* The C/C++ address. */
-    sipSimpleWrapper *first;    /* The first object at this address. */
-} sipHashEntry;
+#define AUTO_DOCSTRING          '\1'    /* Marks an auto class docstring. */
 
 
-/*
- * This defines the interface to a hash table class for mapping C/C++ addresses
- * to the corresponding wrapped Python object.
- */
-typedef struct
-{
-    int primeIdx;               /* Index into table sizes. */
-    uintptr_t size;             /* Size of hash table. */
-    uintptr_t unused;           /* Nr. unused in hash table. */
-    uintptr_t stale;            /* Nr. stale in hash table. */
-    sipHashEntry *hash_array;   /* Current hash table. */
-} sipObjectMap;
+/* Macros to access the parts of a sipTypeID.  0 is an invalid ID. */
+#define sipTypeIDTypeNr(id)             ((id) & 0xffff)
+#define sipTypeIDModuleNr(id)           (((id) >> 16) & 0xff)
+#define sipTypeIDIsCurrentModule(id)    ((id) & SIP_TYPE_ID_CURRENT_MODULE)
+#define sipTypeIDIsSentinel(id)         ((id) & SIP_TYPE_ID_SENTINEL)
+#define sipTypeIDIsValid(id)            ((id) & SIP_TYPE_ID_VALID)
+#define sipTypeIDIsAbsolute(id)         ((id) & SIP_TYPE_ID_ABSOLUTE)
+#define sipTypeIDIsExternal(id)         ((id) & SIP_TYPE_ID_EXTERNAL)
 
 
 /*
- * Support for the descriptors.
+ * An entry in the linked list of event handlers.
  */
-extern PyTypeObject sipMethodDescr_Type;
-PyObject *sipMethodDescr_New(PyMethodDef *pmd);
-PyObject *sipMethodDescr_Copy(PyObject *orig, PyObject *mixin_name);
-
-extern PyTypeObject sipVariableDescr_Type;
-PyObject *sipVariableDescr_New(sipVariableDef *vd, const sipTypeDef *td,
-    const sipContainerDef *cod);
-PyObject *sipVariableDescr_Copy(PyObject *orig, PyObject *mixin_name);
+typedef struct _sipEventHandler {
+    const sipTypeDef *td;           /* The type the handler handles. */
+    void *handler;                  /* The handler. */
+    struct _sipEventHandler *next;  /* The next in the list. */
+} sipEventHandler;
 
 
 /*
- * Support for void pointers.
+ * An entry in a linked list of name/symbol pairs.
  */
-extern PyTypeObject sipVoidPtr_Type;
-void *sip_api_convert_to_void_ptr(PyObject *obj);
-PyObject *sip_api_convert_from_void_ptr(void *val);
-PyObject *sip_api_convert_from_const_void_ptr(const void *val);
-PyObject *sip_api_convert_from_void_ptr_and_size(void *val, Py_ssize_t size);
-PyObject *sip_api_convert_from_const_void_ptr_and_size(const void *val,
-        Py_ssize_t size);
+typedef struct _sipSymbol {
+    const char *name;               /* The name. */
+    void *symbol;                   /* The symbol. */
+    struct _sipSymbol *next;        /* The next in the list. */
+} sipSymbol;
 
 
 /*
- * Support for int convertors.
+ * The function pointers that implement the API.
  */
-int sip_api_convert_to_bool(PyObject *o);
-char sip_api_long_as_char(PyObject *o);
-signed char sip_api_long_as_signed_char(PyObject *o);
-unsigned char sip_api_long_as_unsigned_char(PyObject *o);
-short sip_api_long_as_short(PyObject *o);
-unsigned short sip_api_long_as_unsigned_short(PyObject *o);
-int sip_api_long_as_int(PyObject *o);
-unsigned int sip_api_long_as_unsigned_int(PyObject *o);
-long sip_api_long_as_long(PyObject *o);
-unsigned long sip_api_long_as_unsigned_long(PyObject *o);
-long long sip_api_long_as_long_long(PyObject *o);
-unsigned long long sip_api_long_as_unsigned_long_long(PyObject *o);
-size_t sip_api_long_as_size_t(PyObject *o);
-
-
-extern PyTypeObject sipWrapperType_Type;        /* The wrapper type type. */
-extern sipWrapperType sipSimpleWrapper_Type;    /* The simple wrapper type. */
+extern const sipAPIDef sip_api;
 
 
 /*
  * These are part of the SIP API but are also used within the SIP module.
  */
-void *sip_api_malloc(size_t nbytes);
-void sip_api_free(void *mem);
-void *sip_api_get_address(sipSimpleWrapper *w);
-void *sip_api_get_cpp_ptr(sipSimpleWrapper *w, const sipTypeDef *td);
-PyObject *sip_api_convert_from_type(void *cppPtr, const sipTypeDef *td,
-        PyObject *transferObj);
-void sip_api_instance_destroyed(sipSimpleWrapper *sipSelf);
-void sip_api_end_thread(void);
-void *sip_api_force_convert_to_type_us(PyObject *pyObj, const sipTypeDef *td,
-        PyObject *transferObj, int flags, int *statep, void **user_statep,
-        int *iserrp);
 int sip_api_convert_from_slice_object(PyObject *slice, Py_ssize_t length,
         Py_ssize_t *start, Py_ssize_t *stop, Py_ssize_t *step,
         Py_ssize_t *slicelength);
-  int sip_api_deprecated(const char *classname, const char *method);
-  int sip_api_deprecated_13_9(const char *classname, const char *method, const char* message);
-const sipTypeDef *sip_api_type_scope(const sipTypeDef *td);
+int sip_api_deprecated(const char *classname, const char *method,
+        const char *message);
+int sip_api_enable_autoconversion(sipWrapperType *wt, int enable);
+void sip_api_free(void *mem);
+void *sip_api_get_address(sipSimpleWrapper *w);
+void *sip_api_get_cpp_ptr(PyObject *wmod, sipSimpleWrapper *w,
+        sipTypeID type_id);
+void *sip_api_malloc(size_t nbytes);
 
 
 /*
  * These are not part of the SIP API but are used within the SIP module.
  */
-int sip_add_all_lazy_attrs(const sipTypeDef *td);
-void sip_add_type_slots(PyHeapTypeObject *heap_to, sipPySlotDef *slots);
-PyObject *sip_create_type_dict(sipExportedModuleDef *em);
+void sip_add_to_parent(sipWrapper *self, sipWrapper *owner);
+void sip_add_type_slots(PyHeapTypeObject *heap_to, const sipPySlotDef *slots);
+int sip_append_py_object_to_list(PyObject **listp, PyObject *object);
+void *sip_cast_cpp_ptr(void *ptr, PyTypeObject *src_type,
+        const sipTypeDef *dst_type);
+int sip_check_pointer(void *ptr, sipSimpleWrapper *sw);
+void sip_clear_access_func(sipSimpleWrapper *sw);
+PyTypeObject *sip_create_class_type(sipSipModuleState *sms,
+        const sipWrappedModuleDef *wmd, const sipClassTypeDef *ctd,
+        PyObject *wmod_dict);
+PyTypeObject *sip_create_mapped_type(sipSipModuleState *sms,
+        const sipWrappedModuleDef *wmd, const sipMappedTypeDef *mtd,
+        PyObject *wmod_dict);
+PyObject *sip_create_type_dict(const sipWrappedModuleDef *wmd);
 int sip_dict_set_and_discard(PyObject *dict, const char *name, PyObject *obj);
 void sip_fix_slots(PyTypeObject *py_type, sipPySlotDef *psd);
+void sip_forget_object(sipSimpleWrapper *sw);
 const sipContainerDef *sip_get_container(const sipTypeDef *td);
-sipExportedModuleDef *sip_get_module(PyObject *mname_obj);
-PyObject *sip_get_qualname(const sipTypeDef *td, PyObject *name);
-PyObject *sip_get_scope_dict(sipTypeDef *td, PyObject *mod_dict,
-        sipExportedModuleDef *client);
-int sip_objectify(const char *s, PyObject **objp);
-
-sipClassTypeDef *sipGetGeneratedClassType(const sipEncodedTypeDef *enc,
-        const sipClassTypeDef *ctd);
-int sipGetPending(void **pp, sipWrapper **op, int *fp);
-int sipIsPending(void);
-PyObject *sipWrapInstance(void *cpp,  PyTypeObject *py_type, PyObject *args,
-        sipWrapper *owner, int flags);
-
-void sipOMInit(sipObjectMap *om);
-void sipOMFinalise(sipObjectMap *om);
-sipSimpleWrapper *sipOMFindObject(sipObjectMap *om, void *key,
+void *sip_get_complex_cpp_ptr(sipWrappedModuleState *wms, sipSimpleWrapper *w,
+        sipTypeID type_id);
+void *sip_get_cpp_ptr(sipWrappedModuleState *wms, sipSimpleWrapper *sw,
+        sipTypeID type_id);
+void *sip_get_final_address(sipSipModuleState *sms, const sipTypeDef *td,
+        void *cpp);
+sipConvertFromFunc sip_get_from_convertor(PyTypeObject *py_type,
         const sipTypeDef *td);
-void sipOMAddObject(sipObjectMap *om, sipSimpleWrapper *val);
-int sipOMRemoveObject(sipObjectMap *om, sipSimpleWrapper *val);
+const sipClassTypeDef *sip_get_generated_class_type_def(sipTypeID type_id,
+        const sipClassTypeDef *ctd);
+PyTypeObject *sip_get_py_type_and_type_def(sipWrappedModuleState *wms,
+        sipTypeID type_id, const sipTypeDef **tdp);
+const sipTypeDef *sip_get_type_def(sipWrappedModuleState *wms,
+        sipTypeID type_id);
+void *sip_get_ptr_type_def(sipSimpleWrapper *self,
+        const sipClassTypeDef **ctd);
+PyTypeObject *sip_get_py_type(sipWrappedModuleState *wms, sipTypeID type_id);
+PyTypeObject *sip_get_py_type_from_name(sipSipModuleState *sms,
+        PyObject *target_module_name_obj, const char *target_type_name);
+PyObject *sip_get_qualname(PyTypeObject *scope_py_type, PyObject *name);
+PyObject *sip_get_scope_dict(sipSipModuleState *sms, const sipTypeDef *td,
+        PyObject *mod_dict, const sipWrappedModuleDef *wmd);
+void sip_instance_destroyed(sipWrappedModuleState *wms,
+        sipSimpleWrapper **sipSelfp);
+int sip_is_subtype(const sipClassTypeDef *ctd,
+        const sipClassTypeDef *base_ctd);
+PyObject *sip_next_in_mro(PyObject *self, PyObject *after);
+void sip_raise_no_convert_from(const sipTypeDef *td);
+void sip_remove_from_parent(sipWrapper *self);
+int sip_register_py_type(sipSipModuleState *sms, PyTypeObject *supertype);
+int sip_super_init(PyObject *self, PyObject *args, PyObject *kwds,
+        PyObject *type);
+void sip_transfer_back(sipSipModuleState *sms, PyObject *self);
+void sip_transfer_to(sipSipModuleState *sms, PyObject *self, PyObject *owner);
+sipTypeID sip_type_scope(sipWrappedModuleState *wms, sipTypeID type_id);
+PyObject *sip_unpickle_type(PyObject *mod, PyObject *args);
+PyObject *sip_wrap_simple_instance(sipSipModuleState *sms, void *cpp,
+        PyTypeObject *py_type, sipWrapper *owner, int flags);
 
 #define sip_set_bool(p, v)    (*(_Bool *)(p) = (v))
 

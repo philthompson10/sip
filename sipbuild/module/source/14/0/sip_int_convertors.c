@@ -13,7 +13,7 @@
 
 #include <limits.h>
 
-#include "sip_core.h"
+#include "sip_int_convertors.h"
 
 
 static long long long_as_long_long(PyObject *o, long long min, long long max);

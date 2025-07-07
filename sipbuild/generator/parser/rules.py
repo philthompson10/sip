@@ -1081,9 +1081,6 @@ def p_module(p):
 
     try:
         module.fq_py_name = cached_name(pm.spec, str(args['name']))
-
-        if pm.in_main_module:
-            module.fq_py_name.used = True
     except KeyError:
         pm.parser_error(p, 1, "the name of the module has not been specified")
 
