@@ -346,8 +346,24 @@ typedef struct _sipEnumMemberDef {
 
 
 /*
+ * The immutable definition of static values (static in the sense of having a
+ * fixed absolute address).
+ */
+// TODO we should probably support %GetCode and %SetCode.
+#define SIP_SV_RO           0x01        /* The value is read only. */
+
+typedef struct {
+    const char *name;                   /* The name of the value. */
+    sipTypeID type_id;                  /* The type of the value. */
+    int flags;                          /* See the SIP_SV_* flags above. */
+    void *value;                        /* The address of the value. */
+} sipStaticValuesDef;
+
+
+/*
  * The immutable definition of static instances.
  */
+// TODO remove this.
 typedef struct _sipInstancesDef {
     /* The types. */
     const struct _sipTypeInstanceDef *id_type;
@@ -968,8 +984,11 @@ struct _sipWrappedModuleDef {
     /* The sub-class convertors. */
     const sipSubClassConvertorDef *wm_convertors;
 
-    /* The static instances. */
-    sipInstancesDef wm_instances;
+    /* The number of static values. */
+    int wm_nr_static_values;
+
+    /* The table of static values. */
+    sipStaticValuesDef *wm_static_values;
 
     /* The license. */
     const struct _sipLicenseDef *wm_license;
@@ -1014,6 +1033,7 @@ typedef struct _sipLicenseDef {
  * The immutable definition of a void pointer instance to be added to a
  * dictionary.
  */
+// TODO remove this.
 typedef struct _sipVoidPtrInstanceDef {
     /* The void pointer name. */
     const char *vi_name;
@@ -1026,6 +1046,7 @@ typedef struct _sipVoidPtrInstanceDef {
 /*
  * The immutable definition of a char instance to be added to a dictionary.
  */
+// TODO remove this.
 typedef struct _sipCharInstanceDef {
     /* The char name. */
     const char *ci_name;
@@ -1044,6 +1065,7 @@ typedef struct _sipCharInstanceDef {
  * new table type and so requiring a new major version of the API.
  */
 // TODO Fix the above hack.
+// TODO remove this.
 typedef struct _sipStringInstanceDef {
     /* The string name. */
     const char *si_name;
@@ -1062,6 +1084,7 @@ typedef struct _sipStringInstanceDef {
 /*
  * The immutable definition of an int instance to be added to a dictionary.
  */
+// TODO remove this.
 typedef struct _sipIntInstanceDef {
     /* The int name. */
     const char *ii_name;
@@ -1074,6 +1097,7 @@ typedef struct _sipIntInstanceDef {
 /*
  * The immutable definition of a long instance to be added to a dictionary.
  */
+// TODO remove this.
 typedef struct _sipLongInstanceDef {
     /* The long name. */
     const char *li_name;
@@ -1087,6 +1111,7 @@ typedef struct _sipLongInstanceDef {
  * The immutable definition of an unsigned long instance to be added to a
  * dictionary.
  */
+// TODO remove this.
 typedef struct _sipUnsignedLongInstanceDef {
     /* The unsigned long name. */
     const char *uli_name;
@@ -1100,6 +1125,7 @@ typedef struct _sipUnsignedLongInstanceDef {
  * The immutable definition of a long long instance to be added to a
  * dictionary.
  */
+// TODO remove this.
 typedef struct _sipLongLongInstanceDef {
     /* The long long name. */
     const char *lli_name;
@@ -1113,6 +1139,7 @@ typedef struct _sipLongLongInstanceDef {
  * The immutable definition of an unsigned long long instance to be added to a
  * dictionary.
  */
+// TODO remove this.
 typedef struct _sipUnsignedLongLongInstanceDef {
     /* The unsigned long long name. */
     const char *ulli_name;
@@ -1125,6 +1152,7 @@ typedef struct _sipUnsignedLongLongInstanceDef {
 /*
  * The immutable definition of a double instance to be added to a dictionary.
  */
+// TODO remove this.
 typedef struct _sipDoubleInstanceDef {
     /* The double name. */
     const char *di_name;
@@ -1138,6 +1166,7 @@ typedef struct _sipDoubleInstanceDef {
  * The immutable definition of a class or enum instance to be added to a
  * dictionary.
  */
+// TODO remove this.
 typedef struct _sipTypeInstanceDef {
     /* The type instance name. */
     const char *ti_name;
@@ -1388,11 +1417,16 @@ struct _sipAPIDef {
  */
 
 /* The flags part of a type ID. */
-#define SIP_TYPE_ID_CURRENT_MODULE      0x01000000
+#define SIP_TYPE_ID_VALID               0x01000000
 #define SIP_TYPE_ID_SENTINEL            0x02000000
-#define SIP_TYPE_ID_VALID               0x04000000
+#define SIP_TYPE_ID_POD                 0x04000000
 #define SIP_TYPE_ID_ABSOLUTE            0x08000000
 #define SIP_TYPE_ID_EXTERNAL            0x10000000
+#define SIP_TYPE_ID_CURRENT_MODULE      0x20000000
+
+
+/* The type IDs of POD types. */
+#define SIP_TYPE_ID_int     (SIP_TYPE_ID_VALID | SIP_TYPE_ID_POD | 0x0001)
 
 
 /* These are held in sw_flags. */

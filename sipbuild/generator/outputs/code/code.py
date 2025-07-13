@@ -986,17 +986,8 @@ static sipLicenseDef module_license = {{
 }};
 ''')
 
-    # Generate each instance table.
-    is_inst_class = _class_instances(backend, sf)
-    is_inst_voidp = _void_pointer_instances(backend, sf)
-    is_inst_char = _char_instances(backend, sf)
-    is_inst_string = _string_instances(backend, sf)
-    is_inst_int = _int_instances(backend, sf)
-    is_inst_long = _long_instances(backend, sf)
-    is_inst_ulong = _unsigned_long_instances(backend, sf)
-    is_inst_longlong = _long_long_instances(backend, sf)
-    is_inst_ulonglong = _unsigned_long_long_instances(backend, sf)
-    is_inst_double = _double_instances(backend, sf)
+    # Generate static values table for the module.
+    static_values_state = backend.g_static_values_table(sf)
 
     # Generate any exceptions support.
     if bindings.exceptions:
@@ -1043,16 +1034,7 @@ static sipQtAPI qtAPI = {{
         nr_enum_members,
         has_virtual_error_handlers,
         nr_subclass_convertors,
-        is_inst_class,
-        is_inst_voidp,
-        is_inst_char,
-        is_inst_string,
-        is_inst_int,
-        is_inst_long,
-        is_inst_ulong,
-        is_inst_longlong,
-        is_inst_ulonglong,
-        is_inst_double,
+        static_values_state,
         slot_extenders,
         init_extenders
     )
@@ -1442,7 +1424,7 @@ def _access_functions(backend, sf, scope=None):
 
     spec = backend.spec
 
-    for variable in _variables_in_scope(backend, scope, check_handler=False):
+    for variable in backend.variables_in_scope(scope, check_handler=False):
         if variable.access_code is None:
             continue
 
@@ -1456,269 +1438,6 @@ def _access_functions(backend, sf, scope=None):
         sf.write(f'static void *access_{cpp_name}()\n{{\n')
         sf.write_code(variable.access_code)
         sf.write('}\n')
-
-
-def _class_instances(backend, sf, scope=None):
-    """ Generate the code to add a set of class instances to a dictionary.
-    Return True if there was at least one.
-    """
-
-    spec = backend.spec
-    instances = []
-
-    for variable in _variables_in_scope(backend, scope):
-        if variable.type.type is not ArgumentType.CLASS and (variable.type.type is not ArgumentType.ENUM or variable.type.definition.fq_cpp_name is None):
-            continue
-
-        # Skip ordinary C++ class instances which need to be done with inline
-        # code rather than through a static table.  This is because C++ does
-        # not guarantee the order in which the table and the instance will be
-        # created.  So far this has only been seen to be a problem when
-        # statically linking SIP generated modules on Windows.
-        if not spec.c_bindings and variable.access_code is None and len(variable.type.derefs) == 0:
-            continue
-
-        ti_name = cached_name_ref(variable.py_name)
-        ti_ptr = '&' + backend.scoped_variable_name(variable)
-        ti_type = '&' + backend.gto_name(variable.type.definition)
-        ti_flags = '0'
-
-        if variable.type.type is ArgumentType.CLASS:
-            if variable.access_code is not None:
-                ti_ptr = '(void *)access_' + variable.fq_cpp_name.as_word
-                ti_flags = 'SIP_ACCFUNC|SIP_NOT_IN_MAP'
-            elif len(variable.type.derefs) != 0:
-                # This may be a bit heavy handed.
-                if variable.type.is_const:
-                    ti_ptr = '(void *)' + ti_ptr
-
-                ti_flags = 'SIP_INDIRECT'
-            else:
-                ti_ptr = _const_cast(spec, variable.type, ti_ptr)
-
-        instances.append((ti_name, ti_ptr, ti_type, ti_flags))
-
-    return _write_instances_table(sf, scope, instances,
-'''/* Define the class and enum instances to be added to this {dict_type} dictionary. */
-static sipTypeInstanceDef typeInstances{suffix}[]''')
-
-
-def _void_pointer_instances(backend, sf, scope=None):
-    """ Generate the code to add a set of void pointers to a dictionary.
-    Return True if there was at least one.
-    """
-
-    instances = []
-
-    for variable in _variables_in_scope(backend, scope):
-        if variable.type.type not in (ArgumentType.VOID, ArgumentType.STRUCT, ArgumentType.UNION):
-            continue
-
-        vi_name = cached_name_ref(variable.py_name)
-        vi_val = _const_cast(backend.spec, variable.type,
-                variable.fq_cpp_name.cpp_stripped(STRIP_GLOBAL))
-        instances.append((vi_name, vi_val))
-
-    return _write_instances_table(sf, scope, instances,
-'''/* Define the void pointers to be added to this {dict_type} dictionary. */
-"static sipVoidPtrInstanceDef voidPtrInstances{suffix}[]''')
-
-
-def _char_instances(backend, sf, scope=None):
-    """ Generate the code to add a set of characters to a dictionary.  Return
-    True if there was at least one.
-    """
-
-    instances = []
-
-    for variable in _variables_in_scope(backend, scope):
-        if variable.type.type not in (ArgumentType.ASCII_STRING, ArgumentType.LATIN1_STRING, ArgumentType.UTF8_STRING, ArgumentType.SSTRING, ArgumentType.USTRING, ArgumentType.STRING) or len(variable.type.derefs) != 0:
-            continue
-
-        ci_name = cached_name_ref(variable.py_name)
-        ci_val = variable.fq_cpp_name.cpp_stripped(STRIP_GLOBAL)
-        ci_encoding = "'" + _get_encoding(variable.type) + "'"
-
-        instances.append((ci_name, ci_val, ci_encoding))
-
-    return _write_instances_table(sf, scope, instances,
-'''/* Define the chars to be added to this {dict_type} dictionary. */
-static sipCharInstanceDef charInstances{suffix}[]''')
-
-
-def _string_instances(backend, sf, scope=None):
-    """ Generate the code to add a set of strings to a dictionary.  Return True
-    if there is at least one.
-    """
-
-    instances = []
-
-    for variable in _variables_in_scope(backend, scope):
-        if (variable.type.type not in (ArgumentType.ASCII_STRING, ArgumentType.LATIN1_STRING, ArgumentType.UTF8_STRING, ArgumentType.SSTRING, ArgumentType.USTRING, ArgumentType.STRING) or len(variable.type.derefs) == 0) and variable.type.type is not ArgumentType.WSTRING:
-            continue
-
-        si_name = cached_name_ref(variable.py_name)
-        si_val = variable.fq_cpp_name.cpp_stripped(STRIP_GLOBAL)
-
-        # This is the hack for handling wchar_t and wchar_t*.
-        encoding = _get_encoding(variable.type)
-
-        if encoding == 'w':
-            si_val = '(const char *)&' + si_val
-        elif encoding == 'W':
-            si_val = '(const char *)' + si_val
-
-        si_encoding = "'" + encoding + "'"
-
-        instances.append((si_name, si_val, si_encoding))
-
-    return _write_instances_table(sf, scope, instances,
-'''/* Define the strings to be added to this {dict_type} dictionary. */
-static sipStringInstanceDef stringInstances{suffix}[]''')
-
-
-def _int_instances(backend, sf, scope=None):
-    """ Generate the code to add a set of ints.  Return True if there was at
-    least one.
-    """
-
-    spec = backend.spec
-    instances = []
-
-    if _py_enums_configured(spec):
-        # Named enum members are handled as int variables but must be placed at
-        # the start of the table.  Note we use the sorted table of needed types
-        # rather than the unsorted table of all enums.
-        for type in spec.module.needed_types:
-            if type.type is not ArgumentType.ENUM:
-                continue
-
-            enum = type.definition
-
-            if py_scope(enum.scope) is not scope or enum.module is not spec.module:
-                continue
-
-            for enum_member in enum.members:
-                ii_name = cached_name_ref(enum_member.py_name)
-                ii_val = _enum_member(backend, enum_member)
-                instances.append((ii_name, ii_val))
-
-    # Handle int variables.
-    for variable in _variables_in_scope(backend, scope):
-        if variable.type.type not in (ArgumentType.ENUM, ArgumentType.BYTE, ArgumentType.SBYTE, ArgumentType.UBYTE, ArgumentType.USHORT, ArgumentType.SHORT, ArgumentType.CINT, ArgumentType.INT, ArgumentType.BOOL, ArgumentType.CBOOL):
-            continue
-
-        # Named enums are handled elsewhere.
-        if variable.type.type is ArgumentType.ENUM and variable.type.definition.fq_cpp_name is not None:
-            continue
-
-        ii_name = cached_name_ref(variable.py_name)
-        ii_val = variable.fq_cpp_name.cpp_stripped(STRIP_GLOBAL)
-        instances.append((ii_name, ii_val))
-
-    # Anonymous enum members are handled as int variables.
-    if _py_enums_configured(spec) or scope is None:
-        for enum in spec.enums:
-            if py_scope(enum.scope) is not scope or enum.module is not spec.module:
-                continue
-
-            if enum.fq_cpp_name is not None:
-                continue
-
-            for enum_member in enum.members:
-                ii_name = cached_name_ref(enum_member.py_name)
-                ii_val = _enum_member(backend, enum_member)
-                instances.append((ii_name, ii_val))
-
-    return _write_instances_table(sf, scope, instances,
-'''/* Define the enum members and ints to be added to this {dict_type}. */
-static sipIntInstanceDef intInstances{suffix}[]''')
-
-
-def _long_instances(backend, sf, scope=None):
-    """ Generate the code to add a set of longs to a dictionary.  Return True
-    if there was at least one.
-    """
-
-    return _write_int_instances(backend, sf, scope, ArgumentType.LONG, 'long')
-
-
-def _unsigned_long_instances(backend, sf, scope=None):
-    """ Generate the code to add a set of unsigned longs to a dictionary.
-    Return True if there was at least one.
-    """
-
-    return _write_int_instances(backend, sf, scope, ArgumentType.ULONG,
-            'unsigned long')
-
-
-def _long_long_instances(backend, sf, scope=None):
-    """ Generate the code to add a set of long longs to a dictionary.  Return
-    True if there was at least one.
-    """
-
-    return _write_int_instances(backend, sf, scope, ArgumentType.LONGLONG,
-            'long long')
-
-
-def _unsigned_long_long_instances(backend, sf, scope=None):
-    """ Generate the code to add a set of unsigned long longs to a dictionary.
-    Return True if there was at least one.
-    """
-
-    return _write_int_instances(backend, sf, scope, ArgumentType.ULONGLONG,
-            'unsigned long long')
-
-
-def _write_int_instances(backend, sf, scope, target_type, type_name):
-    """ Generate the code to add a set of a particular type to a dictionary.
-    Return True if there was at least one.
-    """
-
-    instances = []
-
-    for variable in _variables_in_scope(backend, scope):
-        variable_type = variable.type.type
-
-        # We treat unsigned and size_t as unsigned long as we don't (currently
-        # anyway) generate a separate table for them.
-        if variable_type in (ArgumentType.UINT, ArgumentType.SIZE) and target_type is ArgumentType.ULONG:
-            variable_type = ArgumentType.ULONG
-
-        if variable_type is not target_type:
-            continue
-
-        ii_name = cached_name_ref(variable.py_name)
-        ii_val = variable.fq_cpp_name.cpp_stripped(STRIP_GLOBAL)
-        instances.append((ii_name, ii_val))
-
-    table_type_name = type_name.title().replace(' ', '')
-    table_name = table_type_name[0].lower() + table_type_name[1:]
-
-    declaration_template = f'''/* Define the {type_name}s to be added to this {{dict_type}} dictionary. */
-static sip{table_type_name}InstanceDef {table_name}Instances{{suffix}}[]'''
-
-    return _write_instances_table(sf, scope, instances, declaration_template)
-
-
-def _double_instances(backend, sf, scope=None):
-    """ Generate the code to add a set of doubles to a dictionary.  Return True
-    if there was at least one.
-    """
-
-    instances = []
-
-    for variable in _variables_in_scope(backend, scope):
-        if variable.type.type not in (ArgumentType.FLOAT, ArgumentType.CFLOAT, ArgumentType.DOUBLE, ArgumentType.CDOUBLE):
-            continue
-
-        di_name = cached_name_ref(variable.py_name)
-        di_val = variable.fq_cpp_name.cpp_stripped(STRIP_GLOBAL)
-        instances.append((di_name, di_val))
-
-    return _write_instances_table(sf, scope, instances,
-'''/* Define the doubles to be added to this {dict_type} dictionary. */
-static sipDoubleInstanceDef doubleInstances{suffix}[]''')
 
 
 def _empty_iface_file(spec, iface_file):
@@ -5353,7 +5072,9 @@ static sipPySlotDef slots_{klass_name}[] = {{
     if nr_variables != 0:
         sf.write('};\n')
 
-    # Generate each instance table.
+    # Generate each static values table.
+    static_values_state = backend.g_static_values_table(sf, scope=klass)
+
     is_inst_class = _class_instances(backend, sf, scope=klass)
     is_inst_voidp = _void_pointer_instances(backend, sf, scope=klass)
     is_inst_char = _char_instances(backend, sf, scope=klass)
@@ -8623,47 +8344,6 @@ def _release_gil(gil_action, bindings):
     """ Return True if the GIL is to be released. """
 
     return bindings.release_gil if gil_action is GILAction.DEFAULT else gil_action is GILAction.RELEASE
-
-
-def _variables_in_scope(backend, scope, check_handler=True):
-    """ An iterator over the variables in a scope. """
-
-    spec = backend.spec
-
-    for variable in spec.variables:
-        if py_scope(variable.scope) is scope and variable.module is spec.module:
-            if check_handler and variable.needs_handler:
-                continue
-
-            yield variable
-
-
-def _write_instances_table(sf, scope, instances, declaration_template):
-    """ Write a table of instances.  Return True if there was a table written.
-    """
-
-    if len(instances) == 0:
-        return False
-
-    if scope is None:
-        dict_type = 'module'
-        suffix = ''
-    else:
-        dict_type = 'type'
-        suffix = '_' + scope.iface_file.fq_cpp_name.as_word
-
-    declaration = declaration_template.format(dict_type=dict_type,
-            suffix=suffix)
-    sf.write(f'\n\n{declaration} = {{\n')
-
-    for instance in instances:
-        entry = ', '.join(instance)
-        sf.write(f'    {{{entry}}},\n')
-
-    sentinals = ', '.join('0' * len(instances[0]))
-    sf.write(f'    {{{sentinals}}}\n}};\n')
-
-    return True
 
 
 class SourceFile:

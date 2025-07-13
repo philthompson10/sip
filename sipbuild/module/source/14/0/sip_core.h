@@ -35,13 +35,14 @@ extern "C" {
 
 
 /* Macros to access the parts of a sipTypeID.  0 is an invalid ID. */
-#define sipTypeIDTypeNr(id)             ((id) & 0xffff)
-#define sipTypeIDModuleNr(id)           (((id) >> 16) & 0xff)
-#define sipTypeIDIsCurrentModule(id)    ((id) & SIP_TYPE_ID_CURRENT_MODULE)
-#define sipTypeIDIsSentinel(id)         ((id) & SIP_TYPE_ID_SENTINEL)
 #define sipTypeIDIsValid(id)            ((id) & SIP_TYPE_ID_VALID)
+#define sipTypeIDIsSentinel(id)         ((id) & SIP_TYPE_ID_SENTINEL)
+#define sipTypeIDIsPOD(id)              ((id) & SIP_TYPE_ID_POD)
 #define sipTypeIDIsAbsolute(id)         ((id) & SIP_TYPE_ID_ABSOLUTE)
 #define sipTypeIDIsExternal(id)         ((id) & SIP_TYPE_ID_EXTERNAL)
+#define sipTypeIDIsCurrentModule(id)    ((id) & SIP_TYPE_ID_CURRENT_MODULE)
+#define sipTypeIDTypeNr(id)             ((id) & 0xffff)
+#define sipTypeIDModuleNr(id)           (((id) >> 16) & 0xff)
 
 
 /*

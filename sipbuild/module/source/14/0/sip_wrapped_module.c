@@ -182,8 +182,11 @@ int sip_api_wrapped_module_init(PyObject *wmod, const sipWrappedModuleDef *wmd,
     if (sip_append_py_object_to_list(&sms->module_list, wmod) < 0)
         return -1;
 
+#if 0
+// Need to specify the enums in a different way.
 #if defined(SIP_CONFIGURATION_PyEnums)
     const sipIntInstanceDef *next_int = wmd->wm_instances.id_int;
+#endif
 #endif
 
     /* Create the module's types. */
@@ -205,6 +208,8 @@ int sip_api_wrapped_module_init(PyObject *wmod, const sipWrappedModuleDef *wmd,
             continue;
 
 #if defined(SIP_CONFIGURATION_PyEnums)
+#if 0
+// Need to specify the enums in a different way.
         if (sipTypeIsEnum(td))
         {
             const sipEnumTypeDef *etd = (const sipEnumTypeDef *)td;
@@ -212,6 +217,7 @@ int sip_api_wrapped_module_init(PyObject *wmod, const sipWrappedModuleDef *wmd,
             if (etd->etd_scope < 0 && (py_type = sip_enum_create_py_enum(wms, etd, &next_int, wmod_dict)) == NULL)
                 return -1;
         }
+#endif
 #endif
 #if defined(SIP_CONFIGURATION_CustomEnums)
         if (sipTypeIsEnum(td) || sipTypeIsScopedEnum(td))
@@ -283,10 +289,13 @@ int sip_api_wrapped_module_init(PyObject *wmod, const sipWrappedModuleDef *wmd,
     }
 
 #if defined(SIP_CONFIGURATION_PyEnums)
+#if 0
+// Need to do this a different way if still needed.  Anon enums?
     /* Add any ints that aren't name enum members. */
     if (next_int != NULL)
         if (sip_container_add_int_instances(wmod_dict, next_int) < 0)
             return -1;
+#endif
 #endif
 
 #if 0
@@ -342,9 +351,12 @@ int sip_api_wrapped_module_init(PyObject *wmod, const sipWrappedModuleDef *wmd,
     }
 #endif
 
+#if 0
+// This is no longer needed but are any non-static values that need to be added?
     /* Add any global static instances. */
     if (sip_container_add_instances(wms, wmod_dict, &wmd->wm_instances) < 0)
         return -1;
+#endif
 
     /* Add any license. */
     if (wmd->wm_license != NULL && add_license(wmod_dict, wmd->wm_license) < 0)

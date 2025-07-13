@@ -9,7 +9,7 @@ from ....specification import WrappedEnum
 
 from ...formatters import fmt_class_as_scoped_name
 
-from ..utils import get_normalised_cached_name, has_member_docstring
+from ..utils import get_normalised_cached_name, has_member_docstring, py_scope
 
 
 class Backend:
@@ -38,16 +38,7 @@ class Backend:
         nr_enum_members,
         has_virtual_error_handlers,
         nr_subclass_convertors,
-        is_inst_class,
-        is_inst_voidp,
-        is_inst_char,
-        is_inst_string,
-        is_inst_int,
-        is_inst_long,
-        is_inst_ulong,
-        is_inst_longlong,
-        is_inst_ulonglong,
-        is_inst_double,
+        static_values_state,
         slot_extenders,
         init_extenders
     ):
@@ -90,42 +81,9 @@ static const sipWrappedModuleDef sipWrappedModule_{module_name} = {{
         if nr_subclass_convertors != 0:
             sf.write('    .wm_convertors = convertorsTable,\n')
 
-        if is_inst_class or is_inst_voidp or is_inst_char or \
-           is_inst_string or is_inst_int or is_inst_long or is_inst_ulong or \
-           is_inst_longlong or is_inst_ulonglong or is_inst_double:
-            sf.write('    .wm_instances = {\n')
-
-            if is_inst_class:
-                sf.write('        .id_type = typeInstances,\n')
-
-            if is_inst_voidp:
-                sf.write('        .id_voidp = voidPtrInstances,\n')
-
-            if is_inst_char:
-                sf.write('        .id_char = charInstances,\n')
-
-            if is_inst_string:
-                sf.write('        .id_string = stringInstances,\n')
-
-            if is_inst_int:
-                sf.write('        .id_int = intInstances,\n')
-
-            if is_inst_long:
-                sf.write('        .id_long = longInstances,\n')
-
-            if is_inst_ulong:
-                sf.write('        .id_ulong = unsignedLongInstances,\n')
-
-            if is_inst_longlong:
-                sf.write('        .id_llong = longLongInstances,\n')
-
-            if is_inst_ulonglong:
-                sf.write('        .id_ullong = unsignedLongLongInstances,\n')
-
-            if is_inst_double:
-                sf.write('        .id_double = doubleInstances,\n')
-
-            sf.write('    },\n')
+        if static_values_state != 0:
+            sf.write(f'    .wm_nr_static_values = {static_values_state},\n')
+            sf.write('    .wm_static_values = staticValuesTable,\n')
 
         if module.license is not None:
             sf.write('    .wm_license = &module_license,\n')
@@ -298,6 +256,14 @@ f'''
         Py_FatalError("Unable to import qtcore_qt_metacast");
 ''')
 
+    def g_static_values_table(self, sf, scope=None):
+        """ Generate the table of static values for a scope and return the
+        length of the table.
+        """
+
+        # TODO
+        return 0
+
     def abi_has_deprecated_message(self):
         """ Return True if the ABI implements sipDeprecated() with a message.
         """
@@ -398,6 +364,18 @@ f'''
             return fq_cpp_name.as_cpp
 
         return self.scoped_class_name(scope) + '::' + fq_cpp_name.base_name
+
+    def variables_in_scope(self, scope, check_handler=True):
+        """ An iterator over the variables in a scope. """
+
+        spec = self.spec
+
+        for variable in spec.variables:
+            if py_scope(variable.scope) is scope and variable.module is spec.module:
+                if check_handler and variable.needs_handler:
+                    continue
+
+                yield variable
 
     def _g_module_clear(self, sf):
         """ Generate the module clear slot. """
