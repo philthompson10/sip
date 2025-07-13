@@ -206,10 +206,9 @@ f'''    static PyModuleDef_Slot sip_wrapped_module_slots[] = {{
         module = self.spec.module
 
         if module.docstring is not None:
-            # TODO Port _docstring_text().
             sf.write(
 f'''
-PyDoc_STRVAR(doc_mod_{module.py_name}, "{_docstring_text(module.docstring)}");
+PyDoc_STRVAR(doc_mod_{module.py_name}, "{self.docstring_text(module.docstring)}");
 ''')
 
     def g_module_functions_table(self, sf, bindings):
@@ -326,6 +325,32 @@ f'''
         """ Return True if custom enums are supported. """
 
         return SipModuleConfiguration.CustomEnums in self.spec.sip_module_configuration
+
+    @staticmethod
+    def docstring_text(docstring):
+        """ Return the text of a docstring. """
+
+        text = docstring.text
+
+        # Remove any single trailing newline.
+        if text.endswith('\n'):
+            text = text[:-1]
+
+        s = ''
+
+        for ch in text:
+            if ch == '\n':
+                # Let the compiler concatanate lines.
+                s += '\\n"\n"'
+            elif ch in r'\"':
+                s += '\\'
+                s += ch
+            elif ch.isprintable():
+                s += ch
+            else:
+                s += f'\\{ord(ch):03o}'
+
+        return s
 
     @staticmethod
     def gto_name(wrapped_object):

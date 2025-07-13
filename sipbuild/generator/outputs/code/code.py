@@ -5298,7 +5298,7 @@ static sipPySlotDef slots_{klass_name}[] = {{
         nr_variables += 1
 
         if prop.docstring is not None:
-            docstring = _docstring_text(prop.docstring)
+            docstring = backend.docstring_text(prop.docstring)
             sf.write(f'\nPyDoc_STRVAR(doc_{klass_name}_{prop.name}, "{docstring}");\n')
 
     # The variables table.
@@ -5370,7 +5370,7 @@ static sipPySlotDef slots_{klass_name}[] = {{
         docstring_ref = 'doc_' + klass_name
 
         sf.write(f'\nPyDoc_STRVAR({docstring_ref}, "')
-        _class_docstring(sf, spec, bindings, klass)
+        _class_docstring(backend, sf, bindings, klass)
         sf.write('");\n')
     else:
         docstring_ref = 'SIP_NULLPTR'
@@ -5649,9 +5649,10 @@ f'''
 ''')
 
 
-def _pyqt_signal_table_entry(sf, spec, bindings, klass, signal, member_nr):
+def _pyqt_signal_table_entry(backend, sf, bindings, klass, signal, member_nr):
     """ Generate an entry in the PyQt signal table. """
 
+    spec = backend.spec
     klass_name = klass.iface_file.fq_cpp_name.as_word
 
     stripped = False
@@ -5712,7 +5713,7 @@ def _pyqt_signal_table_entry(sf, spec, bindings, klass, signal, member_nr):
                 _overload_auto_docstring(sf, spec, signal)
                 sf.write('\\n')
 
-            sf.write(_docstring_text(signal.docstring))
+            sf.write(backend.docstring_text(signal.docstring))
 
             if signal.docstring.signature is DocstringSignature.APPENDED:
                 sf.write('\\n')
@@ -8067,7 +8068,7 @@ def _member_docstring(backend, sf, bindings, member, overloads,
                 _member_auto_docstring(sf, spec, bindings, overload, is_method)
                 sf.write(NEWLINE)
 
-            sf.write(_docstring_text(overload.docstring))
+            sf.write(backend.docstring_text(overload.docstring))
 
             if overload.docstring.signature is DocstringSignature.APPENDED:
                 sf.write(NEWLINE)
@@ -8115,7 +8116,7 @@ def _has_class_docstring(bindings, klass):
     return auto_docstring
 
 
-def _class_docstring(sf, spec, bindings, klass):
+def _class_docstring(backend, sf, bindings, klass):
     """ Generate the docstring for a class. """
 
     NEWLINE = '\\n"\n"'
@@ -8139,12 +8140,14 @@ def _class_docstring(sf, spec, bindings, klass):
         sf.write('\\1')
 
     if klass.docstring is not None and klass.docstring.signature is not DocstringSignature.PREPENDED:
-        sf.write(_docstring_text(klass.docstring))
+        sf.write(backend.docstring_text(klass.docstring))
         is_first = False
     else:
         is_first = True
 
     if klass.docstring is None or klass.docstring.signature is not DocstringSignature.DISCARDED:
+        spec = bindings.spec
+
         for ctor in klass.ctors:
             if ctor.access_specifier is AccessSpecifier.PRIVATE:
                 continue
@@ -8163,7 +8166,7 @@ def _class_docstring(sf, spec, bindings, klass):
                     _ctor_auto_docstring(sf, spec, bindings, klass, ctor)
                     sf.write(NEWLINE)
 
-                sf.write(_docstring_text(ctor.docstring))
+                sf.write(backend.docstring_text(ctor.docstring))
 
                 if ctor.docstring.signature is DocstringSignature.APPENDED:
                     sf.write(NEWLINE)
@@ -8178,7 +8181,7 @@ def _class_docstring(sf, spec, bindings, klass):
             sf.write(NEWLINE)
             sf.write(NEWLINE)
 
-        sf.write(_docstring_text(klass.docstring))
+        sf.write(backend.docstring_text(klass.docstring))
 
 
 def _ctor_auto_docstring(sf, spec, bindings, klass, ctor):
@@ -8189,32 +8192,6 @@ def _ctor_auto_docstring(sf, spec, bindings, klass, ctor):
         signature = fmt_signature_as_type_hint(spec, ctor.py_signature,
                 need_self=False, exclude_result=True)
         sf.write(py_name + signature)
-
-
-def _docstring_text(docstring):
-    """ Return the text of a docstring. """
-
-    text = docstring.text
-
-    # Remove any single trailing newline.
-    if text.endswith('\n'):
-        text = text[:-1]
-
-    s = ''
-
-    for ch in text:
-        if ch == '\n':
-            # Let the compiler concatanate lines.
-            s += '\\n"\n"'
-        elif ch in r'\"':
-            s += '\\'
-            s += ch
-        elif ch.isprintable():
-            s += ch
-        else:
-            s += f'\\{ord(ch):03o}'
-
-    return s
 
 
 def _get_void_ptr_cast(type):
@@ -8289,7 +8266,7 @@ static const pyqt{pyqt_version}QtSignal signals_{klass.iface_file.fq_cpp_name.as
             # We enable a hack that supplies any missing optional arguments.
             # We only include the version with all arguments and provide an
             # emitter function which handles the optional arguments.
-            _pyqt_signal_table_entry(sf, spec, bindings, klass, overload,
+            _pyqt_signal_table_entry(backend, sf, bindings, klass, overload,
                     member_nr)
 
             member_nr = -1
