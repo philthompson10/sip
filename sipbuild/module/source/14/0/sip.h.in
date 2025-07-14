@@ -962,33 +962,33 @@ struct _sipWrappedModuleDef {
     const sipTypeDef *const *types;
 
     /* The table of external types. */
-    const sipExternalTypeDef *external;
+    const sipExternalTypeDef *const external;
 
 #if defined(SIP_CONFIGURATION_CustomEnums)
     /* The number of members in global enums. */
     int nr_enum_members;
 
     /* The table of members in global enums. */
-    const sipEnumMemberDef *enum_members;
+    const sipEnumMemberDef *const enum_members;
 #endif
 
     /* The number of typedefs. */
     int nr_typedefs;
 
     /* The table of typedefs. */
-    const sipTypedefDef *typedefs;
+    const sipTypedefDef *const typedefs;
 
     /* The table of virtual error handlers. */
-    const sipVirtErrorHandlerDef *virt_error_handlers;
+    const sipVirtErrorHandlerDef *const virt_error_handlers;
 
     /* The sub-class convertors. */
-    const sipSubClassConvertorDef *convertors;
+    const sipSubClassConvertorDef *const convertors;
 
     /* The number of static values. */
     int nr_static_values;
 
     /* The sorted table of static values. */
-    sipStaticValuesDef *static_values;
+    const sipStaticValuesDef *const static_values;
 
     /* The license. */
     const struct _sipLicenseDef *license;
@@ -998,10 +998,10 @@ struct _sipWrappedModuleDef {
     PyObject **exceptions;
 
     /* The table of Python slot extenders. */
-    const sipPySlotExtenderDef *slot_extend;
+    const sipPySlotExtenderDef *const slot_extend;
 
     /* The table of initialiser extenders. */
-    const sipInitExtenderDef *init_extend;
+    const sipInitExtenderDef *const init_extend;
 
     /* The delayed dtor handler. */
     const void (*delayeddtors)(const struct _sipDelayedDtor *);

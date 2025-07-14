@@ -308,7 +308,7 @@ f'''
                 sf.write(
 f'''
 /* Define the static values for the {scope_type}. */
-static sipStaticValuesDef sipStaticValuesTable{suffix}[] = {{
+static const sipStaticValuesDef sipStaticValuesTable{suffix}[] = {{
 ''')
 
             name = variable.py_name
