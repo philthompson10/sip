@@ -1426,7 +1426,7 @@ struct _sipAPIDef {
 
 
 /* The type IDs of POD types. */
-#define SIP_TYPE_ID_int     (SIP_TYPE_ID_VALID | SIP_TYPE_ID_POD | 0x0001)
+#define sipTypeID_int       (SIP_TYPE_ID_VALID | SIP_TYPE_ID_POD | 0x0001)
 
 
 /* These are held in sw_flags. */

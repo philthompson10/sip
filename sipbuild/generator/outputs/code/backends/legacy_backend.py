@@ -3,6 +3,7 @@
 # Copyright (c) 2025 Phil Thompson <phil@riverbankcomputing.com>
 
 
+from ....scoped_name import STRIP_GLOBAL
 from ....specification import ArgumentType, WrappedClass
 
 from ...formatters import fmt_argument_as_cpp_type
@@ -351,9 +352,9 @@ static sipDoubleInstanceDef doubleInstances{suffix}[]''')
         instances = []
 
         if _py_enums_configured(spec):
-            # Named enum members are handled as int variables but must be placed at
-        # the start of the table.  Note we use the sorted table of needed types
-        # rather than the unsorted table of all enums.
+            # Named enum members are handled as int variables but must be
+            # placed at the start of the table.  Note we use the sorted table
+            # of needed types rather than the unsorted table of all enums.
             for type in spec.module.needed_types:
                 if type.type is not ArgumentType.ENUM:
                     continue

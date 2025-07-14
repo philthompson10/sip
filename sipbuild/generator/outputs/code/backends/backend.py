@@ -5,7 +5,8 @@
 
 from .....sip_module_configuration import SipModuleConfiguration
 
-from ....specification import WrappedEnum
+from ....scoped_name import STRIP_GLOBAL
+from ....specification import ArgumentType, WrappedEnum
 
 from ...formatters import fmt_class_as_scoped_name
 
@@ -83,7 +84,7 @@ static const sipWrappedModuleDef sipWrappedModule_{module_name} = {{
 
         if static_values_state != 0:
             sf.write(f'    .wm_nr_static_values = {static_values_state},\n')
-            sf.write('    .wm_static_values = staticValuesTable,\n')
+            sf.write('    .wm_static_values = sipStaticValuesTable,\n')
 
         if module.license is not None:
             sf.write('    .wm_license = &module_license,\n')
@@ -261,8 +262,67 @@ f'''
         length of the table.
         """
 
-        # TODO
-        return 0
+        nr_static_values = 0
+
+        # Get the sorted list of variables.
+        variables = list(self.variables_in_scope(scope))
+        variables.sort(key=lambda k: k.py_name)
+
+        # TODO - all we are doing is working out the sipTypeID?
+        for variable in variables:
+            v_type = variable.type
+
+            # TODO - the following is based on legacy code but the types must
+            # be more precise as we will be dereferencing casted pointer rather
+            # than letting the compiler handle it.
+            if v_type.type in (ArgumentType.ASCII_STRING, ArgumentType.LATIN1_STRING, ArgumentType.UTF8_STRING, ArgumentType.SSTRING, ArgumentType.USTRING, ArgumentType.STRING, ArgumentType.WSTRING):
+                if len(v_type.derefs) == 0:
+                    # TODO char/wchar_t
+                    pass
+                else:
+                    # TODO char */wchar_t *
+                    pass
+
+            elif v_type.type is ArgumentType.CLASS or (v_type.type is ArgumentType.ENUM and v_type.definition.fq_cpp_name is not None):
+                # TODO class/named enum
+                pass
+
+            elif v_type.type in (ArgumentType.INT, ArgumentType.CINT):
+                type_id = 'sipTypeID_int'
+
+            elif v_type.type in (ArgumentType.FLOAT, ArgumentType.CFLOAT, ArgumentType.DOUBLE, ArgumentType.CDOUBLE):
+                # TODO double
+                pass
+
+            else:
+                continue
+
+            if nr_static_values == 0:
+                if scope is None:
+                    scope_type = 'module'
+                    suffix = ''
+                else:
+                    scope_type = 'type'
+                    suffix = '_' + scope.iface_file.fq_cpp_name.as_word
+
+                sf.write(
+f'''
+/* Define the static values for the {scope_type}. */
+static sipStaticValuesDef sipStaticValuesTable{suffix}[] = {{
+''')
+
+            name = variable.py_name
+            flags = 'SIP_SV_RO' if v_type.is_const else '0'
+            value = variable.fq_cpp_name.cpp_stripped(STRIP_GLOBAL)
+
+            sf.write(f'    {{"{name}", {type_id}, {flags}, (void *)&{value}}}\n')
+
+            nr_static_values += 1
+
+        if nr_static_values != 0:
+            sf.write('};\n')
+
+        return nr_static_values
 
     def abi_has_deprecated_message(self):
         """ Return True if the ABI implements sipDeprecated() with a message.
