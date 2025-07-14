@@ -344,15 +344,15 @@ static int add_lazy_container_attrs(sipWrappedModuleState *wms,
          * Not ideal but we have to look through all types looking for enums
          * for which this container is the enclosing scope.
          */
-        for (i = 0; i < module->wm_nr_types; ++i)
+        for (i = 0; i < module->nr_types; ++i)
         {
-            sipTypeDef *enum_td = module->wm_types[i];
+            sipTypeDef *enum_td = module->types[i];
 
             if (enum_td != NULL && sipTypeIsEnum(enum_td))
             {
                 sipEnumTypeDef *etd = (sipEnumTypeDef *)enum_td;
 
-                if (module->wm_types[etd->etd_scope] == td)
+                if (module->types[etd->etd_scope] == td)
                     if (sip_enum_create_py_enum(wms, etd, &next_int, dict) < 0)
                         return -1;
             }
@@ -381,7 +381,7 @@ static int add_lazy_container_attrs(sipWrappedModuleState *wms,
         }
         else
         {
-            const sipTypeDef *etd = td->td_module->wm_types[enm->em_enum];
+            const sipTypeDef *etd = td->td_module->types[enm->em_enum];
 
             if (sipTypeIsScopedEnum(etd))
                 continue;

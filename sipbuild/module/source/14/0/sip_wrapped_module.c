@@ -30,7 +30,7 @@ int sip_api_wrapped_module_clear(sipWrappedModuleState *wms)
     int i;
 
     /* Clear the wrapped types. */
-    for (i = 0; i < wms->wrapped_module_def->wm_nr_types; i++)
+    for (i = 0; i < wms->wrapped_module_def->nr_types; i++)
         Py_CLEAR(wms->py_types[i]);
 
     Py_CLEAR(wms->imported_modules);
@@ -52,7 +52,7 @@ void sip_api_wrapped_module_free(sipWrappedModuleState *wms)
     if (wms->delayed_dtors_list != NULL)
     {
         /* Call the handler for the list. */
-        wms->wrapped_module_def->wm_delayeddtors(wms->delayed_dtors_list);
+        wms->wrapped_module_def->delayeddtors(wms->delayed_dtors_list);
 
         /* Free the list. */
         do
@@ -88,30 +88,30 @@ int sip_api_wrapped_module_init(PyObject *wmod, const sipWrappedModuleDef *wmd,
         PyObject *sip_module)
 {
     /* Check that we can support it. */
-    if (wmd->wm_abi_major != SIP_ABI_MAJOR_VERSION || wmd->wm_abi_minor > SIP_ABI_MINOR_VERSION)
+    if (wmd->abi_major != SIP_ABI_MAJOR_VERSION || wmd->abi_minor > SIP_ABI_MINOR_VERSION)
     {
 #if SIP_ABI_MINOR_VERSION > 0
         PyErr_Format(PyExc_RuntimeError,
                 "the sip module implements ABI v%d.0 to v%d.%d but the %s module requires ABI v%d.%d",
                 SIP_ABI_MAJOR_VERSION, SIP_ABI_MAJOR_VERSION,
                 SIP_ABI_MINOR_VERSION, PyModule_GetName(wmod),
-                wmd->wm_abi_major, wmd->wm_abi_minor);
+                wmd->abi_major, wmd->abi_minor);
 #else
         PyErr_Format(PyExc_RuntimeError,
                 "the sip module implements ABI v%d.0 but the %s module requires ABI v%d.%d",
                 SIP_ABI_MAJOR_VERSION, PyModule_GetName(wmod),
-                wmd->wm_abi_major, wmd->wm_abi_minor);
+                wmd->abi_major, wmd->abi_minor);
 #endif
 
         return -1;
     }
 
-    if (wmd->wm_sip_configuration != SIP_CONFIGURATION)
+    if (wmd->sip_configuration != SIP_CONFIGURATION)
     {
         PyErr_Format(PyExc_RuntimeError,
                 "the sip module has a configuration of 0x%04x but the %s module requires 0x%04x",
                 SIP_CONFIGURATION, PyModule_GetName(wmod),
-                wmd->wm_sip_configuration);
+                wmd->sip_configuration);
 
         return -1;
     }
@@ -155,20 +155,20 @@ int sip_api_wrapped_module_init(PyObject *wmod, const sipWrappedModuleDef *wmd,
         return -1;
 
     /* Allocate the space for any wrapped type type objects. */
-    if (wmd->wm_nr_types > 0 && (wms->py_types = PyMem_Calloc(wmd->wm_nr_types, sizeof (PyTypeObject *))) == NULL)
+    if (wmd->nr_types > 0 && (wms->py_types = PyMem_Calloc(wmd->nr_types, sizeof (PyTypeObject *))) == NULL)
             return -1;
 
     /* Import any required wrapped modules. */
-    if (wmd->wm_nr_imports > 0)
+    if (wmd->nr_imports > 0)
     {
-        if ((wms->imported_modules = PyList_New(wmd->wm_nr_imports)) == NULL)
+        if ((wms->imported_modules = PyList_New(wmd->nr_imports)) == NULL)
             return -1;
 
         Py_ssize_t i;
 
-        for (i = 0; i < wmd->wm_nr_imports; i++)
+        for (i = 0; i < wmd->nr_imports; i++)
         {
-            PyObject *im_mod = PyImport_ImportModule(wmd->wm_imports[i]);
+            PyObject *im_mod = PyImport_ImportModule(wmd->imports[i]);
             if (im_mod == NULL)
                 return -1;
 
@@ -185,7 +185,7 @@ int sip_api_wrapped_module_init(PyObject *wmod, const sipWrappedModuleDef *wmd,
 #if 0
 // Need to specify the enums in a different way.
 #if defined(SIP_CONFIGURATION_PyEnums)
-    const sipIntInstanceDef *next_int = wmd->wm_instances.id_int;
+    const sipIntInstanceDef *next_int = wmd->instances.id_int;
 #endif
 #endif
 
@@ -193,9 +193,9 @@ int sip_api_wrapped_module_init(PyObject *wmod, const sipWrappedModuleDef *wmd,
     PyObject *wmod_dict = PyModule_GetDict(wmod);
     int i;
 
-    for (i = 0; i < wmd->wm_nr_types; ++i)
+    for (i = 0; i < wmd->nr_types; ++i)
     {
-        const sipTypeDef *td = wmd->wm_types[i];
+        const sipTypeDef *td = wmd->types[i];
 
         /* Skip external classes. */
         if (td == NULL)
@@ -275,7 +275,7 @@ int sip_api_wrapped_module_init(PyObject *wmod, const sipWrappedModuleDef *wmd,
                  * Save the real namespace type so that it is the correct scope
                  * for any enums or classes defined in this module.
                  */
-                wmd->wm_types[i] = real_nspace;
+                wmd->types[i] = real_nspace;
 #endif
             }
             else if ((py_type = sip_create_class_type(sms, wmd, ctd, wmod_dict)) != NULL)
@@ -300,9 +300,9 @@ int sip_api_wrapped_module_init(PyObject *wmod, const sipWrappedModuleDef *wmd,
 
 #if 0
     /* Append any initialiser extenders to the relevant classes. */
-    if (wmd->wm_init_extend != NULL)
+    if (wmd->init_extend != NULL)
     {
-        sipInitExtenderDef *ie = wmd->wm_init_extend;
+        sipInitExtenderDef *ie = wmd->init_extend;
 
         while (ie->ie_extender != NULL)
         {
@@ -319,9 +319,9 @@ int sip_api_wrapped_module_init(PyObject *wmod, const sipWrappedModuleDef *wmd,
 
 #if 0
     /* Set the base class object for any sub-class convertors. */
-    if (wmd->wm_convertors != NULL)
+    if (wmd->convertors != NULL)
     {
-        sipSubClassConvertorDef *scc = wmd->wm_convertors;
+        sipSubClassConvertorDef *scc = wmd->convertors;
 
         while (scc->scc_convertor != NULL)
         {
@@ -336,9 +336,9 @@ int sip_api_wrapped_module_init(PyObject *wmod, const sipWrappedModuleDef *wmd,
     /* Create the module's enum members. */
     sipEnumMemberDef *emd;
 
-    for (emd = wmd->wm_enum_members, i = 0; i < wmd->wm_nr_enum_members; ++i, ++emd)
+    for (emd = wmd->enum_members, i = 0; i < wmd->nr_enum_members; ++i, ++emd)
     {
-        const sipTypeDef *etd = wmd->wm_types[emd->em_enum];
+        const sipTypeDef *etd = wmd->types[emd->em_enum];
         PyObject *mo;
 
         if (sipTypeIsScopedEnum(etd))
@@ -354,12 +354,12 @@ int sip_api_wrapped_module_init(PyObject *wmod, const sipWrappedModuleDef *wmd,
 #if 0
 // This is no longer needed but are any non-static values that need to be added?
     /* Add any global static instances. */
-    if (sip_container_add_instances(wms, wmod_dict, &wmd->wm_instances) < 0)
+    if (sip_container_add_instances(wms, wmod_dict, &wmd->instances) < 0)
         return -1;
 #endif
 
     /* Add any license. */
-    if (wmd->wm_license != NULL && add_license(wmod_dict, wmd->wm_license) < 0)
+    if (wmd->license != NULL && add_license(wmod_dict, wmd->license) < 0)
         return -1;
 
 #if 0
@@ -375,19 +375,19 @@ int sip_api_wrapped_module_init(PyObject *wmod, const sipWrappedModuleDef *wmd,
                 mod);
         const sipWrappedModuleDef *md = ms->wrapped_module_def;
 
-        if (md->wm_external == NULL)
+        if (md->external == NULL)
             continue;
 
         sipExternalTypeDef *etd;
 
-        for (etd = md->wm_external; etd->et_nr >= 0; ++etd)
+        for (etd = md->external; etd->et_nr >= 0; ++etd)
         {
             if (etd->et_name == NULL)
                 continue;
 
-            for (i = 0; i < wmd->wm_nr_types; ++i)
+            for (i = 0; i < wmd->nr_types; ++i)
             {
-                sipTypeDef *td = wmd->wm_types[i];
+                sipTypeDef *td = wmd->types[i];
 
                 if (td != NULL && sipTypeIsClass(td))
                 {
@@ -395,7 +395,7 @@ int sip_api_wrapped_module_init(PyObject *wmod, const sipWrappedModuleDef *wmd,
 
                     if (strcmp(etd->et_name, pyname) == 0)
                     {
-                        md->wm_types[etd->et_nr] = td;
+                        md->types[etd->et_nr] = td;
                         etd->et_name = NULL;
 
                         break;
@@ -417,7 +417,7 @@ int sip_api_wrapped_module_traverse(sipWrappedModuleState *wms,
     int i;
 
     /* Visit the types. */
-    for (i = 0; i < wms->wrapped_module_def->wm_nr_types; i++)
+    for (i = 0; i < wms->wrapped_module_def->nr_types; i++)
         Py_VISIT(wms->py_types[i]);
 
     Py_VISIT(wms->imported_modules);

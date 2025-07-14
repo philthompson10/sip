@@ -53,53 +53,53 @@ class Backend:
         sf.write(
 f'''/* The wrapped module's immutable definition. */
 static const sipWrappedModuleDef sipWrappedModule_{module_name} = {{
-    .wm_abi_major = {target_abi[0]},
-    .wm_abi_minor = {target_abi[1]},
-    .wm_sip_configuration = 0x{spec.sip_module_configuration:04x},
+    .abi_major = {target_abi[0]},
+    .abi_minor = {target_abi[1]},
+    .sip_configuration = 0x{spec.sip_module_configuration:04x},
 ''')
 
         if len(module.all_imports) != 0:
-            sf.write('    .wm_imports = importsTable,\n')
+            sf.write('    .imports = importsTable,\n')
 
         if len(module.needed_types) != 0:
-            sf.write(f'    .wm_nr_types = {len(module.needed_types)},\n')
-            sf.write(f'    .wm_types = sipExportedTypes_{module_name},\n')
+            sf.write(f'    .nr_types = {len(module.needed_types)},\n')
+            sf.write(f'    .types = sipExportedTypes_{module_name},\n')
 
         if has_external:
-            sf.write('    .wm_imports = externalTypesTable,\n')
+            sf.write('    .imports = externalTypesTable,\n')
 
         if self.custom_enums_supported() and nr_enum_members != 0:
-            sf.write(f'    .wm_nrenummembers = {nr_enum_members},\n')
-            sf.write('    .wm_enummembers = enummembers,\n')
+            sf.write(f'    .nr_enum_members = {nr_enum_members},\n')
+            sf.write('    .enum_members = enum_members,\n')
 
         if module.nr_typedefs != 0:
-            sf.write(f'    .wm_nrtypedefs = {module.nr_typedefs},\n')
-            sf.write('    .wm_typedefs = typedefsTable,\n')
+            sf.write(f'    .nr_typedefs = {module.nr_typedefs},\n')
+            sf.write('    .typedefs = typedefsTable,\n')
 
         if has_virtual_error_handlers:
-            sf.write('    .wm_virterrorhandlers = virtErrorHandlersTable,\n')
+            sf.write('    .virterrorhandlers = virtErrorHandlersTable,\n')
 
         if nr_subclass_convertors != 0:
-            sf.write('    .wm_convertors = convertorsTable,\n')
+            sf.write('    .convertors = convertorsTable,\n')
 
         if static_values_state != 0:
-            sf.write(f'    .wm_nr_static_values = {static_values_state},\n')
-            sf.write('    .wm_static_values = sipStaticValuesTable,\n')
+            sf.write(f'    .nr_static_values = {static_values_state},\n')
+            sf.write('    .static_values = sipStaticValuesTable,\n')
 
         if module.license is not None:
-            sf.write('    .wm_license = &module_license,\n')
+            sf.write('    .license = &module_license,\n')
 
         if slot_extenders:
-            sf.write('    .wm_slotextend = slotExtenders,\n')
+            sf.write('    .slotextend = slotExtenders,\n')
 
         if init_extenders:
-            sf.write('    .wm_initextend = initExtenders,\n')
+            sf.write('    .initextend = initExtenders,\n')
 
         if module.has_delayed_dtors:
-            sf.write('    .wm_delayeddtors = sipDelayedDtors,\n')
+            sf.write('    .delayeddtors = sipDelayedDtors,\n')
 
         if bindings.exceptions and module.nr_exceptions != 0:
-            sf.write(f'    .wm_exception_handler = sipExceptionHandler_{module_name},\n')
+            sf.write(f'    .exception_handler = sipExceptionHandler_{module_name},\n')
 
         sf.write('};\n')
 

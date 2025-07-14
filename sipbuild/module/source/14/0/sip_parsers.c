@@ -1852,7 +1852,7 @@ static int convert_subclass_pass(sipSipModuleState *sms,
         PyObject *mod = PyList_GET_ITEM(sms->module_list, i);
         sipWrappedModuleState *ms = (sipWrappedModuleState *)PyModule_GetState(
                 mod);
-        const sipSubClassConvertorDef *scc = ms->wrapped_module_def->wm_convertors;
+        const sipSubClassConvertorDef *scc = ms->wrapped_module_def->convertors;
 
         if (scc == NULL)
             continue;

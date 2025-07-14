@@ -293,7 +293,7 @@ static PyObject *create_enum_object(sipWrappedModuleState *wms,
      {
         PyObject *qualname;
 
-        if ((qualname = sip_get_qualname(wmd->wm_types[etd->etd_scope], name)) == NULL)
+        if ((qualname = sip_get_qualname(wmd->types[etd->etd_scope], name)) == NULL)
             goto rel_kw_args;
 
         PyObject *qualname_s = PyUnicode_InternFromString("qualname");

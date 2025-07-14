@@ -454,8 +454,8 @@ static void sip_api_add_delayed_dtor(sipSimpleWrapper *sw)
         const sipWrappedModuleDef *md = ms->wrapped_module_def;
         int i;
 
-        for (i = 0; i < md->wm_nr_types; ++i)
-            if (md->wm_types[i] == (const sipTypeDef *)ctd)
+        for (i = 0; i < md->nr_types; ++i)
+            if (md->types[i] == (const sipTypeDef *)ctd)
             {
                 sipDelayedDtor *dd;
 
@@ -523,7 +523,7 @@ static PyObject *sip_api_pyslot_extend(PyObject *wmod, sipPySlotType st,
             continue;
 
         /* Get the table of the module's extenders. */
-        const sipPySlotExtenderDef *ex = wms->wrapped_module_def->wm_slot_extend;
+        const sipPySlotExtenderDef *ex = wms->wrapped_module_def->slot_extend;
 
         /* Skip if the module doesn't have any extenders. */
         if (ex == NULL)
@@ -1076,7 +1076,7 @@ PyTypeObject *sip_get_py_type_from_name(sipSipModuleState *sms,
             const sipWrappedModuleDef *wmd = wms->wrapped_module_def;
             int p;
 
-            for (p = 0; p < wmd->wm_nr_types; p++)
+            for (p = 0; p < wmd->nr_types; p++)
             {
                 PyTypeObject *py_type = wms->py_types[p];
 
@@ -1154,9 +1154,9 @@ static PyObject *pickle_type(PyObject *self, PyTypeObject *defining_class,
 
         int ti;
 
-        for (ti = 0; ti < md->wm_nr_types; ti++)
+        for (ti = 0; ti < md->nr_types; ti++)
         {
-            const sipTypeDef *td = md->wm_types[ti];
+            const sipTypeDef *td = md->types[ti];
 
             if (td != NULL && sipTypeIsClass(td))
                 if (sipTypeAsPyTypeObject(td) == Py_TYPE(self))
@@ -1258,7 +1258,7 @@ PyObject *sip_create_type_dict(const sipWrappedModuleDef *wmd)
     }
 
     /* We need to set the module name as an attribute for dynamic types. */
-    int rc = PyDict_SetItem(dict, mstr, wmd->wm_nameobj);
+    int rc = PyDict_SetItem(dict, mstr, wmd->nameobj);
     Py_DECREF(mstr);
 
     if (rc < 0)
@@ -1296,7 +1296,7 @@ sipTypeID sip_type_scope(sipWrappedModuleState *wms, sipTypeID type_id)
         const sipEnumTypeDef *etd = (const sipEnumTypeDef *)td;
 
         if (etd->etd_scope >= 0)
-            return td->td_module->wm_types[etd->etd_scope];
+            return td->td_module->types[etd->etd_scope];
     }
     else
     {
@@ -1827,13 +1827,13 @@ static sipTypeID sip_api_find_type_id(PyObject *wmod, const char *type)
         const sipWrappedModuleDef *md = ((sipWrappedModuleState *)PyModule_GetState(PyList_GET_ITEM(module_list, i)))->wrapped_module_def;
 
         const sipTypeDef *const *tdp = (const sipTypeDef *const *)bsearch(
-                (const void *)type, (const void *)md->wm_types, md->wm_nr_types,
+                (const void *)type, (const void *)md->types, md->nr_types,
                 sizeof (const sipTypeDef *), compare_type_def);
 
         if (tdp != NULL)
         {
             /* Determine the type number. */
-            Py_ssize_t type_nr = (tdp - md->wm_types) / sizeof (const sipTypeDef *);
+            Py_ssize_t type_nr = (tdp - md->types) / sizeof (const sipTypeDef *);
 
             /* Return a valid, absolute type ID. */
             return SIP_TYPE_ID_VALID | SIP_TYPE_ID_ABSOLUTE | (i << 16) | type_nr;
@@ -1954,7 +1954,7 @@ const sipTypeDef *sip_get_type_def(sipWrappedModuleState *wms,
      * Note that we don't go through the Python type object as Python enums
      * would require special handling.
      */
-    return wms->wrapped_module_def->wm_types[sipTypeIDTypeNr(type_id)];
+    return wms->wrapped_module_def->types[sipTypeIDTypeNr(type_id)];
 }
 
 
@@ -2833,12 +2833,12 @@ static const char *sip_api_resolve_typedef(PyObject *wmod, const char *name)
     {
         const sipWrappedModuleDef *md = ((sipWrappedModuleState *)PyModule_GetState(PyList_GET_ITEM(module_list, i)))->wrapped_module_def;
 
-        if (md->wm_nr_typedefs > 0)
+        if (md->nr_typedefs > 0)
         {
             const sipTypedefDef *tdd;
 
-            tdd = (const sipTypedefDef *)bsearch(name, md->wm_typedefs,
-                    md->wm_nr_typedefs, sizeof (sipTypedefDef),
+            tdd = (const sipTypedefDef *)bsearch(name, md->typedefs,
+                    md->nr_typedefs, sizeof (sipTypedefDef),
                     compare_typedef_name);
 
             if (tdd != NULL)
@@ -3304,7 +3304,7 @@ static int sip_api_check_plugin_for_type(const sipTypeDef *td,
     if (strcmp(sipNameOfModule(em), name) == 0)
         return TRUE;
 
-    if ((im = em->wm_imports) == NULL)
+    if ((im = em->imports) == NULL)
         return FALSE;
 
     while (im->im_name != NULL)
@@ -3678,7 +3678,7 @@ static sipExceptionHandler sip_api_next_exception_handler(PyObject *wmod,
 
     for (i = *statep; i < PyList_GET_SIZE(module_list); i++)
     {
-        sipExceptionHandler eh = ((sipWrappedModuleState *)PyModule_GetState(PyList_GET_ITEM(module_list, i)))->wrapped_module_def->wm_exception_handler;
+        sipExceptionHandler eh = ((sipWrappedModuleState *)PyModule_GetState(PyList_GET_ITEM(module_list, i)))->wrapped_module_def->exception_handler;
 
         if (eh != NULL)
         {

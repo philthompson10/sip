@@ -941,73 +941,73 @@ typedef struct _sipVirtErrorHandlerDef {
  */
 struct _sipWrappedModuleDef {
     /* The SIP ABI major version number. */
-    unsigned wm_abi_major;
+    unsigned abi_major;
 
     /* The SIP ABI minor version number. */
-    unsigned wm_abi_minor;
+    unsigned abi_minor;
 
     /* The required sip module configuration. */
-    unsigned wm_sip_configuration;
+    unsigned sip_configuration;
 
     /* The number of imported modules. */
-    int wm_nr_imports;
+    int nr_imports;
 
     /* The names of the imported modules. */
-    const char *const *wm_imports;
+    const char *const *imports;
 
     /* The number of types. */
-    int wm_nr_types;
+    int nr_types;
 
     /* The table of types. */
-    const sipTypeDef *const *wm_types;
+    const sipTypeDef *const *types;
 
     /* The table of external types. */
-    const sipExternalTypeDef *wm_external;
+    const sipExternalTypeDef *external;
 
 #if defined(SIP_CONFIGURATION_CustomEnums)
     /* The number of members in global enums. */
-    int wm_nr_enum_members;
+    int nr_enum_members;
 
     /* The table of members in global enums. */
-    const sipEnumMemberDef *wm_enum_members;
+    const sipEnumMemberDef *enum_members;
 #endif
 
     /* The number of typedefs. */
-    int wm_nr_typedefs;
+    int nr_typedefs;
 
     /* The table of typedefs. */
-    const sipTypedefDef *wm_typedefs;
+    const sipTypedefDef *typedefs;
 
     /* The table of virtual error handlers. */
-    const sipVirtErrorHandlerDef *wm_virt_error_handlers;
+    const sipVirtErrorHandlerDef *virt_error_handlers;
 
     /* The sub-class convertors. */
-    const sipSubClassConvertorDef *wm_convertors;
+    const sipSubClassConvertorDef *convertors;
 
     /* The number of static values. */
-    int wm_nr_static_values;
+    int nr_static_values;
 
-    /* The table of static values. */
-    sipStaticValuesDef *wm_static_values;
+    /* The sorted table of static values. */
+    sipStaticValuesDef *static_values;
 
     /* The license. */
-    const struct _sipLicenseDef *wm_license;
+    const struct _sipLicenseDef *license;
 
     /* The table of exception types. */
     // TODO Move to the module state.
-    PyObject **wm_exceptions;
+    PyObject **exceptions;
 
     /* The table of Python slot extenders. */
-    const sipPySlotExtenderDef *wm_slot_extend;
+    const sipPySlotExtenderDef *slot_extend;
 
     /* The table of initialiser extenders. */
-    const sipInitExtenderDef *wm_init_extend;
+    const sipInitExtenderDef *init_extend;
 
     /* The delayed dtor handler. */
-    const void (*wm_delayeddtors)(const struct _sipDelayedDtor *);
+    const void (*delayeddtors)(const struct _sipDelayedDtor *);
 
     /* The exception handler. */
-    sipExceptionHandler wm_exception_handler;
+    sipExceptionHandler exception_handler;
 };
 
 

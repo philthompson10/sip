@@ -158,19 +158,19 @@ static PyObject *EnumType_getattro(PyObject *self, PyObject *name)
     wmd = ((sipTypeDef *)etd)->td_module;
 
     /* Find the number of this enum. */
-    for (enum_nr = 0; enum_nr < wmd->wm_nr_types; ++enum_nr)
-        if (wmd->wm_types[enum_nr] == (sipTypeDef *)etd)
+    for (enum_nr = 0; enum_nr < wmd->nr_types; ++enum_nr)
+        if (wmd->types[enum_nr] == (sipTypeDef *)etd)
             break;
 
     /* Get the enum members in the same scope. */
     if (etd->etd_scope < 0)
     {
-        nr_members = wmd->wm_nr_enum_members;
-        enm = wmd->wm_enum_members;
+        nr_members = wmd->nr_enum_members;
+        enm = wmd->enum_members;
     }
     else
     {
-        const sipContainerDef *cod = sip_get_container(wmd->wm_types[etd->etd_scope]);
+        const sipContainerDef *cod = sip_get_container(wmd->types[etd->etd_scope]);
 
         nr_members = cod->cod_nrenummembers;
         enm = cod->cod_enummembers;
@@ -262,7 +262,7 @@ PyTypeObject *sip_enum_create_custom_enum(sipSipModuleState *sms,
 
     if (etd->etd_scope < 0)
         dict = wmod_dict;
-    else if ((dict = sip_get_scope_dict(sms, wmd->wm_types[etd->etd_scope], wmod_dict, wmd)) == NULL)
+    else if ((dict = sip_get_scope_dict(sms, wmd->types[etd->etd_scope], wmod_dict, wmd)) == NULL)
         return NULL;
 
     /* Create an object corresponding to the type name. */
@@ -344,7 +344,7 @@ PyObject *sip_enum_pickle_custom_enum(PyObject *self,
     // TODO Why not save the callable in the module state?
     return Py_BuildValue("N(Osi)",
             PyObject_GetAttrString(sip_mod, "_unpickle_enum"),
-            td->td_module->wm_nameobj,
+            td->td_module->nameobj,
             ((const sipEnumTypeDef *)td)->etd_name,
             (int)PyLong_AS_LONG(self));
 #else
@@ -477,12 +477,12 @@ static PyObject *create_scoped_enum(sipSipModuleState *sms,
      */
     if (etd->etd_scope < 0)
     {
-        nr_members = wmd->wm_nr_enum_members;
-        enm = wmd->wm_enum_members;
+        nr_members = wmd->nr_enum_members;
+        enm = wmd->enum_members;
     }
     else
     {
-        const sipContainerDef *cod = sip_get_container(wmd->wm_types[etd->etd_scope]);
+        const sipContainerDef *cod = sip_get_container(wmd->types[etd->etd_scope]);
 
         nr_members = cod->cod_nrenummembers;
         enm = cod->cod_enummembers;
@@ -512,7 +512,7 @@ static PyObject *create_scoped_enum(sipSipModuleState *sms,
     if (module_s == NULL)
         goto rel_kw_args;
 
-    rc = PyDict_SetItem(kw_args, module_s, wmd->wm_nameobj);
+    rc = PyDict_SetItem(kw_args, module_s, wmd->nameobj);
     Py_DECREF(module_s);
 
     if (rc < 0)
@@ -532,7 +532,7 @@ static PyObject *create_scoped_enum(sipSipModuleState *sms,
 
         PyObject *qualname;
 
-        if ((qualname = sip_get_qualname(wmd->wm_types[etd->etd_scope], name)) == NULL)
+        if ((qualname = sip_get_qualname(wmd->types[etd->etd_scope], name)) == NULL)
         {
             Py_DECREF(qualname_arg);
             goto rel_kw_args;
@@ -625,7 +625,7 @@ static PyObject *create_unscoped_enum(sipSipModuleState *sms,
         /* Append the name of the enum to the scope's __qualname__. */
         Py_CLEAR(eto->super.ht_qualname);
         eto->super.ht_qualname = sip_get_qualname(
-                wmd->wm_types[etd->etd_scope], name);
+                wmd->types[etd->etd_scope], name);
 
         if (eto->super.ht_qualname == NULL)
         {
