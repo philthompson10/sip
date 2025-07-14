@@ -20,6 +20,7 @@
 #include "sip_enum.h"
 #include "sip_method_descriptor.h"
 #include "sip_module.h"
+#include "sip_module_wrapper.h"
 #include "sip_object_map.h"
 #include "sip_variable_descriptor.h"
 #include "sip_voidptr.h"
@@ -157,6 +158,7 @@ int sip_sip_module_init(sipSipModuleState *sms, PyObject *mod)
     if (sip_wrapper_type_init(mod, sms) < 0 ||
         sip_simple_wrapper_init(mod, sms) < 0 ||
         sip_wrapper_init(mod, sms) < 0 ||
+        sip_module_wrapper_init(mod, sms) < 0 ||
         sip_method_descr_init(mod, sms) < 0 ||
         sip_variable_descr_init(mod, sms) < 0 ||
         sip_enum_init(mod, sms) < 0 ||
@@ -215,6 +217,7 @@ int sip_sip_module_clear(sipSipModuleState *sms)
     Py_CLEAR(sms->enum_int_flag_type);
 #endif
     Py_CLEAR(sms->method_descr_type);
+    Py_CLEAR(sms->module_wrapper_type);
     Py_CLEAR(sms->simple_wrapper_type);
     Py_CLEAR(sms->variable_descr_type);
     Py_CLEAR(sms->void_ptr_type);
@@ -312,6 +315,7 @@ int sip_sip_module_traverse(sipSipModuleState *sms, visitproc visit, void *arg)
     Py_VISIT(sms->enum_int_flag_type);
 #endif
     Py_VISIT(sms->method_descr_type);
+    Py_VISIT(sms->module_wrapper_type);
     Py_VISIT(sms->simple_wrapper_type);
     Py_VISIT(sms->variable_descr_type);
     Py_VISIT(sms->void_ptr_type);

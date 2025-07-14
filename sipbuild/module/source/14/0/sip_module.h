@@ -103,6 +103,9 @@ typedef struct _sipSipModuleState {
     /* The list of registered modules. */
     PyObject *module_list;
 
+    /* The sip.modulewrapper type object. */
+    PyTypeObject *module_wrapper_type;
+
     /* The object map. */
     sipObjectMap object_map;
 

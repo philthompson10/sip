@@ -266,7 +266,7 @@ f'''
 
         # Get the sorted list of variables.
         variables = list(self.variables_in_scope(scope))
-        variables.sort(key=lambda k: k.py_name)
+        variables.sort(key=lambda k: k.py_name.name)
 
         # TODO - all we are doing is working out the sipTypeID?
         for variable in variables:
@@ -308,14 +308,14 @@ f'''
                 sf.write(
 f'''
 /* Define the static values for the {scope_type}. */
-static const sipStaticValuesDef sipStaticValuesTable{suffix}[] = {{
+static const sipStaticValueDef sipStaticValuesTable{suffix}[] = {{
 ''')
 
             name = variable.py_name
             flags = 'SIP_SV_RO' if v_type.is_const else '0'
             value = variable.fq_cpp_name.cpp_stripped(STRIP_GLOBAL)
 
-            sf.write(f'    {{"{name}", {type_id}, {flags}, (void *)&{value}}}\n')
+            sf.write(f'    {{"{name}", {type_id}, {flags}, (void *)&{value}}},\n')
 
             nr_static_values += 1
 

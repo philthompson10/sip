@@ -357,7 +357,7 @@ typedef struct {
     sipTypeID type_id;                  /* The type of the value. */
     int flags;                          /* See the SIP_SV_* flags above. */
     void *value;                        /* The address of the value. */
-} sipStaticValuesDef;
+} sipStaticValueDef;
 
 
 /*
@@ -988,7 +988,7 @@ struct _sipWrappedModuleDef {
     int nr_static_values;
 
     /* The sorted table of static values. */
-    const sipStaticValuesDef *const static_values;
+    const sipStaticValueDef *const static_values;
 
     /* The license. */
     const struct _sipLicenseDef *license;

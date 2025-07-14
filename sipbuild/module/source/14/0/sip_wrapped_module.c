@@ -135,6 +135,19 @@ int sip_api_wrapped_module_init(PyObject *wmod, const sipWrappedModuleDef *wmd,
     wms->wrapped_module_def = wmd;
     wms->wrapped_module_name = PyModule_GetNameObject(wmod);
 
+    /* Update the new module's super-type. */
+    PyObject *class_s = PyUnicode_InternFromString("__class__");
+    if (class_s == NULL)
+        return -1;
+
+    if (PyObject_SetAttr(wmod, class_s, (PyObject *)wms->sip_module_state->module_wrapper_type) < 0)
+    {
+        Py_DECREF(class_s);
+        return -1;
+    }
+
+    Py_DECREF(class_s);
+
     /* Add the SIP version number. */
     if (PyModule_AddIntMacro(wmod, SIP_VERSION) < 0)
         return -1;
