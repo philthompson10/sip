@@ -312,7 +312,7 @@ static const sipStaticValueDef sipStaticValuesTable{suffix}[] = {{
 ''')
 
             name = variable.py_name
-            flags = 'SIP_SV_RO' if v_type.is_const else '0'
+            flags = 'SIP_SV_RO' if v_type.is_const or variable.no_setter else '0'
             value = variable.fq_cpp_name.cpp_stripped(STRIP_GLOBAL)
 
             sf.write(f'    {{"{name}", {type_id}, {flags}, (void *)&{value}}},\n')

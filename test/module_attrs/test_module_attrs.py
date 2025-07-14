@@ -19,6 +19,14 @@ class ModuleAttrsTestCase(SIPTestCase):
 
         cls.ma = ma
 
+    def test_no_setter_types(self):
+        """ Test the support for module attributes with /NoSetter/. """
+
+        self.assertEqual(self.ma.int_attr_no_setter, 500)
+
+        with self.assertRaises(ValueError):
+            self.ma.int_attr_no_setter = 0
+
     def test_const_types(self):
         """ Test the support for const module attributes. """
 
