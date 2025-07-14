@@ -177,9 +177,9 @@ f'''    static PyModuleDef sip_module_def = {{
     }};
 ''')
 
-    def g_static_values_table(self, sf, scope=None):
-        """ Generate the tables of static values for a scope and return a set
-        of strings corresponding to the tables actually generated.
+    def g_static_variables_table(self, sf, scope=None):
+        """ Generate the tables of static variables for a scope and return a
+        set of strings corresponding to the tables actually generated.
         """
 
         inst_state = set()

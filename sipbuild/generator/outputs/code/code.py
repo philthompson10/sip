@@ -986,8 +986,8 @@ static sipLicenseDef module_license = {{
 }};
 ''')
 
-    # Generate static values table for the module.
-    static_values_state = backend.g_static_values_table(sf)
+    # Generate static variables table for the module.
+    static_variables_state = backend.g_static_variables_table(sf)
 
     # Generate any exceptions support.
     if bindings.exceptions:
@@ -1034,7 +1034,7 @@ static sipQtAPI qtAPI = {{
         nr_enum_members,
         has_virtual_error_handlers,
         nr_subclass_convertors,
-        static_values_state,
+        static_variables_state,
         slot_extenders,
         init_extenders
     )
@@ -1962,9 +1962,9 @@ def _variable_getter(backend, sf, variable):
 
     # If the variable is itself a non-const instance of a wrapped class then
     # two things must happen.  Firstly, the getter must return the same Python
-    # object each time - it must not re-wrap the the instance.  This is because
-    # the Python object can contain important state information that must not
-    # be lost (specifically references to other Python objects that it owns).
+    # object each time - it must not re-wrap the instance.  This is because the
+    # Python object can contain important state information that must not be
+    # lost (specifically references to other Python objects that it owns).
     # Therefore the Python object wrapping the containing class must cache a
     # reference to the Python object wrapping the variable.  Secondly, the
     # Python object wrapping the containing class must not be garbage collected
@@ -5072,8 +5072,8 @@ static sipPySlotDef slots_{klass_name}[] = {{
     if nr_variables != 0:
         sf.write('};\n')
 
-    # Generate each static values table.
-    static_values_state = backend.g_static_values_table(sf, scope=klass)
+    # Generate the static variables table.
+    static_variables_state = backend.g_static_variables_table(sf, scope=klass)
 
     is_inst_class = _class_instances(backend, sf, scope=klass)
     is_inst_voidp = _void_pointer_instances(backend, sf, scope=klass)

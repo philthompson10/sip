@@ -44,10 +44,10 @@ static PyType_Spec ModuleWrapper_TypeSpec = {
 
 
 /* Forward declarations. */
-static int compare_static_value(const void *key, const void *el);
-static const sipStaticValueDef *get_static_value_def(PyObject *wmod,
+static int compare_static_variable(const void *key, const void *el);
+static const sipStaticVariableDef *get_static_variable_def(PyObject *wmod,
         PyObject *name);
-static void raise_internal_error(const sipStaticValueDef *svd);
+static void raise_internal_error(const sipStaticVariableDef *svd);
 
 
 /*
@@ -55,7 +55,7 @@ static void raise_internal_error(const sipStaticValueDef *svd);
  */
 static PyObject *ModuleWrapper_getattro(PyObject *self, PyObject *name)
 {
-    const sipStaticValueDef *svd = get_static_value_def(self, name);
+    const sipStaticVariableDef *svd = get_static_variable_def(self, name);
 
     if (svd == NULL)
         return Py_TYPE(self)->tp_base->tp_getattro(self, name);
@@ -80,7 +80,7 @@ static PyObject *ModuleWrapper_getattro(PyObject *self, PyObject *name)
 static int ModuleWrapper_setattro(PyObject *self, PyObject *name,
         PyObject *value)
 {
-    const sipStaticValueDef *svd = get_static_value_def(self, name);
+    const sipStaticVariableDef *svd = get_static_variable_def(self, name);
 
     if (svd == NULL)
         return Py_TYPE(self)->tp_base->tp_setattro(self, name, value);
@@ -136,36 +136,36 @@ int sip_module_wrapper_init(PyObject *module, sipSipModuleState *sms)
 /*
  * The bsearch() helper function for searching a static values table.
  */
-static int compare_static_value(const void *key, const void *el)
+static int compare_static_variable(const void *key, const void *el)
 {
-    return strcmp((const char *)key, ((const sipStaticValueDef *)el)->name);
+    return strcmp((const char *)key, ((const sipStaticVariableDef *)el)->name);
 }
 
 
 /*
  * Return the static value definition for a name or NULL if there was none.
  */
-static const sipStaticValueDef *get_static_value_def(PyObject *wmod,
+static const sipStaticVariableDef *get_static_variable_def(PyObject *wmod,
         PyObject *name)
 {
     sipWrappedModuleState *wms = (sipWrappedModuleState *)PyModule_GetState(
             wmod);
     const sipWrappedModuleDef *wmd = wms->wrapped_module_def;
 
-    if (wmd->nr_static_values == 0)
+    if (wmd->nr_static_variables == 0)
         return NULL;
 
-    return (const sipStaticValueDef *)bsearch(
+    return (const sipStaticVariableDef *)bsearch(
             (const void *)PyUnicode_AsUTF8(name),
-            (const void *)wmd->static_values, wmd->nr_static_values,
-            sizeof (sipStaticValueDef), compare_static_value);
+            (const void *)wmd->static_variables, wmd->nr_static_variables,
+            sizeof (sipStaticVariableDef), compare_static_variable);
 }
 
 
 /*
  * Raise an exception relating to an invalid type ID.
  */
-static void raise_internal_error(const sipStaticValueDef *svd)
+static void raise_internal_error(const sipStaticVariableDef *svd)
 {
     PyErr_Format(PyExc_SystemError, "'%s': unsupported type ID: 0x%04x",
             svd->name, svd->type_id);

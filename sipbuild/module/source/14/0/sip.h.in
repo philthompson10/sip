@@ -346,8 +346,8 @@ typedef struct _sipEnumMemberDef {
 
 
 /*
- * The immutable definition of static values (static in the sense of having a
- * fixed absolute address).
+ * The immutable definition of static variables (static in the sense of having
+ * a fixed absolute address).
  */
 // TODO we should probably support %GetCode and %SetCode.
 #define SIP_SV_RO           0x01        /* The value is read only. */
@@ -357,7 +357,7 @@ typedef struct {
     sipTypeID type_id;                  /* The type of the value. */
     int flags;                          /* See the SIP_SV_* flags above. */
     void *value;                        /* The address of the value. */
-} sipStaticValueDef;
+} sipStaticVariableDef;
 
 
 /*
@@ -984,11 +984,11 @@ struct _sipWrappedModuleDef {
     /* The sub-class convertors. */
     const sipSubClassConvertorDef *const convertors;
 
-    /* The number of static values. */
-    int nr_static_values;
+    /* The number of static variables. */
+    int nr_static_variables;
 
-    /* The sorted table of static values. */
-    const sipStaticValueDef *const static_values;
+    /* The sorted table of static variables. */
+    const sipStaticVariableDef *const static_variables;
 
     /* The license. */
     const struct _sipLicenseDef *license;

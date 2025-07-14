@@ -39,7 +39,7 @@ class Backend:
         nr_enum_members,
         has_virtual_error_handlers,
         nr_subclass_convertors,
-        static_values_state,
+        static_variables_state,
         slot_extenders,
         init_extenders
     ):
@@ -82,9 +82,9 @@ static const sipWrappedModuleDef sipWrappedModule_{module_name} = {{
         if nr_subclass_convertors != 0:
             sf.write('    .convertors = convertorsTable,\n')
 
-        if static_values_state != 0:
-            sf.write(f'    .nr_static_values = {static_values_state},\n')
-            sf.write('    .static_values = sipStaticValuesTable,\n')
+        if static_variables_state != 0:
+            sf.write(f'    .nr_static_variables = {static_variables_state},\n')
+            sf.write('    .static_variables = sipStaticVariablesTable,\n')
 
         if module.license is not None:
             sf.write('    .license = &module_license,\n')
@@ -257,12 +257,12 @@ f'''
         Py_FatalError("Unable to import qtcore_qt_metacast");
 ''')
 
-    def g_static_values_table(self, sf, scope=None):
-        """ Generate the table of static values for a scope and return the
+    def g_static_variables_table(self, sf, scope=None):
+        """ Generate the table of static variables for a scope and return the
         length of the table.
         """
 
-        nr_static_values = 0
+        nr_static_variables = 0
 
         # Get the sorted list of variables.
         variables = list(self.variables_in_scope(scope))
@@ -297,7 +297,7 @@ f'''
             else:
                 continue
 
-            if nr_static_values == 0:
+            if nr_static_variables == 0:
                 if scope is None:
                     scope_type = 'module'
                     suffix = ''
@@ -308,7 +308,7 @@ f'''
                 sf.write(
 f'''
 /* Define the static values for the {scope_type}. */
-static const sipStaticValueDef sipStaticValuesTable{suffix}[] = {{
+static const sipStaticVariableDef sipStaticVariablesTable{suffix}[] = {{
 ''')
 
             name = variable.py_name
@@ -317,12 +317,12 @@ static const sipStaticValueDef sipStaticValuesTable{suffix}[] = {{
 
             sf.write(f'    {{"{name}", {type_id}, {flags}, (void *)&{value}}},\n')
 
-            nr_static_values += 1
+            nr_static_variables += 1
 
-        if nr_static_values != 0:
+        if nr_static_variables != 0:
             sf.write('};\n')
 
-        return nr_static_values
+        return nr_static_variables
 
     def abi_has_deprecated_message(self):
         """ Return True if the ABI implements sipDeprecated() with a message.
