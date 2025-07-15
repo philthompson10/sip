@@ -1444,6 +1444,8 @@ struct _sipAPIDef {
 #define sipTypeID_Py_hash_t     (SIP_TYPE_ID_VALID | SIP_TYPE_ID_POD | 0x000b)
 #define sipTypeID_Py_ssize_t    (SIP_TYPE_ID_VALID | SIP_TYPE_ID_POD | 0x000c)
 #define sipTypeID_size_t        (SIP_TYPE_ID_VALID | SIP_TYPE_ID_POD | 0x000d)
+#define sipTypeID_float         (SIP_TYPE_ID_VALID | SIP_TYPE_ID_POD | 0x000e)
+#define sipTypeID_double        (SIP_TYPE_ID_VALID | SIP_TYPE_ID_POD | 0x000f)
 
 
 /* These are held in sw_flags. */

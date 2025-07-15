@@ -117,6 +117,20 @@ class ModuleAttrsTestCase(SIPTestCase):
         self.ma.sizet_attr = 20
         self.assertEqual(self.ma.sizet_attr, 20)
 
+    def test_attrs_float(self):
+        """ Test the support for float attributes. """
+
+        self.assertEqual(self.ma.float_attr, 10.)
+        self.ma.float_attr = 20.
+        self.assertEqual(self.ma.float_attr, 20.)
+
+    def test_attrs_double(self):
+        """ Test the support for double attributes. """
+
+        self.assertEqual(self.ma.double_attr, 10.)
+        self.ma.double_attr = 20.
+        self.assertEqual(self.ma.double_attr, 20.)
+
     def test_const_types(self):
         """ Test the support for const module attributes. """
 

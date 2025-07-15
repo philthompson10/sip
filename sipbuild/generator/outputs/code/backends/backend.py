@@ -384,9 +384,11 @@ f'''static int sipStaticVariableSetter_{v_ref}(PyObject *sipPy)
             elif v_type.type is ArgumentType.SIZE:
                 type_id = 'sipTypeID_size_t'
 
-            elif v_type.type in (ArgumentType.FLOAT, ArgumentType.CFLOAT, ArgumentType.DOUBLE, ArgumentType.CDOUBLE):
-                # TODO double
-                pass
+            elif v_type.type in (ArgumentType.FLOAT, ArgumentType.CFLOAT):
+                type_id = 'sipTypeID_float'
+
+            elif v_type.type in (ArgumentType.DOUBLE, ArgumentType.CDOUBLE):
+                type_id = 'sipTypeID_double'
 
             else:
                 continue

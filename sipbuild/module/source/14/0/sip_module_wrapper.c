@@ -108,6 +108,12 @@ static PyObject *ModuleWrapper_getattro(PyObject *self, PyObject *name)
         case sipTypeID_size_t:
             return PyLong_FromSize_t(*(size_t *)(svd->value));
 
+        case sipTypeID_float:
+            return PyFloat_FromDouble(*(float *)(svd->value));
+
+        case sipTypeID_double:
+            return PyFloat_FromDouble(*(double *)(svd->value));
+
         default:
             break;
     }
@@ -306,6 +312,30 @@ static int ModuleWrapper_setattro(PyObject *self, PyObject *name,
                 return -1;
 
             *(size_t *)(svd->value) = c_value;
+
+            return 0;
+        }
+
+        case sipTypeID_float:
+        {
+            float c_value = PyFloat_AsDouble(value);
+
+            if (PyErr_Occurred())
+                return -1;
+
+            *(float *)(svd->value) = c_value;
+
+            return 0;
+        }
+
+        case sipTypeID_double:
+        {
+            double c_value = PyFloat_AsDouble(value);
+
+            if (PyErr_Occurred())
+                return -1;
+
+            *(double *)(svd->value) = c_value;
 
             return 0;
         }
