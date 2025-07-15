@@ -65,8 +65,39 @@ static PyObject *ModuleWrapper_getattro(PyObject *self, PyObject *name)
 
     switch (svd->type_id)
     {
+        case sipTypeID_byte:
+            return PyLong_FromLong(*(char *)(svd->value));
+
+        case sipTypeID_sbyte:
+            return PyLong_FromLong(*(signed char *)(svd->value));
+
+        case sipTypeID_ubyte:
+            return PyLong_FromUnsignedLong(*(unsigned char *)(svd->value));
+
+        case sipTypeID_short:
+            return PyLong_FromLong(*(short *)(svd->value));
+
+        case sipTypeID_ushort:
+            return PyLong_FromUnsignedLong(*(unsigned short *)(svd->value));
+
         case sipTypeID_int:
             return PyLong_FromLong(*(int *)(svd->value));
+
+        case sipTypeID_uint:
+            return PyLong_FromUnsignedLong(*(unsigned *)(svd->value));
+
+        case sipTypeID_long:
+            return PyLong_FromLong(*(long *)(svd->value));
+
+        case sipTypeID_ulong:
+            return PyLong_FromUnsignedLong(*(unsigned long *)(svd->value));
+
+        case sipTypeID_longlong:
+            return PyLong_FromLongLong(*(long long *)(svd->value));
+
+        case sipTypeID_ulonglong:
+            return PyLong_FromUnsignedLongLong(
+                    *(unsigned long long *)(svd->value));
 
         default:
             break;
@@ -100,6 +131,66 @@ static int ModuleWrapper_setattro(PyObject *self, PyObject *name,
 
     switch (svd->type_id)
     {
+        case sipTypeID_byte:
+        {
+            char c_value = sip_api_long_as_char(value);
+
+            if (PyErr_Occurred())
+                return -1;
+
+            *(char *)(svd->value) = c_value;
+
+            return 0;
+        }
+
+        case sipTypeID_sbyte:
+        {
+            signed char c_value = sip_api_long_as_signed_char(value);
+
+            if (PyErr_Occurred())
+                return -1;
+
+            *(signed char *)(svd->value) = c_value;
+
+            return 0;
+        }
+
+        case sipTypeID_ubyte:
+        {
+            unsigned char c_value = sip_api_long_as_unsigned_char(value);
+
+            if (PyErr_Occurred())
+                return -1;
+
+            *(unsigned char *)(svd->value) = c_value;
+
+            return 0;
+        }
+
+        case sipTypeID_short:
+        {
+            short c_value = sip_api_long_as_short(value);
+
+            if (PyErr_Occurred())
+                return -1;
+
+            *(short *)(svd->value) = c_value;
+
+            return 0;
+        }
+
+        case sipTypeID_ushort:
+        {
+            unsigned short c_value = sip_api_long_as_unsigned_short(value);
+
+            if (PyErr_Occurred())
+                return -1;
+
+            *(unsigned short *)(svd->value) = c_value;
+
+            return 0;
+        }
+
         case sipTypeID_int:
         {
             int c_value = sip_api_long_as_int(value);
@@ -108,6 +199,67 @@ static int ModuleWrapper_setattro(PyObject *self, PyObject *name,
                 return -1;
 
             *(int *)(svd->value) = c_value;
+
+            return 0;
+        }
+
+        case sipTypeID_uint:
+        {
+            unsigned c_value = sip_api_long_as_unsigned_int(value);
+
+            if (PyErr_Occurred())
+                return -1;
+
+            *(unsigned *)(svd->value) = c_value;
+
+            return 0;
+        }
+
+        case sipTypeID_long:
+        {
+            long c_value = sip_api_long_as_long(value);
+
+            if (PyErr_Occurred())
+                return -1;
+
+            *(long *)(svd->value) = c_value;
+
+            return 0;
+        }
+
+        case sipTypeID_ulong:
+        {
+            unsigned long c_value = sip_api_long_as_unsigned_long(value);
+
+            if (PyErr_Occurred())
+                return -1;
+
+            *(unsigned long *)(svd->value) = c_value;
+
+            return 0;
+        }
+
+        case sipTypeID_longlong:
+        {
+            long long c_value = sip_api_long_as_long_long(value);
+
+            if (PyErr_Occurred())
+                return -1;
+
+            *(long long *)(svd->value) = c_value;
+
+            return 0;
+        }
+
+        case sipTypeID_ulonglong:
+        {
+            unsigned long long c_value = sip_api_long_as_unsigned_long_long(
+                    value);
+
+            if (PyErr_Occurred())
+                return -1;
+
+            *(unsigned long long *)(svd->value) = c_value;
 
             return 0;
         }

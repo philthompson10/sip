@@ -342,8 +342,38 @@ f'''static int sipStaticVariableSetter_{v_ref}(PyObject *sipPy)
                 # TODO class/named enum
                 pass
 
+            elif v_type.type is ArgumentType.BYTE:
+                type_id = 'sipTypeID_byte'
+
+            elif v_type.type is ArgumentType.SBYTE:
+                type_id = 'sipTypeID_sbyte'
+
+            elif v_type.type is ArgumentType.UBYTE:
+                type_id = 'sipTypeID_ubyte'
+
+            elif v_type.type is ArgumentType.SHORT:
+                type_id = 'sipTypeID_short'
+
+            elif v_type.type is ArgumentType.USHORT:
+                type_id = 'sipTypeID_ushort'
+
             elif v_type.type in (ArgumentType.INT, ArgumentType.CINT):
                 type_id = 'sipTypeID_int'
+
+            elif v_type.type is ArgumentType.UINT:
+                type_id = 'sipTypeID_uint'
+
+            elif v_type.type is ArgumentType.LONG:
+                type_id = 'sipTypeID_long'
+
+            elif v_type.type is ArgumentType.ULONG:
+                type_id = 'sipTypeID_ulong'
+
+            elif v_type.type is ArgumentType.LONGLONG:
+                type_id = 'sipTypeID_longlong'
+
+            elif v_type.type is ArgumentType.ULONGLONG:
+                type_id = 'sipTypeID_ulonglong'
 
             elif v_type.type in (ArgumentType.FLOAT, ArgumentType.CFLOAT, ArgumentType.DOUBLE, ArgumentType.CDOUBLE):
                 # TODO double

@@ -19,13 +19,82 @@ class ModuleAttrsTestCase(SIPTestCase):
 
         cls.ma = ma
 
-    def test_no_setter_types(self):
-        """ Test the support for the /NoSetter/ annotation. """
+    def test_attrs_byte(self):
+        """ Test the support for char as integer attributes. """
 
-        self.assertEqual(self.ma.int_attr_no_setter, 10)
+        self.assertEqual(self.ma.byte_attr, 10)
+        self.ma.byte_attr = 20
+        self.assertEqual(self.ma.byte_attr, 20)
 
-        with self.assertRaises(ValueError):
-            self.ma.int_attr_no_setter = 0
+    def test_attrs_sbyte(self):
+        """ Test the support for signed char as integer attributes. """
+
+        self.assertEqual(self.ma.sbyte_attr, -10)
+        self.ma.sbyte_attr = 20
+        self.assertEqual(self.ma.sbyte_attr, 20)
+
+    def test_attrs_ubyte(self):
+        """ Test the support for unsigned char as integer attributes. """
+
+        self.assertEqual(self.ma.ubyte_attr, 10)
+        self.ma.ubyte_attr = 20
+        self.assertEqual(self.ma.ubyte_attr, 20)
+
+    def test_attrs_short(self):
+        """ Test the support for short attributes. """
+
+        self.assertEqual(self.ma.short_attr, -10)
+        self.ma.short_attr = 20
+        self.assertEqual(self.ma.short_attr, 20)
+
+    def test_attrs_ushort(self):
+        """ Test the support for unsigned short attributes. """
+
+        self.assertEqual(self.ma.ushort_attr, 10)
+        self.ma.ushort_attr = 20
+        self.assertEqual(self.ma.ushort_attr, 20)
+
+    def test_attrs_int(self):
+        """ Test the support for int attributes. """
+
+        self.assertEqual(self.ma.int_attr, -10)
+        self.ma.int_attr = 20
+        self.assertEqual(self.ma.int_attr, 20)
+
+    def test_attrs_uint(self):
+        """ Test the support for unsigned int attributes. """
+
+        self.assertEqual(self.ma.uint_attr, 10)
+        self.ma.uint_attr = 20
+        self.assertEqual(self.ma.uint_attr, 20)
+
+    def test_attrs_long(self):
+        """ Test the support for long attributes. """
+
+        self.assertEqual(self.ma.long_attr, -10)
+        self.ma.long_attr = 20
+        self.assertEqual(self.ma.long_attr, 20)
+
+    def test_attrs_ulong(self):
+        """ Test the support for unsigned long attributes. """
+
+        self.assertEqual(self.ma.ulong_attr, 10)
+        self.ma.ulong_attr = 20
+        self.assertEqual(self.ma.ulong_attr, 20)
+
+    def test_attrs_longlong(self):
+        """ Test the support for long long attributes. """
+
+        self.assertEqual(self.ma.longlong_attr, -10)
+        self.ma.longlong_attr = 20
+        self.assertEqual(self.ma.longlong_attr, 20)
+
+    def test_attrs_ulonglong(self):
+        """ Test the support for unsigned long long attributes. """
+
+        self.assertEqual(self.ma.ulonglong_attr, 10)
+        self.ma.ulonglong_attr = 20
+        self.assertEqual(self.ma.ulonglong_attr, 20)
 
     def test_const_types(self):
         """ Test the support for const module attributes. """
@@ -46,18 +115,19 @@ class ModuleAttrsTestCase(SIPTestCase):
         with self.assertRaises(NameError):
             self.ma.int_attr_bad_setter = 0
 
+    def test_no_setter_types(self):
+        """ Test the support for the /NoSetter/ annotation. """
+
+        self.assertEqual(self.ma.int_attr_no_setter, 10)
+
+        with self.assertRaises(ValueError):
+            self.ma.int_attr_no_setter = 0
+
     def test_nonwrapped_attrs(self):
         """ Test that non-wrapped attributes are handled properly. """
 
         self.ma.nonwrapped_int = 10
         self.assertEqual(self.ma.nonwrapped_int, 10)
-
-    def test_pod_types(self):
-        """ Test the support for POD module attributes. """
-
-        self.assertEqual(self.ma.int_attr, 10)
-        self.ma.int_attr = 20
-        self.assertEqual(self.ma.int_attr, 20)
 
     def test_py_name_attrs(self):
         """ Test the support for the /PyName/ annotation. """

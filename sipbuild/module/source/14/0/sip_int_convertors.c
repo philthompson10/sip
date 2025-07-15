@@ -181,7 +181,7 @@ unsigned long long sip_api_long_as_unsigned_long_long(PyObject *o)
 
 /*
  * Convert a Python object to a long long checking that the value is within a
- * range if overflow checking is enabled.
+ * range.
  */
 static long long long_as_long_long(PyObject *o, long long min, long long max)
 {
@@ -208,7 +208,7 @@ static long long long_as_long_long(PyObject *o, long long min, long long max)
 
 /*
  * Convert a Python object to an unsigned long checking that the value is
- * within a range if overflow checking is enabled.
+ * within a range.
  */
 static unsigned long long_as_unsigned_long(PyObject *o, unsigned long max)
 {

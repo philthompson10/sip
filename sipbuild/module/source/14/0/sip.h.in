@@ -1430,7 +1430,17 @@ struct _sipAPIDef {
 
 
 /* The type IDs of POD types. */
-#define sipTypeID_int       (SIP_TYPE_ID_VALID | SIP_TYPE_ID_POD | 0x0001)
+#define sipTypeID_byte      (SIP_TYPE_ID_VALID | SIP_TYPE_ID_POD | 0x0000)
+#define sipTypeID_sbyte     (SIP_TYPE_ID_VALID | SIP_TYPE_ID_POD | 0x0001)
+#define sipTypeID_ubyte     (SIP_TYPE_ID_VALID | SIP_TYPE_ID_POD | 0x0002)
+#define sipTypeID_short     (SIP_TYPE_ID_VALID | SIP_TYPE_ID_POD | 0x0003)
+#define sipTypeID_ushort    (SIP_TYPE_ID_VALID | SIP_TYPE_ID_POD | 0x0004)
+#define sipTypeID_int       (SIP_TYPE_ID_VALID | SIP_TYPE_ID_POD | 0x0005)
+#define sipTypeID_uint      (SIP_TYPE_ID_VALID | SIP_TYPE_ID_POD | 0x0006)
+#define sipTypeID_long      (SIP_TYPE_ID_VALID | SIP_TYPE_ID_POD | 0x0007)
+#define sipTypeID_ulong     (SIP_TYPE_ID_VALID | SIP_TYPE_ID_POD | 0x0008)
+#define sipTypeID_longlong  (SIP_TYPE_ID_VALID | SIP_TYPE_ID_POD | 0x0009)
+#define sipTypeID_ulonglong (SIP_TYPE_ID_VALID | SIP_TYPE_ID_POD | 0x000a)
 
 
 /* These are held in sw_flags. */

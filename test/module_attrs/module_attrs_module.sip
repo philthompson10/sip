@@ -6,7 +6,17 @@
 
 %ModuleHeaderCode
 // POD types.
-int int_attr = 10;
+char byte_attr = 10;
+signed char sbyte_attr = -10;
+unsigned char ubyte_attr = 10;
+short short_attr = -10;
+unsigned short ushort_attr = 10;
+int int_attr = -10;
+unsigned uint_attr = 10;
+long long_attr = -10;
+unsigned long ulong_attr = 10;
+long long longlong_attr = -10;
+unsigned long long ulonglong_attr = 10;
 
 // Read only attributes.
 const int int_attr_const = 10;
@@ -27,7 +37,17 @@ int int_attr_bad_setter = 10;
 
 
 // POD types.
+char byte_attr /PyInt/;
+signed char sbyte_attr /PyInt/;
+unsigned char ubyte_attr /PyInt/;
+short short_attr;
+unsigned short ushort_attr;
 int int_attr;
+unsigned uint_attr;
+long long_attr;
+unsigned long ulong_attr;
+long long longlong_attr;
+unsigned long long ulonglong_attr;
 
 // Read only attributes.
 const int int_attr_const;
