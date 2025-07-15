@@ -96,6 +96,27 @@ class ModuleAttrsTestCase(SIPTestCase):
         self.ma.ulonglong_attr = 20
         self.assertEqual(self.ma.ulonglong_attr, 20)
 
+    def test_attrs_pyhasht(self):
+        """ Test the support for Py_hash_t attributes. """
+
+        self.assertEqual(self.ma.pyhasht_attr, -10)
+        self.ma.pyhasht_attr = 20
+        self.assertEqual(self.ma.pyhasht_attr, 20)
+
+    def test_attrs_pyssizet(self):
+        """ Test the support for Py_ssize_t attributes. """
+
+        self.assertEqual(self.ma.pyssizet_attr, -10)
+        self.ma.pyssizet_attr = 20
+        self.assertEqual(self.ma.pyssizet_attr, 20)
+
+    def test_attrs_sizet(self):
+        """ Test the support for size_t attributes. """
+
+        self.assertEqual(self.ma.sizet_attr, 10)
+        self.ma.sizet_attr = 20
+        self.assertEqual(self.ma.sizet_attr, 20)
+
     def test_const_types(self):
         """ Test the support for const module attributes. """
 

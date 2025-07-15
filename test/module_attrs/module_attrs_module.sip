@@ -17,6 +17,9 @@ long long_attr = -10;
 unsigned long ulong_attr = 10;
 long long longlong_attr = -10;
 unsigned long long ulonglong_attr = 10;
+Py_hash_t pyhasht_attr = -10;
+Py_ssize_t pyssizet_attr = -10;
+size_t sizet_attr = 10;
 
 // Read only attributes.
 const int int_attr_const = 10;
@@ -48,6 +51,9 @@ long long_attr;
 unsigned long ulong_attr;
 long long longlong_attr;
 unsigned long long ulonglong_attr;
+Py_hash_t pyhasht_attr;
+Py_ssize_t pyssizet_attr;
+size_t sizet_attr;
 
 // Read only attributes.
 const int int_attr_const;

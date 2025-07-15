@@ -375,6 +375,15 @@ f'''static int sipStaticVariableSetter_{v_ref}(PyObject *sipPy)
             elif v_type.type is ArgumentType.ULONGLONG:
                 type_id = 'sipTypeID_ulonglong'
 
+            elif v_type.type is ArgumentType.HASH:
+                type_id = 'sipTypeID_Py_hash_t'
+
+            elif v_type.type is ArgumentType.SSIZE:
+                type_id = 'sipTypeID_Py_ssize_t'
+
+            elif v_type.type is ArgumentType.SIZE:
+                type_id = 'sipTypeID_size_t'
+
             elif v_type.type in (ArgumentType.FLOAT, ArgumentType.CFLOAT, ArgumentType.DOUBLE, ArgumentType.CDOUBLE):
                 # TODO double
                 pass

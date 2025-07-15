@@ -99,6 +99,15 @@ static PyObject *ModuleWrapper_getattro(PyObject *self, PyObject *name)
             return PyLong_FromUnsignedLongLong(
                     *(unsigned long long *)(svd->value));
 
+        case sipTypeID_Py_hash_t:
+            return PyLong_FromLong(*(Py_hash_t *)(svd->value));
+
+        case sipTypeID_Py_ssize_t:
+            return PyLong_FromSsize_t(*(Py_ssize_t *)(svd->value));
+
+        case sipTypeID_size_t:
+            return PyLong_FromSize_t(*(size_t *)(svd->value));
+
         default:
             break;
     }
@@ -260,6 +269,43 @@ static int ModuleWrapper_setattro(PyObject *self, PyObject *name,
                 return -1;
 
             *(unsigned long long *)(svd->value) = c_value;
+
+            return 0;
+        }
+
+
+        case sipTypeID_Py_hash_t:
+        {
+            Py_hash_t c_value = sip_api_long_as_long(value);
+
+            if (PyErr_Occurred())
+                return -1;
+
+            *(Py_hash_t *)(svd->value) = c_value;
+
+            return 0;
+        }
+
+        case sipTypeID_Py_ssize_t:
+        {
+            Py_ssize_t c_value = sip_api_long_as_long(value);
+
+            if (PyErr_Occurred())
+                return -1;
+
+            *(Py_ssize_t *)(svd->value) = c_value;
+
+            return 0;
+        }
+
+        case sipTypeID_size_t:
+        {
+            size_t c_value = sip_api_long_as_size_t(value);
+
+            if (PyErr_Occurred())
+                return -1;
+
+            *(size_t *)(svd->value) = c_value;
 
             return 0;
         }
