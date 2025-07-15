@@ -262,11 +262,66 @@ f'''
         length of the table.
         """
 
+        c_bindings = self.spec.c_bindings
+
         nr_static_variables = 0
 
         # Get the sorted list of variables.
         variables = list(self.variables_in_scope(scope))
         variables.sort(key=lambda k: k.py_name.name)
+
+        # Generate any getters and setters.
+        for variable in variables:
+            v_ref = variable.fq_cpp_name.as_word
+
+            if variable.get_code is not None:
+                # TODO Support sipPyType when scope is not None.
+                # TODO Review the need to cache class instances (see legacy
+                # variable handlers).  Or is that now in the sip module
+                # wrapper?
+                sf.write('\n')
+
+                if not c_bindings:
+                    sf.write(f'extern "C" {{static PyObject *sipStaticVariableGetter_{v_ref}();}}\n')
+
+                sf.write(
+f'''static PyObject *sipStaticVariableGetter_{v_ref}()
+{{
+    PyObject *sipPy;
+
+''')
+
+                sf.write_code(variable.get_code)
+
+                sf.write(
+'''
+    return sipPy;
+}
+
+''')
+
+            if variable.set_code is not None:
+                # TODO Support sipPyType when scope is not None.
+                sf.write('\n')
+
+                if not c_bindings:
+                    sf.write(f'extern "C" {{static int sipStaticVariableSetter_{v_ref}(PyObject *);}}\n')
+
+                sf.write(
+f'''static int sipStaticVariableSetter_{v_ref}(PyObject *sipPy)
+{{
+    int sipErr = 0;
+
+''')
+
+                sf.write_code(variable.set_code)
+
+                sf.write(
+'''
+    return sipErr ? -1 : 0;
+}
+
+''')
 
         # TODO - all we are doing is working out the sipTypeID?
         for variable in variables:
@@ -307,15 +362,21 @@ f'''
 
                 sf.write(
 f'''
-/* Define the static values for the {scope_type}. */
+/* Define the static variables for the {scope_type}. */
 static const sipStaticVariableDef sipStaticVariablesTable{suffix}[] = {{
 ''')
 
             name = variable.py_name
-            flags = 'SIP_SV_RO' if v_type.is_const or variable.no_setter else '0'
+            flags = 'SIP_SV_RO' if variable.set_code is None and (v_type.is_const or variable.no_setter) else '0'
             value = variable.fq_cpp_name.cpp_stripped(STRIP_GLOBAL)
 
-            sf.write(f'    {{"{name}", {type_id}, {flags}, (void *)&{value}}},\n')
+            v_ref = variable.fq_cpp_name.as_word
+            getter = self.optional_ptr(variable.get_code is not None,
+                    f'sipStaticVariableGetter_{v_ref}')
+            setter = self.optional_ptr(variable.set_code is not None,
+                    f'sipStaticVariableSetter_{v_ref}')
+
+            sf.write(f'    {{"{name}", {type_id}, {flags}, (void *)&{value}, {getter}, {setter}}},\n')
 
             nr_static_variables += 1
 

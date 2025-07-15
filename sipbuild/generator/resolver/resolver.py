@@ -1446,6 +1446,10 @@ _STRING_TYPES = (ArgumentType.ASCII_STRING, ArgumentType.LATIN1_STRING,
 def _resolve_variable_type(spec, variable, error_log):
     """ Resolve the type of a variable. """
 
+    if spec.target_abi < (14, 0) and variable.scope is None:
+        if variable.get_code is not None or variable.set_code is not None:
+            error_log.log("%GetCode or %SetCode cannot be specified for global variables")
+
     bad_type = True
     variable_type = variable.type
 

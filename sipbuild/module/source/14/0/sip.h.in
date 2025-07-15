@@ -349,14 +349,18 @@ typedef struct _sipEnumMemberDef {
  * The immutable definition of static variables (static in the sense of having
  * a fixed absolute address).
  */
-// TODO we should probably support %GetCode and %SetCode.
 #define SIP_SV_RO           0x01        /* The value is read only. */
+
+typedef PyObject *(*sipStaticVariableGetterFunc)();
+typedef int (*sipStaticVariableSetterFunc)(PyObject *);
 
 typedef struct {
     const char *name;                   /* The name of the value. */
     sipTypeID type_id;                  /* The type of the value. */
-    int flags;                          /* See the SIP_SV_* flags above. */
+    unsigned flags;                     /* See the SIP_SV_* flags above. */
     void *value;                        /* The address of the value. */
+    sipStaticVariableGetterFunc getter; /* The optional getter. */
+    sipStaticVariableSetterFunc setter; /* The optional setter. */
 } sipStaticVariableDef;
 
 

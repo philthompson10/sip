@@ -1826,12 +1826,6 @@ class ParserManager:
                 self.parser_error(p, symbol,
                         "%AccessCode cannot be specified with %GetCode or %SetCode")
 
-            if self.scope is None:
-                # TODO: this can be supported for versions of Python that
-                # support module descriptors.
-                self.parser_error(p, symbol,
-                        "%GetCode or %SetCode cannot be specified for global variables")
-
         if self.scope is not None and self.scope.iface_file.type is IfaceFileType.NAMESPACE:
             variable.is_static = True
 

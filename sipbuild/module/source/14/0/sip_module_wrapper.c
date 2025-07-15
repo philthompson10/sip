@@ -60,6 +60,9 @@ static PyObject *ModuleWrapper_getattro(PyObject *self, PyObject *name)
     if (svd == NULL)
         return Py_TYPE(self)->tp_base->tp_getattro(self, name);
 
+    if (svd->getter != NULL)
+        return svd->getter();
+
     switch (svd->type_id)
     {
         case sipTypeID_int:
@@ -88,9 +91,12 @@ static int ModuleWrapper_setattro(PyObject *self, PyObject *name,
     if (svd->flags & SIP_SV_RO)
     {
         PyErr_Format(PyExc_ValueError,
-                "'%s' is a constant and cannot be updated", svd->name);
+                "'%s' is a constant and cannot be modified", svd->name);
         return -1;
     }
+
+    if (svd->setter != NULL)
+        return svd->setter(value);
 
     switch (svd->type_id)
     {
