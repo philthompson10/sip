@@ -1482,14 +1482,13 @@ def _resolve_variable_type(spec, variable, error_log):
         else:
             set_s = " and %SetCode"
 
-        error_log.log(
-                "'{0}' has an unsupported type - provide %GetCode{1}".format(
-                    variable.fq_cpp_name, set_s))
+        error_log.log(f"'{variable.fq_cpp_name}' has an unsupported type - provide %GetCode{set_s}")
  
-    if variable_type.type is not ArgumentType.CLASS and variable.access_code is not None:
-        error_log.log(
-                "'{0}' has %AccessCode but isn't a class instance".format(
-                    variable.fq_cpp_name))
+    if variable.access_code is not None:
+        if spec.target_abi >= (14, 0):
+            error_log.log(f"'{variable.fq_cpp_name}' has %AccessCode which is not supported by ABI v14 and later, use %GetCode instead")
+        elif variable_type.type is not ArgumentType.CLASS:
+            error_log.log(f"'{variable.fq_cpp_name}' has %AccessCode but isn't a class instance")
 
     if variable.scope is not None:
         _iface_file_is_used(variable.scope.iface_file.used, variable_type)
@@ -1498,6 +1497,7 @@ def _resolve_variable_type(spec, variable, error_log):
 
     # Scoped variables need a handler unless they have %AccessCode.
     if variable.access_code is None:
+        # TODO Is this specific to ABI <14?
         if variable.scope is not None and not variable.scope.is_hidden_namespace:
             variable.needs_handler = True
             variable.scope.has_variable_handlers = True

@@ -1430,6 +1430,7 @@ struct _sipAPIDef {
 
 
 /* These are held in sw_flags. */
+// Review these as %AccessCode is no longer supported.
 #define SIP_INDIRECT        0x0010  /* If there is a level of indirection. */
 #define SIP_ACCFUNC         0x0020  /* If there is an access function. */
 #define SIP_NOT_IN_MAP      0x0040  /* If Python object is not in the map. */
