@@ -28,8 +28,8 @@ static PyObject *parse_string_as_encoded_string(PyObject *bytes, PyObject *obj,
 
 
 /*
- * Convert a Python object to a character and raise an exception if there was
- * an error.
+ * Convert a Python bytes object to a C char and raise an exception if there
+ * was an error.
  */
 char sip_api_bytes_as_char(PyObject *obj)
 {
@@ -52,8 +52,8 @@ char sip_api_bytes_as_char(PyObject *obj)
 
 
 /*
- * Convert a Python object to a string and raise an exception if there was
- * an error.
+ * Convert a Python bytes object to a C string and raise an exception if there
+ * was an error.
  */
 const char *sip_api_bytes_as_string(PyObject *obj)
 {
@@ -72,8 +72,8 @@ const char *sip_api_bytes_as_string(PyObject *obj)
 
 
 /*
- * Convert a Python ASCII string object to a character and raise an exception
- * if there was an error.
+ * Convert a Python string object to an ASCII encoded C char and raise an
+ * exception if there was an error.
  */
 char sip_api_string_as_ascii_char(PyObject *obj)
 {
@@ -89,10 +89,11 @@ char sip_api_string_as_ascii_char(PyObject *obj)
 
 
 /*
- * Convert a Python ASCII string object to a string and raise an exception if
- * there was an error.  The object is updated with the one that owns the
- * string.  Note that None is considered an error.
+ * Convert a Python string object to an ASCII encoded C string and raise an
+ * exception if there was an error.  The object is updated with the one that
+ * owns the encoded string.  Note that None is considered an error.
  */
+// TODO Why is None an error and not mapped to NULL? (As it is with wchar_t.)
 const char *sip_api_string_as_ascii_string(PyObject **obj)
 {
     PyObject *s = *obj;
@@ -115,8 +116,8 @@ const char *sip_api_string_as_ascii_string(PyObject **obj)
 
 
 /*
- * Convert a Python Latin-1 string object to a character and raise an exception
- * if there was an error.
+ * Convert a Python string object to a Latin-1 encoded C char and raise an
+ * exception if there was an error.
  */
 char sip_api_string_as_latin1_char(PyObject *obj)
 {
@@ -132,9 +133,9 @@ char sip_api_string_as_latin1_char(PyObject *obj)
 
 
 /*
- * Convert a Python Latin-1 string object to a string and raise an exception if
- * there was an error.  The object is updated with the one that owns the
- * string.  Note that None is considered an error.
+ * Convert a Python string object to a Latin-1 encoded C string and raise an
+ * exception if there was an error.  The object is updated with the one that
+ * owns the string.  Note that None is considered an error.
  */
 const char *sip_api_string_as_latin1_string(PyObject **obj)
 {
@@ -157,8 +158,8 @@ const char *sip_api_string_as_latin1_string(PyObject **obj)
 
 
 /*
- * Convert a Python UTF-8 string object to a character and raise an exception
- * if there was an error.
+ * Convert a Python string object to a UTF-8 encoded C char and raise an
+ * exception if there was an error.
  */
 char sip_api_string_as_utf8_char(PyObject *obj)
 {
@@ -174,9 +175,9 @@ char sip_api_string_as_utf8_char(PyObject *obj)
 
 
 /*
- * Convert a Python UTF-8 string object to a string and raise an exception if
- * there was an error.  The object is updated with the one that owns the
- * string.  Note that None is considered an error.
+ * Convert a Python string object to a UTF-8 encoded C string and raise an
+ * exception if there was an error.  The object is updated with the one that
+ * owns the string.  Note that None is considered an error.
  */
 const char *sip_api_string_as_utf8_string(PyObject **obj)
 {
@@ -199,7 +200,7 @@ const char *sip_api_string_as_utf8_string(PyObject **obj)
 
 
 /*
- * Convert a Python object to a wide character.
+ * Convert a Python string object to a wchar_t character.
  */
 wchar_t sip_api_unicode_as_wchar(PyObject *obj)
 {
@@ -220,7 +221,7 @@ wchar_t sip_api_unicode_as_wchar(PyObject *obj)
 
 
 /*
- * Convert a Python object to a wide character string on the heap.
+ * Convert a Python string object to a wide character string on the heap.
  */
 wchar_t *sip_api_unicode_as_wstring(PyObject *obj)
 {
@@ -239,7 +240,7 @@ wchar_t *sip_api_unicode_as_wstring(PyObject *obj)
 
 
 /*
- * Parse a character and return it.
+ * Parse a bytes object as a C char.
  */
 int sip_parse_bytes_as_char(PyObject *obj, char *ap)
 {
@@ -275,7 +276,7 @@ int sip_parse_bytes_as_char(PyObject *obj, char *ap)
 
 
 /*
- * Parse a character array and return it's address and length.
+ * Parse a bytes object as a C char array.
  */
 int sip_parse_bytes_as_char_array(PyObject *obj, const char **ap,
         Py_ssize_t *aszp)
@@ -317,7 +318,7 @@ int sip_parse_bytes_as_char_array(PyObject *obj, const char **ap,
 
 
 /*
- * Parse a character string and return it.
+ * Parse a bytes object as a C string.
  */
 int sip_parse_bytes_as_string(PyObject *obj, const char **ap)
 {
@@ -335,7 +336,7 @@ int sip_parse_bytes_as_string(PyObject *obj, const char **ap)
 
 
 /*
- * Parse an ASCII character and return it.
+ * Parse a string object as an ASCII encoded C char.
  */
 int sip_parse_string_as_ascii_char(PyObject *obj, char *ap)
 {
@@ -354,8 +355,8 @@ int sip_parse_string_as_ascii_char(PyObject *obj, char *ap)
 
 
 /*
- * Parse an ASCII string and return it and a new reference to the object that
- * owns the string.
+ * Parse a string object as an ASCII encoded C string returning a new reference
+ * to the object that owns the encoded string.
  */
 PyObject *sip_parse_string_as_ascii_string(PyObject *obj, const char **ap)
 {
@@ -365,7 +366,7 @@ PyObject *sip_parse_string_as_ascii_string(PyObject *obj, const char **ap)
 
 
 /*
- * Parse a Latin-1 character and return it via a pointer.
+ * Parse a string object as a Latin-1 encoded C char.
  */
 int sip_parse_string_as_latin1_char(PyObject *obj, char *ap)
 {
@@ -384,8 +385,8 @@ int sip_parse_string_as_latin1_char(PyObject *obj, char *ap)
 
 
 /*
- * Parse a Latin-1 string and return it and a new reference to the object that
- * owns the string.
+ * Parse a string object as a Latin-1 encoded C string returning a new
+ * reference to the object that owns the encoded string.
  */
 PyObject *sip_parse_string_as_latin1_string(PyObject *obj, const char **ap)
 {
@@ -395,7 +396,7 @@ PyObject *sip_parse_string_as_latin1_string(PyObject *obj, const char **ap)
 
 
 /*
- * Parse a UTF-8 character and return it.
+ * Parse a string object as a UTF-8 encoded C char.
  */
 int sip_parse_string_as_utf8_char(PyObject *obj, char *ap)
 {
@@ -414,8 +415,8 @@ int sip_parse_string_as_utf8_char(PyObject *obj, char *ap)
 
 
 /*
- * Parse a UTF-8 string and return it and a new reference to the object that
- * owns the string.
+ * Parse a string object as a UTF-8 encoded C string returning a new reference
+ * to the object that owns the encoded string.
  */
 PyObject *sip_parse_string_as_utf8_string(PyObject *obj, const char **ap)
 {
@@ -425,7 +426,7 @@ PyObject *sip_parse_string_as_utf8_string(PyObject *obj, const char **ap)
 
 
 /*
- * Parse a wide character and return it.
+ * Parse a string object as a wchar_t character.
  */
 int sip_parse_wchar_t(PyObject *obj, wchar_t *ap)
 {
@@ -449,7 +450,7 @@ int sip_parse_wchar_t(PyObject *obj, wchar_t *ap)
 
 
 /*
- * Parse a wide character array and return it's address and length.
+ * Parse a string object to a wchar_t character array.
  */
 int sip_parse_wchar_t_array(PyObject *obj, wchar_t **ap, Py_ssize_t *aszp)
 {
@@ -482,7 +483,7 @@ int sip_parse_wchar_t_array(PyObject *obj, wchar_t **ap, Py_ssize_t *aszp)
 
 
 /*
- * Parse a wide character string and return a copy on the heap.
+ * Parse a string object to a wide character string.
  */
 int sip_parse_wchar_t_string(PyObject *obj, wchar_t **ap)
 {
@@ -510,7 +511,7 @@ int sip_parse_wchar_t_string(PyObject *obj, wchar_t **ap)
 
 
 /*
- * Convert a Unicode object to a wide character and return it.
+ * Convert a Unicode object to a wchar_t character and return it.
  */
 static int convert_to_wchar_t(PyObject *obj, wchar_t *ap)
 {
@@ -590,7 +591,9 @@ static int parse_string_as_encoded_char(PyObject *bytes, PyObject *obj,
 
     if (bytes == NULL)
     {
-        // TODO Review this, shouldn't it just raise the exception?
+        // TODO Review this, shouldn't it just raise the exception?  It looks
+        // like, for historical reasons(?) we allow bytes (already encoded
+        // presumably) as well as a string object.
         PyErr_Clear();
 
         return sip_parse_bytes_as_char(obj, ap);
@@ -617,7 +620,7 @@ static int parse_string_as_encoded_char(PyObject *bytes, PyObject *obj,
 
 /*
  * Parse an encoded string and return it and a new reference to the object that
- * owns the string.
+ * owns the encoded string.
  */
 static PyObject *parse_string_as_encoded_string(PyObject *bytes, PyObject *obj,
         const char **ap)
