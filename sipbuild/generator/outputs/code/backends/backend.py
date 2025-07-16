@@ -323,23 +323,11 @@ f'''static int sipStaticVariableSetter_{v_ref}(PyObject *sipPy)
 
 ''')
 
-        # TODO - all we are doing is working out the sipTypeID?
         for variable in variables:
             v_type = variable.type
 
-            # TODO - the following is based on legacy code but the types must
-            # be more precise as we will be dereferencing casted pointer rather
-            # than letting the compiler handle it.
-            if v_type.type in (ArgumentType.ASCII_STRING, ArgumentType.LATIN1_STRING, ArgumentType.UTF8_STRING, ArgumentType.SSTRING, ArgumentType.USTRING, ArgumentType.STRING, ArgumentType.WSTRING):
-                if len(v_type.derefs) == 0:
-                    # TODO char/wchar_t
-                    pass
-                else:
-                    # TODO char */wchar_t *
-                    pass
-
-            elif v_type.type is ArgumentType.CLASS or (v_type.type is ArgumentType.ENUM and v_type.definition.fq_cpp_name is not None):
-                # TODO class/named enum
+            # TODO Python objects, named enums, generated types void *, bool.
+            if v_type.type is ArgumentType.CLASS or (v_type.type is ArgumentType.ENUM and v_type.definition.fq_cpp_name is not None):
                 pass
 
             elif v_type.type is ArgumentType.BYTE:
@@ -389,6 +377,27 @@ f'''static int sipStaticVariableSetter_{v_ref}(PyObject *sipPy)
 
             elif v_type.type in (ArgumentType.DOUBLE, ArgumentType.CDOUBLE):
                 type_id = 'sipTypeID_double'
+
+            elif v_type.type is ArgumentType.STRING:
+                type_id = 'sipTypeID_char' if len(v_type.derefs) == 0 else 'sipTypeID_str'
+
+            elif v_type.type is ArgumentType.ASCII_STRING:
+                type_id = 'sipTypeID_char_ascii' if len(v_type.derefs) == 0 else 'sipTypeID_str_ascii'
+
+            elif v_type.type is ArgumentType.LATIN1_STRING:
+                type_id = 'sipTypeID_char_latin1' if len(v_type.derefs) == 0 else 'sipTypeID_str_latin1'
+
+            elif v_type.type is ArgumentType.UTF8_STRING:
+                type_id = 'sipTypeID_char_utf8' if len(v_type.derefs) == 0 else 'sipTypeID_str_utf8'
+
+            elif v_type.type is ArgumentType.SSTRING:
+                type_id = 'sipTypeID_schar' if len(v_type.derefs) == 0 else 'sipTypeID_sstr'
+
+            elif v_type.type is ArgumentType.USTRING:
+                type_id = 'sipTypeID_uchar' if len(v_type.derefs) == 0 else 'sipTypeID_ustr'
+
+            elif v_type.type is ArgumentType.WSTRING:
+                type_id = 'sipTypeID_wchar' if len(v_type.derefs) == 0 else 'sipTypeID_wstr'
 
             else:
                 continue

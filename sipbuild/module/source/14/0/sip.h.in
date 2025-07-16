@@ -1448,6 +1448,20 @@ struct _sipAPIDef {
 #define sipTypeID_size_t        0x000e
 #define sipTypeID_float         0x000f
 #define sipTypeID_double        0x0010
+#define sipTypeID_char          0x0011
+#define sipTypeID_char_ascii    0x0111
+#define sipTypeID_char_latin1   0x0211
+#define sipTypeID_char_utf8     0x0311
+#define sipTypeID_schar         0x0012
+#define sipTypeID_uchar         0x0013
+#define sipTypeID_wchar         0x0014
+#define sipTypeID_str           0x0015
+#define sipTypeID_str_ascii     0x0115
+#define sipTypeID_str_latin1    0x0215
+#define sipTypeID_str_utf8      0x0315
+#define sipTypeID_sstr          0x0016
+#define sipTypeID_ustr          0x0017
+#define sipTypeID_wstr          0x0018
 
 
 /* These are held in sw_flags. */

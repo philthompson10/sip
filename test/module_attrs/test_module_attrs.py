@@ -131,6 +131,57 @@ class ModuleAttrsTestCase(SIPTestCase):
         self.ma.double_attr = 20.
         self.assertEqual(self.ma.double_attr, 20.)
 
+    def test_attrs_char(self):
+        """ Test the support for char attributes. """
+
+        self.assertEqual(self.ma.char_attr, b'\x0a')
+        self.ma.char_attr = b'\x14'
+        self.assertEqual(self.ma.char_attr, b'\x14')
+
+    def test_attrs_char_ascii(self):
+        """ Test the support for ASCII char attributes. """
+
+        self.assertEqual(self.ma.char_ascii_attr, 'A')
+        self.ma.char_ascii_attr = 'Z'
+        self.assertEqual(self.ma.char_ascii_attr, 'Z')
+
+    def test_attrs_char_latin1(self):
+        """ Test the support for Latin-1 char attributes. """
+
+        self.assertEqual(self.ma.char_latin1_attr, '£')
+        self.ma.char_latin1_attr = '§'
+        self.assertEqual(self.ma.char_latin1_attr, '§')
+
+    def test_attrs_char_utf8(self):
+        """ Test the support for UTF-8 char attributes. """
+
+        self.assertEqual(self.ma.char_utf8_attr, '£')
+        self.ma.char_utf8_attr = '§'
+        self.assertEqual(self.ma.char_utf8_attr, '§')
+
+    def test_attrs_schar(self):
+        """ Test the support for signed char attributes. """
+
+        #self.assertEqual(self.ma.schar_attr, 10.)
+        #self.ma.schar_attr = 20.
+        #self.assertEqual(self.ma.schar_attr, 20.)
+        pass
+
+    def test_attrs_uchar(self):
+        """ Test the support for unsigned char attributes. """
+
+        #self.assertEqual(self.ma.uchar_attr, 10.)
+        #self.ma.uchar_attr = 20.
+        #self.assertEqual(self.ma.uchar_attr, 20.)
+        pass
+
+    def test_attrs_wchar(self):
+        """ Test the support for wchar_t attributes. """
+
+        self.assertEqual(self.ma.wchar_attr, 'β')
+        self.ma.wchar_attr = 'α'
+        self.assertEqual(self.ma.wchar_attr, 'α')
+
     def test_const_types(self):
         """ Test the support for const module attributes. """
 

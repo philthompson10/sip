@@ -18,6 +18,7 @@
 
 #include "sip_int_convertors.h"
 #include "sip_module.h"
+#include "sip_string_convertors.h"
 
 
 /* Forward declarations of slots. */
@@ -113,6 +114,73 @@ static PyObject *ModuleWrapper_getattro(PyObject *self, PyObject *name)
 
         case sipTypeID_double:
             return PyFloat_FromDouble(*(double *)(svd->value));
+
+        case sipTypeID_char:
+        case sipTypeID_schar:
+        case sipTypeID_uchar:
+            return PyBytes_FromStringAndSize((char *)svd->value, 1);
+
+        case sipTypeID_char_ascii:
+            return PyUnicode_DecodeASCII((char *)svd->value, 1, SIP_NULLPTR);
+
+        case sipTypeID_char_latin1:
+            return PyUnicode_DecodeLatin1((char *)svd->value, 1, SIP_NULLPTR);
+
+        case sipTypeID_char_utf8:
+            return PyUnicode_FromStringAndSize((char *)svd->value, 1);
+
+        case sipTypeID_wchar:
+            return PyUnicode_FromWideChar((wchar_t *)svd->value, 1);
+
+        case sipTypeID_str:
+        case sipTypeID_sstr:
+        case sipTypeID_ustr:
+            if (svd->value == SIP_NULLPTR)
+            {
+                Py_INCREF(Py_None);
+                return Py_None;
+            }
+
+            return PyBytes_FromString((char *)svd->value);
+
+        case sipTypeID_str_ascii:
+            if (svd->value == SIP_NULLPTR)
+            {
+                Py_INCREF(Py_None);
+                return Py_None;
+            }
+
+            return PyUnicode_DecodeASCII((char *)svd->value,
+                    strlen((char *)svd->value), SIP_NULLPTR);
+
+        case sipTypeID_str_latin1:
+            if (svd->value == SIP_NULLPTR)
+            {
+                Py_INCREF(Py_None);
+                return Py_None;
+            }
+
+            return PyUnicode_DecodeLatin1((char *)svd->value,
+                    strlen((char *)svd->value), SIP_NULLPTR);
+
+        case sipTypeID_str_utf8:
+            if (svd->value == SIP_NULLPTR)
+            {
+                Py_INCREF(Py_None);
+                return Py_None;
+            }
+
+            return PyUnicode_FromString((char *)svd->value);
+
+        case sipTypeID_wstr:
+            if (svd->value == SIP_NULLPTR)
+            {
+                Py_INCREF(Py_None);
+                return Py_None;
+            }
+
+            return PyUnicode_FromWideChar((wchar_t *)svd->value,
+                    (Py_ssize_t)wcslen((wchar_t *)svd->value));
 
         default:
             break;
@@ -339,6 +407,101 @@ static int ModuleWrapper_setattro(PyObject *self, PyObject *name,
 
             return 0;
         }
+
+        case sipTypeID_char:
+        {
+            char c_value = sip_api_bytes_as_char(value);
+
+            if (PyErr_Occurred())
+                return -1;
+
+            *(char *)(svd->value) = c_value;
+
+            return 0;
+        }
+
+        case sipTypeID_char_ascii:
+        {
+            char c_value = sip_api_string_as_ascii_char(value);
+
+            if (PyErr_Occurred())
+                return -1;
+
+            *(char *)(svd->value) = c_value;
+
+            return 0;
+        }
+
+        case sipTypeID_char_latin1:
+        {
+            char c_value = sip_api_string_as_latin1_char(value);
+
+            if (PyErr_Occurred())
+                return -1;
+
+            *(char *)(svd->value) = c_value;
+
+            return 0;
+        }
+
+        case sipTypeID_char_utf8:
+        {
+            char c_value = sip_api_string_as_utf8_char(value);
+
+            if (PyErr_Occurred())
+                return -1;
+
+            *(char *)(svd->value) = c_value;
+
+            return 0;
+        }
+
+        case sipTypeID_schar:
+        {
+            signed char c_value = (signed char)sip_api_bytes_as_char(value);
+
+            if (PyErr_Occurred())
+                return -1;
+
+            *(signed char *)(svd->value) = c_value;
+
+            return 0;
+        }
+
+        case sipTypeID_uchar:
+        {
+            unsigned char c_value = (unsigned char)sip_api_bytes_as_char(
+                    value);
+
+            if (PyErr_Occurred())
+                return -1;
+
+            *(unsigned char *)(svd->value) = c_value;
+
+            return 0;
+        }
+
+        case sipTypeID_wchar:
+        {
+            wchar_t c_value = sip_api_unicode_as_wchar(value);
+
+            if (PyErr_Occurred())
+                return -1;
+
+            *(wchar_t *)(svd->value) = c_value;
+
+            return 0;
+        }
+
+#if 0
+        case sipTypeID_str:
+        case sipTypeID_str_ascii:
+        case sipTypeID_str_latin1:
+        case sipTypeID_str_utf8:
+        case sipTypeID_sstr:
+        case sipTypeID_ustr:
+        case sipTypeID_wstr:
+#endif
 
         default:
             break;

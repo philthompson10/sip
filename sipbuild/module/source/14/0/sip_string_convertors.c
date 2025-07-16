@@ -37,6 +37,8 @@ char sip_api_bytes_as_char(PyObject *obj)
 {
     char ch;
 
+    PyErr_Clear();
+
     if (sip_parse_bytes_as_char(obj, &ch) < 0)
     {
         PyErr_Format(PyExc_TypeError, "bytes of length 1 expected not '%s'",
@@ -76,6 +78,8 @@ const char *sip_api_bytes_as_string(PyObject *obj)
 char sip_api_string_as_ascii_char(PyObject *obj)
 {
     char ch;
+
+    PyErr_Clear();
 
     if (sip_parse_string_as_ascii_char(obj, &ch) < 0)
         ch = '\0';
@@ -117,6 +121,8 @@ char sip_api_string_as_latin1_char(PyObject *obj)
 {
     char ch;
 
+    PyErr_Clear();
+
     if (sip_parse_string_as_latin1_char(obj, &ch) < 0)
         ch = '\0';
 
@@ -157,6 +163,8 @@ char sip_api_string_as_utf8_char(PyObject *obj)
 {
     char ch;
 
+    PyErr_Clear();
+
     if (sip_parse_string_as_utf8_char(obj, &ch) < 0)
         ch = '\0';
 
@@ -189,6 +197,7 @@ const char *sip_api_string_as_utf8_string(PyObject **obj)
 }
 
 
+// TODO Assume this is always true.
 #if defined(HAVE_WCHAR_H)
 
 /*
@@ -197,6 +206,8 @@ const char *sip_api_string_as_utf8_string(PyObject **obj)
 wchar_t sip_api_unicode_as_wchar(PyObject *obj)
 {
     wchar_t ch;
+
+    PyErr_Clear();
 
     if (sip_parse_wchar_t(obj, &ch) < 0)
     {

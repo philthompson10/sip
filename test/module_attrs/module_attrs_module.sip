@@ -22,6 +22,13 @@ Py_ssize_t pyssizet_attr = -10;
 size_t sizet_attr = 10;
 float float_attr = 10.;
 double double_attr = 10.;
+char char_attr = 10;
+char char_ascii_attr = 'A';
+char char_latin1_attr = 0xa0;
+char char_utf8_attr = 0xa0;
+signed char schar_attr = -10;
+unsigned char uchar_attr = 10;
+wchar_t wchar_attr = L'β';
 
 // Read only attributes.
 const int int_attr_const = 10;
@@ -58,6 +65,13 @@ Py_ssize_t pyssizet_attr;
 size_t sizet_attr;
 float float_attr;
 double double_attr;
+char char_attr /Encoding="None"/;
+char char_ascii_attr /Encoding="ASCII"/;
+char char_latin1_attr /Encoding="Latin-1"/;
+char char_utf8_attr /Encoding="UTF-8"/;
+signed char schar_attr;
+unsigned char uchar_attr;
+wchar_t wchar_attr;
 
 // Read only attributes.
 const int int_attr_const;
