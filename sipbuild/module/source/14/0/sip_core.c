@@ -800,7 +800,7 @@ ZZZ also need wms so just pass wmod
     const sipTypeDef *scope_td;
 
     /* Get the dictionary to place the type in. */
-    if (sipTypeIDIsValid(cod->cod_scope))
+    if (cod->cod_scope != sipTypeID_Invalid)
     {
         scope_td = sip_get_type_def(wms, cod->cod_scope);
         scope_dict = sip_get_scope_dict(sms, scope_td, wmod_dict, wmd);
@@ -1307,7 +1307,7 @@ sipTypeID sip_type_scope(sipWrappedModuleState *wms, sipTypeID type_id)
         else
             cod = &((const sipClassTypeDef *)td)->ctd_container;
 
-        if (sipTypeIDIsValid(cod->cod_scope))
+        if (cod->cod_scope != sipTypeID_Invalid)
             return sip_get_type_def(wms, cod->cod_scope);
     }
 #endif
@@ -1650,7 +1650,7 @@ void *sip_get_cpp_ptr(sipWrappedModuleState *wms, sipSimpleWrapper *sw,
     if (sip_check_pointer(ptr, sw) < 0)
         return NULL;
 
-    if (sipTypeIDIsValid(type_id))
+    if (type_id != sipTypeID_Invalid)
     {
         const sipTypeDef *td;
         PyTypeObject *py_type = sip_get_py_type_and_type_def(wms, type_id,
@@ -1835,8 +1835,8 @@ static sipTypeID sip_api_find_type_id(PyObject *wmod, const char *type)
             /* Determine the type number. */
             Py_ssize_t type_nr = (tdp - md->types) / sizeof (const sipTypeDef *);
 
-            /* Return a valid, absolute type ID. */
-            return SIP_TYPE_ID_VALID | SIP_TYPE_ID_ABSOLUTE | (i << 16) | type_nr;
+            /* Return an absolute ID of a generated type. */
+            return SIP_TYPE_ID_GENERATED | SIP_TYPE_ID_ABSOLUTE | (i << 16) | type_nr;
         }
     }
 
@@ -1928,7 +1928,7 @@ static sipWrappedModuleState *get_defining_wrapped_module_state(
     // Add support for dynamic IDs where the module number is the index into
     // the list of all modules held in the sip module state.  Dynamic IDs can
     // only be created by sip_api_find_type_id().
-    if (!sipTypeIDIsValid(type_id))
+    if (type_id == sipTypeID_Invalid)
         return NULL;
 
     if (sipTypeIDIsCurrentModule(type_id))

@@ -34,10 +34,9 @@ extern "C" {
 #define AUTO_DOCSTRING          '\1'    /* Marks an auto class docstring. */
 
 
-/* Macros to access the parts of a sipTypeID.  0 is an invalid ID. */
-#define sipTypeIDIsValid(id)            ((id) & SIP_TYPE_ID_VALID)
+/* Macros to access the parts of a valid type ID. */
 #define sipTypeIDIsSentinel(id)         ((id) & SIP_TYPE_ID_SENTINEL)
-#define sipTypeIDIsPOD(id)              ((id) & SIP_TYPE_ID_POD)
+#define sipTypeIDIsGeneratedType(id)    ((id) & SIP_TYPE_ID_GENERATED)
 #define sipTypeIDIsAbsolute(id)         ((id) & SIP_TYPE_ID_ABSOLUTE)
 #define sipTypeIDIsExternal(id)         ((id) & SIP_TYPE_ID_EXTERNAL)
 #define sipTypeIDIsCurrentModule(id)    ((id) & SIP_TYPE_ID_CURRENT_MODULE)

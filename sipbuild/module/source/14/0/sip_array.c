@@ -122,13 +122,14 @@ static PyObject *Array_item(PyObject *self, Py_ssize_t idx)
 
     data = element(array, idx);
 
-    if (sipTypeIDIsValid(array->type_id))
+    if (sipTypeIDIsGeneratedType(array->type_id))
     {
         py_item = sip_convert_from_type(array->wms, data, array->type_id,
                 NULL);
     }
     else
     {
+        // TODO Consider using a POD type ID rather than 'format'.
         switch (*array->format)
         {
         case 'b':
@@ -269,7 +270,7 @@ static int Array_ass_subscript(PyObject *self, PyObject *key, PyObject *value)
         return -1;
     }
 
-    if (sipTypeIDIsValid(array->type_id))
+    if (sipTypeIDIsGeneratedType(array->type_id))
     {
         const sipTypeDef *td = sip_get_type_def(array->wms, array->type_id);
 
@@ -401,7 +402,7 @@ static void Array_dealloc(PyObject *self)
 
     if (array->flags & SIP_OWNS_MEMORY)
     {
-        if (sipTypeIDIsValid(array->type_id))
+        if (sipTypeIDIsGeneratedType(array->type_id))
         {
             const sipTypeDef *td = sip_get_type_def(array->wms,
                     array->type_id);
@@ -588,7 +589,7 @@ static void *get_value(Array *array, PyObject *value)
 
     void *data;
 
-    if (sipTypeIDIsValid(array->type_id))
+    if (sipTypeIDIsGeneratedType(array->type_id))
     {
         int iserr = FALSE;
 
@@ -665,9 +666,9 @@ static void *get_slice(Array *array, PyObject *value, Py_ssize_t len)
 
     if (PyObject_IsInstance(value, (PyObject *)Py_TYPE((PyObject *)array)))
     {
-        if (sipTypeIDIsValid(array->type_id))
+        if (sipTypeIDIsGeneratedType(array->type_id))
         {
-            if (sipTypeIDIsValid(other->type_id))
+            if (sipTypeIDIsGeneratedType(other->type_id))
             {
                 if (sip_get_type_def(array->wms, array->type_id) == sip_get_type_def(other->wms, other->type_id))
                 {
@@ -675,7 +676,7 @@ static void *get_slice(Array *array, PyObject *value, Py_ssize_t len)
                 }
             }
         }
-        else if (!sipTypeIDIsValid(other->type_id))
+        else if (!sipTypeIDIsGeneratedType(other->type_id))
         {
             if (strcmp(array->format, other->format) == 0)
             {
@@ -719,7 +720,7 @@ static const char *get_type_name(Array *array)
 {
     const char *type_name;
 
-    if (sipTypeIDIsValid(array->type_id))
+    if (sipTypeIDIsGeneratedType(array->type_id))
     {
         type_name = sip_get_type_def(array->wms, array->type_id)->td_cname;
     }

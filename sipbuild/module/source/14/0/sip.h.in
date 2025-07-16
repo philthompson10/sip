@@ -1421,31 +1421,33 @@ struct _sipAPIDef {
  */
 
 /* The flags part of a type ID. */
-#define SIP_TYPE_ID_VALID               0x01000000
-#define SIP_TYPE_ID_SENTINEL            0x02000000
-#define SIP_TYPE_ID_POD                 0x04000000
-#define SIP_TYPE_ID_ABSOLUTE            0x08000000
-#define SIP_TYPE_ID_EXTERNAL            0x10000000
-#define SIP_TYPE_ID_CURRENT_MODULE      0x20000000
+#define SIP_TYPE_ID_SENTINEL            0x01000000
+#define SIP_TYPE_ID_GENERATED           0x02000000
+#define SIP_TYPE_ID_ABSOLUTE            0x04000000
+#define SIP_TYPE_ID_EXTERNAL            0x08000000
+#define SIP_TYPE_ID_CURRENT_MODULE      0x10000000
 
+
+/* The invalid type ID.  It must be 0. */
+#define sipTypeID_Invalid       0
 
 /* The type IDs of POD types. */
-#define sipTypeID_byte          (SIP_TYPE_ID_VALID | SIP_TYPE_ID_POD | 0x0000)
-#define sipTypeID_sbyte         (SIP_TYPE_ID_VALID | SIP_TYPE_ID_POD | 0x0001)
-#define sipTypeID_ubyte         (SIP_TYPE_ID_VALID | SIP_TYPE_ID_POD | 0x0002)
-#define sipTypeID_short         (SIP_TYPE_ID_VALID | SIP_TYPE_ID_POD | 0x0003)
-#define sipTypeID_ushort        (SIP_TYPE_ID_VALID | SIP_TYPE_ID_POD | 0x0004)
-#define sipTypeID_int           (SIP_TYPE_ID_VALID | SIP_TYPE_ID_POD | 0x0005)
-#define sipTypeID_uint          (SIP_TYPE_ID_VALID | SIP_TYPE_ID_POD | 0x0006)
-#define sipTypeID_long          (SIP_TYPE_ID_VALID | SIP_TYPE_ID_POD | 0x0007)
-#define sipTypeID_ulong         (SIP_TYPE_ID_VALID | SIP_TYPE_ID_POD | 0x0008)
-#define sipTypeID_longlong      (SIP_TYPE_ID_VALID | SIP_TYPE_ID_POD | 0x0009)
-#define sipTypeID_ulonglong     (SIP_TYPE_ID_VALID | SIP_TYPE_ID_POD | 0x000a)
-#define sipTypeID_Py_hash_t     (SIP_TYPE_ID_VALID | SIP_TYPE_ID_POD | 0x000b)
-#define sipTypeID_Py_ssize_t    (SIP_TYPE_ID_VALID | SIP_TYPE_ID_POD | 0x000c)
-#define sipTypeID_size_t        (SIP_TYPE_ID_VALID | SIP_TYPE_ID_POD | 0x000d)
-#define sipTypeID_float         (SIP_TYPE_ID_VALID | SIP_TYPE_ID_POD | 0x000e)
-#define sipTypeID_double        (SIP_TYPE_ID_VALID | SIP_TYPE_ID_POD | 0x000f)
+#define sipTypeID_byte          0x0001
+#define sipTypeID_sbyte         0x0002
+#define sipTypeID_ubyte         0x0003
+#define sipTypeID_short         0x0004
+#define sipTypeID_ushort        0x0005
+#define sipTypeID_int           0x0006
+#define sipTypeID_uint          0x0007
+#define sipTypeID_long          0x0008
+#define sipTypeID_ulong         0x0009
+#define sipTypeID_longlong      0x000a
+#define sipTypeID_ulonglong     0x000b
+#define sipTypeID_Py_hash_t     0x000c
+#define sipTypeID_Py_ssize_t    0x000d
+#define sipTypeID_size_t        0x000e
+#define sipTypeID_float         0x000f
+#define sipTypeID_double        0x0010
 
 
 /* These are held in sw_flags. */
