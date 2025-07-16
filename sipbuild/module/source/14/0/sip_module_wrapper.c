@@ -127,7 +127,7 @@ static PyObject *ModuleWrapper_getattro(PyObject *self, PyObject *name)
             return PyUnicode_DecodeLatin1((char *)svd->value, 1, SIP_NULLPTR);
 
         case sipTypeID_char_utf8:
-            return PyUnicode_FromStringAndSize((char *)svd->value, 1);
+            return PyUnicode_DecodeUTF8((char *)svd->value, 1, SIP_NULLPTR);
 
         case sipTypeID_wchar:
             return PyUnicode_FromWideChar((wchar_t *)svd->value, 1);

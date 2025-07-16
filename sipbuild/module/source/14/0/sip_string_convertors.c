@@ -41,6 +41,8 @@ char sip_api_bytes_as_char(PyObject *obj)
 
     if (sip_parse_bytes_as_char(obj, &ch) < 0)
     {
+        // TODO This is a confusing exception if object is bytes but more than
+        // 1 byte.
         PyErr_Format(PyExc_TypeError, "bytes of length 1 expected not '%s'",
                 Py_TYPE(obj)->tp_name);
 
@@ -101,6 +103,7 @@ const char *sip_api_string_as_ascii_string(PyObject **obj)
     if (s == Py_None || (*obj = sip_parse_string_as_ascii_string(s, &a)) == NULL)
     {
         /* Use the exception set if it was an encoding error. */
+        // TODO: Review the exception message - why bytes? Similar elsewhere.
         if (!PyUnicode_Check(s))
             PyErr_Format(PyExc_TypeError,
                     "bytes or ASCII string expected not '%s'",
@@ -636,6 +639,7 @@ static int parse_string_as_encoded_char(PyObject *bytes, PyObject *obj,
 
     if (bytes == NULL)
     {
+        // TODO Review this, shouldn't it just raise the exception?
         PyErr_Clear();
 
         return sip_parse_bytes_as_char(obj, ap);
@@ -645,6 +649,8 @@ static int parse_string_as_encoded_char(PyObject *bytes, PyObject *obj,
 
     if (size != 1)
     {
+        PyErr_SetString(PyExc_TypeError, "decoded value of length 1 expected");
+
         Py_DECREF(bytes);
         return -1;
     }

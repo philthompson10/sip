@@ -155,9 +155,9 @@ class ModuleAttrsTestCase(SIPTestCase):
     def test_attrs_char_utf8(self):
         """ Test the support for UTF-8 char attributes. """
 
-        self.assertEqual(self.ma.char_utf8_attr, '£')
-        self.ma.char_utf8_attr = '§'
-        self.assertEqual(self.ma.char_utf8_attr, '§')
+        self.assertEqual(self.ma.char_utf8_attr, 'A')
+        self.ma.char_utf8_attr = 'Z'
+        self.assertEqual(self.ma.char_utf8_attr, 'Z')
 
     def test_attrs_schar(self):
         """ Test the support for signed char attributes. """
