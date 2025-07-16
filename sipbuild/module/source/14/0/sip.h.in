@@ -1359,13 +1359,8 @@ struct _sipAPIDef {
     const char *(*api_string_as_latin1_string)(PyObject **obj);
     char (*api_string_as_utf8_char)(PyObject *obj);
     const char *(*api_string_as_utf8_string)(PyObject **obj);
-#if defined(HAVE_WCHAR_H)
     wchar_t (*api_unicode_as_wchar)(PyObject *obj);
     wchar_t *(*api_unicode_as_wstring)(PyObject *obj);
-#else
-    int (*api_unicode_as_wchar)(PyObject *obj);
-    int *(*api_unicode_as_wstring)(PyObject *obj);
-#endif
     int (*api_deprecated)(const char *classname, const char *method,
             const char *message);
     void (*api_keep_reference)(PyObject *self, int key, PyObject *obj);

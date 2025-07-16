@@ -17,12 +17,10 @@
 
 
 /* Forward references. */
-#if defined(HAVE_WCHAR_H)
 static int convert_to_wchar_t(PyObject *obj, wchar_t *ap);
 static int convert_to_wchar_t_array(PyObject *obj, wchar_t **ap,
         Py_ssize_t *aszp);
 static int convert_to_wchar_t_string(PyObject *obj, wchar_t **ap);
-#endif
 static int parse_string_as_encoded_char(PyObject *bytes, PyObject *obj,
         char *ap);
 static PyObject *parse_string_as_encoded_string(PyObject *bytes, PyObject *obj,
@@ -200,9 +198,6 @@ const char *sip_api_string_as_utf8_string(PyObject **obj)
 }
 
 
-// TODO Assume this is always true.
-#if defined(HAVE_WCHAR_H)
-
 /*
  * Convert a Python object to a wide character.
  */
@@ -241,31 +236,6 @@ wchar_t *sip_api_unicode_as_wstring(PyObject *obj)
 
     return p;
 }
-
-#else
-
-/*
- * Convert a Python object to a wide character.
- */
-int sip_api_unicode_as_wchar(PyObject *obj)
-{
-    sip_raise_no_wchar_t();
-
-    return 0;
-}
-
-
-/*
- * Convert a Python object to a wide character.
- */
-int *sip_api_unicode_as_wstring(PyObject *obj)
-{
-    sip_raise_no_wchar_t();
-
-    return NULL;
-}
-
-#endif
 
 
 /*
@@ -454,8 +424,6 @@ PyObject *sip_parse_string_as_utf8_string(PyObject *obj, const char **ap)
 }
 
 
-#if defined(HAVE_WCHAR_H)
-
 /*
  * Parse a wide character and return it.
  */
@@ -540,21 +508,6 @@ int sip_parse_wchar_t_string(PyObject *obj, wchar_t **ap)
     return 0;
 }
 
-#else
-
-/*
- * Report the need for absent wide character support.
- */
-void sip_raise_no_wchar_t()
-{
-    PyErr_SetString(PyExc_SystemError,
-            _SIP_MODULE_FQ_NAME " built without wchar_t support");
-}
-
-#endif
-
-
-#if defined(HAVE_WCHAR_H)
 
 /*
  * Convert a Unicode object to a wide character and return it.
@@ -625,8 +578,6 @@ static int convert_to_wchar_t_string(PyObject *obj, wchar_t **ap)
 
     return 0;
 }
-
-#endif
 
 
 /*

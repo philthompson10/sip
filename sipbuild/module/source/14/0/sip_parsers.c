@@ -1294,7 +1294,6 @@ static PyObject *build_object(sipWrappedModuleState *wms, PyObject *obj,
             break;
 
         case 'G':
-#if defined(HAVE_WCHAR_H)
             {
                 wchar_t *s = va_arg(va, wchar_t *);
                 Py_ssize_t l = va_arg(va, Py_ssize_t);
@@ -1307,10 +1306,6 @@ static PyObject *build_object(sipWrappedModuleState *wms, PyObject *obj,
                     el = Py_None;
                 }
             }
-#else
-            sip_raise_no_wchar_t();
-            el = NULL;
-#endif
 
             break;
 
@@ -1337,16 +1332,11 @@ static PyObject *build_object(sipWrappedModuleState *wms, PyObject *obj,
             break;
 
         case 'w':
-#if defined(HAVE_WCHAR_H)
             {
                 wchar_t c = va_arg(va, int);
 
                 el = PyUnicode_FromWideChar(&c, 1);
             }
-#else
-            sip_raise_no_wchar_t();
-            el = NULL;
-#endif
 
             break;
 
@@ -1423,7 +1413,6 @@ static PyObject *build_object(sipWrappedModuleState *wms, PyObject *obj,
             break;
 
         case 'x':
-#if defined(HAVE_WCHAR_H)
             {
                 wchar_t *s = va_arg(va, wchar_t *);
 
@@ -1435,10 +1424,6 @@ static PyObject *build_object(sipWrappedModuleState *wms, PyObject *obj,
                     el = Py_None;
                 }
             }
-#else
-            sip_raise_no_wchar_t();
-            el = NULL;
-#endif
 
             break;
 
@@ -2705,7 +2690,6 @@ static int parse_pass_1(sipWrappedModuleState *wms, PyObject **parseErrp,
             }
 
         case 'x':
-#if defined(HAVE_WCHAR_H)
             {
                 /* Wide string or None. */
 
@@ -2716,11 +2700,6 @@ static int parse_pass_1(sipWrappedModuleState *wms, PyObject **parseErrp,
 
                 break;
             }
-#else
-            sip_raise_no_wchar_t();
-            failure.reason = Raised;
-            break;
-#endif
 
         case 'r':
             {
@@ -2956,7 +2935,6 @@ static int parse_pass_1(sipWrappedModuleState *wms, PyObject **parseErrp,
             }
 
         case 'K':
-#if defined(HAVE_WCHAR_H)
             {
                 /* Wide char array or None. */
 
@@ -2968,11 +2946,6 @@ static int parse_pass_1(sipWrappedModuleState *wms, PyObject **parseErrp,
 
                 break;
             }
-#else
-            sip_raise_no_wchar_t();
-            failure.reason = Raised;
-            break
-#endif
 
         case 'c':
             {
@@ -2987,7 +2960,6 @@ static int parse_pass_1(sipWrappedModuleState *wms, PyObject **parseErrp,
             }
 
         case 'w':
-#if defined(HAVE_WCHAR_H)
             {
                 /* Wide character. */
 
@@ -2998,11 +2970,6 @@ static int parse_pass_1(sipWrappedModuleState *wms, PyObject **parseErrp,
 
                 break;
             }
-#else
-            sip_raise_no_wchar_t();
-            failure.reason = Raised;
-            break
-#endif
 
         case 'b':
             {
@@ -3984,7 +3951,6 @@ static int parse_result(sipWrappedModuleState *wms, PyObject *method,
                 break;
 
             case 'G':
-#if defined(HAVE_WCHAR_H)
                 {
                     wchar_t **p = va_arg(va, wchar_t **);
                     Py_ssize_t *szp = va_arg(va, Py_ssize_t *);
@@ -3992,10 +3958,6 @@ static int parse_result(sipWrappedModuleState *wms, PyObject *method,
                     if (sip_parse_wchar_t_array(arg, p, szp) < 0)
                         invalid = TRUE;
                 }
-#else
-                sip_raise_no_wchar_t();
-                invalid = TRUE;
-#endif
 
                 break;
 
@@ -4049,17 +4011,12 @@ static int parse_result(sipWrappedModuleState *wms, PyObject *method,
                 break;
 
             case 'w':
-#if defined(HAVE_WCHAR_H)
                 {
                     wchar_t *p = va_arg(va, wchar_t *);
 
                     if (sip_parse_wchar_t(arg, p) < 0)
                         invalid = TRUE;
                 }
-#else
-                sip_raise_no_wchar_t();
-                invalid = TRUE;
-#endif
 
                 break;
 
@@ -4315,17 +4272,12 @@ static int parse_result(sipWrappedModuleState *wms, PyObject *method,
                 break;
 
             case 'x':
-#if defined(HAVE_WCHAR_H)
                 {
                     wchar_t **p = va_arg(va, wchar_t **);
 
                     if (sip_parse_wchar_t_string(arg, p) < 0)
                         invalid = TRUE;
                 }
-#else
-                sip_raise_no_wchar_t();
-                invalid = TRUE;
-#endif
 
                 break;
 
