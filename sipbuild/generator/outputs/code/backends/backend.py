@@ -323,8 +323,18 @@ f'''static int sipStaticVariableSetter_{v_ref}(PyObject *sipPy)
 
 ''')
 
+        module = self.spec.module
+
         for variable in variables:
             v_type = variable.type
+
+            # Generally const variables cannot be set.  However for string
+            # pointers the reverse is true as a const pointer can be replaced
+            # by another, but we can't allow a the contents of a non-const
+            # string/array to be modified by C/C++ because they are immutable
+            # in Python.
+            not_settable = False
+            might_need_key = False
 
             # TODO Python objects, named enums, generated types void *, bool.
             if v_type.type is ArgumentType.CLASS or (v_type.type is ArgumentType.ENUM and v_type.definition.fq_cpp_name is not None):
@@ -332,72 +342,130 @@ f'''static int sipStaticVariableSetter_{v_ref}(PyObject *sipPy)
 
             elif v_type.type is ArgumentType.BYTE:
                 type_id = 'sipTypeID_byte'
+                not_settable = v_type.is_const
 
             elif v_type.type is ArgumentType.SBYTE:
                 type_id = 'sipTypeID_sbyte'
+                not_settable = v_type.is_const
 
             elif v_type.type is ArgumentType.UBYTE:
                 type_id = 'sipTypeID_ubyte'
+                not_settable = v_type.is_const
 
             elif v_type.type is ArgumentType.SHORT:
                 type_id = 'sipTypeID_short'
+                not_settable = v_type.is_const
 
             elif v_type.type is ArgumentType.USHORT:
                 type_id = 'sipTypeID_ushort'
+                not_settable = v_type.is_const
 
             elif v_type.type in (ArgumentType.INT, ArgumentType.CINT):
                 type_id = 'sipTypeID_int'
+                not_settable = v_type.is_const
 
             elif v_type.type is ArgumentType.UINT:
                 type_id = 'sipTypeID_uint'
+                not_settable = v_type.is_const
 
             elif v_type.type is ArgumentType.LONG:
                 type_id = 'sipTypeID_long'
+                not_settable = v_type.is_const
 
             elif v_type.type is ArgumentType.ULONG:
                 type_id = 'sipTypeID_ulong'
+                not_settable = v_type.is_const
 
             elif v_type.type is ArgumentType.LONGLONG:
                 type_id = 'sipTypeID_longlong'
+                not_settable = v_type.is_const
 
             elif v_type.type is ArgumentType.ULONGLONG:
                 type_id = 'sipTypeID_ulonglong'
+                not_settable = v_type.is_const
 
             elif v_type.type is ArgumentType.HASH:
                 type_id = 'sipTypeID_Py_hash_t'
+                not_settable = v_type.is_const
 
             elif v_type.type is ArgumentType.SSIZE:
                 type_id = 'sipTypeID_Py_ssize_t'
+                not_settable = v_type.is_const
 
             elif v_type.type is ArgumentType.SIZE:
                 type_id = 'sipTypeID_size_t'
+                not_settable = v_type.is_const
 
             elif v_type.type in (ArgumentType.FLOAT, ArgumentType.CFLOAT):
                 type_id = 'sipTypeID_float'
+                not_settable = v_type.is_const
 
             elif v_type.type in (ArgumentType.DOUBLE, ArgumentType.CDOUBLE):
                 type_id = 'sipTypeID_double'
+                not_settable = v_type.is_const
 
             elif v_type.type is ArgumentType.STRING:
-                type_id = 'sipTypeID_char' if len(v_type.derefs) == 0 else 'sipTypeID_str'
+                if len(v_type.derefs) == 0:
+                    type_id = 'sipTypeID_char'
+                    not_settable = v_type.is_const
+                else:
+                    type_id = 'sipTypeID_str'
+                    not_settable = not v_type.is_const
+                    might_need_key = True
 
             elif v_type.type is ArgumentType.ASCII_STRING:
-                type_id = 'sipTypeID_char_ascii' if len(v_type.derefs) == 0 else 'sipTypeID_str_ascii'
+                if len(v_type.derefs) == 0:
+                    type_id = 'sipTypeID_char_ascii'
+                    not_settable = v_type.is_const
+                else:
+                    type_id = 'sipTypeID_str_ascii'
+                    not_settable = not v_type.is_const
+                    might_need_key = True
 
             elif v_type.type is ArgumentType.LATIN1_STRING:
-                type_id = 'sipTypeID_char_latin1' if len(v_type.derefs) == 0 else 'sipTypeID_str_latin1'
+                if len(v_type.derefs) == 0:
+                    type_id = 'sipTypeID_char_latin1'
+                    not_settable = v_type.is_const
+                else:
+                    type_id = 'sipTypeID_str_latin1'
+                    not_settable = not v_type.is_const
+                    might_need_key = True
 
             elif v_type.type is ArgumentType.UTF8_STRING:
-                type_id = 'sipTypeID_char_utf8' if len(v_type.derefs) == 0 else 'sipTypeID_str_utf8'
+                if len(v_type.derefs) == 0:
+                    type_id = 'sipTypeID_char_utf8'
+                    not_settable = v_type.is_const
+                else:
+                    type_id = 'sipTypeID_str_utf8'
+                    not_settable = not v_type.is_const
+                    might_need_key = True
 
             elif v_type.type is ArgumentType.SSTRING:
-                type_id = 'sipTypeID_schar' if len(v_type.derefs) == 0 else 'sipTypeID_sstr'
+                if len(v_type.derefs) == 0:
+                    type_id = 'sipTypeID_schar'
+                    not_settable = v_type.is_const
+                else:
+                    type_id = 'sipTypeID_sstr'
+                    not_settable = not v_type.is_const
+                    might_need_key = True
 
             elif v_type.type is ArgumentType.USTRING:
-                type_id = 'sipTypeID_uchar' if len(v_type.derefs) == 0 else 'sipTypeID_ustr'
+                if len(v_type.derefs) == 0:
+                    type_id = 'sipTypeID_uchar'
+                    not_settable = v_type.is_const
+                else:
+                    type_id = 'sipTypeID_ustr'
+                    not_settable = not v_type.is_const
+                    might_need_key = True
 
             elif v_type.type is ArgumentType.WSTRING:
-                type_id = 'sipTypeID_wchar' if len(v_type.derefs) == 0 else 'sipTypeID_wstr'
+                if len(v_type.derefs) == 0:
+                    type_id = 'sipTypeID_wchar'
+                    not_settable = v_type.is_const
+                else:
+                    type_id = 'sipTypeID_wstr'
+                    not_settable = not v_type.is_const
+                    might_need_key = True
 
             else:
                 continue
@@ -417,8 +485,15 @@ static const sipStaticVariableDef sipStaticVariablesTable{suffix}[] = {{
 ''')
 
             name = variable.py_name
-            flags = 'SIP_SV_RO' if variable.set_code is None and (v_type.is_const or variable.no_setter) else '0'
             value = variable.fq_cpp_name.cpp_stripped(STRIP_GLOBAL)
+
+            if not_settable or variable.no_setter:
+                key = 'SIP_SV_RO'
+            elif might_need_key:
+                key = module.next_key
+                module.next_key -= 1
+            else:
+                key = '0'
 
             v_ref = variable.fq_cpp_name.as_word
             getter = self.optional_ptr(variable.get_code is not None,
@@ -426,7 +501,7 @@ static const sipStaticVariableDef sipStaticVariablesTable{suffix}[] = {{
             setter = self.optional_ptr(variable.set_code is not None,
                     f'sipStaticVariableSetter_{v_ref}')
 
-            sf.write(f'    {{"{name}", {type_id}, {flags}, (void *)&{value}, {getter}, {setter}}},\n')
+            sf.write(f'    {{"{name}", {type_id}, {key}, (void *)&{value}, {getter}, {setter}}},\n')
 
             nr_static_variables += 1
 

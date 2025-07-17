@@ -29,6 +29,12 @@ char char_utf8_attr = 'A';
 signed char schar_attr = 10;
 unsigned char uchar_attr = 10;
 wchar_t wchar_attr = L'β';
+char *string_attr = NULL;
+const char *string_attr_const = "str";
+signed char *sstring_attr = NULL;
+const signed char *sstring_attr_const = (signed char *)"str";
+unsigned char *ustring_attr = NULL;
+const unsigned char *ustring_attr_const = (unsigned char *)"str";
 
 // Read only attributes.
 const int int_attr_const = 10;
@@ -72,6 +78,12 @@ char char_utf8_attr /Encoding="UTF-8"/;
 signed char schar_attr;
 unsigned char uchar_attr;
 wchar_t wchar_attr;
+char *string_attr;
+const char *string_attr_const;
+signed char *sstring_attr;
+const signed char *sstring_attr_const;
+unsigned char *ustring_attr;
+const unsigned char *ustring_attr_const;
 
 // Read only attributes.
 const int int_attr_const;

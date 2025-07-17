@@ -133,6 +133,8 @@ void sip_instance_destroyed(sipWrappedModuleState *wms,
         sipSimpleWrapper **sipSelfp);
 int sip_is_subtype(const sipClassTypeDef *ctd,
         const sipClassTypeDef *base_ctd);
+int sip_keep_reference(sipWrappedModuleState *wms, sipSimpleWrapper *w,
+        int key, PyObject *obj);
 PyObject *sip_next_in_mro(PyObject *self, PyObject *after);
 void sip_raise_no_convert_from(const sipTypeDef *td);
 void sip_remove_from_parent(sipWrapper *self);

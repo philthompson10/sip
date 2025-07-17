@@ -121,6 +121,8 @@ static sipExceptionHandler sip_api_next_exception_handler(PyObject *wmod,
         Py_ssize_t *statep);
 static PyFrameObject *sip_api_get_frame(int depth);
 static sipTypeID sip_api_type_scope(PyObject *wmod, sipTypeID type_id);
+static int sip_api_keep_reference(PyObject *wmod, sipSimpleWrapper *w, int key,
+        PyObject *obj);
 
 
 /*
@@ -473,6 +475,48 @@ static void sip_api_add_delayed_dtor(sipSimpleWrapper *sw)
                 return;
             }
     }
+}
+
+
+/*
+ * Keep an extra reference to an object (which may be NULL if the object was
+ * optional).
+ */
+static int sip_api_keep_reference(PyObject *wmod, sipSimpleWrapper *w, int key,
+        PyObject *obj)
+{
+    sipWrappedModuleState *wms = (sipWrappedModuleState *)PyModule_GetState(
+            wmod);
+
+    return sip_keep_reference(wms, w, key, obj);
+}
+
+
+/*
+ * Implement the keeping of an extra reference to an object (which may be NULL
+ * if the object was optional).
+ */
+int sip_keep_reference(sipWrappedModuleState *wms, sipSimpleWrapper *w,
+        int key, PyObject *obj)
+{
+    /* Get a pointer to the dict of extra references. */
+    PyObject **extra_refsp = (w != NULL ? &w->extra_refs : &wms->extra_refs);
+
+    /* Create the dict if it doesn't already exist. */
+    if (*extra_refsp == NULL && (*extra_refsp = PyDict_New()) == NULL)
+        return -1;
+
+    PyObject *key_obj = PyLong_FromLong(key);
+    if (key_obj == NULL)
+        return -1;
+
+    if (obj == NULL)
+        obj = Py_None;
+
+    int rc = PyDict_SetItem(*extra_refsp, key_obj, obj);
+    Py_DECREF(key_obj);
+
+    return rc;
 }
 
 

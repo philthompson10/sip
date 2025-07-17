@@ -44,7 +44,7 @@ struct _sipSimpleWrapper {
     /* Object flags. */
     unsigned sw_flags;
 
-    /* The optional dictionary of extra references keyed by argument number. */
+    /* The optional dictionary of extra references using an int key. */
     PyObject *extra_refs;
 
     /* For the user to use. */

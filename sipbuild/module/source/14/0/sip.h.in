@@ -13,6 +13,7 @@
 
 #include <Python.h>
 
+#include <limits.h>
 #include <stdint.h>
 
 
@@ -205,6 +206,9 @@ typedef struct {
     /* The list of delayed dtors. */
     sipDelayedDtor *delayed_dtors_list;
 
+    /* The optional dictionary of extra references using an int key. */
+    PyObject *extra_refs;
+
     /* The list of imported modules. */
     PyObject *imported_modules;
 
@@ -349,7 +353,7 @@ typedef struct _sipEnumMemberDef {
  * The immutable definition of static variables (static in the sense of having
  * a fixed absolute address).
  */
-#define SIP_SV_RO           0x01        /* The value is read only. */
+#define SIP_SV_RO           INT_MIN     /* The value is read only. */
 
 typedef PyObject *(*sipStaticVariableGetterFunc)();
 typedef int (*sipStaticVariableSetterFunc)(PyObject *);
@@ -357,7 +361,7 @@ typedef int (*sipStaticVariableSetterFunc)(PyObject *);
 typedef struct {
     const char *name;                   /* The name of the value. */
     sipTypeID type_id;                  /* The type of the value. */
-    unsigned flags;                     /* See the SIP_SV_* flags above. */
+    int key;                            /* The key or SIP_SV_RO. */
     void *value;                        /* The address of the value. */
     sipStaticVariableGetterFunc getter; /* The optional getter. */
     sipStaticVariableSetterFunc setter; /* The optional setter. */
@@ -1363,7 +1367,8 @@ struct _sipAPIDef {
     wchar_t *(*api_unicode_as_wstring)(PyObject *obj);
     int (*api_deprecated)(const char *classname, const char *method,
             const char *message);
-    void (*api_keep_reference)(PyObject *self, int key, PyObject *obj);
+    int (*api_keep_reference)(PyObject *wmod, sipSimpleWrapper *w, int key,
+            PyObject *obj);
     int (*api_parse_kwd_args)(PyObject *wmod, PyObject **parseErrp,
             PyObject *sipArgs, PyObject *sipKwdArgs, const char **kwdlist,
             PyObject **unused, const char *fmt, ...);

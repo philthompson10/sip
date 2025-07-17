@@ -59,6 +59,8 @@ const char *sip_api_bytes_as_string(PyObject *obj)
 {
     const char *a;
 
+    PyErr_Clear();
+
     if (sip_parse_bytes_as_string(obj, &a) < 0)
     {
         PyErr_Format(PyExc_TypeError, "bytes expected not '%s'",
@@ -277,7 +279,9 @@ int sip_parse_bytes_as_char(PyObject *obj, char *ap)
 
 
 /*
- * Parse a bytes object as a C char array.
+ * Parse an optional bytes object (or one that implements the buffer protocol)
+ * as a C char array returning its address and length.  A negative value is
+ * returned and an unspecified exception raised on error.
  */
 int sip_parse_bytes_as_char_array(PyObject *obj, const char **ap,
         Py_ssize_t *aszp)

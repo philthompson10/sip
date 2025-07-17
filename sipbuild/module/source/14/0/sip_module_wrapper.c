@@ -16,6 +16,7 @@
 
 #include "sip_module_wrapper.h"
 
+#include "sip_core.h"
 #include "sip_int_convertors.h"
 #include "sip_module.h"
 #include "sip_string_convertors.h"
@@ -46,8 +47,8 @@ static PyType_Spec ModuleWrapper_TypeSpec = {
 
 /* Forward declarations. */
 static int compare_static_variable(const void *key, const void *el);
-static const sipStaticVariableDef *get_static_variable_def(PyObject *wmod,
-        PyObject *name);
+static const sipStaticVariableDef *get_static_variable_def(
+        sipWrappedModuleState *wms, PyObject *name);
 static void raise_internal_error(const sipStaticVariableDef *svd);
 
 
@@ -56,7 +57,9 @@ static void raise_internal_error(const sipStaticVariableDef *svd);
  */
 static PyObject *ModuleWrapper_getattro(PyObject *self, PyObject *name)
 {
-    const sipStaticVariableDef *svd = get_static_variable_def(self, name);
+    sipWrappedModuleState *wms = (sipWrappedModuleState *)PyModule_GetState(
+            self);
+    const sipStaticVariableDef *svd = get_static_variable_def(wms, name);
 
     if (svd == NULL)
         return Py_TYPE(self)->tp_base->tp_getattro(self, name);
@@ -135,52 +138,52 @@ static PyObject *ModuleWrapper_getattro(PyObject *self, PyObject *name)
         case sipTypeID_str:
         case sipTypeID_sstr:
         case sipTypeID_ustr:
-            if (svd->value == SIP_NULLPTR)
+            if (*(char **)svd->value == SIP_NULLPTR)
             {
                 Py_INCREF(Py_None);
                 return Py_None;
             }
 
-            return PyBytes_FromString((char *)svd->value);
+            return PyBytes_FromString(*(char **)svd->value);
 
         case sipTypeID_str_ascii:
-            if (svd->value == SIP_NULLPTR)
+            if (*(char **)svd->value == SIP_NULLPTR)
             {
                 Py_INCREF(Py_None);
                 return Py_None;
             }
 
-            return PyUnicode_DecodeASCII((char *)svd->value,
+            return PyUnicode_DecodeASCII(*(char **)svd->value,
                     strlen((char *)svd->value), SIP_NULLPTR);
 
         case sipTypeID_str_latin1:
-            if (svd->value == SIP_NULLPTR)
+            if (*(char **)svd->value == SIP_NULLPTR)
             {
                 Py_INCREF(Py_None);
                 return Py_None;
             }
 
-            return PyUnicode_DecodeLatin1((char *)svd->value,
+            return PyUnicode_DecodeLatin1(*(char **)svd->value,
                     strlen((char *)svd->value), SIP_NULLPTR);
 
         case sipTypeID_str_utf8:
-            if (svd->value == SIP_NULLPTR)
+            if (*(char **)svd->value == SIP_NULLPTR)
             {
                 Py_INCREF(Py_None);
                 return Py_None;
             }
 
-            return PyUnicode_FromString((char *)svd->value);
+            return PyUnicode_FromString(*(char **)svd->value);
 
         case sipTypeID_wstr:
-            if (svd->value == SIP_NULLPTR)
+            if (*(wchar_t **)(svd->value) == SIP_NULLPTR)
             {
                 Py_INCREF(Py_None);
                 return Py_None;
             }
 
-            return PyUnicode_FromWideChar((wchar_t *)svd->value,
-                    (Py_ssize_t)wcslen((wchar_t *)svd->value));
+            return PyUnicode_FromWideChar(*(wchar_t **)svd->value,
+                    (Py_ssize_t)wcslen(*(wchar_t **)svd->value));
 
         default:
             break;
@@ -197,20 +200,22 @@ static PyObject *ModuleWrapper_getattro(PyObject *self, PyObject *name)
 static int ModuleWrapper_setattro(PyObject *self, PyObject *name,
         PyObject *value)
 {
-    const sipStaticVariableDef *svd = get_static_variable_def(self, name);
+    sipWrappedModuleState *wms = (sipWrappedModuleState *)PyModule_GetState(
+            self);
+    const sipStaticVariableDef *svd = get_static_variable_def(wms, name);
 
     if (svd == NULL)
         return Py_TYPE(self)->tp_base->tp_setattro(self, name, value);
 
-    if (svd->flags & SIP_SV_RO)
+    if (svd->setter != NULL)
+        return svd->setter(value);
+
+    if (svd->key == SIP_SV_RO)
     {
         PyErr_Format(PyExc_ValueError,
                 "'%s' is a constant and cannot be modified", svd->name);
         return -1;
     }
-
-    if (svd->setter != NULL)
-        return svd->setter(value);
 
     switch (svd->type_id)
     {
@@ -493,13 +498,57 @@ static int ModuleWrapper_setattro(PyObject *self, PyObject *name,
             return 0;
         }
 
-#if 0
         case sipTypeID_str:
+        {
+            const char *c_value = sip_api_bytes_as_string(value);
+
+            if (PyErr_Occurred())
+                return -1;
+
+            if (sip_keep_reference(wms, NULL, svd->key, value) < 0)
+                return -1;
+
+            *(const char **)(svd->value) = c_value;
+
+            return 0;
+        }
+
+#if 0
         case sipTypeID_str_ascii:
         case sipTypeID_str_latin1:
         case sipTypeID_str_utf8:
+#endif
         case sipTypeID_sstr:
+        {
+            const signed char *c_value = (const signed char *)sip_api_bytes_as_string(value);
+
+            if (PyErr_Occurred())
+                return -1;
+
+            if (sip_keep_reference(wms, NULL, svd->key, value) < 0)
+                return -1;
+
+            *(const signed char **)(svd->value) = c_value;
+
+            return 0;
+        }
+
         case sipTypeID_ustr:
+        {
+            const unsigned char *c_value = (const unsigned char *)sip_api_bytes_as_string(value);
+
+            if (PyErr_Occurred())
+                return -1;
+
+            if (sip_keep_reference(wms, NULL, svd->key, value) < 0)
+                return -1;
+
+            *(const unsigned char **)(svd->value) = c_value;
+
+            return 0;
+        }
+
+#if 0
         case sipTypeID_wstr:
 #endif
 
@@ -542,11 +591,9 @@ static int compare_static_variable(const void *key, const void *el)
 /*
  * Return the static value definition for a name or NULL if there was none.
  */
-static const sipStaticVariableDef *get_static_variable_def(PyObject *wmod,
-        PyObject *name)
+static const sipStaticVariableDef *get_static_variable_def(
+        sipWrappedModuleState *wms, PyObject *name)
 {
-    sipWrappedModuleState *wms = (sipWrappedModuleState *)PyModule_GetState(
-            wmod);
     const sipWrappedModuleDef *wmd = wms->wrapped_module_def;
 
     if (wmd->nr_static_variables == 0)

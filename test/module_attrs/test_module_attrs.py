@@ -180,6 +180,42 @@ class ModuleAttrsTestCase(SIPTestCase):
         self.ma.wchar_attr = 'α'
         self.assertEqual(self.ma.wchar_attr, 'α')
 
+    def test_attrs_string(self):
+        """ Test the support for string attributes. """
+
+        self.assertIsNone(self.ma.string_attr)
+
+        with self.assertRaises(ValueError):
+            self.ma.string_attr = b'bad'
+
+        self.assertEqual(self.ma.string_attr_const, b'str')
+        self.ma.string_attr_const = b'new_str'
+        self.assertEqual(self.ma.string_attr_const, b'new_str')
+
+    def test_attrs_sstring(self):
+        """ Test the support for signed string attributes. """
+
+        self.assertIsNone(self.ma.sstring_attr)
+
+        with self.assertRaises(ValueError):
+            self.ma.sstring_attr = b'bad'
+
+        self.assertEqual(self.ma.sstring_attr_const, b'str')
+        self.ma.sstring_attr_const = b'new_str'
+        self.assertEqual(self.ma.sstring_attr_const, b'new_str')
+
+    def test_attrs_ustring(self):
+        """ Test the support for unsigned string attributes. """
+
+        self.assertIsNone(self.ma.ustring_attr)
+
+        with self.assertRaises(ValueError):
+            self.ma.ustring_attr = b'bad'
+
+        self.assertEqual(self.ma.ustring_attr_const, b'str')
+        self.ma.ustring_attr_const = b'new_str'
+        self.assertEqual(self.ma.ustring_attr_const, b'new_str')
+
     def test_const_types(self):
         """ Test the support for const module attributes. """
 

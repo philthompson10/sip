@@ -33,6 +33,7 @@ int sip_api_wrapped_module_clear(sipWrappedModuleState *wms)
     for (i = 0; i < wms->wrapped_module_def->nr_types; i++)
         Py_CLEAR(wms->py_types[i]);
 
+    Py_CLEAR(wms->extra_refs);
     Py_CLEAR(wms->imported_modules);
     Py_CLEAR(wms->sip_module);
     Py_CLEAR(wms->wrapped_module_name);
@@ -433,6 +434,7 @@ int sip_api_wrapped_module_traverse(sipWrappedModuleState *wms,
     for (i = 0; i < wms->wrapped_module_def->nr_types; i++)
         Py_VISIT(wms->py_types[i]);
 
+    Py_VISIT(wms->extra_refs);
     Py_VISIT(wms->imported_modules);
     Py_VISIT(wms->sip_module);
     Py_VISIT(wms->wrapped_module_name);

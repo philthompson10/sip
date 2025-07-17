@@ -17,5 +17,7 @@ The `%AccessCode` directive is no longer supported.
 The `%GetCode` and `%SetCode` directives are now supported for module
 attributes.
 
-Module attributes are properly wrapped and can be modified (if the underlying
-C/C++ type allows it).
+Module attributes can now modified with the same restrictions as class
+attributes.
+
+The signature of `sip_api_keep_reference()` has changed.

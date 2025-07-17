@@ -508,44 +508,6 @@ PyObject *sip_api_get_pyobject(PyObject *wmod, void *cppPtr,
 
 
 /*
- * Keep an extra reference to an object.
- */
-void sip_api_keep_reference(PyObject *self, int key, PyObject *obj)
-{
-    PyObject *dict, *key_obj;
-
-    /*
-     * If there isn't a "self" to keep the extra reference for later garbage
-     * collection then just take a reference and let it leak.
-     */
-    if (self == NULL)
-    {
-        Py_XINCREF(obj);
-        return;
-    }
-
-    /* Create the extra references dictionary if needed. */
-    if ((dict = ((sipSimpleWrapper *)self)->extra_refs) == NULL)
-    {
-        if ((dict = PyDict_New()) == NULL)
-            return;
-
-        ((sipSimpleWrapper *)self)->extra_refs = dict;
-    }
-
-    if ((key_obj = PyLong_FromLong(key)) != NULL)
-    {
-        /* This can happen if the argument was optional. */
-        if (obj == NULL)
-            obj = Py_None;
-
-        PyDict_SetItem(dict, key_obj, obj);
-        Py_DECREF(key_obj);
-    }
-}
-
-
-/*
  * Report a function with invalid argument types.
  */
 void sip_api_no_function(PyObject *parseErr, const char *func,
@@ -4235,6 +4197,8 @@ static int parse_result(sipWrappedModuleState *wms, PyObject *method,
                     const char **p = va_arg(va, const char **);
                     PyObject *keep = NULL;
 
+                    // TODO These should probably be
+                    // sip_api_string_as_*_string() to get the best exceptions.
                     switch (*fmt++)
                     {
                     case 'A':
@@ -4250,10 +4214,8 @@ static int parse_result(sipWrappedModuleState *wms, PyObject *method,
                         break;
                     }
 
-                    if (keep == NULL)
+                    if (keep == NULL || sip_keep_reference(wms, py_self, key, keep) < 0)
                         invalid = TRUE;
-                    else
-                        sip_api_keep_reference((PyObject *)py_self, key, keep);
                 }
 
                 break;
@@ -4263,10 +4225,10 @@ static int parse_result(sipWrappedModuleState *wms, PyObject *method,
                     int key = va_arg(va, int);
                     const char **p = va_arg(va, const char **);
 
-                    if (sip_parse_bytes_as_string(arg, p) < 0)
+                    // TODO This should probably be sip_api_bytes_as_string()
+                    // to get the best exception.
+                    if (sip_parse_bytes_as_string(arg, p) < 0 || sip_keep_reference(wms, py_self, key, arg) < 0)
                         invalid = TRUE;
-                    else
-                        sip_api_keep_reference((PyObject *)py_self, key, arg);
                 }
 
                 break;

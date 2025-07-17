@@ -58,7 +58,6 @@ void *sip_api_force_convert_to_type_us(PyObject *wmod, PyObject *pyObj,
         void **user_statep, int *iserrp);
 PyObject *sip_api_get_pyobject(PyObject *wmod, void *cppPtr,
         sipTypeID type_id);
-void sip_api_keep_reference(PyObject *self, int key, PyObject *obj);
 void sip_api_no_function(PyObject *parseErr, const char *func,
         const char *doc);
 void sip_api_no_method(PyObject *parseErr, const char *scope,
