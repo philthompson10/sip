@@ -94,6 +94,7 @@ char sip_api_string_as_ascii_char(PyObject *obj)
  * owns the encoded string.  Note that None is considered an error.
  */
 // TODO Why is None an error and not mapped to NULL? (As it is with wchar_t.)
+// Is this handled elsewhere, ie. the parsers?
 const char *sip_api_string_as_ascii_string(PyObject **obj)
 {
     PyObject *s = *obj;
@@ -593,7 +594,8 @@ static int parse_string_as_encoded_char(PyObject *bytes, PyObject *obj,
     {
         // TODO Review this, shouldn't it just raise the exception?  It looks
         // like, for historical reasons(?) we allow bytes (already encoded
-        // presumably) as well as a string object.
+        // presumably) as well as a string object.  Need to update the tests to
+        // check this support.
         PyErr_Clear();
 
         return sip_parse_bytes_as_char(obj, ap);

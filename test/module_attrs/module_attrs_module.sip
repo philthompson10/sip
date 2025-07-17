@@ -26,7 +26,7 @@ char char_attr = 10;
 char char_ascii_attr = 'A';
 char char_latin1_attr = 0xa3;
 char char_utf8_attr = 'A';
-signed char schar_attr = -10;
+signed char schar_attr = 10;
 unsigned char uchar_attr = 10;
 wchar_t wchar_attr = L'β';
 

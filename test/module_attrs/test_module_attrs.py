@@ -162,18 +162,16 @@ class ModuleAttrsTestCase(SIPTestCase):
     def test_attrs_schar(self):
         """ Test the support for signed char attributes. """
 
-        #self.assertEqual(self.ma.schar_attr, 10.)
-        #self.ma.schar_attr = 20.
-        #self.assertEqual(self.ma.schar_attr, 20.)
-        pass
+        self.assertEqual(self.ma.schar_attr, b'\x0a')
+        self.ma.schar_attr = b'\x14'
+        self.assertEqual(self.ma.schar_attr, b'\x14')
 
     def test_attrs_uchar(self):
         """ Test the support for unsigned char attributes. """
 
-        #self.assertEqual(self.ma.uchar_attr, 10.)
-        #self.ma.uchar_attr = 20.
-        #self.assertEqual(self.ma.uchar_attr, 20.)
-        pass
+        self.assertEqual(self.ma.uchar_attr, b'\x0a')
+        self.ma.uchar_attr = b'\x14'
+        self.assertEqual(self.ma.uchar_attr, b'\x14')
 
     def test_attrs_wchar(self):
         """ Test the support for wchar_t attributes. """
