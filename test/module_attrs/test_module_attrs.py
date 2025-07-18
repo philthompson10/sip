@@ -192,6 +192,42 @@ class ModuleAttrsTestCase(SIPTestCase):
         self.ma.string_attr_const = b'new_str'
         self.assertEqual(self.ma.string_attr_const, b'new_str')
 
+    def test_attrs_string_ascii(self):
+        """ Test the support for ASCII string attributes. """
+
+        self.assertIsNone(self.ma.string_ascii_attr)
+
+        with self.assertRaises(ValueError):
+            self.ma.string_ascii_attr = 'bad'
+
+        self.assertEqual(self.ma.string_ascii_attr_const, 'str')
+        self.ma.string_ascii_attr_const = 'new_str'
+        self.assertEqual(self.ma.string_ascii_attr_const, 'new_str')
+
+    def test_attrs_string_latin1(self):
+        """ Test the support for Latin-1 string attributes. """
+
+        self.assertIsNone(self.ma.string_latin1_attr)
+
+        with self.assertRaises(ValueError):
+            self.ma.string_latin1_attr = 'bad'
+
+        self.assertEqual(self.ma.string_latin1_attr_const, '££')
+        self.ma.string_latin1_attr_const = '§§'
+        self.assertEqual(self.ma.string_latin1_attr_const, '§§')
+
+    def test_attrs_string_utf8(self):
+        """ Test the support for UTF-8 string attributes. """
+
+        self.assertIsNone(self.ma.string_utf8_attr)
+
+        with self.assertRaises(ValueError):
+            self.ma.string_utf8_attr = 'bad'
+
+        self.assertEqual(self.ma.string_utf8_attr_const, '2H₂ + O₂ ⇌ 2H₂O')
+        self.ma.string_utf8_attr_const = 'ሲተረጉሙ ይደረግሙ።'
+        self.assertEqual(self.ma.string_utf8_attr_const, 'ሲተረጉሙ ይደረግሙ።')
+
     def test_attrs_sstring(self):
         """ Test the support for signed string attributes. """
 

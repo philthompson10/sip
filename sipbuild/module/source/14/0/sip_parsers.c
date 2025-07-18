@@ -2358,8 +2358,9 @@ static int parse_pass_1(sipWrappedModuleState *wms, PyObject **parseErrp,
     while (failure.reason == Ok || failure.reason == Overflow)
     {
         char ch;
-        PyObject *arg;
 
+        // TODO This  shouldn't be necessary if all conversions don't make an
+        // assumption about the current error state.
         PyErr_Clear();
 
         /* See if the following arguments are optional. */
@@ -2490,7 +2491,7 @@ static int parse_pass_1(sipWrappedModuleState *wms, PyObject **parseErrp,
         }
 
         /* Get the next argument. */
-        arg = NULL;
+        PyObject *arg = NULL;
         failure.arg_nr = -1;
         failure.arg_name = NULL;
 
@@ -2618,8 +2619,15 @@ static int parse_pass_1(sipWrappedModuleState *wms, PyObject **parseErrp,
 
                 const char **p = va_arg(va, const char **);
 
-                if (arg != NULL && sip_parse_bytes_as_string(arg, p) < 0)
-                    handle_failed_type_conversion(&failure, arg);
+                if (arg != NULL)
+                {
+                    const char *cp = sip_api_bytes_as_string(arg);
+
+                    if (PyErr_Occurred())
+                        handle_failed_type_conversion(&failure, arg);
+                    else
+                        *p = cp;
+                }
 
                 break;
             }
@@ -2657,7 +2665,7 @@ static int parse_pass_1(sipWrappedModuleState *wms, PyObject **parseErrp,
 
                 wchar_t **p = va_arg(va, wchar_t **);
 
-                if (arg != NULL && sip_parse_wchar_t_string(arg, p) < 0)
+                if (arg != NULL && sip_parse_wstring(arg, p) < 0)
                     handle_failed_type_conversion(&failure, arg);
 
                 break;
@@ -2890,8 +2898,21 @@ static int parse_pass_1(sipWrappedModuleState *wms, PyObject **parseErrp,
                 const char **p = va_arg(va, const char **);
                 Py_ssize_t *szp = va_arg(va, Py_ssize_t *);
 
-                if (arg != NULL && sip_parse_bytes_as_char_array(arg, p, szp) < 0)
-                    handle_failed_type_conversion(&failure, arg);
+                if (arg != NULL)
+                {
+                    Py_ssize_t asize;
+                    const char *cp = sip_api_bytes_as_char_array(arg, &asize);
+
+                    if (PyErr_Occurred())
+                    {
+                        handle_failed_type_conversion(&failure, arg);
+                    }
+                    else
+                    {
+                        *p = cp;
+                        *szp = asize;
+                    }
+                }
 
                 break;
             }
@@ -2903,7 +2924,7 @@ static int parse_pass_1(sipWrappedModuleState *wms, PyObject **parseErrp,
                 wchar_t **p = va_arg(va, wchar_t **);
                 Py_ssize_t *szp = va_arg(va, Py_ssize_t *);
 
-                if (arg != NULL && sip_parse_wchar_t_array(arg, p, szp) < 0)
+                if (arg != NULL && sip_parse_warray(arg, p, szp) < 0)
                     handle_failed_type_conversion(&failure, arg);
 
                 break;
@@ -2915,8 +2936,15 @@ static int parse_pass_1(sipWrappedModuleState *wms, PyObject **parseErrp,
 
                 char *p = va_arg(va, char *);
 
-                if (arg != NULL && sip_parse_bytes_as_char(arg, p) < 0)
-                    handle_failed_type_conversion(&failure, arg);
+                if (arg != NULL)
+                {
+                    char ch = sip_api_bytes_as_char(arg);
+
+                    if (PyErr_Occurred())
+                        handle_failed_type_conversion(&failure, arg);
+                    else
+                        *p = ch;
+                }
 
                 break;
             }
@@ -2927,7 +2955,7 @@ static int parse_pass_1(sipWrappedModuleState *wms, PyObject **parseErrp,
 
                 wchar_t *p = va_arg(va, wchar_t *);
 
-                if (arg != NULL && sip_parse_wchar_t(arg, p) < 0)
+                if (arg != NULL && sip_parse_wchar(arg, p) < 0)
                     handle_failed_type_conversion(&failure, arg);
 
                 break;
@@ -3699,33 +3727,35 @@ static int parse_pass_2(sipWrappedModuleState *wms, PyObject *self, int selfarg,
             {
                 /* String from a Python string or None. */
 
-                PyObject **keep = va_arg(va, PyObject **);
+                PyObject **keep_p = va_arg(va, PyObject **);
                 const char **p = va_arg(va, const char **);
                 char sub_fmt = *fmt++;
 
                 if (arg != NULL)
                 {
-                    PyObject *s = NULL;
+                    PyObject *keep = arg;
+                    const char *cp;
 
                     switch (sub_fmt)
                     {
                     case 'A':
-                        s = sip_parse_string_as_ascii_string(arg, p);
+                        cp = sip_api_string_as_ascii_string(&keep);
                         break;
 
                     case 'L':
-                        s = sip_parse_string_as_latin1_string(arg, p);
+                        cp = sip_api_string_as_latin1_string(&keep);
                         break;
 
                     case '8':
-                        s = sip_parse_string_as_utf8_string(arg, p);
+                        cp = sip_api_string_as_utf8_string(&keep);
                         break;
                     }
 
-                    if (s == NULL)
+                    if (PyErr_Occurred())
                         return FALSE;
 
-                    *keep = s;
+                    *keep_p = keep;
+                    *p = cp;
                 }
 
                 break;
@@ -3740,25 +3770,27 @@ static int parse_pass_2(sipWrappedModuleState *wms, PyObject *self, int selfarg,
 
                 if (arg != NULL)
                 {
-                    int enc = -1;
+                    char ch;
 
                     switch (sub_fmt)
                     {
                     case 'A':
-                        enc = sip_parse_string_as_ascii_char(arg, p);
+                        ch = sip_api_string_as_ascii_char(arg);
                         break;
 
                     case 'L':
-                        enc = sip_parse_string_as_latin1_char(arg, p);
+                        ch = sip_api_string_as_latin1_char(arg);
                         break;
 
                     case '8':
-                        enc = sip_parse_string_as_utf8_char(arg, p);
+                        ch = sip_api_string_as_utf8_char(arg);
                         break;
                     }
 
-                    if (enc < 0)
+                    if (PyErr_Occurred())
                         return FALSE;
+
+                    *p = ch;
                 }
 
                 break;
@@ -3906,8 +3938,18 @@ static int parse_result(sipWrappedModuleState *wms, PyObject *method,
                     const char **p = va_arg(va, const char **);
                     Py_ssize_t *szp = va_arg(va, Py_ssize_t *);
 
-                    if (sip_parse_bytes_as_char_array(arg, p, szp) < 0)
+                    Py_ssize_t asize;
+                    const char *cp = sip_api_bytes_as_char_array(arg, &asize);
+
+                    if (PyErr_Occurred())
+                    {
                         invalid = TRUE;
+                    }
+                    else
+                    {
+                        *p = cp;
+                        *szp = asize;
+                    }
                 }
 
                 break;
@@ -3917,7 +3959,7 @@ static int parse_result(sipWrappedModuleState *wms, PyObject *method,
                     wchar_t **p = va_arg(va, wchar_t **);
                     Py_ssize_t *szp = va_arg(va, Py_ssize_t *);
 
-                    if (sip_parse_wchar_t_array(arg, p, szp) < 0)
+                    if (sip_parse_warray(arg, p, szp) < 0)
                         invalid = TRUE;
                 }
 
@@ -3940,8 +3982,12 @@ static int parse_result(sipWrappedModuleState *wms, PyObject *method,
                 {
                     char *p = va_arg(va, char *);
 
-                    if (sip_parse_bytes_as_char(arg, p) < 0)
+                    char ch = sip_api_bytes_as_char(arg);
+
+                    if (PyErr_Occurred())
                         invalid = TRUE;
+                    else
+                        *p = ch;
                 }
 
                 break;
@@ -3949,25 +3995,27 @@ static int parse_result(sipWrappedModuleState *wms, PyObject *method,
             case 'a':
                 {
                     char *p = va_arg(va, char *);
-                    int enc = -1;
+                    char ch;
 
                     switch (*fmt++)
                     {
                     case 'A':
-                        enc = sip_parse_string_as_ascii_char(arg, p);
+                        ch = sip_api_string_as_ascii_char(arg);
                         break;
 
                     case 'L':
-                        enc = sip_parse_string_as_latin1_char(arg, p);
+                        ch = sip_api_string_as_latin1_char(arg);
                         break;
 
                     case '8':
-                        enc = sip_parse_string_as_utf8_char(arg, p);
+                        ch = sip_api_string_as_utf8_char(arg);
                         break;
                     }
 
-                    if (enc < 0)
+                    if (PyErr_Occurred())
                         invalid = TRUE;
+                    else
+                        *p = ch;
                 }
 
                 break;
@@ -3976,7 +4024,7 @@ static int parse_result(sipWrappedModuleState *wms, PyObject *method,
                 {
                     wchar_t *p = va_arg(va, wchar_t *);
 
-                    if (sip_parse_wchar_t(arg, p) < 0)
+                    if (sip_parse_wchar(arg, p) < 0)
                         invalid = TRUE;
                 }
 
@@ -4195,27 +4243,29 @@ static int parse_result(sipWrappedModuleState *wms, PyObject *method,
                 {
                     int key = va_arg(va, int);
                     const char **p = va_arg(va, const char **);
-                    PyObject *keep = NULL;
 
-                    // TODO These should probably be
-                    // sip_api_string_as_*_string() to get the best exceptions.
+                    PyObject *keep = arg;
+                    const char *cp;
+
                     switch (*fmt++)
                     {
                     case 'A':
-                        keep = sip_parse_string_as_ascii_string(arg, p);
+                        cp = sip_api_string_as_ascii_string(&keep);
                         break;
 
                     case 'L':
-                        keep = sip_parse_string_as_latin1_string(arg, p);
+                        cp = sip_api_string_as_latin1_string(&keep);
                         break;
 
                     case '8':
-                        keep = sip_parse_string_as_utf8_string(arg, p);
+                        cp = sip_api_string_as_utf8_string(&keep);
                         break;
                     }
 
-                    if (keep == NULL || sip_keep_reference(wms, py_self, key, keep) < 0)
+                    if (PyErr_Occurred() || sip_keep_reference(wms, py_self, key, keep) < 0)
                         invalid = TRUE;
+                    else
+                        *p = cp;
                 }
 
                 break;
@@ -4225,10 +4275,12 @@ static int parse_result(sipWrappedModuleState *wms, PyObject *method,
                     int key = va_arg(va, int);
                     const char **p = va_arg(va, const char **);
 
-                    // TODO This should probably be sip_api_bytes_as_string()
-                    // to get the best exception.
-                    if (sip_parse_bytes_as_string(arg, p) < 0 || sip_keep_reference(wms, py_self, key, arg) < 0)
+                    const char *cp = sip_api_bytes_as_string(arg);
+
+                    if (PyErr_Occurred() || sip_keep_reference(wms, py_self, key, arg) < 0)
                         invalid = TRUE;
+                    else
+                        *p = cp;
                 }
 
                 break;
@@ -4237,7 +4289,7 @@ static int parse_result(sipWrappedModuleState *wms, PyObject *method,
                 {
                     wchar_t **p = va_arg(va, wchar_t **);
 
-                    if (sip_parse_wchar_t_string(arg, p) < 0)
+                    if (sip_parse_wstring(arg, p) < 0)
                         invalid = TRUE;
                 }
 
