@@ -189,8 +189,12 @@ class ModuleAttrsTestCase(SIPTestCase):
             self.ma.string_attr = b'bad'
 
         self.assertEqual(self.ma.string_attr_const, b'str')
+
         self.ma.string_attr_const = b'new_str'
         self.assertEqual(self.ma.string_attr_const, b'new_str')
+
+        self.ma.string_attr_const = None
+        self.assertIsNone(self.ma.string_attr_const)
 
     def test_attrs_string_ascii(self):
         """ Test the support for ASCII string attributes. """
@@ -201,8 +205,12 @@ class ModuleAttrsTestCase(SIPTestCase):
             self.ma.string_ascii_attr = 'bad'
 
         self.assertEqual(self.ma.string_ascii_attr_const, 'str')
+
         self.ma.string_ascii_attr_const = 'new_str'
         self.assertEqual(self.ma.string_ascii_attr_const, 'new_str')
+
+        self.ma.string_ascii_attr_const = None
+        self.assertIsNone(self.ma.string_ascii_attr_const)
 
     def test_attrs_string_latin1(self):
         """ Test the support for Latin-1 string attributes. """
@@ -213,8 +221,12 @@ class ModuleAttrsTestCase(SIPTestCase):
             self.ma.string_latin1_attr = 'bad'
 
         self.assertEqual(self.ma.string_latin1_attr_const, '££')
+
         self.ma.string_latin1_attr_const = '§§'
         self.assertEqual(self.ma.string_latin1_attr_const, '§§')
+
+        self.ma.string_latin1_attr_const = None
+        self.assertIsNone(self.ma.string_latin1_attr_const)
 
     def test_attrs_string_utf8(self):
         """ Test the support for UTF-8 string attributes. """
@@ -225,8 +237,12 @@ class ModuleAttrsTestCase(SIPTestCase):
             self.ma.string_utf8_attr = 'bad'
 
         self.assertEqual(self.ma.string_utf8_attr_const, '2H₂ + O₂ ⇌ 2H₂O')
+
         self.ma.string_utf8_attr_const = 'ሲተረጉሙ ይደረግሙ።'
         self.assertEqual(self.ma.string_utf8_attr_const, 'ሲተረጉሙ ይደረግሙ።')
+
+        self.ma.string_utf8_attr_const = None
+        self.assertIsNone(self.ma.string_utf8_attr_const)
 
     def test_attrs_sstring(self):
         """ Test the support for signed string attributes. """
@@ -237,8 +253,12 @@ class ModuleAttrsTestCase(SIPTestCase):
             self.ma.sstring_attr = b'bad'
 
         self.assertEqual(self.ma.sstring_attr_const, b'str')
+
         self.ma.sstring_attr_const = b'new_str'
         self.assertEqual(self.ma.sstring_attr_const, b'new_str')
+
+        self.ma.sstring_attr_const = None
+        self.assertIsNone(self.ma.sstring_attr_const)
 
     def test_attrs_ustring(self):
         """ Test the support for unsigned string attributes. """
@@ -249,8 +269,12 @@ class ModuleAttrsTestCase(SIPTestCase):
             self.ma.ustring_attr = b'bad'
 
         self.assertEqual(self.ma.ustring_attr_const, b'str')
+
         self.ma.ustring_attr_const = b'new_str'
         self.assertEqual(self.ma.ustring_attr_const, b'new_str')
+
+        self.ma.ustring_attr_const = None
+        self.assertIsNone(self.ma.ustring_attr_const)
 
     def test_const_types(self):
         """ Test the support for const module attributes. """
