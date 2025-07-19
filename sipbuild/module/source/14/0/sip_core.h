@@ -15,7 +15,6 @@
 #define PY_SSIZE_T_CLEAN
 #include <Python.h>
 
-#include <stdbool.h>
 #include <stdint.h>
 
 #include "sip.h"
@@ -147,8 +146,6 @@ sipTypeID sip_type_scope(sipWrappedModuleState *wms, sipTypeID type_id);
 PyObject *sip_unpickle_type(PyObject *mod, PyObject *args);
 PyObject *sip_wrap_simple_instance(sipSipModuleState *sms, void *cpp,
         PyTypeObject *py_type, sipWrapper *owner, int flags);
-
-#define sip_set_bool(p, v)    (*(_Bool *)(p) = (v))
 
 
 #ifdef __cplusplus

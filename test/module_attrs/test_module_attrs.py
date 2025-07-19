@@ -19,6 +19,21 @@ class ModuleAttrsTestCase(SIPTestCase):
 
         cls.ma = ma
 
+    def test_attrs_bool(self):
+        """ Test the support for bool and _Bool attributes. """
+
+        self.assertIs(self.ma.bool_attr, True)
+        self.ma.bool_attr = False
+        self.assertIs(self.ma.bool_attr, False)
+        self.ma.bool_attr = 10
+        self.assertIs(self.ma.bool_attr, True)
+
+        self.assertIs(self.ma._Bool_attr, True)
+        self.ma._Bool_attr = False
+        self.assertIs(self.ma._Bool_attr, False)
+        self.ma._Bool_attr = 10
+        self.assertIs(self.ma._Bool_attr, True)
+
     def test_attrs_byte(self):
         """ Test the support for char as integer attributes. """
 

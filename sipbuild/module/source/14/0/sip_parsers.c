@@ -13,6 +13,7 @@
 
 #include <assert.h>
 #include <stdarg.h>
+#include <stdbool.h>
 #include <string.h>
 
 #include "sip_parsers.h"
@@ -3004,16 +3005,16 @@ static int parse_pass_1(sipWrappedModuleState *wms, PyObject **parseErrp,
             {
                 /* Bool. */
 
-                void *p = va_arg(va, void *);
+                _Bool *p = va_arg(va, _Bool *);
 
                 if (arg != NULL)
                 {
-                    int v = sip_api_convert_to_bool(arg);
+                    _Bool v = sip_api_convert_to_bool(arg);
 
-                    if (v < 0)
+                    if (PyErr_Occurred())
                         handle_failed_type_conversion(&failure, arg);
                     else
-                        sip_set_bool(p, v);
+                        *p = v;
                 }
 
                 break;
@@ -3338,7 +3339,7 @@ static int parse_pass_1(sipWrappedModuleState *wms, PyObject **parseErrp,
                                 /* Boolean. */
 
                                 if (PyBool_Check(arg))
-                                    sip_set_bool(p, (arg == Py_True));
+                                    *(_Bool *)p = (arg == Py_True);
                                 else
                                     handle_failed_type_conversion(&failure,
                                             arg);
@@ -4020,13 +4021,14 @@ static int parse_result(sipWrappedModuleState *wms, PyObject *method,
 
             case 'b':
                 {
-                    char *p = va_arg(va, void *);
-                    int v = sip_api_convert_to_bool(arg);
+                    _Bool *p = va_arg(va, _Bool *);
 
-                    if (v < 0)
+                    _Bool v = sip_api_convert_to_bool(arg);
+
+                    if (PyErr_Occurred())
                         invalid = TRUE;
                     else if (p != NULL)
-                        sip_set_bool(p, v);
+                        *p = v;
                 }
 
                 break;

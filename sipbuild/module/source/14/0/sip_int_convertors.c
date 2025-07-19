@@ -12,6 +12,7 @@
 #include <Python.h>
 
 #include <limits.h>
+#include <stdbool.h>
 
 #include "sip_int_convertors.h"
 
@@ -23,14 +24,19 @@ static void raise_unsigned_overflow(unsigned long long max);
 
 
 /*
- * Convert a Python object to a C++ bool (returned as an int).
+ * Convert a Python object to a C bool.
  */
-int sip_api_convert_to_bool(PyObject *o)
+_Bool sip_api_convert_to_bool(PyObject *o)
 {
-    int v;
+    /* Handle the actual values explictly. */
+    if (o == Py_True)
+        return 1;
 
-    /* Convert the object to an int while checking for overflow. */
-    v = sip_api_long_as_int(o);
+    if (o == Py_False)
+        return 0;
+
+    /* Convert the object while checking for overflow. */
+    _Bool v = sip_api_long_as_int(o);
 
     if (PyErr_Occurred())
     {
@@ -43,10 +49,7 @@ int sip_api_convert_to_bool(PyObject *o)
         }
         else
         {
-            PyErr_Format(PyExc_TypeError, "a 'bool' is expected not '%s'",
-                    Py_TYPE(o)->tp_name);
-
-            v = -1;
+            PyErr_SetString(PyExc_TypeError, "a bool is expected");
         }
     }
     else if (v != 0)

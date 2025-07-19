@@ -108,7 +108,7 @@ char sip_api_string_as_ascii_char(PyObject *obj)
         /* Use the exception set if it was an encoding error. */
         if (!PyUnicode_Check(obj) || PyUnicode_GET_LENGTH(obj) != 1)
             PyErr_SetString(PyExc_TypeError,
-                    "bytes-like object or ASCII string of length 1 expected");
+                    "a bytes-like object or ASCII string of length 1 expected");
 
         return '\0';
     }
@@ -132,7 +132,7 @@ const char *sip_api_string_as_ascii_string(PyObject **obj_p)
         /* Use the exception set if it was an encoding error. */
         if (!PyUnicode_Check(*obj_p))
             PyErr_SetString(PyExc_TypeError,
-                    "bytes-like object or ASCII string expected");
+                    "a bytes-like object or ASCII string expected");
 
         return NULL;
     }
@@ -154,7 +154,7 @@ char sip_api_string_as_latin1_char(PyObject *obj)
         /* Use the exception set if it was an encoding error. */
         if (!PyUnicode_Check(obj) || PyUnicode_GET_LENGTH(obj) != 1)
             PyErr_SetString(PyExc_TypeError,
-                    "bytes-like object or Latin-1 string of length 1 expected");
+                    "a bytes-like object or Latin-1 string of length 1 expected");
 
         return '\0';
     }
@@ -178,7 +178,7 @@ const char *sip_api_string_as_latin1_string(PyObject **obj_p)
         /* Use the exception set if it was an encoding error. */
         if (!PyUnicode_Check(*obj_p))
             PyErr_SetString(PyExc_TypeError,
-                    "bytes-like object or Latin-1 string expected");
+                    "a bytes-like object or Latin-1 string expected");
 
         return NULL;
     }
@@ -200,7 +200,7 @@ char sip_api_string_as_utf8_char(PyObject *obj)
         /* Use the exception set if it was an encoding error. */
         if (!PyUnicode_Check(obj) || PyUnicode_GET_LENGTH(obj) != 1)
             PyErr_SetString(PyExc_TypeError,
-                    "bytes-like object or UTF-8 string of length 1 expected");
+                    "a bytes-like object or UTF-8 string of length 1 expected");
 
         return '\0';
     }
@@ -224,7 +224,7 @@ const char *sip_api_string_as_utf8_string(PyObject **obj_p)
         /* Use the exception set if it was an encoding error. */
         if (!PyUnicode_Check(*obj_p))
             PyErr_SetString(PyExc_TypeError,
-                    "bytes-like object or UTF-8 string expected");
+                    "a bytes-like object or UTF-8 string expected");
 
         return NULL;
     }
@@ -240,7 +240,7 @@ wchar_t sip_api_string_as_wchar(PyObject *obj)
 {
     if (!PyUnicode_Check(obj) || PyUnicode_GET_LENGTH(obj) != 1)
     {
-        PyErr_SetString(PyExc_TypeError, "string of length 1 expected");
+        PyErr_SetString(PyExc_TypeError, "a string of length 1 expected");
         return L'\0';
     }
 
@@ -304,7 +304,7 @@ wchar_t *sip_api_string_as_wchar_array(PyObject **obj_p, Py_ssize_t *asize_p)
     }
     else
     {
-        PyErr_SetString(PyExc_TypeError, "string expected");
+        PyErr_SetString(PyExc_TypeError, "a string expected");
         return NULL;
     }
 
@@ -342,7 +342,8 @@ static char parse_string_as_encoded_char(PyObject *bytes, PyObject *obj)
 
     if (PyBytes_GET_SIZE(bytes) != 1)
     {
-        PyErr_SetString(PyExc_TypeError, "decoded value of length 1 expected");
+        PyErr_SetString(PyExc_TypeError,
+                "a decoded value of length 1 expected");
 
         Py_DECREF(bytes);
         return '\0';

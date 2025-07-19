@@ -20,4 +20,12 @@ attributes.
 Module attributes can now modified with the same restrictions as class
 attributes.
 
-The signature of `sip_api_keep_reference()` has changed.
+The signature of `sipKeepReference()` has changed.
+
+`sipConvertToBool()` returns a `_Bool` value.
+
+`sipBuildResult()` `b` format character takes a `_Bool` argument.
+
+`sipParseResult()` `b` format character takes a `_Bool *` argument.
+
+`_Bool` is now a synonym of `bool` in `.sip` specification files.

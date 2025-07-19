@@ -126,7 +126,10 @@ def fmt_argument_as_cpp_type(spec, arg, name=None, scope=None,
             s += 'void'
 
         elif arg.type in (ArgumentType.BOOL, ArgumentType.CBOOL):
-            s += 'bool'
+            if spec.c_bindings and spec.target_abi >= (14, 0):
+                s += '_Bool'
+            else:
+                s += 'bool'
 
         elif arg.type in (ArgumentType.FLOAT, ArgumentType.CFLOAT):
             s += 'float'

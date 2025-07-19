@@ -15,13 +15,15 @@
 #define PY_SSIZE_T_CLEAN
 #include <Python.h>
 
+#include <stdbool.h>
+
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
 
-int sip_api_convert_to_bool(PyObject *o);
+_Bool sip_api_convert_to_bool(PyObject *o);
 char sip_api_long_as_char(PyObject *o);
 signed char sip_api_long_as_signed_char(PyObject *o);
 unsigned char sip_api_long_as_unsigned_char(PyObject *o);

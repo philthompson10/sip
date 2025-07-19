@@ -6,6 +6,8 @@
 
 %ModuleHeaderCode
 // POD types.
+bool bool_attr = 1;
+_Bool _Bool_attr = 1;
 char byte_attr = 10;
 signed char sbyte_attr = -10;
 unsigned char ubyte_attr = 10;
@@ -61,6 +63,8 @@ int int_attr_bad_setter = 10;
 
 
 // POD types.
+bool bool_attr;
+_Bool _Bool_attr;
 char byte_attr /PyInt/;
 signed char sbyte_attr /PyInt/;
 unsigned char ubyte_attr /PyInt/;

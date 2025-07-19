@@ -336,7 +336,7 @@ f'''static int sipStaticVariableSetter_{v_ref}(PyObject *sipPy)
             not_settable = False
             might_need_key = False
 
-            # TODO Python objects, named enums, generated types void *, bool.
+            # TODO Python objects, named enums, generated types, void *.
             if v_type.type is ArgumentType.CLASS or (v_type.type is ArgumentType.ENUM and v_type.definition.fq_cpp_name is not None):
                 pass
 
@@ -467,6 +467,10 @@ f'''static int sipStaticVariableSetter_{v_ref}(PyObject *sipPy)
                     type_id = 'sipTypeID_wstr'
                     not_settable = False
                     might_need_key = True
+
+            elif v_type.type in (ArgumentType.BOOL, ArgumentType.CBOOL):
+                type_id = 'sipTypeID_bool'
+                not_settable = v_type.is_const
 
             else:
                 continue

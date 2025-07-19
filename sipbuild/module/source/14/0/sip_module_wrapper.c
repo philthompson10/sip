@@ -11,6 +11,7 @@
 #define PY_SSIZE_T_CLEAN
 #include <Python.h>
 
+#include <stdbool.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -204,6 +205,9 @@ static PyObject *ModuleWrapper_getattro(PyObject *self, PyObject *name)
                 return PyUnicode_FromWideChar(c_value,
                         (Py_ssize_t)wcslen(c_value));
             }
+
+        case sipTypeID_bool:
+            return PyBool_FromLong(*(_Bool *)(svd->value));
 
         default:
             break;
@@ -619,6 +623,18 @@ static int ModuleWrapper_setattro(PyObject *self, PyObject *name,
                 return -1;
 
             *(wchar_t **)(svd->value) = c_value;
+
+            return 0;
+        }
+
+        case sipTypeID_bool:
+        {
+            _Bool c_value = sip_api_convert_to_bool(value);
+
+            if (PyErr_Occurred())
+                return -1;
+
+            *(_Bool *)(svd->value) = c_value;
 
             return 0;
         }
