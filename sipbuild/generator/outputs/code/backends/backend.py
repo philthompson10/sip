@@ -463,8 +463,9 @@ f'''static int sipStaticVariableSetter_{v_ref}(PyObject *sipPy)
                     type_id = 'sipTypeID_wchar'
                     not_settable = v_type.is_const
                 else:
+                    # Note that wchar_t strings/arrays are mutable.
                     type_id = 'sipTypeID_wstr'
-                    not_settable = not v_type.is_const
+                    not_settable = False
                     might_need_key = True
 
             else:

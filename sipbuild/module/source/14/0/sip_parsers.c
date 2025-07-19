@@ -2663,11 +2663,25 @@ static int parse_pass_1(sipWrappedModuleState *wms, PyObject **parseErrp,
             {
                 /* Wide string or None. */
 
+                PyObject **keep_p = va_arg(va, PyObject **);
                 wchar_t **p = va_arg(va, wchar_t **);
 
-                if (arg != NULL && sip_parse_wstring(arg, p) < 0)
-                    handle_failed_type_conversion(&failure, arg);
+                if (arg != NULL)
+                {
+                    PyObject *keep = arg;
 
+                    wchar_t *wcp = sip_api_string_as_wstring(&keep);
+
+                    if (PyErr_Occurred())
+                    {
+                        handle_failed_type_conversion(&failure, arg);
+                    }
+                    else
+                    {
+                        *keep_p = keep;
+                        *p = wcp;
+                    }
+                }
                 break;
             }
 
@@ -2921,11 +2935,29 @@ static int parse_pass_1(sipWrappedModuleState *wms, PyObject **parseErrp,
             {
                 /* Wide char array or None. */
 
+                PyObject **keep_p = va_arg(va, PyObject **);
                 wchar_t **p = va_arg(va, wchar_t **);
                 Py_ssize_t *szp = va_arg(va, Py_ssize_t *);
 
-                if (arg != NULL && sip_parse_warray(arg, p, szp) < 0)
-                    handle_failed_type_conversion(&failure, arg);
+                if (arg != NULL)
+                {
+                    PyObject *keep = arg;
+                    Py_ssize_t asize;
+
+                    wchar_t *wcp = sip_api_string_as_wchar_array(&keep,
+                            &asize);
+
+                    if (PyErr_Occurred())
+                    {
+                        handle_failed_type_conversion(&failure, arg);
+                    }
+                    else
+                    {
+                        *keep_p = keep;
+                        *p = wcp;
+                        *szp = asize;
+                    }
+                }
 
                 break;
             }
@@ -2955,8 +2987,15 @@ static int parse_pass_1(sipWrappedModuleState *wms, PyObject **parseErrp,
 
                 wchar_t *p = va_arg(va, wchar_t *);
 
-                if (arg != NULL && sip_parse_wchar(arg, p) < 0)
-                    handle_failed_type_conversion(&failure, arg);
+                if (arg != NULL)
+                {
+                    wchar_t wch = sip_api_string_as_wchar(arg);
+
+                    if (PyErr_Occurred())
+                        handle_failed_type_conversion(&failure, arg);
+                    else
+                        *p = wch;
+                }
 
                 break;
             }
@@ -3956,11 +3995,25 @@ static int parse_result(sipWrappedModuleState *wms, PyObject *method,
 
             case 'G':
                 {
+                    int key = va_arg(va, int);
                     wchar_t **p = va_arg(va, wchar_t **);
                     Py_ssize_t *szp = va_arg(va, Py_ssize_t *);
 
-                    if (sip_parse_warray(arg, p, szp) < 0)
+                    PyObject *keep = arg;
+                    Py_ssize_t asize;
+
+                    wchar_t *wcp = sip_api_string_as_wchar_array(&keep,
+                            &asize);
+
+                    if (PyErr_Occurred() || sip_keep_reference(wms, py_self, key, keep) < 0)
+                    {
                         invalid = TRUE;
+                    }
+                    else
+                    {
+                        *p = wcp;
+                        *szp = asize;
+                    }
                 }
 
                 break;
@@ -4024,8 +4077,12 @@ static int parse_result(sipWrappedModuleState *wms, PyObject *method,
                 {
                     wchar_t *p = va_arg(va, wchar_t *);
 
-                    if (sip_parse_wchar(arg, p) < 0)
+                    wchar_t wch = sip_api_string_as_wchar(arg);
+
+                    if (PyErr_Occurred())
                         invalid = TRUE;
+                    else
+                        *p = wch;
                 }
 
                 break;
@@ -4287,10 +4344,17 @@ static int parse_result(sipWrappedModuleState *wms, PyObject *method,
 
             case 'x':
                 {
+                    int key = va_arg(va, int);
                     wchar_t **p = va_arg(va, wchar_t **);
 
-                    if (sip_parse_wstring(arg, p) < 0)
+                    PyObject *keep = arg;
+
+                    wchar_t *wcp = sip_api_string_as_wstring(&keep);
+
+                    if (PyErr_Occurred() || sip_keep_reference(wms, py_self, key, keep) < 0)
                         invalid = TRUE;
+                    else
+                        *p = wcp;
                 }
 
                 break;

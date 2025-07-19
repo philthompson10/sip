@@ -25,17 +25,14 @@ char sip_api_bytes_as_char(PyObject *obj);
 const char *sip_api_bytes_as_char_array(PyObject *obj, Py_ssize_t *asize_p);
 const char *sip_api_bytes_as_string(PyObject *obj);
 char sip_api_string_as_ascii_char(PyObject *obj);
-const char *sip_api_string_as_ascii_string(PyObject **objp);
+const char *sip_api_string_as_ascii_string(PyObject **obj_p);
 char sip_api_string_as_latin1_char(PyObject *obj);
-const char *sip_api_string_as_latin1_string(PyObject **objp);
+const char *sip_api_string_as_latin1_string(PyObject **obj_p);
 char sip_api_string_as_utf8_char(PyObject *obj);
-const char *sip_api_string_as_utf8_string(PyObject **objp);
+const char *sip_api_string_as_utf8_string(PyObject **obj_p);
 wchar_t sip_api_string_as_wchar(PyObject *obj);
-wchar_t *sip_api_string_as_wstring(PyObject *obj);
-
-int sip_parse_wchar(PyObject *obj, wchar_t *ap);
-int sip_parse_warray(PyObject *obj, wchar_t **ap, Py_ssize_t *aszp);
-int sip_parse_wstring(PyObject *obj, wchar_t **ap);
+wchar_t *sip_api_string_as_wchar_array(PyObject **obj_p, Py_ssize_t *asize_p);
+wchar_t *sip_api_string_as_wstring(PyObject **obj_p);
 
 
 #ifdef __cplusplus

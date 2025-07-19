@@ -22,7 +22,8 @@
 /* Forward references. */
 static char parse_string_as_encoded_char(PyObject *bytes, PyObject *obj);
 static const char *parse_string_as_encoded_string(PyObject *bytes,
-        PyObject **objp);
+        PyObject **obj_p);
+static void wchar_array_dtor(PyObject *mem);
 
 
 /*
@@ -38,7 +39,7 @@ char sip_api_bytes_as_char(PyObject *obj)
         return '\0';
 
     if (asize != 1)
-        PyErr_Format(PyExc_TypeError,
+        PyErr_SetString(PyExc_TypeError,
                 "a bytes-like object of length 1 expected");
 
     return *cp;
@@ -121,16 +122,16 @@ char sip_api_string_as_ascii_char(PyObject *obj)
  * string and raise an The object is updated with the one that owns the encoded
  * string.
  */
-const char *sip_api_string_as_ascii_string(PyObject **objp)
+const char *sip_api_string_as_ascii_string(PyObject **obj_p)
 {
     const char *cp = parse_string_as_encoded_string(
-            PyUnicode_AsASCIIString(*objp), objp);
+            PyUnicode_AsASCIIString(*obj_p), obj_p);
 
     if (PyErr_Occurred())
     {
         /* Use the exception set if it was an encoding error. */
-        if (!PyUnicode_Check(*objp))
-            PyErr_Format(PyExc_TypeError,
+        if (!PyUnicode_Check(*obj_p))
+            PyErr_SetString(PyExc_TypeError,
                     "bytes-like object or ASCII string expected");
 
         return NULL;
@@ -167,16 +168,16 @@ char sip_api_string_as_latin1_char(PyObject *obj)
  * C string and raise an exception if there was an error.  The object is
  * updated with the one that owns the encoded string.
  */
-const char *sip_api_string_as_latin1_string(PyObject **objp)
+const char *sip_api_string_as_latin1_string(PyObject **obj_p)
 {
     const char *cp = parse_string_as_encoded_string(
-            PyUnicode_AsLatin1String(*objp), objp);
+            PyUnicode_AsLatin1String(*obj_p), obj_p);
 
     if (PyErr_Occurred())
     {
         /* Use the exception set if it was an encoding error. */
-        if (!PyUnicode_Check(*objp))
-            PyErr_Format(PyExc_TypeError,
+        if (!PyUnicode_Check(*obj_p))
+            PyErr_SetString(PyExc_TypeError,
                     "bytes-like object or Latin-1 string expected");
 
         return NULL;
@@ -213,16 +214,16 @@ char sip_api_string_as_utf8_char(PyObject *obj)
  * string and raise an exception if there was an error.  The object is updated
  * with the one that owns the encoded string.
  */
-const char *sip_api_string_as_utf8_string(PyObject **objp)
+const char *sip_api_string_as_utf8_string(PyObject **obj_p)
 {
     const char *cp = parse_string_as_encoded_string(
-            PyUnicode_AsUTF8String(*objp), objp);
+            PyUnicode_AsUTF8String(*obj_p), obj_p);
 
     if (PyErr_Occurred())
     {
         /* Use the exception set if it was an encoding error. */
-        if (!PyUnicode_Check(*objp))
-            PyErr_Format(PyExc_TypeError,
+        if (!PyUnicode_Check(*obj_p))
+            PyErr_SetString(PyExc_TypeError,
                     "bytes-like object or UTF-8 string expected");
 
         return NULL;
@@ -237,131 +238,91 @@ const char *sip_api_string_as_utf8_string(PyObject **objp)
  */
 wchar_t sip_api_string_as_wchar(PyObject *obj)
 {
-    wchar_t ch;
-
-    PyErr_Clear();
-
-    if (sip_parse_wchar(obj, &ch) < 0)
+    if (!PyUnicode_Check(obj) || PyUnicode_GET_LENGTH(obj) != 1)
     {
-        PyErr_Format(PyExc_ValueError,
-                "string of length 1 expected, not %s", Py_TYPE(obj)->tp_name);
-
+        PyErr_SetString(PyExc_TypeError, "string of length 1 expected");
         return L'\0';
     }
 
-    return ch;
+    wchar_t wch;
+
+    if (PyUnicode_AsWideChar(obj, &wch, 1) != 1)
+        return L'\0';
+
+    /*
+     * This might have been set coming in to this call but it didn't matter
+     * until now.
+     */
+    PyErr_Clear();
+
+    return wch;
 }
 
 
 /*
- * Convert a Python string object to a wide character string on the heap.
+ * Convert an optional Python string object as a C wchar_t array returning its
+ * address and length.  An exception is raised if there was an error.
  */
-wchar_t *sip_api_string_as_wstring(PyObject *obj)
+wchar_t *sip_api_string_as_wchar_array(PyObject **obj_p, Py_ssize_t *asize_p)
 {
-    wchar_t *p;
+    wchar_t *wcp;
+    Py_ssize_t asize;
+    PyObject *obj = *obj_p;
 
     PyErr_Clear();
 
-    if (sip_parse_wstring(obj, &p) < 0)
+    if (obj == Py_None)
     {
-        PyErr_Format(PyExc_ValueError,
-                "string expected, not %s", Py_TYPE(obj)->tp_name);
+        wcp = NULL;
+        asize = 0;
 
+        /* The extra reference as owner. */
+        Py_INCREF(obj);
+    }
+    else if (PyUnicode_Check(obj))
+    {
+        /*
+         * If the size isn't requested then this will check for embedded L'\0'
+         * characters.
+         */
+        wcp = PyUnicode_AsWideCharString(obj, asize_p != NULL ? &asize : NULL);
+        if (wcp == NULL)
+            return NULL;
+
+        /*
+         * Wrap the array in a capsule so that it can be garbage collected when
+         * no longer needed.
+         */
+        PyObject *mem = PyCapsule_New((void *)wcp, NULL, wchar_array_dtor);
+        if (mem == NULL)
+        {
+            PyMem_Free(wcp);
+            return NULL;
+        }
+
+        *obj_p = mem;
+    }
+    else
+    {
+        PyErr_SetString(PyExc_TypeError, "string expected");
         return NULL;
     }
 
-    return p;
+    if (asize_p != NULL)
+        *asize_p = asize;
+
+    return wcp;
 }
 
 
 /*
- * Parse a string object as a wchar_t.
+ * Convert an optional Python string object to a wide character array and raise
+ * an exception if there was an error.  The object is updated with the one that
+ * owns the array.
  */
-int sip_parse_wchar(PyObject *obj, wchar_t *ap)
+wchar_t *sip_api_string_as_wstring(PyObject **obj_p)
 {
-    wchar_t a;
-
-    if (PyUnicode_Check(obj))
-    {
-        if (PyUnicode_GET_LENGTH(obj) != 1)
-            return -1;
-
-        if (PyUnicode_AsWideChar(obj, &a, 1) != 1)
-            return -1;
-    }
-    else
-    {
-        // TODO bad type
-        return -1;
-    }
-
-    if (ap != NULL)
-        *ap = a;
-
-    return 0;
-}
-
-
-/*
- * Parse a string object to a wchar_t array.
- */
-int sip_parse_warray(PyObject *obj, wchar_t **ap, Py_ssize_t *aszp)
-{
-    wchar_t *a;
-    Py_ssize_t asz;
-
-    if (obj == Py_None)
-    {
-        a = NULL;
-        asz = 0;
-    }
-    else if (PyUnicode_Check(obj))
-    {
-        if ((a = PyUnicode_AsWideCharString(obj, &asz)) == NULL)
-            return -1;
-    }
-    else
-    {
-        // TODO Bad type
-        return -1;
-    }
-
-    if (ap != NULL)
-        *ap = a;
-
-    if (aszp != NULL)
-        *aszp = asz;
-
-    return 0;
-}
-
-
-/*
- * Parse a string object to a wide character string.
- */
-int sip_parse_wstring(PyObject *obj, wchar_t **ap)
-{
-    wchar_t *a;
-
-    if (obj == Py_None)
-    {
-        a = NULL;
-    }
-    else if (PyUnicode_Check(obj))
-    {
-        if ((a = PyUnicode_AsWideCharString(obj, NULL)) == NULL)
-            return -1;
-    }
-    else
-    {
-        // TODO bad type
-        return -1;
-    }
-
-    if (ap != NULL)
-        *ap = a;
-
-    return 0;
+    return sip_api_string_as_wchar_array(obj_p, NULL);
 }
 
 
@@ -405,11 +366,11 @@ static char parse_string_as_encoded_char(PyObject *bytes, PyObject *obj)
  * that owns the encoded string.
  */
 static const char *parse_string_as_encoded_string(PyObject *bytes,
-        PyObject **objp)
+        PyObject **obj_p)
 {
     if (bytes == NULL)
     {
-        PyObject *obj = *objp;
+        PyObject *obj = *obj_p;
 
         /* Don't try anything else if there was an encoding error. */
         if (PyUnicode_Check(obj))
@@ -427,7 +388,7 @@ static const char *parse_string_as_encoded_string(PyObject *bytes,
         return cp;
     }
 
-    *objp = bytes;
+    *obj_p = bytes;
 
     /*
      * This might have been set coming in to the outer call but it didn't
@@ -436,4 +397,13 @@ static const char *parse_string_as_encoded_string(PyObject *bytes,
     PyErr_Clear();
 
     return PyBytes_AS_STRING(bytes);
+}
+
+
+/*
+ * Garbage collect the wchar_t array in a capsule.
+ */
+static void wchar_array_dtor(PyObject *mem)
+{
+    PyMem_Free(PyCapsule_GetPointer(mem, NULL));
 }

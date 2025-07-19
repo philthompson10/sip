@@ -7724,12 +7724,20 @@ _PY_REF_TYPES = (ArgumentType.ASCII_STRING, ArgumentType.LATIN1_STRING,
     ArgumentType.UTF8_STRING, ArgumentType.USTRING, ArgumentType.SSTRING,
     ArgumentType.STRING)
 
-def _keep_py_reference(arg):
+def _keep_py_reference(spec, arg):
     """ Return True if the argument has a type that requires an extra reference
     to the originating object to be kept.
     """
 
-    return (arg.type in _PY_REF_TYPES and not arg.is_reference and len(arg.derefs) > 0)
+    if arg.is_reference or len(arg.derefs) == 0:
+        return False
+
+    if arg.type in _PY_REF_TYPES:
+        return True
+
+    # wchar_t strings/arrays don't leak in ABI v14 and later.  Note that this
+    # solution could be adopted for earlier ABIs.
+    return spec.target_abi >= (14, 0) and arg.type is ArgumentType.WSTRING
 
 
 def _get_encoding(type):

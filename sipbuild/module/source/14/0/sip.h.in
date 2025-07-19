@@ -358,6 +358,7 @@ typedef struct _sipEnumMemberDef {
 typedef PyObject *(*sipStaticVariableGetterFunc)();
 typedef int (*sipStaticVariableSetterFunc)(PyObject *);
 
+// TODO Consider adding a size_t field to support fixed size arrays.
 typedef struct {
     const char *name;                   /* The name of the value. */
     sipTypeID type_id;                  /* The type of the value. */
@@ -1359,13 +1360,13 @@ struct _sipAPIDef {
     const char *(*api_bytes_as_char_array)(PyObject *obj, Py_ssize_t *asize_p);
     const char *(*api_bytes_as_string)(PyObject *obj);
     char (*api_string_as_ascii_char)(PyObject *obj);
-    const char *(*api_string_as_ascii_string)(PyObject **objp);
+    const char *(*api_string_as_ascii_string)(PyObject **obj_p);
     char (*api_string_as_latin1_char)(PyObject *obj);
-    const char *(*api_string_as_latin1_string)(PyObject **objp);
+    const char *(*api_string_as_latin1_string)(PyObject **obj_p);
     char (*api_string_as_utf8_char)(PyObject *obj);
-    const char *(*api_string_as_utf8_string)(PyObject **objp);
+    const char *(*api_string_as_utf8_string)(PyObject **obj_p);
     wchar_t (*api_string_as_wchar)(PyObject *obj);
-    wchar_t *(*api_string_as_wstring)(PyObject *obj);
+    wchar_t *(*api_string_as_wstring)(PyObject **obj_p);
     int (*api_deprecated)(const char *classname, const char *method,
             const char *message);
     int (*api_keep_reference)(PyObject *wmod, sipSimpleWrapper *w, int key,
