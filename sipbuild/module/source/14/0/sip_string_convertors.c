@@ -376,7 +376,6 @@ static char parse_string_as_encoded_char(PyObject *bytes, PyObject *obj)
         if (PyUnicode_Check(obj))
             return '\0';
 
-        // TODO Update the tests for this behaviour.
         return sip_api_bytes_as_char(obj);
     }
 
@@ -417,7 +416,6 @@ static const char *parse_string_as_encoded_string(PyObject *bytes,
             return NULL;
 
         /* This will take care of the None/NULL case. */
-        // TODO Update the tests for this behaviour.
         const char *cp = sip_api_bytes_as_string(obj);
 
         if (PyErr_Occurred())

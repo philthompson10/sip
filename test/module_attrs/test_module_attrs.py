@@ -212,6 +212,9 @@ class ModuleAttrsTestCase(SIPTestCase):
         self.ma.string_ascii_attr_const = None
         self.assertIsNone(self.ma.string_ascii_attr_const)
 
+        self.ma.string_ascii_attr_const = b'bytes'
+        self.assertEqual(self.ma.string_ascii_attr_const, 'bytes')
+
     def test_attrs_string_latin1(self):
         """ Test the support for Latin-1 string attributes. """
 
@@ -228,6 +231,9 @@ class ModuleAttrsTestCase(SIPTestCase):
         self.ma.string_latin1_attr_const = None
         self.assertIsNone(self.ma.string_latin1_attr_const)
 
+        self.ma.string_latin1_attr_const = '££'.encode('latin-1')
+        self.assertEqual(self.ma.string_latin1_attr_const, '££')
+
     def test_attrs_string_utf8(self):
         """ Test the support for UTF-8 string attributes. """
 
@@ -243,6 +249,9 @@ class ModuleAttrsTestCase(SIPTestCase):
 
         self.ma.string_utf8_attr_const = None
         self.assertIsNone(self.ma.string_utf8_attr_const)
+
+        self.ma.string_utf8_attr_const = 'Καλημέρα'.encode('utf-8')
+        self.assertEqual(self.ma.string_utf8_attr_const, 'Καλημέρα')
 
     def test_attrs_sstring(self):
         """ Test the support for signed string attributes. """
