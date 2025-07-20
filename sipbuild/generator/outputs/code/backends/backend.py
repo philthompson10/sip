@@ -336,7 +336,8 @@ f'''static int sipStaticVariableSetter_{v_ref}(PyObject *sipPy)
             not_settable = False
             might_need_key = False
 
-            # TODO Python objects, named enums and generated types.
+            # TODO Python objects, unnamed enums, custom enums, Python enums
+            # and classes/mapped types.
             if v_type.type is ArgumentType.CLASS or (v_type.type is ArgumentType.ENUM and v_type.definition.fq_cpp_name is not None):
                 pass
 
