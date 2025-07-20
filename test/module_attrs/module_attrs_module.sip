@@ -43,6 +43,10 @@ signed char *sstring_attr = NULL;
 const signed char *sstring_attr_const = (signed char *)"str";
 unsigned char *ustring_attr = NULL;
 const unsigned char *ustring_attr_const = (unsigned char *)"str";
+char buf[] = "bytes";
+void *voidptr_attr = buf;
+const char buf_const[] = "bytes const";
+const void *voidptr_const_attr = buf_const;
 
 // Read only attributes.
 const int int_attr_const = 10;
@@ -100,6 +104,8 @@ signed char *sstring_attr;
 const signed char *sstring_attr_const;
 unsigned char *ustring_attr;
 const unsigned char *ustring_attr_const;
+void *voidptr_attr;
+const void *voidptr_const_attr;
 
 // Read only attributes.
 const int int_attr_const;

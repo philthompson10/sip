@@ -500,6 +500,10 @@ static int sip_api_keep_reference(PyObject *wmod, sipSimpleWrapper *w, int key,
 int sip_keep_reference(sipWrappedModuleState *wms, sipSimpleWrapper *w,
         int key, PyObject *obj)
 {
+    /* There is no need to keep a reference to None. */
+    if (obj == Py_None)
+        return 0;
+
     /* Get a pointer to the dict of extra references. */
     PyObject **extra_refsp = (w != NULL ? &w->extra_refs : &wms->extra_refs);
 

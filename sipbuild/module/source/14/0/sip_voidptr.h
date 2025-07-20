@@ -32,6 +32,8 @@ PyObject *sip_api_convert_from_const_void_ptr_and_size(PyObject *wmod,
         const void *val, Py_ssize_t size);
 
 PyObject *sip_convert_from_void_ptr(sipSipModuleState *sms, void *val);
+PyObject *sip_convert_from_const_void_ptr(sipSipModuleState *sms,
+        const void *val);
 int sip_void_ptr_init(PyObject *module, sipSipModuleState *sms);
 
 

@@ -21,6 +21,7 @@
 #include "sip_int_convertors.h"
 #include "sip_module.h"
 #include "sip_string_convertors.h"
+#include "sip_voidptr.h"
 
 
 /* Forward declarations of slots. */
@@ -208,6 +209,14 @@ static PyObject *ModuleWrapper_getattro(PyObject *self, PyObject *name)
 
         case sipTypeID_bool:
             return PyBool_FromLong(*(_Bool *)(svd->value));
+
+        case sipTypeID_voidptr:
+            return sip_convert_from_void_ptr(wms->sip_module_state,
+                    *(void **)(svd->value));
+
+        case sipTypeID_voidptr_const:
+            return sip_convert_from_const_void_ptr(wms->sip_module_state,
+                    *(const void **)(svd->value));
 
         default:
             break;
@@ -635,6 +644,19 @@ static int ModuleWrapper_setattro(PyObject *self, PyObject *name,
                 return -1;
 
             *(_Bool *)(svd->value) = c_value;
+
+            return 0;
+        }
+
+        case sipTypeID_voidptr:
+        case sipTypeID_voidptr_const:
+        {
+            void *c_value = sip_api_convert_to_void_ptr(value);
+
+            if (PyErr_Occurred())
+                return -1;
+
+            *(void **)(svd->value) = c_value;
 
             return 0;
         }

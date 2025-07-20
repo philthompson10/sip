@@ -488,7 +488,7 @@ static void VoidPtr_dealloc(PyObject *self)
  */
 void *sip_api_convert_to_void_ptr(PyObject *obj)
 {
-    struct vp_values vp;
+    PyErr_Clear();
 
     if (obj == NULL)
     {
@@ -496,6 +496,8 @@ void *sip_api_convert_to_void_ptr(PyObject *obj)
                 _SIP_MODULE_FQ_NAME ".voidptr is NULL");
         return NULL;
     }
+
+    struct vp_values vp;
 
     if (vp_convertor(obj, &vp))
         return vp.voidptr;
@@ -526,14 +528,25 @@ PyObject *sip_convert_from_void_ptr(sipSipModuleState *sms, void *val)
 
 
 /*
- * Convert a C/C++ void pointer to a sip.voidptr object.
+ * Convert a C/C++ const void pointer to a sip.voidptr object.
  */
 PyObject *sip_api_convert_from_const_void_ptr(PyObject *wmod, const void *val)
 {
     sipWrappedModuleState *wms = (sipWrappedModuleState *)PyModule_GetState(
             wmod);
 
-    return create_voidptr(wms->sip_module_state, (void *)val, -1, FALSE);
+    return sip_convert_from_const_void_ptr(wms->sip_module_state, val);
+}
+
+
+/*
+ * Implement the conversion of a C/C++ const void pointer to a sip.voidptr
+ * object.
+ */
+PyObject *sip_convert_from_const_void_ptr(sipSipModuleState *sms,
+        const void *val)
+{
+    return create_voidptr(sms, (void *)val, -1, FALSE);
 }
 
 
@@ -659,6 +672,8 @@ static int check_slice_size(Py_ssize_t size, Py_ssize_t value_size)
 static PyObject *create_voidptr(sipSipModuleState *sms, void *voidptr,
         Py_ssize_t size, int rw)
 {
+    PyErr_Clear();
+
     if (voidptr == NULL)
     {
         Py_INCREF(Py_None);

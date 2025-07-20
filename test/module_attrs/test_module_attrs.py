@@ -300,6 +300,23 @@ class ModuleAttrsTestCase(SIPTestCase):
         self.ma.ustring_attr_const = None
         self.assertIsNone(self.ma.ustring_attr_const)
 
+    def test_attrs_voidptr(self):
+        """ Test the support for void pointer attributes. """
+
+        vp = self.ma.voidptr_attr
+        self.assertEqual(vp.asstring(size=5), b'bytes')
+        self.assertTrue(vp.getwriteable())
+
+        self.ma.voidptr_attr = None
+        self.assertIsNone(self.ma.voidptr_attr)
+
+        const_vp = self.ma.voidptr_const_attr
+        self.assertEqual(const_vp.asstring(size=11), b'bytes const')
+        self.assertFalse(const_vp.getwriteable())
+
+        self.ma.voidptr_const_attr = None
+        self.assertIsNone(self.ma.voidptr_const_attr)
+
     def test_const_types(self):
         """ Test the support for const module attributes. """
 

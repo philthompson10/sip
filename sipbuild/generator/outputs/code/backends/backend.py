@@ -336,7 +336,7 @@ f'''static int sipStaticVariableSetter_{v_ref}(PyObject *sipPy)
             not_settable = False
             might_need_key = False
 
-            # TODO Python objects, named enums, generated types, void *.
+            # TODO Python objects, named enums and generated types.
             if v_type.type is ArgumentType.CLASS or (v_type.type is ArgumentType.ENUM and v_type.definition.fq_cpp_name is not None):
                 pass
 
@@ -471,6 +471,16 @@ f'''static int sipStaticVariableSetter_{v_ref}(PyObject *sipPy)
             elif v_type.type in (ArgumentType.BOOL, ArgumentType.CBOOL):
                 type_id = 'sipTypeID_bool'
                 not_settable = v_type.is_const
+
+            elif v_type.type is ArgumentType.VOID:
+                # This is the only type that we need to make a distinction
+                # between const and non-const (because if affects the behaviour
+                # of a corresponding voidptr instance).  Using a flag
+                # (potentially applicable to all types) would smell better but
+                # we don't have anywhere to store it.  (SIP_SV_RO is a special
+                # value rather than a flag).
+                type_id = 'sipTypeID_voidptr_const' if v_type.is_const else 'sipTypeID_voidptr'
+                not_settable = False
 
             else:
                 continue
