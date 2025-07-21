@@ -17,6 +17,7 @@
 #include "sip_int_convertors.h"
 
 
+/* Forward declarations. */
 static long long long_as_long_long(PyObject *o, long long min, long long max);
 static unsigned long long_as_unsigned_long(PyObject *o, unsigned long max);
 static void raise_signed_overflow(long long min, long long max);

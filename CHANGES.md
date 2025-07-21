@@ -18,7 +18,8 @@ The `%GetCode` and `%SetCode` directives are now supported for module
 attributes.
 
 Module attributes can now modified with the same restrictions as class
-attributes.
+attributes.  Therefore module attributes that are constants can no longer be
+modified.
 
 The signature of `sipKeepReference()` has changed.
 

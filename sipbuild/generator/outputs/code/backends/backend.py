@@ -336,7 +336,7 @@ f'''static int sipStaticVariableSetter_{v_ref}(PyObject *sipPy)
             not_settable = False
             might_need_key = False
 
-            # TODO Python objects, unnamed enums, custom enums, Python enums
+            # TODO Python capsules, unnamed enums, custom enums, Python enums
             # and classes/mapped types.
             if v_type.type is ArgumentType.CLASS or (v_type.type is ArgumentType.ENUM and v_type.definition.fq_cpp_name is not None):
                 pass
@@ -466,7 +466,6 @@ f'''static int sipStaticVariableSetter_{v_ref}(PyObject *sipPy)
                 else:
                     # Note that wchar_t strings/arrays are mutable.
                     type_id = 'sipTypeID_wstr'
-                    not_settable = False
                     might_need_key = True
 
             elif v_type.type in (ArgumentType.BOOL, ArgumentType.CBOOL):
@@ -481,7 +480,30 @@ f'''static int sipStaticVariableSetter_{v_ref}(PyObject *sipPy)
                 # we don't have anywhere to store it.  (SIP_SV_RO is a special
                 # value rather than a flag).
                 type_id = 'sipTypeID_voidptr_const' if v_type.is_const else 'sipTypeID_voidptr'
-                not_settable = False
+
+            elif v_type.type is ArgumentType.PYOBJECT:
+                type_id = 'sipTypeID_pyobject'
+
+            elif v_type.type is ArgumentType.PYTUPLE:
+                type_id = 'sipTypeID_pytuple'
+
+            elif v_type.type is ArgumentType.PYLIST:
+                type_id = 'sipTypeID_pylist'
+
+            elif v_type.type is ArgumentType.PYDICT:
+                type_id = 'sipTypeID_pydict'
+
+            elif v_type.type is ArgumentType.PYCALLABLE:
+                type_id = 'sipTypeID_pycallable'
+
+            elif v_type.type is ArgumentType.PYSLICE:
+                type_id = 'sipTypeID_pyslice'
+
+            elif v_type.type is ArgumentType.PYTYPE:
+                type_id = 'sipTypeID_pytype'
+
+            elif v_type.type is ArgumentType.PYBUFFER:
+                type_id = 'sipTypeID_pybuffer'
 
             else:
                 continue

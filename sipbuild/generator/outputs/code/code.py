@@ -2104,7 +2104,6 @@ f'''
 ''')
 
     elif variable_type in (ArgumentType.BOOL, ArgumentType.CBOOL):
-        # TODO v14 and C uses _Bool.
         sf.write('    return PyBool_FromLong(sipVal);\n')
 
     elif variable_type is ArgumentType.ASCII_STRING:
@@ -2263,7 +2262,6 @@ f'''static int varset_{variable_as_word}(void *{first_arg}, PyObject *{sip_py}, 
 
     if variable.set_code is None:
         if variable_type is ArgumentType.BOOL:
-            # TODO v14 and C uses _Bool.
             value_decl = 'int sipVal'
         else:
             value_decl = _get_named_value_decl(spec, variable.scope,
@@ -2322,7 +2320,6 @@ f'''static int varset_{variable_as_word}(void *{first_arg}, PyObject *{sip_py}, 
 
         error_test = 'sipIsErr'
     elif variable_type is ArgumentType.BOOL:
-        # TODO v14 and C uses _Bool and PyErr_Occurred().
         error_test = 'sipVal < 0'
     else:
         error_test = 'PyErr_Occurred() != SIP_NULLPTR'
@@ -2346,7 +2343,6 @@ f'''    Py_XDECREF({member});
     value = deref + 'sipVal'
 
     if variable_type is ArgumentType.BOOL:
-        # TODO v14 and C uses _Bool.
         if spec.c_bindings:
             value = '(bool)' + value
         else:

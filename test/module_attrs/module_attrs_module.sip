@@ -47,6 +47,7 @@ char buf[] = "bytes";
 void *voidptr_attr = buf;
 const char buf_const[] = "bytes const";
 const void *voidptr_const_attr = buf_const;
+PyObject *pyobject_attr = NULL;
 
 // Read only attributes.
 const int int_attr_const = 10;
@@ -106,6 +107,7 @@ unsigned char *ustring_attr;
 const unsigned char *ustring_attr_const;
 void *voidptr_attr;
 const void *voidptr_const_attr;
+PyObject *pyobject_attr;
 
 // Read only attributes.
 const int int_attr_const;

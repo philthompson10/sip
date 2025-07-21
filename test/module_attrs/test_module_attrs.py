@@ -3,6 +3,8 @@
 # Copyright (c) 2025 Phil Thompson <phil@riverbankcomputing.com>
 
 
+from sys import getrefcount
+
 from utils import SIPTestCase
 
 
@@ -316,6 +318,20 @@ class ModuleAttrsTestCase(SIPTestCase):
 
         self.ma.voidptr_const_attr = None
         self.assertIsNone(self.ma.voidptr_const_attr)
+
+    def test_attrs_pyobject(self):
+        """ Test the support for Python object attributes. """
+
+        # Note that SIP does not check the Python types of these attributes
+        # (which is really a bug) so we don't test the different types.
+        self.assertIsNone(self.ma.pyobject_attr)
+
+        obj = object()
+        obj_refcount = getrefcount(obj)
+
+        self.ma.pyobject_attr = obj
+        self.assertIs(self.ma.pyobject_attr, obj)
+        self.assertEqual(getrefcount(self.ma.pyobject_attr), obj_refcount + 1)
 
     def test_const_types(self):
         """ Test the support for const module attributes. """

@@ -140,72 +140,72 @@ static PyObject *ModuleWrapper_getattro(PyObject *self, PyObject *name)
         case sipTypeID_str:
         case sipTypeID_sstr:
         case sipTypeID_ustr:
+        {
+            const char *c_value = *(char **)svd->value;
+
+            if (c_value == SIP_NULLPTR)
             {
-                const char *c_value = *(char **)svd->value;
-
-                if (c_value == SIP_NULLPTR)
-                {
-                    Py_INCREF(Py_None);
-                    return Py_None;
-                }
-
-                return PyBytes_FromString(c_value);
+                Py_INCREF(Py_None);
+                return Py_None;
             }
+
+            return PyBytes_FromString(c_value);
+        }
 
         case sipTypeID_str_ascii:
+        {
+            const char *c_value = *(char **)svd->value;
+
+            if (c_value == SIP_NULLPTR)
             {
-                const char *c_value = *(char **)svd->value;
-
-                if (c_value == SIP_NULLPTR)
-                {
-                    Py_INCREF(Py_None);
-                    return Py_None;
-                }
-
-                return PyUnicode_DecodeASCII(c_value, strlen(c_value),
-                        SIP_NULLPTR);
+                Py_INCREF(Py_None);
+                return Py_None;
             }
+
+            return PyUnicode_DecodeASCII(c_value, strlen(c_value),
+                    SIP_NULLPTR);
+        }
 
         case sipTypeID_str_latin1:
+        {
+            const char *c_value = *(char **)svd->value;
+
+            if (c_value == SIP_NULLPTR)
             {
-                const char *c_value = *(char **)svd->value;
-
-                if (c_value == SIP_NULLPTR)
-                {
-                    Py_INCREF(Py_None);
-                    return Py_None;
-                }
-
-                return PyUnicode_DecodeLatin1(c_value, strlen(c_value),
-                        SIP_NULLPTR);
+                Py_INCREF(Py_None);
+                return Py_None;
             }
+
+            return PyUnicode_DecodeLatin1(c_value, strlen(c_value),
+                    SIP_NULLPTR);
+        }
 
         case sipTypeID_str_utf8:
+        {
+            const char *c_value = *(char **)svd->value;
+
+            if (c_value == SIP_NULLPTR)
             {
-                const char *c_value = *(char **)svd->value;
-
-                if (c_value == SIP_NULLPTR)
-                {
-                    Py_INCREF(Py_None);
-                    return Py_None;
-                }
-
-                return PyUnicode_DecodeUTF8(c_value, strlen(c_value), NULL);
+                Py_INCREF(Py_None);
+                return Py_None;
             }
+
+            return PyUnicode_DecodeUTF8(c_value, strlen(c_value), NULL);
+        }
 
         case sipTypeID_wstr:
+        {
+            const wchar_t *c_value = *(wchar_t **)svd->value;
+
+            if (c_value == SIP_NULLPTR)
             {
-                const wchar_t *c_value = *(wchar_t **)svd->value;
-
-                if (c_value == SIP_NULLPTR)
-                {
-                    Py_INCREF(Py_None);
-                    return Py_None;
-                }
-
-                return PyUnicode_FromWideChar(c_value,
-                        (Py_ssize_t)wcslen(c_value));
+                Py_INCREF(Py_None);
+                return Py_None;
             }
+
+            return PyUnicode_FromWideChar(c_value,
+                    (Py_ssize_t)wcslen(c_value));
+        }
 
         case sipTypeID_bool:
             return PyBool_FromLong(*(_Bool *)(svd->value));
@@ -217,6 +217,29 @@ static PyObject *ModuleWrapper_getattro(PyObject *self, PyObject *name)
         case sipTypeID_voidptr_const:
             return sip_convert_from_const_void_ptr(wms->sip_module_state,
                     *(const void **)(svd->value));
+
+        case sipTypeID_pyobject:
+        case sipTypeID_pytuple:
+        case sipTypeID_pylist:
+        case sipTypeID_pydict:
+        case sipTypeID_pycallable:
+        case sipTypeID_pyslice:
+        case sipTypeID_pytype:
+        case sipTypeID_pybuffer:
+        {
+            /*
+             * Note that this is the historical behaviour and is probably
+             * inconsistent with what the parsers do.
+             */
+            PyObject *c_value = *(PyObject **)svd->value;
+
+            if (c_value == NULL)
+                c_value = Py_None;
+
+            Py_INCREF(c_value);
+
+            return c_value;
+        }
 
         default:
             break;
@@ -657,6 +680,27 @@ static int ModuleWrapper_setattro(PyObject *self, PyObject *name,
                 return -1;
 
             *(void **)(svd->value) = c_value;
+
+            return 0;
+        }
+
+        case sipTypeID_pyobject:
+        case sipTypeID_pytuple:
+        case sipTypeID_pylist:
+        case sipTypeID_pydict:
+        case sipTypeID_pycallable:
+        case sipTypeID_pyslice:
+        case sipTypeID_pytype:
+        case sipTypeID_pybuffer:
+        {
+            /*
+             * Note that this is the historical behaviour and is probably
+             * inconsistent with what the parsers do.
+             */
+            Py_INCREF(value);
+
+            Py_XDECREF(*(PyObject **)svd->value);
+            *(PyObject **)svd->value = value;
 
             return 0;
         }
