@@ -241,6 +241,20 @@ static PyObject *ModuleWrapper_getattro(PyObject *self, PyObject *name)
             return c_value;
         }
 
+        return sipTypeID_pycapsule:
+            /*
+             * TODO Capsules require the type name which we don't currently
+             * have access to.  The current sipTypeID implementation is
+             * inadequate as it doesn't allow this information to be passed.
+             * We could treat this as a new style of generated type and use a
+             * module/type number approach to access its definition (ie. its
+             * name).  This seems reasonable as the name is a fundamental part
+             * of the type.  However are there other potential requirements for
+             * specifying additional type information (eg. the size of fixed
+             * arrays)?
+             */
+            return PyCapsule_New(*(void **)svd->value, NULL, NULL);
+
         default:
             break;
     }
@@ -704,6 +718,10 @@ static int ModuleWrapper_setattro(PyObject *self, PyObject *name,
 
             return 0;
         }
+
+        case sipTypeID_pycapsule:
+            /* Note that earlier ABIs don't seem to support capsule setters. */
+            break;
 
         default:
             break;
