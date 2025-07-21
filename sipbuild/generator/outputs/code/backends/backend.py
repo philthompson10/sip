@@ -505,6 +505,9 @@ f'''static int sipStaticVariableSetter_{v_ref}(PyObject *sipPy)
             elif v_type.type is ArgumentType.PYBUFFER:
                 type_id = 'sipTypeID_pybuffer'
 
+            elif v_type.type is ArgumentType.CAPSULE:
+                type_id = 'sipTypeID_pycapsule'
+
             else:
                 continue
 

@@ -1476,6 +1476,7 @@ struct _sipAPIDef {
 #define sipTypeID_pyslice       0x0021
 #define sipTypeID_pytype        0x0022
 #define sipTypeID_pybuffer      0x0023
+#define sipTypeID_pycapsule     0x0024
 
 
 /* These are held in sw_flags. */

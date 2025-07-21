@@ -241,7 +241,7 @@ static PyObject *ModuleWrapper_getattro(PyObject *self, PyObject *name)
             return c_value;
         }
 
-        return sipTypeID_pycapsule:
+        case sipTypeID_pycapsule:
             /*
              * TODO Capsules require the type name which we don't currently
              * have access to.  The current sipTypeID implementation is
