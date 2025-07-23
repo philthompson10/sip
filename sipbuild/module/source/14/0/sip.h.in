@@ -696,6 +696,11 @@ typedef struct _sipVariableDef {
  * The immutable definition of a type, either a C++ class (or C struct), a C++
  * namespace, a mapped type or a named (scoped or unscoped) enum.
  */
+// TODO Add a new ParamaterisedType type of definition that will be accessed
+// using a module number/type number and will be used to define any type that
+// cannot be encapsulated in a sipTypeID because additional parameters are
+// required.  The only current use is to implement named capsules but it could
+// also be used to implement fixed sized arrays.
 struct _sipTypeDef {
     /* Type flags, see the sipType*() macros. */
     int td_flags;
