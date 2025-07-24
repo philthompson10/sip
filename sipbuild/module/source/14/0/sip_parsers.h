@@ -62,13 +62,13 @@ void sip_api_no_function(PyObject *parseErr, const char *func,
         const char *doc);
 void sip_api_no_method(PyObject *parseErr, const char *scope,
         const char *method, const char *doc);
-int sip_api_parse_args(PyObject *wmod, PyObject **parseErrp, PyObject *sipArgs,
-        const char *fmt, ...);
-int sip_api_parse_kwd_args(PyObject *wmod, PyObject **parseErrp,
-        PyObject *sipArgs, PyObject *sipKwdArgs, const char **kwdlist,
-        PyObject **unused, const char *fmt, ...);
-int sip_api_parse_pair(PyObject *wmod, PyObject **parseErrp, PyObject *sipArg0,
-        PyObject *sipArg1, const char *fmt, ...);
+int sip_api_parse_args(PyObject *wmod, PyObject **parse_err_p,
+        PyObject *const *args, Py_ssize_t nr_args, const char *fmt, ...);
+int sip_api_parse_kwd_args(PyObject *wmod, PyObject **parse_err_p,
+        PyObject *const *args, Py_ssize_t nr_args, PyObject *kwd_args,
+        const char **kwd_list, PyObject **unused, const char *fmt, ...);
+int sip_api_parse_pair(PyObject *wmod, PyObject **parse_err_p,
+        PyObject *sipArg0, PyObject *sipArg1, const char *fmt, ...);
 int sip_api_parse_result(PyObject *wmod, sip_gilstate_t gil_state,
         sipVirtErrorHandlerFunc error_handler, sipSimpleWrapper *py_self,
         PyObject *method, PyObject *res, const char *fmt, ...);

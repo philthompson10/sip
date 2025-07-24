@@ -195,15 +195,17 @@ typedef struct _sipWrapper sipWrapper;
 // with Python.
 
 /*
- * The state of a wrapped module.  This is opaque as far as the public API is
- * concerned.
+ * The state of a wrapped module.
  */
-// TODO Generated code will need access to the sip API but perhaps nothing
-// else.  If so, consider moving the pointer to the API to the start of the
-// structure so that generated code can do...
-//      (const sipAPIDef *)PyModule_GetState(wmod)
-// ...and the structure definition can be moved to sip_wrapped_module.h.
+// TODO Move the structure definition to sip_wrapped_module.h.
 typedef struct {
+    /*
+     * The pointers to the functions that implement the sip module API.  This
+     * *must* be the first field as sipGetAPI() relies on it and it allows the
+     * layout of the rest of the structure to be kept hidden.
+     */
+    const sipAPIDef *sip_api;
+
     /* The list of delayed dtors. */
     sipDelayedDtor *delayed_dtors_list;
 
@@ -220,9 +222,6 @@ typedef struct {
      * type, a lazy attribute or an external class).
      */
     PyTypeObject **py_types;
-
-    /* The pointers to the functions that implement the sip module API. */
-    const sipAPIDef *sip_api;
 
     /* A strong reference to the sip module. */
     // TODO This is only actually used (via sip_get_sip_module()) to get the
@@ -250,6 +249,10 @@ typedef int (*sipWrappedModuleInitFunc)(PyObject *wmod,
 typedef sipWrappedModuleInitFunc (*sipBootstrapFunc)(int abi_major);
 int sip_api_wrapped_module_init(PyObject *wmod, const sipWrappedModuleDef *wmd,
         PyObject *sip_module);
+
+
+/* Return a pointer to the SIP API from a wrapped module. */
+#define sipGetAPI(wmod) (*(const sipAPIDef *const *)PyModule_GetState(wmod))
 
 
 /*
@@ -1334,10 +1337,13 @@ struct _sipAPIDef {
     /*
      * The following are not part of the public API.
      */
-    int (*api_parse_args)(PyObject *wmod, PyObject **parseErrp,
-            PyObject *sipArgs, const char *fmt, ...);
-    int (*api_parse_pair)(PyObject *wmod, PyObject **parseErrp, PyObject *arg0,
-            PyObject *arg1, const char *fmt, ...);
+    int (*api_parse_args)(PyObject *wmod, PyObject **parse_err_p,
+            PyObject *const *args, Py_ssize_t nr_args, const char *fmt, ...);
+    int (*api_parse_kwd_args)(PyObject *wmod, PyObject **parse_err_p,
+            PyObject *const *args, Py_ssize_t nr_args, PyObject *kwd_args,
+            const char **kwd_list, PyObject **unused, const char *fmt, ...);
+    int (*api_parse_pair)(PyObject *wmod, PyObject **parse_err_p,
+            PyObject *arg0, PyObject *arg1, const char *fmt, ...);
     void (*api_no_function)(PyObject *parseErr, const char *func,
             const char *doc);
     void (*api_no_method)(PyObject *parseErr, const char *scope,
@@ -1377,9 +1383,6 @@ struct _sipAPIDef {
             const char *message);
     int (*api_keep_reference)(PyObject *wmod, sipSimpleWrapper *w, int key,
             PyObject *obj);
-    int (*api_parse_kwd_args)(PyObject *wmod, PyObject **parseErrp,
-            PyObject *sipArgs, PyObject *sipKwdArgs, const char **kwdlist,
-            PyObject **unused, const char *fmt, ...);
     void (*api_add_exception)(sipErrorState es, PyObject **parseErrp);
     int (*api_parse_result)(PyObject *wmod, sip_gilstate_t gil_state,
             sipVirtErrorHandlerFunc error_handler, sipSimpleWrapper *py_self,

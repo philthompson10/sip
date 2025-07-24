@@ -229,6 +229,7 @@ const sipAPIDef sip_api = {
      * The following are not part of the public API.
      */
     sip_api_parse_args,
+    sip_api_parse_kwd_args,
     sip_api_parse_pair,
     sip_api_no_function,
     sip_api_no_method,
@@ -258,7 +259,6 @@ const sipAPIDef sip_api = {
     sip_api_string_as_wstring,
     sip_api_deprecated,
     sip_api_keep_reference,
-    sip_api_parse_kwd_args,
     sip_api_add_exception,
     sip_api_parse_result,
     sip_api_call_error_handler,

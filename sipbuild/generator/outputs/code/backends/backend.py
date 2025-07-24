@@ -119,6 +119,17 @@ static const sipWrappedModuleDef sipWrappedModule_{module_name} = {{
 }
 ''')
 
+    def g_function_init(self, sf):
+        """ Generate the code at the start of function implementation. """
+
+        sf.write('    const sipAPIDef *sipAPI = sipGetAPI(sipModule);\n')
+
+    def g_method_init(self, sf):
+        """ Generate the code at the start of method implementation. """
+
+        # TODO
+        pass
+
     def g_module_definition(self, sf, has_module_functions=False):
         """ Generate the module definition structure. """
 
@@ -255,6 +266,161 @@ f'''
 
     if (!sip_{module_name}_qt_metacast)
         Py_FatalError("Unable to import qtcore_qt_metacast");
+''')
+
+    def g_sip_api(self, sf, module_name):
+        """ Generate the SIP API as seen by generated code. """
+
+        # TODO These have been reviewed as part of the public v14 API.
+
+        # TODO These have been reviewed as part of the private v14 API.
+        sf.write(
+f'''
+#define sipParseArgs                sipAPI->api_parse_args
+#define sipParseKwdArgs             sipAPI->api_parse_kwd_args
+#define sipParsePair                sipAPI->api_parse_pair
+''')
+
+        # TODO These have yet to be reviewed.
+        sf.write(
+f'''#define sipMalloc                   sipAPI->api_malloc
+#define sipFree                     sipAPI->api_free
+#define sipBuildResult              sipAPI->api_build_result
+#define sipCallMethod               sipAPI->api_call_method
+#define sipCallProcedureMethod      sipAPI->api_call_procedure_method
+#define sipCallErrorHandler         sipAPI->api_call_error_handler
+#define sipParseResultEx            sipAPI->api_parse_result_ex
+#define sipParseResult              sipAPI->api_parse_result
+#define sipInstanceDestroyed        sipAPI->api_instance_destroyed
+#define sipInstanceDestroyedEx      sipAPI->api_instance_destroyed_ex
+#define sipConvertFromSequenceIndex sipAPI->api_convert_from_sequence_index
+#define sipConvertFromSliceObject   sipAPI->api_convert_from_slice_object
+#define sipConvertFromVoidPtr       sipAPI->api_convert_from_void_ptr
+#define sipConvertToVoidPtr         sipAPI->api_convert_to_void_ptr
+#define sipAddException             sipAPI->api_add_exception
+#define sipNoFunction               sipAPI->api_no_function
+#define sipNoMethod                 sipAPI->api_no_method
+#define sipAbstractMethod           sipAPI->api_abstract_method
+#define sipBadClass                 sipAPI->api_bad_class
+#define sipBadCatcherResult         sipAPI->api_bad_catcher_result
+#define sipBadCallableArg           sipAPI->api_bad_callable_arg
+#define sipBadOperatorArg           sipAPI->api_bad_operator_arg
+#define sipTrace                    sipAPI->api_trace
+#define sipTransferBack             sipAPI->api_transfer_back
+#define sipTransferTo               sipAPI->api_transfer_to
+#define sipSimpleWrapper_Type       sipAPI->api_simplewrapper_type
+#define sipWrapper_Type             sipAPI->api_wrapper_type
+#define sipWrapperType_Type         sipAPI->api_wrappertype_type
+#define sipVoidPtr_Type             sipAPI->api_voidptr_type
+#define sipGetPyObject              sipAPI->api_get_pyobject
+#define sipGetAddress               sipAPI->api_get_address
+#define sipGetMixinAddress          sipAPI->api_get_mixin_address
+#define sipGetCppPtr                sipAPI->api_get_cpp_ptr
+#define sipGetComplexCppPtr         sipAPI->api_get_complex_cpp_ptr
+#define sipCallHook                 sipAPI->api_call_hook
+#define sipEndThread                sipAPI->api_end_thread
+#define sipRaiseUnknownException    sipAPI->api_raise_unknown_exception
+#define sipRaiseTypeException       sipAPI->api_raise_type_exception
+#define sipBadLengthForSlice        sipAPI->api_bad_length_for_slice
+#define sipAddTypeInstance          sipAPI->api_add_type_instance
+#define sipPySlotExtend             sipAPI->api_pyslot_extend
+#define sipAddDelayedDtor           sipAPI->api_add_delayed_dtor
+#define sipCanConvertToType         sipAPI->api_can_convert_to_type
+#define sipConvertToType            sipAPI->api_convert_to_type
+#define sipForceConvertToType       sipAPI->api_force_convert_to_type
+#define sipConvertToEnum            sipAPI->api_convert_to_enum
+#define sipConvertToBool            sipAPI->api_convert_to_bool
+#define sipReleaseType              sipAPI->api_release_type
+#define sipConvertFromType          sipAPI->api_convert_from_type
+#define sipConvertFromNewType       sipAPI->api_convert_from_new_type
+#define sipConvertFromNewPyType     sipAPI->api_convert_from_new_pytype
+#define sipConvertFromEnum          sipAPI->api_convert_from_enum
+#define sipGetState                 sipAPI->api_get_state
+#define sipExportSymbol             sipAPI->api_export_symbol
+#define sipImportSymbol             sipAPI->api_import_symbol
+#define sipFindType                 sipAPI->api_find_type
+#define sipBytes_AsChar             sipAPI->api_bytes_as_char
+#define sipBytes_AsString           sipAPI->api_bytes_as_string
+#define sipString_AsASCIIChar       sipAPI->api_string_as_ascii_char
+#define sipString_AsASCIIString     sipAPI->api_string_as_ascii_string
+#define sipString_AsLatin1Char      sipAPI->api_string_as_latin1_char
+#define sipString_AsLatin1String    sipAPI->api_string_as_latin1_string
+#define sipString_AsUTF8Char        sipAPI->api_string_as_utf8_char
+#define sipString_AsUTF8String      sipAPI->api_string_as_utf8_string
+#define sipUnicode_AsWChar          sipAPI->api_unicode_as_wchar
+#define sipUnicode_AsWString        sipAPI->api_unicode_as_wstring
+#define sipConvertFromConstVoidPtr  sipAPI->api_convert_from_const_void_ptr
+#define sipConvertFromVoidPtrAndSize    sipAPI->api_convert_from_void_ptr_and_size
+#define sipConvertFromConstVoidPtrAndSize   sipAPI->api_convert_from_const_void_ptr_and_size
+#define sipWrappedTypeName(wt)      ((wt)->wt_td->td_cname)
+#define sipGetReference             sipAPI->api_get_reference
+#define sipKeepReference            sipAPI->api_keep_reference
+#define sipRegisterPyType           sipAPI->api_register_py_type
+#define sipTypeFromPyTypeObject     sipAPI->api_type_from_py_type_object
+#define sipTypeScope                sipAPI->api_type_scope
+#define sipResolveTypedef           sipAPI->api_resolve_typedef
+#define sipRegisterAttributeGetter  sipAPI->api_register_attribute_getter
+#define sipEnableAutoconversion     sipAPI->api_enable_autoconversion
+#define sipInitMixin                sipAPI->api_init_mixin
+#define sipExportModule             sipAPI->api_export_module
+#define sipInitModule               sipAPI->api_init_module
+#define sipGetInterpreter           sipAPI->api_get_interpreter
+#define sipSetTypeUserData          sipAPI->api_set_type_user_data
+#define sipGetTypeUserData          sipAPI->api_get_type_user_data
+#define sipPyTypeDict               sipAPI->api_py_type_dict
+#define sipPyTypeName               sipAPI->api_py_type_name
+#define sipGetCFunction             sipAPI->api_get_c_function
+#define sipGetMethod                sipAPI->api_get_method
+#define sipFromMethod               sipAPI->api_from_method
+#define sipGetDate                  sipAPI->api_get_date
+#define sipFromDate                 sipAPI->api_from_date
+#define sipGetDateTime              sipAPI->api_get_datetime
+#define sipFromDateTime             sipAPI->api_from_datetime
+#define sipGetTime                  sipAPI->api_get_time
+#define sipFromTime                 sipAPI->api_from_time
+#define sipIsUserType               sipAPI->api_is_user_type
+#define sipCheckPluginForType       sipAPI->api_check_plugin_for_type
+#define sipUnicodeNew               sipAPI->api_unicode_new
+#define sipUnicodeWrite             sipAPI->api_unicode_write
+#define sipUnicodeData              sipAPI->api_unicode_data
+#define sipGetBufferInfo            sipAPI->api_get_buffer_info
+#define sipReleaseBufferInfo        sipAPI->api_release_buffer_info
+#define sipIsOwnedByPython          sipAPI->api_is_owned_by_python
+#define sipIsDerivedClass           sipAPI->api_is_derived_class
+#define sipGetUserObject            sipAPI->api_get_user_object
+#define sipSetUserObject            sipAPI->api_set_user_object
+#define sipRegisterEventHandler     sipAPI->api_register_event_handler
+#define sipConvertToArray           sipAPI->api_convert_to_array
+#define sipConvertToTypedArray      sipAPI->api_convert_to_typed_array
+#define sipEnableGC                 sipAPI->api_enable_gc
+#define sipPrintObject              sipAPI->api_print_object
+#define sipLong_AsChar              sipAPI->api_long_as_char
+#define sipLong_AsSignedChar        sipAPI->api_long_as_signed_char
+#define sipLong_AsUnsignedChar      sipAPI->api_long_as_unsigned_char
+#define sipLong_AsShort             sipAPI->api_long_as_short
+#define sipLong_AsUnsignedShort     sipAPI->api_long_as_unsigned_short
+#define sipLong_AsInt               sipAPI->api_long_as_int
+#define sipLong_AsUnsignedInt       sipAPI->api_long_as_unsigned_int
+#define sipLong_AsLong              sipAPI->api_long_as_long
+#define sipLong_AsUnsignedLong      sipAPI->api_long_as_unsigned_long
+#define sipLong_AsLongLong          sipAPI->api_long_as_long_long
+#define sipLong_AsUnsignedLongLong  sipAPI->api_long_as_unsigned_long_long
+#define sipLong_AsSizeT             sipAPI->api_long_as_size_t
+#define sipVisitWrappers            sipAPI->api_visit_wrappers
+#define sipRegisterExitNotifier     sipAPI->api_register_exit_notifier
+#define sipGetFrame                 sipAPI->api_get_frame
+#define sipDeprecated               sipAPI->api_deprecated
+#define sipPyTypeDictRef            sipAPI->api_py_type_dict_ref
+#define sipNextExceptionHandler     sipAPI->api_next_exception_handler
+#define sipConvertToTypeUS          sipAPI->api_convert_to_type_us
+#define sipForceConvertToTypeUS     sipAPI->api_force_convert_to_type_us
+#define sipReleaseTypeUS            sipAPI->api_release_type_us
+#define sipIsPyMethod               sipAPI->api_is_py_method
+''')
+
+        if self.py_enums_supported():
+            sf.write(
+f'''#define sipIsEnumFlag               sipAPI->api_is_enum_flag
 ''')
 
     def g_static_variables_table(self, sf, scope=None):
@@ -574,6 +740,15 @@ static const sipStaticVariableDef sipStaticVariablesTable{suffix}[] = {{
 
         return True
 
+    @staticmethod
+    def cached_name_ref(cached_name, as_nr=False):
+        """ Return a reference to a cached name. """
+
+        # In v14 we always use the literal text.
+        assert(not as_nr)
+
+        return '"' + cached_name.name + '"'
+
     def custom_enums_supported(self):
         """ Return True if custom enums are supported. """
 
@@ -619,6 +794,39 @@ static const sipStaticVariableDef sipStaticVariablesTable{suffix}[] = {{
         """ Return an appropriate reference to an optional pointer. """
 
         return name if is_ptr else 'SIP_NULLPTR'
+
+    def py_enums_supported(self):
+        """ Return True if Python enums are supported. """
+
+        return SipModuleConfiguration.PyEnums in self.spec.sip_module_configuration
+
+    @staticmethod
+    def py_method_args(*, is_impl, is_method):
+        """ Return the part of a Python method signature that are ABI
+        dependent.
+        """
+
+        args = 'PyObject *'
+
+        if is_method:
+            args += ', PyTypeObject *'
+
+            if is_impl:
+                args += 'sipDefClass'
+        else:
+            args += 'sipModule'
+
+        args += ', PyObject *const *'
+
+        if is_impl:
+            args += 'sipArgs'
+
+        args += ', Py_ssize_t'
+
+        if is_impl:
+            args += ' sipNrArgs'
+
+        return args
 
     def pyqt5_supported(self):
         """ Return True if the PyQt5 plugin was specified. """

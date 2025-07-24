@@ -7,14 +7,6 @@ from ...specification import (AccessSpecifier, PyQtMethodSpecifier,
         WrappedClass)
 
 
-def cached_name_ref(cached_name, as_nr=False):
-    """ Return a reference to a cached name. """
-
-    prefix = 'sipNameNr_' if as_nr else 'sipName_'
-
-    return prefix + get_normalised_cached_name(cached_name)
-
-
 def callable_overloads(member, overloads):
     """ An iterator over the non-private and non-signal overloads. """
 

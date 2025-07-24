@@ -8,7 +8,7 @@ from ....specification import ArgumentType, WrappedClass
 
 from ...formatters import fmt_argument_as_cpp_type
 
-from ..utils import cached_name_ref, get_normalised_cached_name, py_scope
+from ..utils import get_normalised_cached_name, py_scope
 
 from .backend import Backend
 
@@ -33,6 +33,7 @@ class LegacyBackend(Backend):
         target_abi = spec.target_abi
         module = spec.module
         module_name = module.py_name
+        fq_py_name_ref = self.cached_name_ref(module.fq_py_name, as_nr=True)
 
         imports_table = self.optional_ptr(len(module.all_imports) != 0,
                 'importsTable')
@@ -47,7 +48,7 @@ f'''/* This defines this module. */
 sipExportedModuleDef sipModuleAPI_{module_name} = {{
     SIP_NULLPTR,
     {target_abi[1]},
-    sipNameNr_{get_normalised_cached_name(module.fq_py_name)},
+    {fq_py_name_ref},
     0,
     sipStrings_{module_name},
     {imports_table},
@@ -151,6 +152,18 @@ const sipAPIDef *sipAPI_{module_name};
         self.g_module_definition(sf, has_module_functions=has_module_functions)
         self._g_module_init_body(sf)
 
+    def g_function_init(self, sf):
+        """ Generate the code at the start of function implementation. """
+
+        # There is nothing to do.
+        pass
+
+    def g_method_init(self, sf):
+        """ Generate the code at the start of method implementation. """
+
+        # There is nothing to do.
+        pass
+
     def g_module_definition(self, sf, has_module_functions=False):
         """ Generate the module definition structure. """
 
@@ -175,6 +188,222 @@ f'''    static PyModuleDef sip_module_def = {{
         SIP_NULLPTR,
         SIP_NULLPTR
     }};
+''')
+
+    def g_sip_api(self, sf, module_name):
+        """ Generate the SIP API as seen by generated code. """
+
+    sf.write(
+f'''
+#define sipMalloc                   sipAPI_{module_name}->api_malloc
+#define sipFree                     sipAPI_{module_name}->api_free
+#define sipBuildResult              sipAPI_{module_name}->api_build_result
+#define sipCallMethod               sipAPI_{module_name}->api_call_method
+#define sipCallProcedureMethod      sipAPI_{module_name}->api_call_procedure_method
+#define sipCallErrorHandler         sipAPI_{module_name}->api_call_error_handler
+#define sipParseResultEx            sipAPI_{module_name}->api_parse_result_ex
+#define sipParseResult              sipAPI_{module_name}->api_parse_result
+#define sipParseArgs                sipAPI_{module_name}->api_parse_args
+#define sipParseKwdArgs             sipAPI_{module_name}->api_parse_kwd_args
+#define sipParsePair                sipAPI_{module_name}->api_parse_pair
+#define sipInstanceDestroyed        sipAPI_{module_name}->api_instance_destroyed
+#define sipInstanceDestroyedEx      sipAPI_{module_name}->api_instance_destroyed_ex
+#define sipConvertFromSequenceIndex sipAPI_{module_name}->api_convert_from_sequence_index
+#define sipConvertFromSliceObject   sipAPI_{module_name}->api_convert_from_slice_object
+#define sipConvertFromVoidPtr       sipAPI_{module_name}->api_convert_from_void_ptr
+#define sipConvertToVoidPtr         sipAPI_{module_name}->api_convert_to_void_ptr
+#define sipAddException             sipAPI_{module_name}->api_add_exception
+#define sipNoFunction               sipAPI_{module_name}->api_no_function
+#define sipNoMethod                 sipAPI_{module_name}->api_no_method
+#define sipAbstractMethod           sipAPI_{module_name}->api_abstract_method
+#define sipBadClass                 sipAPI_{module_name}->api_bad_class
+#define sipBadCatcherResult         sipAPI_{module_name}->api_bad_catcher_result#define sipBadCallableArg           sipAPI_{module_name}->api_bad_callable_arg
+#define sipBadOperatorArg           sipAPI_{module_name}->api_bad_operator_arg
+#define sipTrace                    sipAPI_{module_name}->api_trace
+#define sipTransferBack             sipAPI_{module_name}->api_transfer_back
+#define sipTransferTo               sipAPI_{module_name}->api_transfer_to
+#define sipSimpleWrapper_Type       sipAPI_{module_name}->api_simplewrapper_type#define sipWrapper_Type             sipAPI_{module_name}->api_wrapper_type
+#define sipWrapperType_Type         sipAPI_{module_name}->api_wrappertype_type
+#define sipVoidPtr_Type             sipAPI_{module_name}->api_voidptr_type
+#define sipGetPyObject              sipAPI_{module_name}->api_get_pyobject
+#define sipGetAddress               sipAPI_{module_name}->api_get_address
+#define sipGetMixinAddress          sipAPI_{module_name}->api_get_mixin_address
+#define sipGetCppPtr                sipAPI_{module_name}->api_get_cpp_ptr
+#define sipGetComplexCppPtr         sipAPI_{module_name}->api_get_complex_cpp_ptr
+#define sipCallHook                 sipAPI_{module_name}->api_call_hook
+#define sipEndThread                sipAPI_{module_name}->api_end_thread
+#define sipRaiseUnknownException    sipAPI_{module_name}->api_raise_unknown_exception
+#define sipRaiseTypeException       sipAPI_{module_name}->api_raise_type_exception
+#define sipBadLengthForSlice        sipAPI_{module_name}->api_bad_length_for_slice
+#define sipAddTypeInstance          sipAPI_{module_name}->api_add_type_instance
+#define sipPySlotExtend             sipAPI_{module_name}->api_pyslot_extend
+#define sipAddDelayedDtor           sipAPI_{module_name}->api_add_delayed_dtor
+#define sipCanConvertToType         sipAPI_{module_name}->api_can_convert_to_type
+#define sipConvertToType            sipAPI_{module_name}->api_convert_to_type
+#define sipForceConvertToType       sipAPI_{module_name}->api_force_convert_to_type
+#define sipConvertToEnum            sipAPI_{module_name}->api_convert_to_enum
+#define sipConvertToBool            sipAPI_{module_name}->api_convert_to_bool
+#define sipReleaseType              sipAPI_{module_name}->api_release_type
+#define sipConvertFromType          sipAPI_{module_name}->api_convert_from_type
+#define sipConvertFromNewType       sipAPI_{module_name}->api_convert_from_new_type
+#define sipConvertFromNewPyType     sipAPI_{module_name}->api_convert_from_new_pytype
+#define sipConvertFromEnum          sipAPI_{module_name}->api_convert_from_enum
+#define sipGetState                 sipAPI_{module_name}->api_get_state
+#define sipExportSymbol             sipAPI_{module_name}->api_export_symbol
+#define sipImportSymbol             sipAPI_{module_name}->api_import_symbol
+#define sipFindType                 sipAPI_{module_name}->api_find_type
+#define sipBytes_AsChar             sipAPI_{module_name}->api_bytes_as_char
+#define sipBytes_AsString           sipAPI_{module_name}->api_bytes_as_string
+#define sipString_AsASCIIChar       sipAPI_{module_name}->api_string_as_ascii_char
+#define sipString_AsASCIIString     sipAPI_{module_name}->api_string_as_ascii_string
+#define sipString_AsLatin1Char      sipAPI_{module_name}->api_string_as_latin1_char
+#define sipString_AsLatin1String    sipAPI_{module_name}->api_string_as_latin1_string
+#define sipString_AsUTF8Char        sipAPI_{module_name}->api_string_as_utf8_char
+#define sipString_AsUTF8String      sipAPI_{module_name}->api_string_as_utf8_string
+#define sipUnicode_AsWChar          sipAPI_{module_name}->api_unicode_as_wchar
+#define sipUnicode_AsWString        sipAPI_{module_name}->api_unicode_as_wstring
+#define sipConvertFromConstVoidPtr  sipAPI_{module_name}->api_convert_from_const_void_ptr
+#define sipConvertFromVoidPtrAndSize    sipAPI_{module_name}->api_convert_from_void_ptr_and_size
+#define sipConvertFromConstVoidPtrAndSize   sipAPI_{module_name}->api_convert_from_const_void_ptr_and_size
+#define sipWrappedTypeName(wt)      ((wt)->wt_td->td_cname)
+#define sipGetReference             sipAPI_{module_name}->api_get_reference
+#define sipKeepReference            sipAPI_{module_name}->api_keep_reference
+#define sipRegisterPyType           sipAPI_{module_name}->api_register_py_type
+#define sipTypeFromPyTypeObject     sipAPI_{module_name}->api_type_from_py_type_object
+#define sipTypeScope                sipAPI_{module_name}->api_type_scope
+#define sipResolveTypedef           sipAPI_{module_name}->api_resolve_typedef
+#define sipRegisterAttributeGetter  sipAPI_{module_name}->api_register_attribute_getter
+#define sipEnableAutoconversion     sipAPI_{module_name}->api_enable_autoconversion
+#define sipInitMixin                sipAPI_{module_name}->api_init_mixin
+#define sipExportModule             sipAPI_{module_name}->api_export_module
+#define sipInitModule               sipAPI_{module_name}->api_init_module
+#define sipGetInterpreter           sipAPI_{module_name}->api_get_interpreter
+#define sipSetTypeUserData          sipAPI_{module_name}->api_set_type_user_data
+#define sipGetTypeUserData          sipAPI_{module_name}->api_get_type_user_data
+#define sipPyTypeDict               sipAPI_{module_name}->api_py_type_dict
+#define sipPyTypeName               sipAPI_{module_name}->api_py_type_name
+#define sipGetCFunction             sipAPI_{module_name}->api_get_c_function
+#define sipGetMethod                sipAPI_{module_name}->api_get_method
+#define sipFromMethod               sipAPI_{module_name}->api_from_method
+#define sipGetDate                  sipAPI_{module_name}->api_get_date
+#define sipFromDate                 sipAPI_{module_name}->api_from_date
+#define sipGetDateTime              sipAPI_{module_name}->api_get_datetime
+#define sipFromDateTime             sipAPI_{module_name}->api_from_datetime
+#define sipGetTime                  sipAPI_{module_name}->api_get_time
+#define sipFromTime                 sipAPI_{module_name}->api_from_time
+#define sipIsUserType               sipAPI_{module_name}->api_is_user_type
+#define sipCheckPluginForType       sipAPI_{module_name}->api_check_plugin_for_type
+#define sipUnicodeNew               sipAPI_{module_name}->api_unicode_new
+#define sipUnicodeWrite             sipAPI_{module_name}->api_unicode_write
+#define sipUnicodeData              sipAPI_{module_name}->api_unicode_data
+#define sipGetBufferInfo            sipAPI_{module_name}->api_get_buffer_info
+#define sipReleaseBufferInfo        sipAPI_{module_name}->api_release_buffer_info
+#define sipIsOwnedByPython          sipAPI_{module_name}->api_is_owned_by_python
+#define sipIsDerivedClass           sipAPI_{module_name}->api_is_derived_class
+#define sipGetUserObject            sipAPI_{module_name}->api_get_user_object
+#define sipSetUserObject            sipAPI_{module_name}->api_set_user_object
+#define sipRegisterEventHandler     sipAPI_{module_name}->api_register_event_handler
+#define sipConvertToArray           sipAPI_{module_name}->api_convert_to_array
+#define sipConvertToTypedArray      sipAPI_{module_name}->api_convert_to_typed_array
+#define sipEnableGC                 sipAPI_{module_name}->api_enable_gc
+#define sipPrintObject              sipAPI_{module_name}->api_print_object
+#define sipLong_AsChar              sipAPI_{module_name}->api_long_as_char
+#define sipLong_AsSignedChar        sipAPI_{module_name}->api_long_as_signed_char
+#define sipLong_AsUnsignedChar      sipAPI_{module_name}->api_long_as_unsigned_char
+#define sipLong_AsShort             sipAPI_{module_name}->api_long_as_short
+#define sipLong_AsUnsignedShort     sipAPI_{module_name}->api_long_as_unsigned_short
+#define sipLong_AsInt               sipAPI_{module_name}->api_long_as_int
+#define sipLong_AsUnsignedInt       sipAPI_{module_name}->api_long_as_unsigned_int
+#define sipLong_AsLong              sipAPI_{module_name}->api_long_as_long
+#define sipLong_AsUnsignedLong      sipAPI_{module_name}->api_long_as_unsigned_long
+#define sipLong_AsLongLong          sipAPI_{module_name}->api_long_as_long_long
+#define sipLong_AsUnsignedLongLong  sipAPI_{module_name}->api_long_as_unsigned_long_long
+#define sipLong_AsSizeT             sipAPI_{module_name}->api_long_as_size_t
+#define sipVisitWrappers            sipAPI_{module_name}->api_visit_wrappers
+#define sipRegisterExitNotifier     sipAPI_{module_name}->api_register_exit_notifier
+''')
+
+    # These are dependent on the specific ABI version.
+    if spec.target_abi >= (13, 0):
+        if spec.target_abi >= (13, 9):
+            # ABI v13.9 and later.
+            sf.write(
+f'''#define sipDeprecated               sipAPI_{module_name}->api_deprecated_13_9
+''')
+        else:
+            sf.write(
+f'''#define sipDeprecated               sipAPI_{module_name}->api_deprecated
+''')
+
+        # ABI v13.6 and later.
+        if spec.target_abi >= (13, 6):
+            sf.write(
+f'''#define sipPyTypeDictRef            sipAPI_{module_name}->api_py_type_dict_ref
+''')
+
+        # ABI v13.1 and later.
+        if spec.target_abi >= (13, 1):
+            sf.write(
+f'''#define sipNextExceptionHandler     sipAPI_{module_name}->api_next_exception_handler
+''')
+
+        sf.write(
+f'''#define sipIsEnumFlag               sipAPI_{module_name}->api_is_enum_flag
+#define sipConvertToTypeUS          sipAPI_{module_name}->api_convert_to_type_us
+#define sipForceConvertToTypeUS     sipAPI_{module_name}->api_force_convert_to_type_us
+#define sipReleaseTypeUS            sipAPI_{module_name}->api_release_type_us
+''')
+    else:
+        # ABI v12.16 and later
+        if spec.target_abi >= (12, 16):
+            sf.write(
+f'''#define sipDeprecated               sipAPI_{module_name}->api_deprecated_12_16
+''')
+        else:
+            sf.write(
+f'''#define sipDeprecated               sipAPI_{module_name}->api_deprecated
+''')
+
+        # ABI v12.13 and later.
+        if spec.target_abi >= (12, 13):
+            sf.write(
+f'''#define sipPyTypeDictRef            sipAPI_{module_name}->api_py_type_dict_ref
+''')
+
+        # ABI v12.9 and later.
+        if spec.target_abi >= (12, 9):
+            sf.write(
+f'''#define sipNextExceptionHandler     sipAPI_{module_name}->api_next_exception_handler
+''')
+
+        # ABI v12.8 and earlier.
+        sf.write(
+f'''#define sipSetNewUserTypeHandler    sipAPI_{module_name}->api_set_new_user_type_handler
+#define sipGetFrame                 sipAPI_{module_name}->api_get_frame
+#define sipSetDestroyOnExit         sipAPI_{module_name}->api_set_destroy_on_exit
+#define sipEnableOverflowChecking   sipAPI_{module_name}->api_enable_overflow_checking
+#define sipIsAPIEnabled             sipAPI_{module_name}->api_is_api_enabled
+#define sipClearAnySlotReference    sipAPI_{module_name}->api_clear_any_slot_reference
+#define sipConnectRx                sipAPI_{module_name}->api_connect_rx
+#define sipConvertRx                sipAPI_{module_name}->api_convert_rx
+#define sipDisconnectRx             sipAPI_{module_name}->api_disconnect_rx
+#define sipFreeSipslot              sipAPI_{module_name}->api_free_sipslot
+#define sipInvokeSlot               sipAPI_{module_name}->api_invoke_slot
+#define sipInvokeSlotEx             sipAPI_{module_name}->api_invoke_slot_ex
+#define sipSameSlot                 sipAPI_{module_name}->api_same_slot
+#define sipSaveSlot                 sipAPI_{module_name}->api_save_slot
+#define sipVisitSlot                sipAPI_{module_name}->api_visit_slot
+''')
+
+        if spec.target_abi >= (12, 8):
+            # ABI v12.8 and later.
+            sf.write(
+f'''#define sipIsPyMethod               sipAPI_{module_name}->api_is_py_method_12_8
+''')
+        else:
+            # ABI v12.7 and earlier.
+            sf.write(
+f'''#define sipIsPyMethod               sipAPI_{module_name}->api_is_py_method
 ''')
 
     def g_static_variables_table(self, sf, scope=None):
@@ -239,6 +468,14 @@ f'''    static PyModuleDef sip_module_def = {{
 
         return self._abi_version_check((12, 11), (13, 4))
 
+    @staticmethod
+    def cached_name_ref(cached_name, as_nr=False):
+        """ Return a reference to a cached name. """
+
+        prefix = 'sipNameNr_' if as_nr else 'sipName_'
+
+        return prefix + get_normalised_cached_name(cached_name)
+
     def custom_enums_supported(self):
         """ Return True if custom enums are supported. """
 
@@ -250,6 +487,19 @@ f'''    static PyModuleDef sip_module_def = {{
         spec = self.spec
 
         return spec.pyqt_qobject is not None and spec.pyqt_qobject.iface_file.module is spec.module
+
+    def py_enums_supported(self):
+        """ Return True if Python enums are supported. """
+
+        return self.spec.target_abi[0] == 13
+
+    @staticmethod
+    def py_method_args(*, is_impl, is_method):
+        """ Return the part of a Python method signature that are ABI
+        dependent.
+        """
+
+        return 'PyObject *sipSelf, PyObject *sipArgs' if is_impl else 'PyObject *, PyObject *'
 
     def _abi_version_check(self, min_12, min_13):
         """ Return True if the ABI version meets minimum version requirements.
@@ -270,7 +520,7 @@ f'''    static PyModuleDef sip_module_def = {{
             if variable.type.type not in (ArgumentType.ASCII_STRING, ArgumentType.LATIN1_STRING, ArgumentType.UTF8_STRING, ArgumentType.SSTRING, ArgumentType.USTRING, ArgumentType.STRING) or len(variable.type.derefs) != 0:
                 continue
 
-            ci_name = cached_name_ref(variable.py_name)
+            ci_name = self.cached_name_ref(variable.py_name)
             ci_val = variable.fq_cpp_name.cpp_stripped(STRIP_GLOBAL)
             ci_encoding = "'" + _get_encoding(variable.type) + "'"
 
@@ -300,7 +550,7 @@ static sipCharInstanceDef charInstances{suffix}[]''')
             if not spec.c_bindings and variable.access_code is None and len(variable.type.derefs) == 0:
                 continue
 
-            ti_name = cached_name_ref(variable.py_name)
+            ti_name = self.cached_name_ref(variable.py_name)
             ti_ptr = '&' + self.scoped_variable_name(variable)
             ti_type = '&' + self.gto_name(variable.type.definition)
             ti_flags = '0'
@@ -335,7 +585,7 @@ static sipTypeInstanceDef typeInstances{suffix}[]''')
             if variable.type.type not in (ArgumentType.FLOAT, ArgumentType.CFLOAT, ArgumentType.DOUBLE, ArgumentType.CDOUBLE):
                 continue
 
-            di_name = cached_name_ref(variable.py_name)
+            di_name = self.cached_name_ref(variable.py_name)
             di_val = variable.fq_cpp_name.cpp_stripped(STRIP_GLOBAL)
             instances.append((di_name, di_val))
 
@@ -365,7 +615,7 @@ static sipDoubleInstanceDef doubleInstances{suffix}[]''')
                     continue
 
                 for enum_member in enum.members:
-                    ii_name = cached_name_ref(enum_member.py_name)
+                    ii_name = self.cached_name_ref(enum_member.py_name)
                     ii_val = _enum_member(backend, enum_member)
                     instances.append((ii_name, ii_val))
 
@@ -378,7 +628,7 @@ static sipDoubleInstanceDef doubleInstances{suffix}[]''')
             if variable.type.type is ArgumentType.ENUM and variable.type.definition.fq_cpp_name is not None:
                 continue
 
-            ii_name = cached_name_ref(variable.py_name)
+            ii_name = self.cached_name_ref(variable.py_name)
             ii_val = variable.fq_cpp_name.cpp_stripped(STRIP_GLOBAL)
             instances.append((ii_name, ii_val))
 
@@ -392,7 +642,7 @@ static sipDoubleInstanceDef doubleInstances{suffix}[]''')
                     continue
 
                 for enum_member in enum.members:
-                    ii_name = cached_name_ref(enum_member.py_name)
+                    ii_name = self.cached_name_ref(enum_member.py_name)
                     ii_val = _enum_member(self, enum_member)
                     instances.append((ii_name, ii_val))
 
@@ -426,7 +676,7 @@ static sipIntInstanceDef intInstances{suffix}[]''')
             if (variable.type.type not in (ArgumentType.ASCII_STRING, ArgumentType.LATIN1_STRING, ArgumentType.UTF8_STRING, ArgumentType.SSTRING, ArgumentType.USTRING, ArgumentType.STRING) or len(variable.type.derefs) == 0) and variable.type.type is not ArgumentType.WSTRING:
                 continue
 
-            si_name = cached_name_ref(variable.py_name)
+            si_name = self.cached_name_ref(variable.py_name)
             si_val = variable.fq_cpp_name.cpp_stripped(STRIP_GLOBAL)
 
             # This is the hack for handling wchar_t and wchar_t*.
@@ -472,7 +722,7 @@ static sipStringInstanceDef stringInstances{suffix}[]''')
             if variable.type.type not in (ArgumentType.VOID, ArgumentType.STRUCT, ArgumentType.UNION):
                 continue
 
-            vi_name = cached_name_ref(variable.py_name)
+            vi_name = self.cached_name_ref(variable.py_name)
             vi_val = _const_cast(self.spec, variable.type,
                     variable.fq_cpp_name.cpp_stripped(STRIP_GLOBAL))
             instances.append((vi_name, vi_val))
@@ -631,7 +881,7 @@ f'''
                 sf.write('\n    /* Define the Python objects wrapped as such. */\n')
                 no_intro = False
 
-            py_name = cached_name_ref(variable.py_name)
+            py_name = self.cached_name_ref(variable.py_name)
             cpp_name = self.scoped_variable_name(variable)
 
             sf.write(f'    PyDict_SetItemString(sipModuleDict, {py_name}, {cpp_name});\n')
@@ -729,7 +979,7 @@ f'''    if ((sipAPI_{module_name} = sip_init_library(sipModuleDict)) == SIP_NULL
             else:
                 dict_name = f'(PyObject *)sipTypeAsPyTypeObject({self.gto_name(variable.scope)})'
 
-            py_name = cached_name_ref(variable.py_name)
+            py_name = self.cached_name_ref(variable.py_name)
             ptr = '&' + self.scoped_variable_name(variable)
 
             if variable.type.is_const:
@@ -786,7 +1036,7 @@ f'''    if ((sipAPI_{module_name} = sip_init_library(sipModuleDict)) == SIP_NULL
             if variable_type is not target_type:
                 continue
 
-            ii_name = cached_name_ref(variable.py_name)
+            ii_name = self.cached_name_ref(variable.py_name)
             ii_val = variable.fq_cpp_name.cpp_stripped(STRIP_GLOBAL)
             instances.append((ii_name, ii_val))
 

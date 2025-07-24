@@ -76,7 +76,7 @@ typedef struct {
 
 
 /* Forward references. */
-static void add_failure(PyObject **parseErrp, sipParseFailure *failure);
+static void add_failure(PyObject **parse_err_p, sipParseFailure *failure);
 static PyObject *bad_type_str(int arg_nr, PyObject *arg);
 static PyObject *build_object(sipWrappedModuleState *wms, PyObject *tup,
         const char *fmt, va_list va);
@@ -109,16 +109,17 @@ static int get_self_from_args(PyTypeObject *py_type, PyObject *args, int argnr,
         PyObject **selfp);
 static void handle_failed_int_conversion(sipParseFailure *pf, PyObject *arg);
 static void handle_failed_type_conversion(sipParseFailure *pf, PyObject *arg);
-static int parse_kwd_args(PyObject *wmod, PyObject **parseErrp,
-        PyObject *sipArgs, PyObject *sipKwdArgs, const char **kwdlist,
-        PyObject **unused, const char *fmt, va_list va_orig);
-static int parse_pass_1(sipWrappedModuleState *wms, PyObject **parseErrp,
-        PyObject **selfp, int *selfargp, PyObject *sipArgs,
-        PyObject *sipKwdArgs, const char **kwdlist, PyObject **unused,
+static int parse_kwd_args(PyObject *wmod, PyObject **parse_err_p,
+        PyObject *const *args, Py_ssize_t nr_args, PyObject *kwd_args,
+        const char **kwd_list, PyObject **unused, const char *fmt,
+        va_list va_orig);
+static int parse_pass_1(sipWrappedModuleState *wms, PyObject **parse_err_p,
+        PyObject **selfp, int *selfargp, PyObject *args,
+        PyObject *kwd_args, const char **kwd_list, PyObject **unused,
         const char *fmt, va_list va);
 static int parse_pass_2(sipWrappedModuleState *wms, PyObject *self,
-        int selfarg, PyObject *sipArgs, PyObject *sipKwdArgs,
-        const char **kwdlist, const char *fmt, va_list va);
+        int selfarg, PyObject *args, PyObject *kwd_args,
+        const char **kwd_list, const char *fmt, va_list va);
 static int parse_result(sipWrappedModuleState *wms, PyObject *method,
         PyObject *res, sipSimpleWrapper *py_self, const char *fmt, va_list va);
 static void raise_no_convert_to(PyObject *py, const sipTypeDef *td);
@@ -132,9 +133,9 @@ static int user_state_is_valid(const sipTypeDef *td, void **user_statep);
  * Adds the current exception to the current list of exceptions (if it is a
  * user exception) or replace the current list of exceptions.
  */
-void sip_api_add_exception(sipErrorState es, PyObject **parseErrp)
+void sip_api_add_exception(sipErrorState es, PyObject **parse_err_p)
 {
-    assert(*parseErrp == NULL);
+    assert(*parse_err_p == NULL);
 
     if (es == sipErrorContinue)
     {
@@ -148,7 +149,7 @@ void sip_api_add_exception(sipErrorState es, PyObject **parseErrp)
 
         failure.reason = Exception;
 
-        add_failure(parseErrp, &failure);
+        add_failure(parse_err_p, &failure);
 
         if (failure.reason == Raised)
         {
@@ -159,8 +160,8 @@ void sip_api_add_exception(sipErrorState es, PyObject **parseErrp)
 
     if (es == sipErrorFail)
     {
-        Py_XDECREF(*parseErrp);
-        *parseErrp = Py_None;
+        Py_XDECREF(*parse_err_p);
+        *parse_err_p = Py_None;
         Py_INCREF(Py_None);
     }
 }
@@ -511,17 +512,17 @@ PyObject *sip_api_get_pyobject(PyObject *wmod, void *cppPtr,
 /*
  * Report a function with invalid argument types.
  */
-void sip_api_no_function(PyObject *parseErr, const char *func,
+void sip_api_no_function(PyObject *parse_err, const char *func,
         const char *doc)
 {
-    sip_api_no_method(parseErr, NULL, func, doc);
+    sip_api_no_method(parse_err, NULL, func, doc);
 }
 
 
 /*
  * Report a method with invalid argument types.
  */
-void sip_api_no_method(PyObject *parseErr, const char *scope,
+void sip_api_no_method(PyObject *parse_err, const char *scope,
         const char *method, const char *doc)
 {
     const char *sep = ".";
@@ -529,7 +530,7 @@ void sip_api_no_method(PyObject *parseErr, const char *scope,
     if (scope == NULL)
         scope = ++sep;
 
-    if (parseErr == NULL)
+    if (parse_err == NULL)
     {
         /*
          * If we have got this far without trying a parse then there must be no
@@ -538,15 +539,15 @@ void sip_api_no_method(PyObject *parseErr, const char *scope,
         PyErr_Format(PyExc_TypeError, "%s%s%s() is a private method", scope,
                 sep, method);
     }
-    else if (PyList_Check(parseErr))
+    else if (PyList_Check(parse_err))
     {
         PyObject *exc;
 
         /* There is an entry for each overload that was tried. */
-        if (PyList_GET_SIZE(parseErr) == 1)
+        if (PyList_GET_SIZE(parse_err) == 1)
         {
             PyObject *detail = detail_from_failure(
-                    PyList_GET_ITEM(parseErr, 0));
+                    PyList_GET_ITEM(parse_err, 0));
 
             if (detail != NULL)
             {
@@ -589,11 +590,11 @@ void sip_api_no_method(PyObject *parseErr, const char *scope,
                 exc = PyUnicode_FromFormat("%s%s%s(): %s", scope, sep, method,
                         summary);
 
-            for (i = 0; i < PyList_GET_SIZE(parseErr); ++i)
+            for (i = 0; i < PyList_GET_SIZE(parse_err); ++i)
             {
                 PyObject *failure;
                 PyObject *detail = detail_from_failure(
-                        PyList_GET_ITEM(parseErr, i));
+                        PyList_GET_ITEM(parse_err, i));
 
                 if (detail != NULL)
                 {
@@ -646,24 +647,25 @@ void sip_api_no_method(PyObject *parseErr, const char *scope,
          * None is used as a marker to say that an exception has already been
          * raised.
          */
-        assert(parseErr == Py_None);
+        assert(parse_err == Py_None);
     }
 
-    Py_XDECREF(parseErr);
+    Py_XDECREF(parse_err);
 }
 
 
 /*
  * Parse the arguments to a C/C++ function without any side effects.
  */
-int sip_api_parse_args(PyObject *wmod, PyObject **parseErrp, PyObject *sipArgs,
-        const char *fmt, ...)
+int sip_api_parse_args(PyObject *wmod, PyObject **parse_err_p,
+        PyObject *const *args, Py_ssize_t nr_args, const char *fmt, ...)
 {
     int ok;
     va_list va;
 
     va_start(va, fmt);
-    ok = parse_kwd_args(wmod, parseErrp, sipArgs, NULL, NULL, NULL, fmt, va);
+    ok = parse_kwd_args(wmod, parse_err_p, args, nr_args, NULL, NULL, NULL,
+            fmt, va);
     va_end(va);
 
     return ok;
@@ -674,9 +676,9 @@ int sip_api_parse_args(PyObject *wmod, PyObject **parseErrp, PyObject *sipArgs,
  * Parse the positional and/or keyword arguments to a C/C++ function without
  * any side effects.
  */
-int sip_api_parse_kwd_args(PyObject *wmod, PyObject **parseErrp,
-        PyObject *sipArgs, PyObject *sipKwdArgs, const char **kwdlist,
-        PyObject **unused, const char *fmt, ...)
+int sip_api_parse_kwd_args(PyObject *wmod, PyObject **parse_err_p,
+        PyObject *const *args, Py_ssize_t nr_args, PyObject *kwd_args,
+        const char **kwd_list, PyObject **unused, const char *fmt, ...)
 {
     int ok;
     va_list va;
@@ -691,8 +693,8 @@ int sip_api_parse_kwd_args(PyObject *wmod, PyObject **parseErrp,
     }
 
     va_start(va, fmt);
-    ok = parse_kwd_args(wmod, parseErrp, sipArgs, sipKwdArgs, kwdlist, unused,
-            fmt, va);
+    ok = parse_kwd_args(wmod, parse_err_p, args, nr_args, kwd_args, kwd_list,
+            unused, fmt, va);
     va_end(va);
 
     /* Release any unused arguments if the parse failed. */
@@ -709,19 +711,19 @@ int sip_api_parse_kwd_args(PyObject *wmod, PyObject **parseErrp,
  * Parse one or a pair of arguments to a C/C++ function without any side
  * effects.
  */
-int sip_api_parse_pair(PyObject *wmod, PyObject **parseErrp, PyObject *sipArg0,
+int sip_api_parse_pair(PyObject *wmod, PyObject **parse_err_p, PyObject *sipArg0,
         PyObject *sipArg1, const char *fmt, ...)
 {
     /* Previous second pass errors stop subsequent parses. */
-    if (*parseErrp != NULL && !PyList_Check(*parseErrp))
+    if (*parse_err_p != NULL && !PyList_Check(*parse_err_p))
         return FALSE;
 
     PyObject *args = PyTuple_New(sipArg1 != NULL ? 2 : 1);
     if (args == NULL)
     {
         /* Stop all parsing and indicate an exception has been raised. */
-        Py_XDECREF(*parseErrp);
-        *parseErrp = Py_None;
+        Py_XDECREF(*parse_err_p);
+        *parse_err_p = Py_None;
         Py_INCREF(Py_None);
 
         return FALSE;
@@ -747,7 +749,7 @@ int sip_api_parse_pair(PyObject *wmod, PyObject **parseErrp, PyObject *sipArg0,
     va_list va;
 
     va_start(va, fmt);
-    ok = parse_pass_1(wms, parseErrp, &self, &selfarg, args, NULL, NULL, NULL,
+    ok = parse_pass_1(wms, parse_err_p, &self, &selfarg, args, NULL, NULL, NULL,
             fmt, va);
     va_end(va);
 
@@ -762,16 +764,16 @@ int sip_api_parse_pair(PyObject *wmod, PyObject **parseErrp, PyObject *sipArg0,
         va_end(va);
 
         /* Remove any previous failed parses. */
-        Py_XDECREF(*parseErrp);
+        Py_XDECREF(*parse_err_p);
 
         if (ok)
         {
-            *parseErrp = NULL;
+            *parse_err_p = NULL;
         }
         else
         {
             /* Indicate that an exception has been raised. */
-            *parseErrp = Py_None;
+            *parse_err_p = Py_None;
             Py_INCREF(Py_None);
         }
     }
@@ -1153,13 +1155,13 @@ release_gil:
 /*
  * Add a parse failure to the current list of exceptions.
  */
-static void add_failure(PyObject **parseErrp, sipParseFailure *failure)
+static void add_failure(PyObject **parse_err_p, sipParseFailure *failure)
 {
     sipParseFailure *failure_copy;
     PyObject *failure_obj;
 
     /* Create the list if necessary. */
-    if (*parseErrp == NULL && (*parseErrp = PyList_New(0)) == NULL)
+    if (*parse_err_p == NULL && (*parse_err_p = PyList_New(0)) == NULL)
     {
         failure->reason = Raised;
         return;
@@ -1187,7 +1189,7 @@ static void add_failure(PyObject **parseErrp, sipParseFailure *failure)
     /* Ownership of any detail object is now with the wrapped failure. */
     failure->detail_obj = NULL;
 
-    if (PyList_Append(*parseErrp, failure_obj) < 0)
+    if (PyList_Append(*parse_err_p, failure_obj) < 0)
     {
         Py_DECREF(failure_obj);
         failure->reason = Raised;
@@ -2161,19 +2163,17 @@ static void handle_failed_type_conversion(sipParseFailure *pf, PyObject *arg)
 /*
  * Parse the arguments to a C/C++ function without any side effects.
  */
-static int parse_kwd_args(PyObject *wmod, PyObject **parseErrp,
-        PyObject *sipArgs, PyObject *sipKwdArgs, const char **kwdlist,
-        PyObject **unused, const char *fmt, va_list va_orig)
+static int parse_kwd_args(PyObject *wmod, PyObject **parse_err_p,
+        PyObject *const *args, Py_ssize_t nr_args, PyObject *kwd_args,
+        const char **kwd_list, PyObject **unused, const char *fmt,
+        va_list va_orig)
 {
     /* Previous second pass errors stop subsequent parses. */
-    if (*parseErrp != NULL && !PyList_Check(*parseErrp))
+    if (*parse_err_p != NULL && !PyList_Check(*parse_err_p))
         return FALSE;
 
-    /*
-     * See if we are parsing a single argument.  In current versions we are
-     * told explicitly by the first character of the format string.  In earlier
-     * versions we guessed (sometimes wrongly).
-     */
+    /* See if we are parsing a single argument. */
+    // TODO
     int no_tmp_tuple;
     PyObject *single_arg;
 
@@ -2184,25 +2184,25 @@ static int parse_kwd_args(PyObject *wmod, PyObject **parseErrp,
     }
     else
     {
-        no_tmp_tuple = PyTuple_Check(sipArgs);
+        no_tmp_tuple = PyTuple_Check(args);
     }
 
     if (no_tmp_tuple)
     {
-        Py_INCREF(sipArgs);
+        Py_INCREF(args);
     }
     else if ((single_arg = PyTuple_New(1)) != NULL)
     {
-        Py_INCREF(sipArgs);
-        PyTuple_SET_ITEM(single_arg, 0, sipArgs);
+        Py_INCREF(args);
+        PyTuple_SET_ITEM(single_arg, 0, args);
 
-        sipArgs = single_arg;
+        args = single_arg;
     }
     else
     {
         /* Stop all parsing and indicate an exception has been raised. */
-        Py_XDECREF(*parseErrp);
-        *parseErrp = Py_None;
+        Py_XDECREF(*parse_err_p);
+        *parse_err_p = Py_None;
         Py_INCREF(Py_None);
 
         return FALSE;
@@ -2219,8 +2219,8 @@ static int parse_kwd_args(PyObject *wmod, PyObject **parseErrp,
     va_list va;
 
     va_copy(va, va_orig);
-    ok = parse_pass_1(wms, parseErrp, &self, &selfarg, sipArgs, sipKwdArgs,
-            kwdlist, unused, fmt, va);
+    ok = parse_pass_1(wms, parse_err_p, &self, &selfarg, args, kwd_args,
+            kwd_list, unused, fmt, va);
     va_end(va);
 
     if (ok)
@@ -2230,26 +2230,26 @@ static int parse_kwd_args(PyObject *wmod, PyObject **parseErrp,
          * have the right signature.
          */
         va_copy(va, va_orig);
-        ok = parse_pass_2(wms, self, selfarg, sipArgs, sipKwdArgs, kwdlist,
+        ok = parse_pass_2(wms, self, selfarg, args, kwd_args, kwd_list,
                 fmt, va);
         va_end(va);
 
         /* Remove any previous failed parses. */
-        Py_XDECREF(*parseErrp);
+        Py_XDECREF(*parse_err_p);
 
         if (ok)
         {
-            *parseErrp = NULL;
+            *parse_err_p = NULL;
         }
         else
         {
             /* Indicate that an exception has been raised. */
-            *parseErrp = Py_None;
+            *parse_err_p = Py_None;
             Py_INCREF(Py_None);
         }
     }
 
-    Py_DECREF(sipArgs);
+    Py_DECREF(args);
 
     return ok;
 }
@@ -2259,9 +2259,9 @@ static int parse_kwd_args(PyObject *wmod, PyObject **parseErrp,
  * First pass of the argument parse, converting those that can be done so
  * without any side effects.  Return TRUE if the arguments matched.
  */
-static int parse_pass_1(sipWrappedModuleState *wms, PyObject **parseErrp,
-        PyObject **selfp, int *selfargp, PyObject *sipArgs,
-        PyObject *sipKwdArgs, const char **kwdlist, PyObject **unused,
+static int parse_pass_1(sipWrappedModuleState *wms, PyObject **parse_err_p,
+        PyObject **selfp, int *selfargp, PyObject *args,
+        PyObject *kwd_args, const char **kwd_list, PyObject **unused,
         const char *fmt, va_list va)
 {
     sipSipModuleState *sms = wms->sip_module_state;
@@ -2270,17 +2270,17 @@ static int parse_pass_1(sipWrappedModuleState *wms, PyObject **parseErrp,
     int nr_args = 0;
     Py_ssize_t nr_kwd_args;
     Py_ssize_t nr_kwd_args_used = 0;
-    Py_ssize_t nr_pos_args = PyTuple_GET_SIZE(sipArgs);
+    Py_ssize_t nr_pos_args = PyTuple_GET_SIZE(args);
     sipParseFailure failure = {
         .reason = Ok,
         .detail_obj = NULL,
     };
 
-    if (sipKwdArgs != NULL)
+    if (kwd_args != NULL)
     {
-        assert(PyDict_Check(sipKwdArgs));
+        assert(PyDict_Check(kwd_args));
 
-        nr_kwd_args = PyDict_Size(sipKwdArgs);
+        nr_kwd_args = PyDict_Size(kwd_args);
     }
     else
     {
@@ -2315,7 +2315,7 @@ static int parse_pass_1(sipWrappedModuleState *wms, PyObject **parseErrp,
                 /* The call was self.method(...). */
                 *selfp = self;
             }
-            else if (get_self_from_args(py_type, sipArgs, argnr, selfp))
+            else if (get_self_from_args(py_type, args, argnr, selfp))
             {
                 /* The call was cls.method(self, ...). */
                 *selfargp = TRUE;
@@ -2388,8 +2388,8 @@ static int parse_pass_1(sipWrappedModuleState *wms, PyObject **parseErrp,
                  */
                 if (nr_kwd_args_used == 0 && unused != NULL)
                 {
-                    Py_INCREF(sipKwdArgs);
-                    *unused = sipKwdArgs;
+                    Py_INCREF(kwd_args);
+                    *unused = kwd_args;
                 }
                 else
                 {
@@ -2401,7 +2401,7 @@ static int parse_pass_1(sipWrappedModuleState *wms, PyObject **parseErrp,
                      * duplicates of positional arguments.  For the remaining
                      * ones remember the unused ones if we are interested.
                      */
-                    while (PyDict_Next(sipKwdArgs, &pos, &key, &value))
+                    while (PyDict_Next(kwd_args, &pos, &key, &value))
                     {
                         int a;
 
@@ -2413,12 +2413,12 @@ static int parse_pass_1(sipWrappedModuleState *wms, PyObject **parseErrp,
                             break;
                         }
 
-                        if (kwdlist != NULL)
+                        if (kwd_list != NULL)
                         {
                             /* Get the argument's index if it is one. */
                             for (a = 0; a < nr_args; ++a)
                             {
-                                const char *name = kwdlist[a];
+                                const char *name = kwd_list[a];
 
                                 if (name == NULL)
                                     continue;
@@ -2498,16 +2498,16 @@ static int parse_pass_1(sipWrappedModuleState *wms, PyObject **parseErrp,
 
         if (argnr < nr_pos_args)
         {
-            arg = PyTuple_GET_ITEM(sipArgs, argnr);
+            arg = PyTuple_GET_ITEM(args, argnr);
             failure.arg_nr = argnr + 1;
         }
-        else if (nr_kwd_args != 0 && kwdlist != NULL)
+        else if (nr_kwd_args != 0 && kwd_list != NULL)
         {
-            const char *name = kwdlist[argnr - *selfargp];
+            const char *name = kwd_list[argnr - *selfargp];
 
             if (name != NULL)
             {
-                arg = PyDict_GetItemString(sipKwdArgs, name);
+                arg = PyDict_GetItemString(kwd_args, name);
 
                 if (arg != NULL)
                     ++nr_kwd_args_used;
@@ -2538,12 +2538,12 @@ static int parse_pass_1(sipWrappedModuleState *wms, PyObject **parseErrp,
              * a (possibly) more accurate diagnostic in the case that a keyword
              * argument has been mis-spelled.
              */
-            if (unused == NULL && sipKwdArgs != NULL && nr_kwd_args_used != nr_kwd_args)
+            if (unused == NULL && kwd_args != NULL && nr_kwd_args_used != nr_kwd_args)
             {
                 PyObject *key, *value;
                 Py_ssize_t pos = 0;
 
-                while (PyDict_Next(sipKwdArgs, &pos, &key, &value))
+                while (PyDict_Next(kwd_args, &pos, &key, &value))
                 {
                     int a;
 
@@ -2555,12 +2555,12 @@ static int parse_pass_1(sipWrappedModuleState *wms, PyObject **parseErrp,
                         break;
                     }
 
-                    if (kwdlist != NULL)
+                    if (kwd_list != NULL)
                     {
                         /* Get the argument's index if it is one. */
                         for (a = 0; a < nr_args; ++a)
                         {
-                            const char *name = kwdlist[a];
+                            const char *name = kwd_list[a];
 
                             if (name == NULL)
                                 continue;
@@ -3498,7 +3498,7 @@ static int parse_pass_1(sipWrappedModuleState *wms, PyObject **parseErrp,
     }
 
     if (failure.reason != Raised)
-        add_failure(parseErrp, &failure);
+        add_failure(parse_err_p, &failure);
 
     if (failure.reason == Raised)
     {
@@ -3508,8 +3508,8 @@ static int parse_pass_1(sipWrappedModuleState *wms, PyObject **parseErrp,
          * Discard any previous errors and flag that the exception we want the
          * user to see has been raised.
          */
-        Py_XDECREF(*parseErrp);
-        *parseErrp = Py_None;
+        Py_XDECREF(*parse_err_p);
+        *parse_err_p = Py_None;
         Py_INCREF(Py_None);
     }
 
@@ -3522,7 +3522,7 @@ static int parse_pass_1(sipWrappedModuleState *wms, PyObject **parseErrp,
  * have side effects.  Return TRUE if there was no error.
  */
 static int parse_pass_2(sipWrappedModuleState *wms, PyObject *self, int selfarg,
-        PyObject *sipArgs, PyObject *sipKwdArgs, const char **kwdlist,
+        PyObject *args, PyObject *kwd_args, const char **kwd_list,
         const char *fmt, va_list va)
 {
     /* Handle the conversions of "self" first. */
@@ -3579,7 +3579,7 @@ static int parse_pass_2(sipWrappedModuleState *wms, PyObject *self, int selfarg,
 
     int a;
     int ok = TRUE;
-    Py_ssize_t nr_pos_args = PyTuple_GET_SIZE(sipArgs);
+    Py_ssize_t nr_pos_args = PyTuple_GET_SIZE(args);
 
     for (a = (selfarg ? 1 : 0); *fmt != '\0' && *fmt != 'W' && ok; ++a)
     {
@@ -3595,14 +3595,14 @@ static int parse_pass_2(sipWrappedModuleState *wms, PyObject *self, int selfarg,
 
         if (a < nr_pos_args)
         {
-            arg = PyTuple_GET_ITEM(sipArgs, a);
+            arg = PyTuple_GET_ITEM(args, a);
         }
-        else if (sipKwdArgs != NULL)
+        else if (kwd_args != NULL)
         {
-            const char *name = kwdlist[a - selfarg];
+            const char *name = kwd_list[a - selfarg];
 
             if (name != NULL)
-                arg = PyDict_GetItemString(sipKwdArgs, name);
+                arg = PyDict_GetItemString(kwd_args, name);
         }
 
         /*
@@ -3867,7 +3867,7 @@ static int parse_pass_2(sipWrappedModuleState *wms, PyObject *self, int selfarg,
 
         while (a < nr_pos_args)
         {
-            PyObject *arg = PyTuple_GET_ITEM(sipArgs, a);
+            PyObject *arg = PyTuple_GET_ITEM(args, a);
 
             /* Add the remaining argument to the tuple. */
             Py_INCREF(arg);
