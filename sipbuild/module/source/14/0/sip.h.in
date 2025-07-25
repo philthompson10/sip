@@ -83,8 +83,8 @@ typedef unsigned int uint;
 #if defined(__cplusplus)
 
 /*
- * Cast a PyCFunctionWithKeywords to a PyCFunction in such a way that it
- * suppresses the GCC -Wcast-function-type warning.
+ * Cast to a PyCFunction in such a way that it suppresses the GCC
+ * -Wcast-function-type warning.
  */
 #define SIP_MLMETH_CAST(m)  reinterpret_cast<PyCFunction>(reinterpret_cast<void (*)(void)>(m))
 
@@ -104,7 +104,7 @@ typedef unsigned int uint;
 
 #else
 
-/* Cast a PyCFunctionWithKeywords to a PyCFunction. */
+/* Cast to a PyCFunction. */
 #define SIP_MLMETH_CAST(m)  ((PyCFunction)(m))
 
 /* C. */
@@ -1344,9 +1344,9 @@ struct _sipAPIDef {
             const char **kwd_list, PyObject **unused, const char *fmt, ...);
     int (*api_parse_pair)(PyObject *wmod, PyObject **parse_err_p,
             PyObject *arg_0, PyObject *arg_1, const char *fmt, ...);
-    void (*api_no_function)(PyObject *parseErr, const char *func,
+    void (*api_no_function)(PyObject *parse_err, const char *func,
             const char *doc);
-    void (*api_no_method)(PyObject *parseErr, const char *scope,
+    void (*api_no_method)(PyObject *parse_err, const char *scope,
             const char *method, const char *doc);
     void (*api_abstract_method)(const char *classname, const char *method);
     void (*api_bad_class)(const char *classname);

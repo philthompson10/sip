@@ -276,6 +276,8 @@ f'''
         # TODO These have been reviewed as part of the private v14 API.
         sf.write(
 f'''
+#define sipNoFunction               sipAPI->api_no_function
+#define sipNoMethod                 sipAPI->api_no_method
 #define sipParseArgs                sipAPI->api_parse_args
 #define sipParseKwdArgs             sipAPI->api_parse_kwd_args
 #define sipParsePair                sipAPI->api_parse_pair
@@ -298,8 +300,6 @@ f'''#define sipMalloc                   sipAPI->api_malloc
 #define sipConvertFromVoidPtr       sipAPI->api_convert_from_void_ptr
 #define sipConvertToVoidPtr         sipAPI->api_convert_to_void_ptr
 #define sipAddException             sipAPI->api_add_exception
-#define sipNoFunction               sipAPI->api_no_function
-#define sipNoMethod                 sipAPI->api_no_method
 #define sipAbstractMethod           sipAPI->api_abstract_method
 #define sipBadClass                 sipAPI->api_bad_class
 #define sipBadCatcherResult         sipAPI->api_bad_catcher_result
@@ -983,18 +983,17 @@ static void wrapped_module_free(void *wmod_ptr)
                     sf.write('    static PyMethodDef sip_methods[] = {\n')
                     has_module_functions = True
 
-                py_name = get_normalised_cached_name(member.py_name)
-                sf.write(f'        {{sipName_{py_name}, ')
+                py_name = member.py_name.name
+
+                sf.write(f'        {{"{py_name}", SIP_MLMETH_CAST(func_{py_name}), METH_FASTCALL')
 
                 if member.no_arg_parser or member.allow_keyword_args:
-                    sf.write(f'SIP_MLMETH_CAST(func_{member.py_name.name}), METH_VARARGS|METH_KEYWORDS')
-                else:
-                    sf.write(f'func_{member.py_name.name}, METH_VARARGS')
+                    sf.write('|METH_KEYWORDS')
 
                 docstring = self.optional_ptr(
                         has_member_docstring(bindings, member,
                                 self.spec.module.overloads),
-                        'doc_' + member.py_name.name)
+                        'doc_' + py_name)
                 sf.write(f', {docstring}}},\n')
 
         return has_module_functions

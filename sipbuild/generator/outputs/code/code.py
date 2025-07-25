@@ -6833,6 +6833,9 @@ def _arg_parser(backend, sf, scope, py_signature, ctor=None, overload=None):
     args = []
     single_arg = False
 
+    if spec.target_abi >= (14, 0):
+        args.append('sipModule')
+
     if overload is not None and is_number_slot(overload.common.py_slot):
         parser_function = 'sipParsePair'
         args.append('&sipParseErr')
@@ -6896,6 +6899,10 @@ def _arg_parser(backend, sf, scope, py_signature, ctor=None, overload=None):
         parser_function = 'sipParseKwdArgs'
         args.append('sipParseErr' if ctor is not None else '&sipParseErr')
         args.append('sipArgs')
+
+        if spec.target_abi >= (14, 0):
+            args.append('sipNrArgs')
+
         args.append('sipKwds')
         args.append('sipKwdList' if is_ka_list else 'SIP_NULLPTR')
         args.append('sipUnused' if ctor is not None else 'SIP_NULLPTR')
@@ -6912,6 +6919,9 @@ def _arg_parser(backend, sf, scope, py_signature, ctor=None, overload=None):
         parser_function = 'sipParseArgs'
         args.append('&sipParseErr')
         args.append('sipArg' + plural)
+
+        if spec.target_abi >= (14, 0):
+            args.append('sipNrArgs')
 
     # Generate the format string.
     format_s = '"'

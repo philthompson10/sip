@@ -22,6 +22,6 @@ class CallablesTestCase(SIPTestCase):
     def test_module_ret_void_no_args(self):
         """ Test the support a module void() function. """
 
-        self.cmod.module_procedure_called = False
-        self.cmod.module_ret_void_no_args()
-        self.assertIs(self.cmod.module_procedure_called, True)
+        self.c_mod.module_procedure_called = False
+        self.c_mod.module_void_ret_no_args()
+        self.assertIs(self.c_mod.module_procedure_called, True)
