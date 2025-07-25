@@ -195,14 +195,15 @@ typedef struct _sipWrapper sipWrapper;
 // with Python.
 
 /*
- * The state of a wrapped module.
+ * The state of a wrapped module.  This is opaque as far as the public ABI is
+ * concerned.  Note that it cannot be put into an internal header file because
+ * it's sizeof() is required before the ABI is available.
  */
-// TODO Move the structure definition to sip_wrapped_module.h.
 typedef struct {
     /*
      * The pointers to the functions that implement the sip module API.  This
-     * *must* be the first field as sipGetAPI() relies on it and it allows the
-     * layout of the rest of the structure to be kept hidden.
+     * *must* be the first field as sipGetAPI() relies on it (as a trivial
+     * optimisation).
      */
     const sipAPIDef *sip_api;
 

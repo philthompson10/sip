@@ -203,6 +203,7 @@ PyDoc_STRVAR(doc_mod_{module.py_name}, "{self.docstring_text(module.docstring)}"
             sf.write(
 '''        {SIP_NULLPTR, SIP_NULLPTR, 0, SIP_NULLPTR}
     };
+
 ''')
 
         return has_module_functions
