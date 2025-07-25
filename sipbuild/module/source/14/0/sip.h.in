@@ -1273,8 +1273,8 @@ struct _sipAPIDef {
     void *(*api_get_mixin_address)(struct _sipSimpleWrapper *w,
             const sipTypeDef *td);
     PyObject *(*api_convert_from_new_pytype)(PyObject *wmod, void *cpp,
-            PyTypeObject *py_type, sipWrapper *owner, sipSimpleWrapper **selfp,
-            const char *fmt, ...);
+            PyTypeObject *py_type, sipWrapper *owner,
+            sipSimpleWrapper **self_p, const char *fmt, ...);
     PyObject *(*api_convert_to_typed_array)(PyObject *wmod, void *data,
             sipTypeID type_id, const char *format, size_t stride,
             Py_ssize_t len, int flags);
@@ -1340,10 +1340,10 @@ struct _sipAPIDef {
     int (*api_parse_args)(PyObject *wmod, PyObject **parse_err_p,
             PyObject *const *args, Py_ssize_t nr_args, const char *fmt, ...);
     int (*api_parse_kwd_args)(PyObject *wmod, PyObject **parse_err_p,
-            PyObject *const *args, Py_ssize_t nr_args, PyObject *kwd_args,
+            PyObject *const *args, Py_ssize_t nr_args, PyObject *kwd_names,
             const char **kwd_list, PyObject **unused, const char *fmt, ...);
     int (*api_parse_pair)(PyObject *wmod, PyObject **parse_err_p,
-            PyObject *arg0, PyObject *arg1, const char *fmt, ...);
+            PyObject *arg_0, PyObject *arg_1, const char *fmt, ...);
     void (*api_no_function)(PyObject *parseErr, const char *func,
             const char *doc);
     void (*api_no_method)(PyObject *parseErr, const char *scope,

@@ -103,23 +103,26 @@ static void *convert_to_type_us(sipWrappedModuleState *wms, PyObject *pyObj,
 static sipSimpleWrapper *deref_mixin(sipSimpleWrapper *w);
 static PyObject *detail_from_failure(PyObject *failure_obj);
 static void failure_dtor(PyObject *capsule);
+static PyObject *get_kwd_arg(PyObject *const *args, Py_ssize_t nr_args,
+        PyObject *kwd_names, Py_ssize_t nr_kwd_names, const char *name);
 static PyObject *get_pyobject(sipSipModuleState *sms, void *cppPtr,
         PyTypeObject *py_type, const sipTypeDef *td);
-static int get_self_from_args(PyTypeObject *py_type, PyObject *args, int argnr,
-        PyObject **selfp);
+static int get_self_from_args(PyTypeObject *py_type, PyObject *const *args,
+        Py_ssize_t nr_args, Py_ssize_t arg_nr, PyObject **self_p);
 static void handle_failed_int_conversion(sipParseFailure *pf, PyObject *arg);
 static void handle_failed_type_conversion(sipParseFailure *pf, PyObject *arg);
 static int parse_kwd_args(PyObject *wmod, PyObject **parse_err_p,
-        PyObject *const *args, Py_ssize_t nr_args, PyObject *kwd_args,
+        PyObject *const *args, Py_ssize_t nr_args, PyObject *kwd_names,
         const char **kwd_list, PyObject **unused, const char *fmt,
         va_list va_orig);
 static int parse_pass_1(sipWrappedModuleState *wms, PyObject **parse_err_p,
-        PyObject **selfp, int *selfargp, PyObject *args,
-        PyObject *kwd_args, const char **kwd_list, PyObject **unused,
-        const char *fmt, va_list va);
+        PyObject **self_p, int *self_in_args_p, PyObject *const *args,
+        Py_ssize_t nr_args, PyObject *kwd_names, Py_ssize_t nr_kwd_names,
+        const char **kwd_list, PyObject **unused, const char *fmt, va_list va);
 static int parse_pass_2(sipWrappedModuleState *wms, PyObject *self,
-        int selfarg, PyObject *args, PyObject *kwd_args,
-        const char **kwd_list, const char *fmt, va_list va);
+        int self_in_args, PyObject *const *args, Py_ssize_t nr_args,
+        PyObject *kwd_names, Py_ssize_t nr_kwd_names, const char **kwd_list,
+        const char *fmt, va_list va);
 static int parse_result(sipWrappedModuleState *wms, PyObject *method,
         PyObject *res, sipSimpleWrapper *py_self, const char *fmt, va_list va);
 static void raise_no_convert_to(PyObject *py, const sipTypeDef *td);
@@ -378,7 +381,7 @@ int sip_api_can_convert_to_type(PyObject *wmod, PyObject *pyObj,
  * Convert a new C/C++ instance to a Python instance of a specific Python type.
  */
 PyObject *sip_api_convert_from_new_pytype(PyObject *wmod, void *cpp,
-        PyTypeObject *py_type, sipWrapper *owner, sipSimpleWrapper **selfp,
+        PyTypeObject *py_type, sipWrapper *owner, sipSimpleWrapper **self_p,
         const char *fmt, ...)
 {
     sipWrappedModuleState *wms = (sipWrappedModuleState *)PyModule_GetState(
@@ -392,11 +395,11 @@ PyObject *sip_api_convert_from_new_pytype(PyObject *wmod, void *cpp,
     if ((args = PyTuple_New(strlen(fmt))) != NULL && build_object(wms, args, fmt, va) != NULL)
     {
         res = sip_wrap_instance(wms->sip_module_state, cpp, py_type, args,
-                owner, (selfp != NULL ? SIP_DERIVED_CLASS : 0));
+                owner, (self_p != NULL ? SIP_DERIVED_CLASS : 0));
 
         /* Initialise the rest of an instance of a derived class. */
-        if (selfp != NULL)
-            *selfp = (sipSimpleWrapper *)res;
+        if (self_p != NULL)
+            *self_p = (sipSimpleWrapper *)res;
     }
     else
     {
@@ -677,7 +680,7 @@ int sip_api_parse_args(PyObject *wmod, PyObject **parse_err_p,
  * any side effects.
  */
 int sip_api_parse_kwd_args(PyObject *wmod, PyObject **parse_err_p,
-        PyObject *const *args, Py_ssize_t nr_args, PyObject *kwd_args,
+        PyObject *const *args, Py_ssize_t nr_args, PyObject *kwd_names,
         const char **kwd_list, PyObject **unused, const char *fmt, ...)
 {
     int ok;
@@ -693,7 +696,7 @@ int sip_api_parse_kwd_args(PyObject *wmod, PyObject **parse_err_p,
     }
 
     va_start(va, fmt);
-    ok = parse_kwd_args(wmod, parse_err_p, args, nr_args, kwd_args, kwd_list,
+    ok = parse_kwd_args(wmod, parse_err_p, args, nr_args, kwd_names, kwd_list,
             unused, fmt, va);
     va_end(va);
 
@@ -711,74 +714,20 @@ int sip_api_parse_kwd_args(PyObject *wmod, PyObject **parse_err_p,
  * Parse one or a pair of arguments to a C/C++ function without any side
  * effects.
  */
-int sip_api_parse_pair(PyObject *wmod, PyObject **parse_err_p, PyObject *sipArg0,
-        PyObject *sipArg1, const char *fmt, ...)
+int sip_api_parse_pair(PyObject *wmod, PyObject **parse_err_p, PyObject *arg_0,
+        PyObject *arg_1, const char *fmt, ...)
 {
-    /* Previous second pass errors stop subsequent parses. */
-    if (*parse_err_p != NULL && !PyList_Check(*parse_err_p))
-        return FALSE;
-
-    PyObject *args = PyTuple_New(sipArg1 != NULL ? 2 : 1);
-    if (args == NULL)
-    {
-        /* Stop all parsing and indicate an exception has been raised. */
-        Py_XDECREF(*parse_err_p);
-        *parse_err_p = Py_None;
-        Py_INCREF(Py_None);
-
-        return FALSE;
-    }
-
-    Py_INCREF(sipArg0);
-    PyTuple_SET_ITEM(args, 0, sipArg0);
-
-    if (sipArg1 != NULL)
-    {
-        Py_INCREF(sipArg1);
-        PyTuple_SET_ITEM(args, 1, sipArg1);
-    }
-
-    /*
-     * The first pass checks all the types and does conversions that are cheap
-     * and have no side effects.
-     */
-    sipWrappedModuleState *wms = (sipWrappedModuleState *)PyModule_GetState(
-            wmod);
-    int ok, selfarg;
-    PyObject *self;
+    int ok;
     va_list va;
 
+    PyObject *args[2];
+    args[0] = arg_0;
+    args[1] = arg_1;
+
     va_start(va, fmt);
-    ok = parse_pass_1(wms, parse_err_p, &self, &selfarg, args, NULL, NULL, NULL,
-            fmt, va);
+    ok = parse_kwd_args(wmod, parse_err_p, args, (arg_1 != NULL ? 2 : 1), NULL,
+            NULL, NULL, fmt, va);
     va_end(va);
-
-    if (ok)
-    {
-        /*
-         * The second pass does any remaining conversions now that we know we
-         * have the right signature.
-         */
-        va_start(va, fmt);
-        ok = parse_pass_2(wms, self, selfarg, args, NULL, NULL, fmt, va);
-        va_end(va);
-
-        /* Remove any previous failed parses. */
-        Py_XDECREF(*parse_err_p);
-
-        if (ok)
-        {
-            *parse_err_p = NULL;
-        }
-        else
-        {
-            /* Indicate that an exception has been raised. */
-            *parse_err_p = Py_None;
-            Py_INCREF(Py_None);
-        }
-    }
-
-    Py_DECREF(args);
 
     return ok;
 }
@@ -2083,6 +2032,26 @@ static void failure_dtor(PyObject *capsule)
 
 
 /*
+ * Return the value of a keyword argument.
+ */
+static PyObject *get_kwd_arg(PyObject *const *args, Py_ssize_t nr_args,
+        PyObject *kwd_names, Py_ssize_t nr_kwd_names, const char *name)
+{
+    Py_ssize_t i;
+
+    for (i = 0; i < nr_kwd_names; i++)
+    {
+        PyObject *kwd_name = PyTuple_GET_ITEM(kwd_names, i);
+
+        if (PyUnicode_CompareWithASCIIString(kwd_name, name) == 0)
+            return args[nr_args + i];
+    }
+
+    return NULL;
+}
+
+
+/*
  * Implement the conversion of a C/C++ pointer to the object that wraps it.
  */
 static PyObject *get_pyobject(sipSipModuleState *sms, void *cppPtr,
@@ -2094,25 +2063,21 @@ static PyObject *get_pyobject(sipSipModuleState *sms, void *cppPtr,
 
 
 /*
- * Get "self" from the argument tuple for a method called as
+ * Get "self" from the argument array for a method called as
  * Class.Method(self, ...) rather than self.Method(...).
  */
-static int get_self_from_args(PyTypeObject *py_type, PyObject *args, int argnr,
-        PyObject **selfp)
+static int get_self_from_args(PyTypeObject *py_type, PyObject *const *args,
+        Py_ssize_t nr_args, Py_ssize_t arg_nr, PyObject **self_p)
 {
-    PyObject *self;
-
-    /* Get self from the argument tuple. */
-
-    if (argnr >= PyTuple_GET_SIZE(args))
+    if (arg_nr >= nr_args)
         return FALSE;
 
-    self = PyTuple_GET_ITEM(args, argnr);
+    PyObject *self = args[arg_nr];
 
     if (!PyObject_TypeCheck(self, py_type))
         return FALSE;
 
-    *selfp = self;
+    *self_p = self;
 
     return TRUE;
 }
@@ -2164,7 +2129,7 @@ static void handle_failed_type_conversion(sipParseFailure *pf, PyObject *arg)
  * Parse the arguments to a C/C++ function without any side effects.
  */
 static int parse_kwd_args(PyObject *wmod, PyObject **parse_err_p,
-        PyObject *const *args, Py_ssize_t nr_args, PyObject *kwd_args,
+        PyObject *const *args, Py_ssize_t nr_args, PyObject *kwd_names,
         const char **kwd_list, PyObject **unused, const char *fmt,
         va_list va_orig)
 {
@@ -2172,40 +2137,17 @@ static int parse_kwd_args(PyObject *wmod, PyObject **parse_err_p,
     if (*parse_err_p != NULL && !PyList_Check(*parse_err_p))
         return FALSE;
 
-    /* See if we are parsing a single argument. */
-    // TODO
-    int no_tmp_tuple;
-    PyObject *single_arg;
+    /* Get the number of keyword names given. */
+    Py_ssize_t nr_kwd_names;
 
-    if (*fmt == '1')
+    if (kwd_names != NULL)
     {
-        ++fmt;
-        no_tmp_tuple = FALSE;
+        assert(PyTuple_Check(kwd_names));
+        nr_kwd_names = PyTuple_GET_SIZE(kwd_names);
     }
     else
     {
-        no_tmp_tuple = PyTuple_Check(args);
-    }
-
-    if (no_tmp_tuple)
-    {
-        Py_INCREF(args);
-    }
-    else if ((single_arg = PyTuple_New(1)) != NULL)
-    {
-        Py_INCREF(args);
-        PyTuple_SET_ITEM(single_arg, 0, args);
-
-        args = single_arg;
-    }
-    else
-    {
-        /* Stop all parsing and indicate an exception has been raised. */
-        Py_XDECREF(*parse_err_p);
-        *parse_err_p = Py_None;
-        Py_INCREF(Py_None);
-
-        return FALSE;
+        nr_kwd_names = 0;
     }
 
     /*
@@ -2214,13 +2156,13 @@ static int parse_kwd_args(PyObject *wmod, PyObject **parse_err_p,
      */
     sipWrappedModuleState *wms = (sipWrappedModuleState *)PyModule_GetState(
             wmod);
-    int ok, selfarg;
+    int ok, self_in_args;
     PyObject *self;
     va_list va;
 
     va_copy(va, va_orig);
-    ok = parse_pass_1(wms, parse_err_p, &self, &selfarg, args, kwd_args,
-            kwd_list, unused, fmt, va);
+    ok = parse_pass_1(wms, parse_err_p, &self, &self_in_args, args, nr_args,
+            kwd_names, nr_kwd_names, kwd_list, unused, fmt, va);
     va_end(va);
 
     if (ok)
@@ -2230,8 +2172,8 @@ static int parse_kwd_args(PyObject *wmod, PyObject **parse_err_p,
          * have the right signature.
          */
         va_copy(va, va_orig);
-        ok = parse_pass_2(wms, self, selfarg, args, kwd_args, kwd_list,
-                fmt, va);
+        ok = parse_pass_2(wms, self, self_in_args, args, nr_args, kwd_names,
+                nr_kwd_names, kwd_list, fmt, va);
         va_end(va);
 
         /* Remove any previous failed parses. */
@@ -2249,8 +2191,6 @@ static int parse_kwd_args(PyObject *wmod, PyObject **parse_err_p,
         }
     }
 
-    Py_DECREF(args);
-
     return ok;
 }
 
@@ -2260,45 +2200,31 @@ static int parse_kwd_args(PyObject *wmod, PyObject **parse_err_p,
  * without any side effects.  Return TRUE if the arguments matched.
  */
 static int parse_pass_1(sipWrappedModuleState *wms, PyObject **parse_err_p,
-        PyObject **selfp, int *selfargp, PyObject *args,
-        PyObject *kwd_args, const char **kwd_list, PyObject **unused,
-        const char *fmt, va_list va)
+        PyObject **self_p, int *self_in_args_p, PyObject *const *args,
+        Py_ssize_t nr_args, PyObject *kwd_names, Py_ssize_t nr_kwd_names,
+        const char **kwd_list, PyObject **unused, const char *fmt, va_list va)
 {
     sipSipModuleState *sms = wms->sip_module_state;
     int compulsory = TRUE;
-    int argnr = 0;
-    int nr_args = 0;
-    Py_ssize_t nr_kwd_args;
-    Py_ssize_t nr_kwd_args_used = 0;
-    Py_ssize_t nr_pos_args = PyTuple_GET_SIZE(args);
+    Py_ssize_t arg_nr = 0;
+    Py_ssize_t nr_kwd_names_used = 0;
     sipParseFailure failure = {
         .reason = Ok,
         .detail_obj = NULL,
     };
 
-    if (kwd_args != NULL)
-    {
-        assert(PyDict_Check(kwd_args));
-
-        nr_kwd_args = PyDict_Size(kwd_args);
-    }
-    else
-    {
-        nr_kwd_args = 0;
-    }
-
     /*
      * Handle those format characters that deal with the "self" argument.  They
      * will always be the first one.
      */
-    *selfp = NULL;
-    *selfargp = FALSE;
+    *self_p = NULL;
+    *self_in_args_p = FALSE;
 
     switch (*fmt++)
     {
     case '#':
             /* A ctor has an argument with the /Transfer/ annotation. */
-            *selfp = va_arg(va, PyObject *);
+            *self_p = va_arg(va, PyObject *);
             break;
 
     case 'B':
@@ -2313,13 +2239,13 @@ static int parse_pass_1(sipWrappedModuleState *wms, PyObject **parse_err_p,
             if (self != NULL && PyObject_TypeCheck(self, sms->simple_wrapper_type))
             {
                 /* The call was self.method(...). */
-                *selfp = self;
+                *self_p = self;
             }
-            else if (get_self_from_args(py_type, args, argnr, selfp))
+            else if (get_self_from_args(py_type, args, nr_args, arg_nr, self_p))
             {
                 /* The call was cls.method(self, ...). */
-                *selfargp = TRUE;
-                ++argnr;
+                *self_in_args_p = TRUE;
+                ++arg_nr;
             }
             else
             {
@@ -2343,7 +2269,7 @@ static int parse_pass_1(sipWrappedModuleState *wms, PyObject **parse_err_p,
             if (PyObject_TypeCheck(self, sms->wrapper_type))
                 self = (PyObject *)Py_TYPE(self);
 
-            *selfp = self;
+            *self_p = self;
 
             break;
         }
@@ -2360,7 +2286,7 @@ static int parse_pass_1(sipWrappedModuleState *wms, PyObject **parse_err_p,
     {
         char ch;
 
-        // TODO This  shouldn't be necessary if all conversions don't make an
+        // TODO This shouldn't be necessary if all conversions don't make an
         // assumption about the current error state.
         PyErr_Clear();
 
@@ -2375,43 +2301,49 @@ static int parse_pass_1(sipWrappedModuleState *wms, PyObject **parse_err_p,
 
         if (ch == '\0')
         {
-            if (argnr < nr_pos_args)
+            if (arg_nr < nr_args)
             {
                 /* There are still positional arguments. */
                 failure.reason = TooMany;
             }
-            else if (nr_kwd_args_used != nr_kwd_args)
+            else if (nr_kwd_names_used != nr_kwd_names)
             {
                 /*
                  * Take a shortcut if no keyword arguments were used and we are
                  * interested in them.
                  */
-                if (nr_kwd_args_used == 0 && unused != NULL)
+                if (nr_kwd_names_used == 0 && unused != NULL)
                 {
-                    Py_INCREF(kwd_args);
-                    *unused = kwd_args;
+                    // TODO unused now has a different type.  Do we create a
+                    // dict to return the names and values? (Would also
+                    // maintain compatibility if convenient.)
+                    Py_INCREF(kwd_names);
+                    *unused = kwd_names;
                 }
                 else
                 {
-                    PyObject *key, *value, *unused_dict = NULL;
-                    Py_ssize_t pos = 0;
-
                     /*
                      * Go through the keyword arguments to find any that were
                      * duplicates of positional arguments.  For the remaining
                      * ones remember the unused ones if we are interested.
                      */
-                    while (PyDict_Next(kwd_args, &pos, &key, &value))
-                    {
-                        int a;
+                    PyObject *unused_dict = NULL;
+                    Py_ssize_t pos;
 
-                        if (!PyUnicode_Check(key))
+                    for (pos = 0; pos < nr_kwd_names; pos++)
+                    {
+                        PyObject *kwd_name = PyTuple_GET_ITEM(kwd_names, pos);
+                        PyObject *kwd_value = args[nr_args + pos];
+
+                        if (!PyUnicode_Check(kwd_name))
                         {
                             failure.reason = KeywordNotString;
-                            failure.detail_obj = key;
-                            Py_INCREF(key);
+                            failure.detail_obj = kwd_name;
+                            Py_INCREF(kwd_name);
                             break;
                         }
+
+                        Py_ssize_t a;
 
                         if (kwd_list != NULL)
                         {
@@ -2423,7 +2355,7 @@ static int parse_pass_1(sipWrappedModuleState *wms, PyObject **parse_err_p,
                                 if (name == NULL)
                                     continue;
 
-                                if (PyUnicode_CompareWithASCIIString(key, name) == 0)
+                                if (PyUnicode_CompareWithASCIIString(kwd_name, name) == 0)
                                     break;
                             }
                         }
@@ -2445,8 +2377,8 @@ static int parse_pass_1(sipWrappedModuleState *wms, PyObject **parse_err_p,
                                  * different overload.
                                  */
                                 failure.reason = UnknownKeyword;
-                                failure.detail_obj = key;
-                                Py_INCREF(key);
+                                failure.detail_obj = kwd_name;
+                                Py_INCREF(kwd_name);
 
                                 break;
                             }
@@ -2467,21 +2399,21 @@ static int parse_pass_1(sipWrappedModuleState *wms, PyObject **parse_err_p,
                                 break;
                             }
 
-                            if (PyDict_SetItem(unused_dict, key, value) < 0)
+                            if (PyDict_SetItem(unused_dict, kwd_name, kwd_value) < 0)
                             {
                                 failure.reason = Raised;
                                 break;
                             }
                         }
-                        else if (a < nr_pos_args - *selfargp)
+                        else if (a < nr_args - *self_in_args_p)
                         {
                             /*
                              * The argument has been given positionally and as
                              * a keyword.
                              */
                             failure.reason = Duplicate;
-                            failure.detail_obj = key;
-                            Py_INCREF(key);
+                            failure.detail_obj = kwd_name;
+                            Py_INCREF(kwd_name);
                             break;
                         }
                     }
@@ -2496,28 +2428,34 @@ static int parse_pass_1(sipWrappedModuleState *wms, PyObject **parse_err_p,
         failure.arg_nr = -1;
         failure.arg_name = NULL;
 
-        if (argnr < nr_pos_args)
+        if (arg_nr < nr_args)
         {
-            arg = PyTuple_GET_ITEM(args, argnr);
-            failure.arg_nr = argnr + 1;
+            /* It's a positional argument. */
+            arg = args[arg_nr];
+            failure.arg_nr = arg_nr + 1;
         }
-        else if (nr_kwd_args != 0 && kwd_list != NULL)
+        else if (nr_kwd_names != 0 && kwd_list != NULL)
         {
-            const char *name = kwd_list[argnr - *selfargp];
+            // TODO Review this to eliminate the NULLs from kwd_list.  We don't
+            // know initially how many positional arguments are required
+            // (because that requires decoding the format string) but we will
+            // know by now (the 'compulsory' flag).
+
+            const char *name = kwd_list[arg_nr - *self_in_args_p];
 
             if (name != NULL)
             {
-                arg = PyDict_GetItemString(kwd_args, name);
+                arg = get_kwd_arg(args, nr_args, kwd_names, nr_kwd_names,
+                        name);
 
                 if (arg != NULL)
-                    ++nr_kwd_args_used;
+                    ++nr_kwd_names_used;
 
                 failure.arg_name = name;
             }
         }
 
-        ++argnr;
-        ++nr_args;
+        ++arg_nr;
 
         if (arg == NULL && compulsory)
         {
@@ -2538,8 +2476,10 @@ static int parse_pass_1(sipWrappedModuleState *wms, PyObject **parse_err_p,
              * a (possibly) more accurate diagnostic in the case that a keyword
              * argument has been mis-spelled.
              */
-            if (unused == NULL && kwd_args != NULL && nr_kwd_args_used != nr_kwd_args)
+            if (unused == NULL && kwd_names != NULL && nr_kwd_names_used != nr_kwd_names)
             {
+#if 0
+                // TODO
                 PyObject *key, *value;
                 Py_ssize_t pos = 0;
 
@@ -2583,6 +2523,7 @@ static int parse_pass_1(sipWrappedModuleState *wms, PyObject **parse_err_p,
                         break;
                     }
                 }
+#endif
             }
 
             break;
@@ -2608,8 +2549,7 @@ static int parse_pass_1(sipWrappedModuleState *wms, PyObject **parse_err_p,
                     *p = arg;
 
                 /* Process the same argument next time round. */
-                --argnr;
-                --nr_args;
+                --arg_nr;
 
                 break;
             }
@@ -3521,8 +3461,9 @@ static int parse_pass_1(sipWrappedModuleState *wms, PyObject **parse_err_p,
  * Second pass of the argument parse, converting the remaining ones that might
  * have side effects.  Return TRUE if there was no error.
  */
-static int parse_pass_2(sipWrappedModuleState *wms, PyObject *self, int selfarg,
-        PyObject *args, PyObject *kwd_args, const char **kwd_list,
+static int parse_pass_2(sipWrappedModuleState *wms, PyObject *self,
+        int self_in_args, PyObject *const *args, Py_ssize_t nr_args,
+        PyObject *kwd_names, Py_ssize_t nr_kwd_names, const char **kwd_list,
         const char *fmt, va_list va)
 {
     /* Handle the conversions of "self" first. */
@@ -3577,11 +3518,10 @@ static int parse_pass_2(sipWrappedModuleState *wms, PyObject *self, int selfarg,
         --fmt;
     }
 
-    int a;
+    Py_ssize_t arg_nr;
     int ok = TRUE;
-    Py_ssize_t nr_pos_args = PyTuple_GET_SIZE(args);
 
-    for (a = (selfarg ? 1 : 0); *fmt != '\0' && *fmt != 'W' && ok; ++a)
+    for (arg_nr = (self_in_args ? 1 : 0); *fmt != '\0' && *fmt != 'W' && ok; arg_nr++)
     {
         char ch;
         PyObject *arg;
@@ -3593,17 +3533,20 @@ static int parse_pass_2(sipWrappedModuleState *wms, PyObject *self, int selfarg,
         /* Get the next argument. */
         arg = NULL;
 
-        if (a < nr_pos_args)
+        if (arg_nr < nr_args)
         {
-            arg = PyTuple_GET_ITEM(args, a);
+            arg = args[arg_nr];
         }
-        else if (kwd_args != NULL)
+        else if (kwd_names != NULL)
         {
-            const char *name = kwd_list[a - selfarg];
+            const char *name = kwd_list[arg_nr - self_in_args];
 
             if (name != NULL)
-                arg = PyDict_GetItemString(kwd_args, name);
+                arg = get_kwd_arg(args, nr_args, kwd_names, nr_kwd_names,
+                        name);
         }
+
+        assert(arg != NULL);
 
         /*
          * Do the outstanding conversions.  For most types it has already been
@@ -3616,7 +3559,7 @@ static int parse_pass_2(sipWrappedModuleState *wms, PyObject *self, int selfarg,
             va_arg(va, PyObject **);
 
             /* Process the same argument next time round. */
-            --a;
+            --arg_nr;
 
             break;
 
@@ -3862,18 +3805,18 @@ static int parse_pass_2(sipWrappedModuleState *wms, PyObject *self, int selfarg,
         int da = 0;
 
         /* Create a tuple for any remaining arguments. */
-        if ((al = PyTuple_New(nr_pos_args - a)) == NULL)
+        if ((al = PyTuple_New(nr_args - arg_nr)) == NULL)
             return FALSE;
 
-        while (a < nr_pos_args)
+        while (arg_nr < nr_args)
         {
-            PyObject *arg = PyTuple_GET_ITEM(args, a);
+            PyObject *arg = args[arg_nr];
 
             /* Add the remaining argument to the tuple. */
             Py_INCREF(arg);
             PyTuple_SET_ITEM(al, da, arg);
 
-            ++a;
+            ++arg_nr;
             ++da;
         }
 

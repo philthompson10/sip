@@ -38,7 +38,7 @@ void sip_api_call_procedure_method(PyObject *wmod, sip_gilstate_t gil_state,
 int sip_api_can_convert_to_type(PyObject *wmod, PyObject *pyObj,
         sipTypeID type_id, int flags);
 PyObject *sip_api_convert_from_new_pytype(PyObject *wmod, void *cpp,
-        PyTypeObject *py_type, sipWrapper *owner, sipSimpleWrapper **selfp,
+        PyTypeObject *py_type, sipWrapper *owner, sipSimpleWrapper **self_p,
         const char *fmt, ...);
 PyObject *sip_api_convert_from_new_type(PyObject *wmod, void *cpp,
         sipTypeID type_id, PyObject *transferObj);
@@ -65,10 +65,10 @@ void sip_api_no_method(PyObject *parseErr, const char *scope,
 int sip_api_parse_args(PyObject *wmod, PyObject **parse_err_p,
         PyObject *const *args, Py_ssize_t nr_args, const char *fmt, ...);
 int sip_api_parse_kwd_args(PyObject *wmod, PyObject **parse_err_p,
-        PyObject *const *args, Py_ssize_t nr_args, PyObject *kwd_args,
+        PyObject *const *args, Py_ssize_t nr_args, PyObject *kwd_names,
         const char **kwd_list, PyObject **unused, const char *fmt, ...);
-int sip_api_parse_pair(PyObject *wmod, PyObject **parse_err_p,
-        PyObject *sipArg0, PyObject *sipArg1, const char *fmt, ...);
+int sip_api_parse_pair(PyObject *wmod, PyObject **parse_err_p, PyObject *arg_0,
+        PyObject *arg_1, const char *fmt, ...);
 int sip_api_parse_result(PyObject *wmod, sip_gilstate_t gil_state,
         sipVirtErrorHandlerFunc error_handler, sipSimpleWrapper *py_self,
         PyObject *method, PyObject *res, const char *fmt, ...);

@@ -6901,7 +6901,12 @@ def _arg_parser(backend, sf, scope, py_signature, ctor=None, overload=None):
         args.append('sipUnused' if ctor is not None else 'SIP_NULLPTR')
 
     else:
-        single_arg = not (overload is None or overload.common.py_slot is None or is_multi_arg_slot(overload.common.py_slot))
+        # ABI v14 doesn't require the single-argument optimisation.
+        if spec.target_abi >= (14, 0):
+            single_arg = False
+        else:
+            single_arg = not (overload is None or overload.common.py_slot is None or is_multi_arg_slot(overload.common.py_slot))
+
         plural = '' if single_arg else 's'
 
         parser_function = 'sipParseArgs'
