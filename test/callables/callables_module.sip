@@ -31,6 +31,16 @@ PyObject *module_var_args(int ignore, PyObject *var_args)
     Py_INCREF(var_args);
     return var_args;
 }
+
+int incr_optional_kwd_args(int value, int incr=1)
+{
+    return value + incr;
+}
+
+int incr_all_kwd_args(int value, int incr=1)
+{
+    return value + incr;
+}
 %End
 
 
@@ -40,3 +50,5 @@ void module_void_ret_no_args();
 int module_doubler(int value);
 int module_sum_diff(int value_1, int value_2, int *diff_p);
 SIP_PYTUPLE module_var_args(int ignore, ...);
+int incr_optional_kwd_args(int value, int incr=1) /KeywordArgs="Optional"/;
+int incr_all_kwd_args(int value, int incr=1) /KeywordArgs="All"/;
