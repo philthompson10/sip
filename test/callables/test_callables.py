@@ -40,3 +40,13 @@ class CallablesTestCase(SIPTestCase):
         self.assertEqual(len(res), 2)
         self.assertEqual(res[0], 4)
         self.assertEqual(res[1], 2)
+
+    def test_module_var_args(self):
+        """ Test the support a module function with ellipsis. """
+
+        res = self.c_mod.module_var_args(0, 1, 2)
+
+        self.assertIsInstance(res, tuple)
+        self.assertEqual(len(res), 2)
+        self.assertEqual(res[0], 1)
+        self.assertEqual(res[1], 2)

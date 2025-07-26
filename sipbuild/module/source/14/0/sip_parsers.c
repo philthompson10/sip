@@ -2436,11 +2436,6 @@ static int parse_pass_1(sipWrappedModuleState *wms, PyObject **parse_err_p,
         }
         else if (nr_kwd_names != 0 && kwd_list != NULL)
         {
-            // TODO Review this to eliminate the NULLs from kwd_list.  We don't
-            // know initially how many positional arguments are required
-            // (because that requires decoding the format string) but we will
-            // know by now (the 'compulsory' flag).
-
             const char *name = kwd_list[arg_nr - *self_in_args_p];
 
             if (name != NULL)
@@ -3802,7 +3797,7 @@ static int parse_pass_2(sipWrappedModuleState *wms, PyObject *self,
     if (*fmt == 'W')
     {
         PyObject *al;
-        int da = 0;
+        Py_ssize_t da = 0;
 
         /* Create a tuple for any remaining arguments. */
         if ((al = PyTuple_New(nr_args - arg_nr)) == NULL)
@@ -3810,11 +3805,11 @@ static int parse_pass_2(sipWrappedModuleState *wms, PyObject *self,
 
         while (arg_nr < nr_args)
         {
-            PyObject *arg = args[arg_nr];
+            PyObject *varg = args[arg_nr];
 
             /* Add the remaining argument to the tuple. */
-            Py_INCREF(arg);
-            PyTuple_SET_ITEM(al, da, arg);
+            Py_INCREF(varg);
+            PyTuple_SET_ITEM(al, da, varg);
 
             ++arg_nr;
             ++da;

@@ -23,6 +23,14 @@ int module_sum_diff(int value_1, int value_2, int *diff_p)
 
     return value_1 + value_2;
 }
+
+PyObject *module_var_args(int ignore, PyObject *var_args)
+{
+    (void)ignore;
+
+    Py_INCREF(var_args);
+    return var_args;
+}
 %End
 
 
@@ -31,3 +39,4 @@ bool module_procedure_called;
 void module_void_ret_no_args();
 int module_doubler(int value);
 int module_sum_diff(int value_1, int value_2, int *diff_p);
+SIP_PYTUPLE module_var_args(int ignore, ...);
