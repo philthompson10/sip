@@ -26,11 +26,11 @@ extern "C" {
 void sip_api_add_exception(sipErrorState es, PyObject **parseErrp);
 sipErrorState sip_api_bad_callable_arg(int arg_nr, PyObject *arg);
 void sip_api_bad_catcher_result(PyObject *method);
-PyObject *sip_api_build_result(PyObject *wmod, int *isErr, const char *fmt,
+PyObject *sip_api_build_result(PyObject *wmod, int *is_err_p, const char *fmt,
         ...);
 void sip_api_call_error_handler(sipVirtErrorHandlerFunc error_handler,
         sipSimpleWrapper *py_self, sip_gilstate_t gil_state);
-PyObject *sip_api_call_method(PyObject *wmod, int *isErr, PyObject *method,
+PyObject *sip_api_call_method(PyObject *wmod, int *is_err_p, PyObject *method,
         const char *fmt, ...);
 void sip_api_call_procedure_method(PyObject *wmod, sip_gilstate_t gil_state,
         sipVirtErrorHandlerFunc error_handler, sipSimpleWrapper *py_self,

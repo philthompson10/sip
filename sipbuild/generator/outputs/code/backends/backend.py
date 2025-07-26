@@ -273,11 +273,14 @@ f'''
         """ Generate the SIP API as seen by generated code. """
 
         # TODO These have been reviewed as part of the public v14 API.
+        sf.write(
+f'''
+#define sipBuildResult              sipAPI->api_build_result
+''')
 
         # TODO These have been reviewed as part of the private v14 API.
         sf.write(
-f'''
-#define sipNoFunction               sipAPI->api_no_function
+f'''#define sipNoFunction               sipAPI->api_no_function
 #define sipNoMethod                 sipAPI->api_no_method
 #define sipParseArgs                sipAPI->api_parse_args
 #define sipParseKwdArgs             sipAPI->api_parse_kwd_args
@@ -288,7 +291,6 @@ f'''
         sf.write(
 f'''#define sipMalloc                   sipAPI->api_malloc
 #define sipFree                     sipAPI->api_free
-#define sipBuildResult              sipAPI->api_build_result
 #define sipCallMethod               sipAPI->api_call_method
 #define sipCallProcedureMethod      sipAPI->api_call_procedure_method
 #define sipCallErrorHandler         sipAPI->api_call_error_handler

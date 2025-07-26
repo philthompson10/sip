@@ -19,9 +19,24 @@ class CallablesTestCase(SIPTestCase):
 
         cls.c_mod = c_mod
 
-    def test_module_ret_void_no_args(self):
+    def test_module_void_ret_no_args(self):
         """ Test the support a module void() function. """
 
         self.c_mod.module_procedure_called = False
         self.c_mod.module_void_ret_no_args()
         self.assertIs(self.c_mod.module_procedure_called, True)
+
+    def test_module_int_ret_int_arg(self):
+        """ Test the support a module int(int) function. """
+
+        self.assertEqual(self.c_mod.module_doubler(3), 6)
+
+    def test_module_int_int_ret_int_int_args(self):
+        """ Test the support a module int(int, int, int *) function. """
+
+        res = self.c_mod.module_sum_diff(3, 1)
+
+        self.assertIsInstance(res, tuple)
+        self.assertEqual(len(res), 2)
+        self.assertEqual(res[0], 4)
+        self.assertEqual(res[1], 2)

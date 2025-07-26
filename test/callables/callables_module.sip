@@ -11,9 +11,23 @@ void module_void_ret_no_args()
 {
     module_procedure_called = true;
 }
+
+int module_doubler(int value)
+{
+    return 2 * value;
+}
+
+int module_sum_diff(int value_1, int value_2, int *diff_p)
+{
+    *diff_p = value_1 - value_2;
+
+    return value_1 + value_2;
+}
 %End
 
 
 bool module_procedure_called;
 
 void module_void_ret_no_args();
+int module_doubler(int value);
+int module_sum_diff(int value_1, int value_2, int *diff_p);

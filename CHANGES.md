@@ -17,16 +17,16 @@ The `%AccessCode` directive is no longer supported.
 The `%GetCode` and `%SetCode` directives are now supported for module
 attributes.
 
-Module attributes can now modified with the same restrictions as class
+Module attributes can now be modified with the same restrictions as class
 attributes.  Therefore module attributes that are constants can no longer be
 modified.
 
-The signature of `sipKeepReference()` has changed.
-
-`sipConvertToBool()` returns a `_Bool` value.
-
 `sipBuildResult()` `b` format character takes a `_Bool` argument.
 
-`sipParseResult()` `b` format character takes a `_Bool *` argument.
-
 `_Bool` is now a synonym of `bool` in `.sip` specification files.
+
+The signatures of the following public API calls have changed:
+
+    `sipBuildResult()`
+    `sipConvertToBool()`
+    `sipKeepReference()`

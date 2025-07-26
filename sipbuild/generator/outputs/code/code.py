@@ -5890,7 +5890,12 @@ f'''            Py_INCREF(Py_None);
 
     # If there are multiple values then build a tuple.
     if nr_return_values > 1:
-        build_result_args = ['0']
+        build_result_args = []
+
+        if spec.target_abi >= (14, 0):
+            build_result_args.append('sipModule')
+
+        build_result_args.append('SIP_NULLPTR')
 
         # Build the format string.
         format_s = ''

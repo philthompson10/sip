@@ -1212,10 +1212,10 @@ struct _sipAPIDef {
      */
     void (*api_bad_catcher_result)(PyObject *method);
     void (*api_bad_length_for_slice)(Py_ssize_t seqlen, Py_ssize_t slicelen);
-    PyObject *(*api_build_result)(PyObject *wmod, int *isErr, const char *fmt,
-            ...);
-    PyObject *(*api_call_method)(PyObject *wmod, int *isErr, PyObject *method,
+    PyObject *(*api_build_result)(PyObject *wmod, int *is_err_p,
             const char *fmt, ...);
+    PyObject *(*api_call_method)(PyObject *wmod, int *is_err_p,
+            PyObject *method, const char *fmt, ...);
     void (*api_call_procedure_method)(PyObject *wmod, sip_gilstate_t,
             sipVirtErrorHandlerFunc, sipSimpleWrapper *, PyObject *,
             const char *, ...);

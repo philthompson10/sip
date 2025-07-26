@@ -238,7 +238,7 @@ void sip_api_bad_catcher_result(PyObject *method)
 /*
  * Build a result object based on a format string.
  */
-PyObject *sip_api_build_result(PyObject *wmod, int *isErr, const char *fmt,
+PyObject *sip_api_build_result(PyObject *wmod, int *is_err_p, const char *fmt,
         ...)
 {
     va_list va;
@@ -284,8 +284,8 @@ PyObject *sip_api_build_result(PyObject *wmod, int *isErr, const char *fmt,
 
     va_end(va);
 
-    if (res == NULL && isErr != NULL)
-        *isErr = TRUE;
+    if (res == NULL && is_err_p != NULL)
+        *is_err_p = TRUE;
 
     return res;
 }
@@ -308,7 +308,7 @@ void sip_api_call_error_handler(sipVirtErrorHandlerFunc error_handler,
 /*
  * Call the Python re-implementation of a C++ virtual.
  */
-PyObject *sip_api_call_method(PyObject *wmod, int *isErr, PyObject *method,
+PyObject *sip_api_call_method(PyObject *wmod, int *is_err_p, PyObject *method,
         const char *fmt, ...)
 {
     sipWrappedModuleState *wms = (sipWrappedModuleState *)PyModule_GetState(
@@ -321,8 +321,8 @@ PyObject *sip_api_call_method(PyObject *wmod, int *isErr, PyObject *method,
     res = call_method(wms, method, fmt, va);
     va_end(va);
 
-    if (res == NULL && isErr != NULL)
-        *isErr = TRUE;
+    if (res == NULL && is_err_p != NULL)
+        *is_err_p = TRUE;
 
     return res;
 }
