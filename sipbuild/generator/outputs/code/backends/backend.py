@@ -5,12 +5,18 @@
 
 from .....sip_module_configuration import SipModuleConfiguration
 
+from ....python_slots import is_number_slot
 from ....scoped_name import STRIP_GLOBAL
-from ....specification import ArgumentType, WrappedEnum
+from ....specification import (ArgumentType, ArrayArgument, IfaceFileType,
+        KwArgs, MappedType, PySlot, Transfer, WrappedClass, WrappedEnum)
 
-from ...formatters import fmt_class_as_scoped_name
+from ...formatters import (fmt_argument_as_cpp_type, fmt_argument_as_name,
+        fmt_class_as_scoped_name, fmt_signature_as_type_hint,
+        fmt_value_list_as_cpp_expression)
 
-from ..utils import get_normalised_cached_name, has_member_docstring, py_scope
+from ..utils import (arg_is_small_enum, callable_overloads,
+        get_convert_to_type_code, get_normalised_cached_name,
+        has_method_docstring, py_scope, skip_overload)
 
 
 class Backend:
@@ -31,6 +37,529 @@ class Backend:
         from .legacy_backend import LegacyBackend
 
         return LegacyBackend(spec)
+
+    def g_arg_parser(self, sf, scope, py_signature, ctor=None, overload=None):
+        """ Generate the argument variables for a member
+        function/constructor/operator.
+        """
+
+        spec = self.spec
+
+        # If the scope is just a namespace, then ignore it.
+        if isinstance(scope, WrappedClass) and scope.iface_file.type is IfaceFileType.NAMESPACE:
+            scope = None
+
+        # For ABI v13 and later static methods use self for the type object.
+        if spec.target_abi >= (13, 0):
+            handle_self = (scope is not None and overload is not None and overload.common.py_slot is None)
+        else:
+            handle_self = (scope is not None and overload is not None and overload.common.py_slot is None and not overload.is_static)
+
+        # Generate the local variables that will hold the parsed arguments and
+        # values returned via arguments.
+        array_len_arg_nr = -1
+        need_owner = False
+        ctor_needs_self = False
+
+        for arg_nr, arg in enumerate(py_signature.args):
+            if arg.array is ArrayArgument.ARRAY_SIZE:
+                array_len_arg_nr = arg_nr
+
+            self._g_argument_variable(sf, scope, arg, arg_nr)
+
+            if arg.transfer is Transfer.TRANSFER_THIS:
+                need_owner = True
+
+            if ctor is not None and arg.transfer is Transfer.TRANSFER:
+                ctor_needs_self = True
+
+        if overload is not None and need_owner:
+            sf.write('        sipWrapper *sipOwner = SIP_NULLPTR;\n')
+
+        if handle_self and not overload.is_static:
+            cpp_type = 'const ' if overload.is_const else ''
+
+            if overload.access_specifier is AccessSpecifier.PROTECTED and scope.has_shadow:
+                cpp_type += 'sip' + scope.iface_file.fq_cpp_name.as_word
+            else:
+                cpp_type += self.scoped_class_name(scope)
+
+            sf.write(f'        {cpp_type} *sipCpp;\n\n')
+        elif len(py_signature.args) != 0:
+            sf.write('\n')
+
+        # Generate the call to the parser function.
+        args = []
+        single_arg = False
+
+        if spec.target_abi >= (14, 0):
+            args.append('sipModule')
+
+        if overload is not None and is_number_slot(overload.common.py_slot):
+            parser_function = 'sipParsePair'
+            args.append('&sipParseErr')
+            args.append('sipArg0')
+            args.append('sipArg1')
+
+        elif overload is not None and overload.common.py_slot is PySlot.SETATTR:
+            # We don't even try to invoke the parser if there is a value and
+            # there shouldn't be (or vice versa) so that the list of errors
+            # doesn't get polluted with signatures that can never apply.
+            if overload.is_delattr:
+                operator = '=='
+                sip_value = 'SIP_NULLPTR'
+            else:
+                operator = '!='
+                sip_value = 'sipValue'
+
+            parser_function = f'sipValue {operator} SIP_NULLPTR && sipParsePair'
+            args.append('&sipParseErr')
+            args.append('sipName')
+            args.append(sip_value)
+
+        elif (overload is not None and overload.common.allow_keyword_args) or ctor is not None:
+            # We handle keywords if we might have been passed some (because one
+            # of the overloads uses them or we are a ctor).  However this
+            # particular overload might not have any.
+            if overload is not None:
+                kw_args = overload.kw_args
+            elif ctor is not None:
+                kw_args = ctor.kw_args
+            else:
+                kw_args = KwArgs.NONE
+
+            # The above test isn't good enough because when the flags were set
+            # in the parser we couldn't know for sure if an argument was an
+            # output pointer.  Therefore we check here.  The drawback is that
+            # we may generate the name string for the argument but never use
+            # it, or we might have an empty keyword name array or one that
+            # contains only NULLs.
+            is_ka_list = False
+
+            if kw_args is not KwArgs.NONE:
+                for arg in py_signature.args:
+                    if not arg.is_in:
+                        continue
+
+                    if not is_ka_list:
+                        sf.write('        static const char *sipKwdList[] = {\n')
+                        is_ka_list = True
+
+                    if arg.name is not None and (kw_args is KwArgs.ALL or arg.default_value is not None):
+                        arg_name_ref = self.cached_name_ref(arg.name)
+                    else:
+                        arg_name_ref = 'SIP_NULLPTR'
+
+                    sf.write(f'            {arg_name_ref},\n')
+
+                if is_ka_list:
+                    sf.write('        };\n\n')
+
+            parser_function = 'sipParseKwdArgs'
+            args.append('sipParseErr' if ctor is not None else '&sipParseErr')
+            args.append('sipArgs')
+
+            if spec.target_abi >= (14, 0):
+                args.append('sipNrArgs')
+
+            args.append('sipKwds')
+            args.append('sipKwdList' if is_ka_list else 'SIP_NULLPTR')
+            args.append('sipUnused' if ctor is not None else 'SIP_NULLPTR')
+
+        else:
+            # ABI v14 doesn't require the single-argument optimisation.
+            if spec.target_abi >= (14, 0):
+                single_arg = False
+            else:
+                single_arg = not (overload is None or overload.common.py_slot is None or is_multi_arg_slot(overload.common.py_slot))
+
+            plural = '' if single_arg else 's'
+
+            parser_function = 'sipParseArgs'
+            args.append('&sipParseErr')
+            args.append('sipArg' + plural)
+
+            if spec.target_abi >= (14, 0):
+                args.append('sipNrArgs')
+
+        # Generate the format string.
+        format_s = '"'
+        optional_args = False
+
+        if single_arg:
+            format_s += '1'
+
+        if ctor_needs_self:
+            format_s += '#'
+        elif handle_self:
+            if overload.is_static:
+                format_s += 'C'
+            elif overload.access_is_really_protected:
+                format_s += 'p'
+            else:
+                format_s += 'B'
+
+        for arg in py_signature.args:
+            if not arg.is_in:
+                continue
+
+            if arg.default_value is not None and not optional_args:
+                format_s += '|'
+                optional_args = True
+
+            # Get the wrapper if explicitly asked for or we are going to keep a
+            # reference to.  However if it is an encoded string then we will
+            # get the actual wrapper from the format character.
+            if arg.get_wrapper:
+                format_s += '@'
+            elif arg.key is not None:
+                if not (arg.type in (ArgumentType.ASCII_STRING, ArgumentType.LATIN1_STRING, ArgumentType.UTF8_STRING) and len(arg.derefs) == 1):
+                    format_s += '@'
+
+            if arg.type is ArgumentType.ASCII_STRING:
+                format_s += 'AA' if _is_string(arg) else 'aA'
+
+            elif arg.type is ArgumentType.LATIN1_STRING:
+                format_s += 'AL' if _is_string(arg) else 'aL'
+
+            elif arg.type is ArgumentType.UTF8_STRING:
+                format_s += 'A8' if _is_string(arg) else 'a8'
+
+            elif arg.type in (ArgumentType.SSTRING, ArgumentType.USTRING, ArgumentType.STRING):
+                if arg.array is ArrayArgument.ARRAY:
+                    format_s += 'k'
+                elif _is_string(arg):
+                    format_s += 's'
+                else:
+                    format_s += 'c'
+
+            elif arg.type is ArgumentType.WSTRING:
+                if arg.array is ArrayArgument.ARRAY:
+                    format_s += 'K'
+                elif _is_string(arg):
+                    format_s += 'x'
+                else:
+                    format_s += 'w'
+
+            elif arg.type is ArgumentType.ENUM:
+                if arg.definition.fq_cpp_name is None:
+                    format_s += 'e'
+                elif arg.is_constrained:
+                    format_s += 'XE'
+                else:
+                    format_s += 'E'
+            elif arg.type is ArgumentType.BOOL:
+                format_s += 'b'
+
+            elif arg.type is ArgumentType.CBOOL:
+                format_s += 'Xb'
+
+            elif arg.type is ArgumentType.INT:
+                if arg.array is not ArrayArgument.ARRAY_SIZE:
+                    format_s += 'i'
+
+            elif arg.type is ArgumentType.UINT:
+                if arg.array is not ArrayArgument.ARRAY_SIZE:
+                    format_s += 'u'
+
+            elif arg.type is ArgumentType.SIZE:
+                if arg.array is not ArrayArgument.ARRAY_SIZE:
+                    format_s += '='
+
+            elif arg.type is ArgumentType.CINT:
+                format_s += 'Xi'
+
+            elif arg.type is ArgumentType.BYTE:
+                if arg.array is not ArrayArgument.ARRAY_SIZE:
+                    format_s += 'I' if self.abi_has_working_char_conversion() else 'L'
+
+            elif arg.type is ArgumentType.SBYTE:
+                if arg.array is not ArrayArgument.ARRAY_SIZE:
+                    format_s += 'L'
+
+            elif arg.type is ArgumentType.UBYTE:
+                if arg.array is not ArrayArgument.ARRAY_SIZE:
+                    format_s += 'M'
+
+            elif arg.type is ArgumentType.SHORT:
+                if arg.array is not ArrayArgument.ARRAY_SIZE:
+                    format_s += 'h'
+
+            elif arg.type is ArgumentType.USHORT:
+                if arg.array is not ArrayArgument.ARRAY_SIZE:
+                    format_s += 't'
+
+            elif arg.type is ArgumentType.LONG:
+                if arg.array is not ArrayArgument.ARRAY_SIZE:
+                    format_s += 'l'
+
+            elif arg.type is ArgumentType.ULONG:
+                if arg.array is not ArrayArgument.ARRAY_SIZE:
+                    format_s += 'm'
+
+            elif arg.type is ArgumentType.LONGLONG:
+                if arg.array is not ArrayArgument.ARRAY_SIZE:
+                    format_s += 'n'
+
+            elif arg.type is ArgumentType.ULONGLONG:
+                if arg.array is not ArrayArgument.ARRAY_SIZE:
+                    format_s += 'o'
+
+            elif arg.type in (ArgumentType.STRUCT, ArgumentType.UNION, ArgumentType.VOID):
+                format_s += 'v'
+
+            elif arg.type is ArgumentType.CAPSULE:
+                format_s += 'z'
+
+            elif arg.type is ArgumentType.FLOAT:
+                format_s += 'f'
+
+            elif arg.type is ArgumentType.CFLOAT:
+                format_s += 'Xf'
+
+            elif arg.type is ArgumentType.DOUBLE:
+                format_s += 'd'
+
+            elif arg.type is ArgumentType.CDOUBLE:
+                format_s += 'Xd'
+
+            elif arg.type in (ArgumentType.CLASS, ArgumentType.MAPPED):
+                if arg.array is ArrayArgument.ARRAY:
+                    format_s += '>' if arg.type is ArgumentType.CLASS and self.abi_supports_array() else 'r'
+                else:
+                    format_s += 'J' + _get_subformat_char(arg)
+
+            elif arg.type is ArgumentType.PYOBJECT:
+                format_s += 'P' + _get_subformat_char(arg)
+
+            elif arg.type in (ArgumentType.PYTUPLE, ArgumentType.PYLIST, ArgumentType.PYDICT, ArgumentType.PYSLICE, ArgumentType.PYTYPE):
+                format_s += 'N' if arg.allow_none else 'T'
+
+            elif arg.type is ArgumentType.PYCALLABLE:
+                format_s += 'H' if arg.allow_none else 'F'
+
+            elif arg.type is ArgumentType.PYBUFFER:
+                format_s += '$' if arg.allow_none else '!'
+
+            elif arg.type is ArgumentType.PYENUM:
+                format_s += '^' if arg.allow_none else '&'
+
+            elif arg.type is ArgumentType.ELLIPSIS:
+                format_s += 'W'
+
+        format_s += '"'
+        args.append(format_s)
+
+        # Generate the parameters corresponding to the format string.
+        if ctor_needs_self:
+            args.append('sipSelf')
+        elif handle_self:
+            args.append('&sipSelf')
+
+            if not overload.is_static:
+                args.append(self.gto_name(scope))
+                args.append('&sipCpp')
+
+        for arg_nr, arg in enumerate(py_signature.args):
+            if not arg.is_in:
+                continue
+
+            arg_name = fmt_argument_as_name(spec, arg, arg_nr)
+            arg_name_ref = '&' + arg_name
+
+            # Use the wrapper name if it was explicitly asked for.
+            if arg.get_wrapper:
+                args.append(f'&{arg_name}Wrapper')
+            elif arg.key is not None:
+                args.append(f'&{arg_name}Keep')
+
+            if arg.type is ArgumentType.MAPPED:
+                mapped_type = arg.definition
+
+                args.append(self.gto_name(mapped_type))
+                args.append(arg_name_ref)
+
+                if arg.array is ArrayArgument.ARRAY:
+                    array_len_arg_name = fmt_argument_as_name(spec,
+                            py_signature.args[array_len_arg_nr],
+                            array_len_arg_nr)
+                    args.append('&' + array_len_arg_name)
+                elif mapped_type.convert_to_type_code is not None and not arg.is_constrained:
+                    args.append('SIP_NULLPTR' if mapped_type.no_release else f'&{arg_name}State')
+
+                    if mapped_type.needs_user_state:
+                        args.append(f'&{arg_name}UserState')
+
+            elif arg.type is ArgumentType.CLASS:
+                klass = arg.definition
+
+                args.append(self.gto_name(klass))
+                args.append(arg_name_ref)
+
+                if arg.array is ArrayArgument.ARRAY:
+                    array_len_arg_name = fmt_argument_as_name(spec,
+                            py_signature.args[array_len_arg_nr],
+                            array_len_arg_nr)
+                    args.append('&' + array_len_arg_name)
+
+                    if self.abi_supports_array():
+                        args.append(f'&{arg_name}IsTemp')
+                else:
+                    if arg.transfer is Transfer.TRANSFER_THIS:
+                        args.append('sipOwner' if ctor is not None else '&sipOwner')
+
+                    if klass.convert_to_type_code is not None and not arg.is_constrained:
+                        args.append(f'&{arg_name}State')
+
+            elif arg.type in (ArgumentType.ASCII_STRING, ArgumentType.LATIN1_STRING, ArgumentType.UTF8_STRING):
+                if arg.key is None and len(arg.derefs) == 1:
+                    args.append(f'&{arg_name}Keep')
+
+                args.append(arg_name_ref)
+
+            elif arg.type is ArgumentType.PYTUPLE:
+                args.append('&PyTuple_Type')
+                args.append(arg_name_ref)
+
+            elif arg.type is ArgumentType.PYLIST:
+                args.append('&PyList_Type')
+                args.append(arg_name_ref)
+
+            elif arg.type is ArgumentType.PYDICT:
+                args.append('&PyDict_Type')
+                args.append(arg_name_ref)
+
+            elif arg.type is ArgumentType.PYSLICE:
+                args.append('&PySlice_Type')
+                args.append(arg_name_ref)
+
+            elif arg.type is ArgumentType.PYTYPE:
+                args.append('&PyType_Type')
+                args.append(arg_name_ref)
+
+            elif arg.type is ArgumentType.ENUM:
+                if arg.definition.fq_cpp_name is not None:
+                    args.append(self.gto_name(arg.definition))
+
+                args.append(arg_name_ref)
+
+            elif arg.type is ArgumentType.CAPSULE:
+                args.append('"' + arg.definition.as_cpp + '"')
+                args.append(arg_name_ref)
+
+            else:
+                if arg.array is not ArrayArgument.ARRAY_SIZE:
+                    args.append(arg_name_ref)
+
+                if arg.array is ArrayArgument.ARRAY:
+                    array_len_arg_name = fmt_argument_as_name(spec,
+                            py_signature.args[array_len_arg_nr],
+                            array_len_arg_nr)
+                    args.append('&' + array_len_arg_name)
+
+        args = ', '.join(args)
+
+        sf.write(f'        if ({parser_function}({args}))\n')
+
+    def g_call_args(self, sf, cpp_signature, py_signature):
+        """ Generate typed arguments for a call. """
+
+        spec = self.spec
+
+        for arg_nr, arg in enumerate(cpp_signature.args):
+            if arg_nr > 0:
+                sf.write(', ')
+
+            # See if the argument needs dereferencing or it's address taking.
+            indirection = ''
+            nr_derefs = len(arg.derefs)
+
+            # The argument may be surrounded by something type-specific.
+            prefix = suffix = ''
+
+            if arg.type in (ArgumentType.ASCII_STRING, ArgumentType.LATIN1_STRING, ArgumentType.UTF8_STRING, ArgumentType.SSTRING, ArgumentType.USTRING, ArgumentType.STRING, ArgumentType.WSTRING):
+                if nr_derefs > (0 if arg.is_out else 1) and not arg.is_reference:
+                    indirection = '&'
+
+            elif arg.type in (ArgumentType.CLASS, ArgumentType.MAPPED):
+                if nr_derefs == 2:
+                    indirection = '&'
+                elif nr_derefs == 0:
+                    indirection = '*'
+
+                    if arg.type is ArgumentType.MAPPED and arg.definition.movable:
+                        prefix = 'std::move('
+                        suffix = ')'
+
+            elif arg.type in (ArgumentType.STRUCT, ArgumentType.UNION, ArgumentType.VOID):
+                if nr_derefs == 2:
+                    indirection = '&'
+
+            else:
+                if nr_derefs == 1:
+                    indirection = '&'
+
+                if arg_is_small_enum(arg):
+                    prefix = 'static_cast<' + fmt_enum_as_cpp_type(arg.definition) + '>('
+                    suffix = ')'
+
+            # See if we need to cast a Python void * to the correct C/C++
+            # pointer type.  Note that we assume that the arguments correspond
+            # and are just different types.
+            need_cast = False
+
+            if py_signature is not cpp_signature and len(py_signature.args) == len(cpp_signature.args):
+                py_arg = py_signature.args[arg_nr]
+
+                VOID_TYPES = (ArgumentType.VOID, ArgumentType.CAPSULE)
+
+                if py_arg.type in VOID_TYPES and arg.type not in VOID_TYPES and len(py_arg.derefs) == nr_derefs:
+                    need_cast = True
+
+            arg_name = fmt_argument_as_name(spec, arg, arg_nr)
+            arg_cpp_type_name = fmt_argument_as_cpp_type(spec, arg, plain=True,
+                    no_derefs=True)
+
+            if need_cast:
+                if spec.c_bindings:
+                    sf.write(f'({arg_cpp_type_name} *){arg_name}')
+                else:
+                    sf.write(f'reinterpret_cast<{arg_cpp_type_name} *>({arg_name})')
+            else:
+                sf.write(prefix + indirection)
+
+                if arg.array is ArrayArgument.ARRAY_SIZE:
+                    sf.write(f'({arg_cpp_type_name})')
+
+                sf.write(arg_name + suffix)
+
+    def g_class_docstring(self, sf, bindings, klass):
+        """ Generate any docstring for a class and return an appropriate
+        reference to it.
+        """
+
+        if _has_class_docstring(bindings, klass):
+            docstring_ref = 'doc_' + klass.iface_file.fq_cpp_name.as_word
+
+            sf.write(f'\nPyDoc_STRVAR({docstring_ref}, "')
+            self._g_class_docstring(sf, bindings, klass)
+            sf.write('");\n')
+        else:
+            docstring_ref = 'SIP_NULLPTR'
+
+        return docstring_ref
+
+    def g_class_method_table(self, sf, bindings, klass):
+        """ Generate the sorted table of methods for a class and return the
+        number of entries.
+        """
+
+        if klass.iface_file.type is IfaceFileType.NAMESPACE:
+            members = _get_function_table(klass.members)
+        else:
+            members = _get_method_table(klass)
+
+        return self._g_py_method_table(sf, bindings, members, klass)
 
     def g_create_wrapped_module(self, sf, bindings,
         # TODO These will probably be generated here at some point.
@@ -119,10 +648,194 @@ static const sipWrappedModuleDef sipWrappedModule_{module_name} = {{
 }
 ''')
 
+    def g_delete_temporaries(self, sf, py_signature):
+        """ Generate the code to delete any temporary variables on the heap
+        created by type convertors.
+        """
+
+        spec = self.spec
+
+        for arg_nr, arg in enumerate(py_signature.args):
+            arg_name = fmt_argument_as_name(spec, arg, arg_nr)
+
+            if arg.array is ArrayArgument.ARRAY and arg.type in (ArgumentType.CLASS, ArgumentType.MAPPED):
+                if arg.transfer is not Transfer.TRANSFER:
+                    extra_indent = ''
+
+                    if arg.type is ArgumentType.CLASS and self.abi_supports_array():
+                        sf.write(f'            if ({arg_name}IsTemp)\n')
+                        extra_indent = '    '
+
+                    if spec.c_bindings:
+                        sf.write(f'            {extra_indent}sipFree({arg_name});\n')
+                    else:
+                        sf.write(f'            {extra_indent}delete[] {arg_name};\n')
+
+                continue
+
+            if not arg.is_in:
+                continue
+
+            if arg.type in (ArgumentType.ASCII_STRING, ArgumentType.LATIN1_STRING, ArgumentType.UTF8_STRING) and len(arg.derefs) == 1:
+                decref = 'Py_XDECREF' if arg.default_value is not None else 'Py_DECREF'
+
+                sf.write(f'            {decref}({arg_name}Keep);\n')
+
+            elif arg.type is ArgumentType.WSTRING and len(arg.derefs) == 1:
+                if spec.c_bindings or not arg.is_const:
+                    sf.write(f'            sipFree({arg_name});\n')
+                else:
+                    sf.write(f'            sipFree(const_cast<wchar_t *>({arg_name}));\n')
+
+            else:
+                convert_to_type_code = get_convert_to_type_code(arg)
+
+                if convert_to_type_code is not None:
+                    if arg.type is ArgumentType.MAPPED and arg.definition.no_release:
+                        continue
+
+                    sf.write(f'            sipReleaseType{get_user_state_suffix(spec, arg)}(')
+
+                    if spec.c_bindings or not arg.is_const:
+                        sf.write(arg_name)
+                    else:
+                        arg_cpp_plain = fmt_argument_as_cpp_type(spec, arg,
+                                plain=True, no_derefs=True)
+                        sf.write(f'const_cast<{arg_cpp_plain} *>({arg_name})')
+
+                    sf.write(f', {self.gto_name(arg.definition)}, {arg_name}State')
+
+                    if type_needs_user_state(arg):
+                        sf.write(f', {arg_name}UserState')
+
+                    sf.write(');\n')
+
+    def g_enum_member_table(self, sf, scope=None):
+        """ Generate the table of enum members for a scope.  Return the number
+        of them.
+        """
+
+        spec = self.spec
+        enum_members = []
+
+        for enum in spec.enums:
+            if enum.module is not spec.module:
+                continue
+
+            enum_py_scope = py_scope(enum.scope)
+
+            if isinstance(scope, WrappedClass):
+                # The scope is a class.
+                if enum_py_scope is not scope or (enum.is_protected and not scope.has_shadow):
+                    continue
+
+            elif scope is not None:
+                # The scope is a mapped type.
+                if enum.scope != scope:
+                    continue
+
+            elif enum_py_scope is not None or isinstance(enum.scope, MappedType) or enum.fq_cpp_name is None:
+                continue
+
+            enum_members.extend(enum.members)
+
+        nr_members = len(enum_members)
+        if nr_members == 0:
+            return 0
+
+        enum_members.sort(key=lambda v: v.scope.type_nr)
+        enum_members.sort(key=lambda v: v.py_name.name)
+
+        if py_scope(scope) is None:
+            sf.write(
+'''
+/* These are the enum members of all global enums. */
+static sipEnumMemberDef enummembers[] = {
+''')
+        else:
+            sf.write(
+f'''
+static sipEnumMemberDef enummembers_{scope.iface_file.fq_cpp_name.as_word}[] = {{
+''')
+
+        for enum_member in enum_members:
+            sf.write(f'    {{{self.cached_name_ref(enum_member.py_name)}, ')
+            sf.write(self.get_enum_member(enum_member))
+            sf.write(f', {enum_member.scope.type_nr}}},\n')
+
+        sf.write('};\n')
+
+        return nr_members
+
     def g_function_init(self, sf):
         """ Generate the code at the start of function implementation. """
 
         sf.write('    const sipAPIDef *sipAPI = sipGetAPI(sipModule);\n')
+
+    def g_mapped_type_method_table(self, sf, bindings, mapped_type):
+        """ Generate the sorted table of static methods for a mapped type and
+        return the number of entries.
+        """
+
+        members = _get_function_table(mapped_type.members)
+
+        return self._g_py_method_table(sf, bindings, members, mapped_type)
+
+    def g_method_docstring(self, sf, bindings, member, overloads,
+            is_method=False):
+        """ Generate the docstring for all overloads of a function/method.
+        Return True if the docstring was entirely automatically generated.
+        """
+
+        NEWLINE = '\\n"\n"'
+
+        auto_docstring = True
+
+        # See if all the docstrings are automatically generated.
+        all_auto = True
+        any_implied = False
+
+        for overload in callable_overloads(member, overloads):
+            if overload.docstring is not None:
+                all_auto = False
+
+                if overload.docstring.signature is not DocstringSignature.DISCARDED:
+                    any_implied = True
+
+        # Generate the docstring.
+        is_first = True
+
+        for overload in callable_overloads(member, overloads):
+            if not is_first:
+                sf.write(NEWLINE)
+
+                # Insert a blank line if any explicit docstring wants to
+                # include a signature.  This maintains compatibility with
+                # previous versions.
+                if any_implied:
+                    sf.write(NEWLINE)
+
+            if overload.docstring is not None:
+                if overload.docstring.signature is DocstringSignature.PREPENDED:
+                    self._g_method_auto_docstring(sf, bindings, overload,
+                            is_method)
+                    sf.write(NEWLINE)
+
+                sf.write(self.docstring_text(overload.docstring))
+
+                if overload.docstring.signature is DocstringSignature.APPENDED:
+                    sf.write(NEWLINE)
+                    self._g_method_auto_docstring(sf, bindings, overload,
+                            is_method)
+
+                auto_docstring = False
+            elif all_auto or any_implied:
+                self._g_method_auto_docstring(sf, bindings, overload,
+                        is_method)
+
+            is_first = False
+
+        return auto_docstring
 
     def g_method_init(self, sf):
         """ Generate the code at the start of method implementation. """
@@ -234,6 +947,49 @@ PyMODINIT_FUNC PyInit_{module_name}({arg_type})
 #endif
 {{
 ''')
+
+    def g_pyqt_class_plugin(self, sf, bindings, klass):
+        """ Generate any extended class definition data for PyQt.  Return True
+        if anything was generated.
+        """
+
+        spec = self.spec
+
+        is_signals = self._g_pyqt_signals_table(sf, bindings, klass)
+
+        # The PyQt6 support code doesn't assume the structure is generated.
+        if self.pyqt6_supported():
+            generated = is_signals
+
+            if klass.is_qobject and not klass.pyqt_no_qmetaobject:
+                generated = True
+
+            if klass.pyqt_interface is not None:
+                generated = True
+
+            if not generated:
+                return False
+
+        klass_name = klass.iface_file.fq_cpp_name.as_word
+
+        pyqt_version = '5' if self.pyqt5_supported() else '6'
+        sf.write(f'\n\nstatic pyqt{pyqt_version}ClassPluginDef plugin_{klass_name} = {{\n')
+
+        mo_ref = f'&{self.scoped_class_name(klass)}::staticMetaObject' if klass.is_qobject and not klass.pyqt_no_qmetaobject else 'SIP_NULLPTR'
+        sf.write(f'    {mo_ref},\n')
+
+        if self.pyqt5_supported():
+            sf.write(f'    {klass.pyqt_flags},\n')
+
+        signals_ref = f'signals_{klass_name}' if is_signals else 'SIP_NULLPTR'
+        sf.write(f'    {signals_ref},\n')
+
+        interface_ref = f'"{klass.pyqt_interface}"' if klass.pyqt_interface is not None else 'SIP_NULLPTR'
+        sf.write(f'    {interface_ref}\n')
+
+        sf.write('};\n')
+
+        return True
 
     def g_pyqt_helper_defns(self, sf):
         """ Generate the PyQt helper definitions. """
@@ -720,6 +1476,15 @@ static const sipStaticVariableDef sipStaticVariablesTable{suffix}[] = {{
 
         return nr_static_variables
 
+    def g_type_definition(self, sf, bindings, klass, py_debug):
+        """ Generate the type structure that contains all the information
+        needed by the meta-type.  A sub-set of this is used to extend
+        namespaces.
+        """
+
+        # TODO
+        pass
+
     def abi_has_deprecated_message(self):
         """ Return True if the ABI implements sipDeprecated() with a message.
         """
@@ -783,6 +1548,67 @@ static const sipStaticVariableDef sipStaticVariablesTable{suffix}[] = {{
 
         return s
 
+    def get_enum_class_scope(self, enum):
+        """ Return the scope of an unscoped enum as a string. """
+
+        if enum.is_protected:
+            scope_s = 'sip' + enum.scope.iface_file.fq_cpp_name.as_word
+        else:
+            scope_s = self.scoped_class_name(enum.scope)
+
+        return scope_s
+
+    def get_enum_member(self, enum_member):
+        """ Return an enum member as a string. """
+
+        spec = self.spec
+
+        if spec.c_bindings:
+            return enum_member.cpp_name
+
+        enum = enum_member.scope
+
+        if enum.no_scope:
+            scope_s = ''
+        else:
+            if enum.is_scoped:
+                scope_s = '::' + enum.cached_fq_cpp_name.name
+            elif isinstance(enum.scope, WrappedClass):
+                scope_s = self.get_enum_class_scope(enum)
+            elif isinstance(enum.scope, MappedType):
+                scope_s = enum.scope.iface_file.fq_cpp_name.as_cpp
+            else:
+                # This can't happen.
+                scope_s = ''
+
+            scope_s += '::'
+
+        return f'static_cast<int>({scope_s}{enum_member.cpp_name})'
+
+    def get_named_value_decl(self, scope, type, name):
+        """ Return the declaration of a named variable to hold a C++ value. """
+
+        saved_derefs = type.derefs
+        saved_is_const = type.is_const
+        saved_is_reference = type.is_reference
+
+        if len(type.derefs) == 0:
+            if type.type in (ArgumentType.CLASS, ArgumentType.MAPPED):
+                type.derefs = [False]
+            else:
+                type.is_const = False
+
+        type.is_reference = False
+
+        named_value_decl = fmt_argument_as_cpp_type(self.spec, type, name=name,
+                scope=scope.iface_file if isinstance(scope, (WrappedClass, MappedType)) else None)
+
+        type.derefs = saved_derefs
+        type.is_const = saved_is_const
+        type.is_reference = saved_is_reference
+
+        return named_value_decl
+
     @staticmethod
     def gto_name(wrapped_object):
         """ Return the name of the generated type object for a wrapped object.
@@ -791,6 +1617,26 @@ static const sipStaticVariableDef sipStaticVariablesTable{suffix}[] = {{
         fq_cpp_name = wrapped_object.fq_cpp_name if isinstance(wrapped_object, WrappedEnum) else wrapped_object.iface_file.fq_cpp_name
 
         return 'sipType_' + fq_cpp_name.as_word
+
+    # The types that need a Python reference.
+    _PY_REF_TYPES = (ArgumentType.ASCII_STRING, ArgumentType.LATIN1_STRING,
+        ArgumentType.UTF8_STRING, ArgumentType.USTRING, ArgumentType.SSTRING,
+        ArgumentType.STRING)
+
+    def keep_py_reference(self, arg):
+        """ Return True if the argument has a type that requires an extra
+        reference to the originating object to be kept.
+        """
+
+        if arg.is_reference or len(arg.derefs) == 0:
+            return False
+
+        if arg.type in self._PY_REF_TYPES:
+            return True
+
+        # wchar_t strings/arrays don't leak in ABI v14 and later.  Note that
+        # this solution could be adopted for earlier ABIs.
+        return self.spec.target_abi >= (14, 0) and arg.type is ArgumentType.WSTRING
 
     @staticmethod
     def optional_ptr(is_ptr, name):
@@ -874,6 +1720,200 @@ static const sipStaticVariableDef sipStaticVariablesTable{suffix}[] = {{
                     continue
 
                 yield variable
+
+    def _g_argument_variable(self, sf, scope, arg, arg_nr):
+        """ Generate the definition of an argument variable and any supporting
+        variables.
+        """
+
+        spec = self.spec
+        scope_iface_file = scope.iface_file if isinstance(scope, (WrappedClass, MappedType)) else None
+        arg_name = fmt_argument_as_name(spec, arg, arg_nr)
+        supporting_default_value = ' = 0' if arg.default_value is not None else ''
+        nr_derefs = len(arg.derefs)
+
+        if arg.is_in and arg.default_value is not None and arg.type in (ArgumentType.CLASS, ArgumentType.MAPPED) and (nr_derefs == 0 or arg.is_reference):
+            arg_cpp_type = fmt_argument_as_cpp_type(spec, arg,
+                    scope=scope_iface_file)
+
+            # Generate something to hold the default value as it cannot be
+            # assigned straight away.
+            expression = fmt_value_list_as_cpp_expression(spec,
+                    arg.default_value)
+            sf.write(f'        {arg_cpp_type} {arg_name}def = {expression};\n')
+
+        # Adjust the type so we have the type that will really handle it.
+        saved_derefs = arg.derefs
+        saved_type = arg.type
+        saved_is_reference = arg.is_reference
+        saved_is_const = arg.is_const
+
+        use_typename = True
+
+        if arg.type in (ArgumentType.ASCII_STRING, ArgumentType.LATIN1_STRING, ArgumentType.UTF8_STRING, ArgumentType.SSTRING, ArgumentType.USTRING, ArgumentType.STRING, ArgumentType.WSTRING):
+            if not arg.is_reference:
+                if nr_derefs == 2:
+                    arg.derefs = arg.derefs[0:1]
+                elif nr_derefs == 1 and arg.is_out:
+                    arg.derefs = []
+
+        elif arg.type in (ArgumentType.CLASS, ArgumentType.MAPPED, ArgumentType.STRUCT, ArgumentType.UNION, ArgumentType.VOID):
+            arg.derefs = [arg.derefs[0] if len(arg.derefs) != 0 else False]
+
+        else:
+            arg.derefs = []
+
+            if arg_is_small_enum(arg):
+                arg.type = ArgumentType.INT
+                use_typename = False
+
+        # Array sizes are always Py_ssize_t.
+        if arg.array is ArrayArgument.ARRAY_SIZE:
+            arg.type = ArgumentType.SSIZE
+
+        arg.is_reference = False
+
+        if len(arg.derefs) == 0:
+            arg.is_const = False
+
+        modified_arg_cpp_type = fmt_argument_as_cpp_type(spec, arg,
+                scope=scope_iface_file, use_typename=use_typename)
+
+        sf.write(f'        {modified_arg_cpp_type} {arg_name}')
+
+        # Restore the argument to its original state.
+        arg.derefs = saved_derefs
+        arg.type = saved_type
+        arg.is_reference = saved_is_reference
+        arg.is_const = saved_is_const
+
+        # Generate any default value.
+        if arg.is_in and arg.default_value is not None:
+            sf.write(' = ')
+
+            if arg.type in (ArgumentType.CLASS, ArgumentType.MAPPED) and (nr_derefs == 0 or arg.is_reference):
+                sf.write(f'&{arg_name}def')
+            else:
+                if arg_is_small_enum(arg):
+                    sf.write('static_cast<int>(')
+
+                sf.write(
+                        fmt_value_list_as_cpp_expression(spec,
+                                arg.default_value))
+
+                if arg_is_small_enum(arg):
+                    sf.write(')')
+
+        sf.write(';\n')
+
+        # Some types have supporting variables.
+        if arg.is_in:
+            if arg.get_wrapper:
+                sf.write(f'        PyObject *{arg_name}Wrapper{supporting_default_value};\n')
+            elif arg.key is not None:
+                sf.write(f'        PyObject *{arg_name}Keep{supporting_default_value};\n')
+
+            if arg.type is ArgumentType.CLASS:
+                if arg.array is ArrayArgument.ARRAY and self.abi_supports_array():
+                    if self.abi_supports_array():
+                        sf.write(f'        int {arg_name}IsTemp = 0;\n')
+                else:
+                    if arg.definition.convert_to_type_code is not None and not arg.is_constrained:
+                        sf.write(f'        int {arg_name}State = 0;\n')
+
+                        if type_needs_user_state(arg):
+                            sf.write(f'        void *{arg_name}UserState = SIP_NULLPTR;\n')
+
+            elif arg.type is ArgumentType.MAPPED:
+                if not arg.definition.no_release and not arg.is_constrained:
+                    sf.write(f'        int {arg_name}State = 0;\n')
+
+                    if type_needs_user_state(arg):
+                        sf.write(f'        void *{arg_name}UserState = SIP_NULLPTR;\n')
+
+            elif arg.type in (ArgumentType.ASCII_STRING, ArgumentType.LATIN1_STRING, ArgumentType.UTF8_STRING):
+                if arg.key is None and nr_derefs == 1:
+                    sf.write(f'        PyObject *{arg_name}Keep{supporting_default_value};\n')
+
+    def _g_class_docstring(self, sf, bindings, klass):
+        """ Generate the docstring for a class. """
+
+        NEWLINE = '\\n"\n"'
+
+        # See if all the docstrings are automatically generated.
+        all_auto = (klass.docstring is None)
+        any_implied = False
+
+        for ctor in klass.ctors:
+            if ctor.access_specifier is AccessSpecifier.PRIVATE:
+                continue
+
+            if ctor.docstring is not None:
+                all_auto = False
+
+                if ctor.docstring.signature is not DocstringSignature.DISCARDED:
+                    any_implied = True
+
+        # Generate the docstring.
+        if all_auto:
+            sf.write('\\1')
+
+        if klass.docstring is not None and klass.docstring.signature is not DocstringSignature.PREPENDED:
+            sf.write(self.docstring_text(klass.docstring))
+            is_first = False
+        else:
+            is_first = True
+
+        if klass.docstring is None or klass.docstring.signature is not DocstringSignature.DISCARDED:
+            for ctor in klass.ctors:
+                if ctor.access_specifier is AccessSpecifier.PRIVATE:
+                    continue
+
+                if not is_first:
+                    sf.write(NEWLINE)
+
+                    # Insert a blank line if any explicit docstring wants to
+                    # include a signature.  This maintains compatibility with
+                    # previous versions.
+                    if any_implied:
+                        sf.write(NEWLINE)
+
+                if ctor.docstring is not None:
+                    if ctor.docstring.signature is DocstringSignature.PREPENDED:
+                        self._g_ctor_auto_docstring(sf, bindings, klass, ctor)
+                        sf.write(NEWLINE)
+
+                    sf.write(self.docstring_text(ctor.docstring))
+
+                    if ctor.docstring.signature is DocstringSignature.APPENDED:
+                        sf.write(NEWLINE)
+                        self._g_ctor_auto_docstring(sf, bindings, klass, ctor)
+                elif all_auto or any_implied:
+                    self._g_ctor_auto_docstring(sf, bindings, klass, ctor)
+
+                is_first = False
+
+        if klass.docstring is not None and klass.docstring.signature is DocstringSignature.PREPENDED:
+            if not is_first:
+                sf.write(NEWLINE)
+                sf.write(NEWLINE)
+
+            sf.write(self.docstring_text(klass.docstring))
+
+    def _g_ctor_auto_docstring(self, sf, bindings, klass, ctor):
+        """ Generate the automatic docstring for a ctor. """
+
+        if bindings.docstrings:
+            py_name = fmt_scoped_py_name(klass.scope, klass.py_name.name)
+            signature = fmt_signature_as_type_hint(self.spec,
+                    ctor.py_signature, need_self=False, exclude_result=True)
+            sf.write(py_name + signature)
+
+    def _g_method_auto_docstring(self, sf, bindings, overload, is_method):
+        """ Generate the automatic docstring for a function/method. """
+
+        if bindings.docstrings:
+            self._g_overload_auto_docstring(sf, overload, is_method=is_method)
 
     def _g_module_clear(self, sf):
         """ Generate the module clear slot. """
@@ -994,7 +2034,7 @@ static void wrapped_module_free(void *wmod_ptr)
                     sf.write('|METH_KEYWORDS')
 
                 docstring = self.optional_ptr(
-                        has_member_docstring(bindings, member,
+                        has_method_docstring(bindings, member,
                                 self.spec.module.overloads),
                         'doc_' + py_name)
                 sf.write(f', {docstring}}},\n')
@@ -1016,3 +2056,365 @@ static int wrapped_module_traverse(PyObject *wmod, visitproc visit, void *arg)
     return wms->sip_api->api_wrapped_module_traverse(wms, visit, arg);
 }
 ''')
+
+    def _g_overload_auto_docstring(self, sf, overload, is_method=True):
+        """ Generate the docstring for a single API overload. """
+
+        need_self = is_method and not overload.is_static
+        signature = fmt_signature_as_type_hint(self.spec,
+                overload.py_signature, need_self=need_self)
+        sf.write(overload.common.py_name.name + signature)
+
+    def _g_py_method_table(self, sf, bindings, members, scope):
+        """ Generate a Python method table for a class or mapped type and
+        return the number of entries.
+        """
+
+        scope_name = scope.iface_file.fq_cpp_name.as_word
+
+        no_intro = True
+
+        for member_nr, member in enumerate(members):
+            # Save the index in the table.
+            member.member_nr = member_nr
+
+            py_name = member.py_name
+            cached_py_name = self.cached_name_ref(py_name)
+            comma = '' if member is members[-1] else ','
+
+            if member.no_arg_parser or member.allow_keyword_args:
+                cast = 'SIP_MLMETH_CAST('
+                cast_suffix = ')'
+                flags = '|METH_KEYWORDS'
+            else:
+                cast = ''
+                cast_suffix = ''
+                flags = ''
+
+            if has_method_docstring(bindings, member, scope.overloads):
+                docstring = f'doc_{scope_name}_{py_name.name}'
+            else:
+                docstring = 'SIP_NULLPTR'
+
+            if no_intro:
+                sf.write(
+f'''
+
+static PyMethodDef methods_{scope_name}[] = {{
+''')
+
+                no_intro = False
+
+            sf.write(f'    {{{cached_py_name}, {cast}meth_{scope_name}_{py_name.name}{cast_suffix}, METH_VARARGS{flags}, {docstring}}}{comma}\n')
+
+        if not no_intro:
+            sf.write('};\n')
+
+        return len(members)
+
+    def _g_pyqt_emitters(self, sf, klass):
+        """ Generate the PyQt emitters for a class. """
+
+        spec = self.spec
+        klass_name = klass.iface_file.fq_cpp_name.as_word
+        scope_s = self.scoped_class_name(klass)
+        klass_name_ref = self.cached_name_ref(klass.py_name)
+
+        for member in klass.members:
+            in_emitter = False
+
+            for overload in klass.overloads:
+                if not (overload.common is member and overload.pyqt_method_specifier is PyQtMethodSpecifier.SIGNAL and _has_optional_args(overload)):
+                    continue
+
+                if not in_emitter:
+                    in_emitter = True
+
+                    sf.write('\n\n')
+
+                    if not spec.c_bindings:
+                        sf.write(f'extern "C" {{static int emit_{klass_name}_{overload.cpp_name}(void *, PyObject *);}}\n\n')
+
+                    sf.write(
+f'''static int emit_{klass_name}_{overload.cpp_name}(void *sipCppV, PyObject *sipArgs)
+{{
+    PyObject *sipParseErr = SIP_NULLPTR;
+    {scope_s} *sipCpp = reinterpret_cast<{scope_s} *>(sipCppV);
+''')
+
+                # Generate the code that parses the args and emits the
+                # appropriate overloaded signal.
+                sf.write('\n    {\n')
+
+                self.g_arg_parser(sf, klass, overload.py_signature)
+
+                sf.write(
+f'''        {{
+            Py_BEGIN_ALLOW_THREADS
+            sipCpp->{overload.cpp_name}(''')
+
+                self.g_call_args(sf, overload.cpp_signature,
+                        overload.py_signature)
+
+                sf.write(''');
+            Py_END_ALLOW_THREADS
+
+''')
+
+                self.g_delete_temporaries(sf, overload.py_signature)
+
+                sf.write(
+'''
+            return 0;
+        }
+    }
+''')
+
+            if in_emitter:
+                member_name_ref = self.cached_name_ref(member.py_name)
+
+                sf.write(
+f'''
+    sipNoMethod(sipParseErr, {klass_name_ref}, {member_name_ref}, SIP_NULLPTR);
+
+    return -1;
+}}
+''')
+
+    def _g_pyqt_signal_table_entry(self, sf, bindings, klass, signal,
+            member_nr):
+        """ Generate an entry in the PyQt signal table. """
+
+        spec = self.spec
+        klass_name = klass.iface_file.fq_cpp_name.as_word
+
+        stripped = False
+        signature_state = {}
+
+        args = []
+
+        for arg in signal.cpp_signature.args:
+            # Do some signal argument normalisation so that Qt doesn't have to.
+            if arg.is_const and (arg.is_reference or len(arg.derefs) == 0):
+                signature_state[arg] = arg.is_reference
+
+                arg.is_const = False
+                arg.is_reference = False
+
+            if arg.scopes_stripped != 0:
+                strip = arg.scopes_stripped
+                stripped = True
+            else:
+                strip = STRIP_GLOBAL
+
+            args.append(
+                    fmt_argument_as_cpp_type(spec, arg, scope=klass.iface_file,
+                            strip=strip))
+
+        # Note the lack of a separating space.
+        args = ','.join(args)
+
+        sf.write(f'    {{"{signal.cpp_name}({args})')
+
+        # If a scope was stripped then append an unstripped version which can
+        # be parsed by PyQt.
+        if stripped:
+            args = []
+
+            for arg in signal.cpp_signature.args:
+                args.append(
+                        fmt_argument_as_cpp_type(spec, arg,
+                                scope=klass.iface_file, strip=STRIP_GLOBAL))
+
+            # Note the lack of a separating space.
+            args = ','.join(args)
+
+            sf.write(f'|({args})')
+
+        sf.write('", ')
+
+        # Restore the signature state.
+        for arg, is_reference in signature_state.items():
+            arg.is_const = True
+            arg.is_reference = is_reference
+
+        if bindings.docstrings:
+            sf.write('"')
+
+            if signal.docstring is not None:
+                if signal.docstring.signature is DocstringSignature.PREPENDED:
+                    self._g_overload_auto_docstring(sf, signal)
+                    sf.write('\\n')
+
+                sf.write(self.docstring_text(signal.docstring))
+
+                if signal.docstring.signature is DocstringSignature.APPENDED:
+                    sf.write('\\n')
+                    self._g_overload_auto_docstring(sf, signal)
+            else:
+                sf.write('\\1')
+                self._g_overload_auto_docstring(sf, signal)
+
+            sf.write('", ')
+        else:
+            sf.write('SIP_NULLPTR, ')
+
+        sf.write(f'&methods_{klass_name}[{member_nr}], ' if member_nr >= 0 else 'SIP_NULLPTR, ')
+
+        sf.write(f'emit_{klass_name}_{signal.cpp_name}' if _has_optional_args(signal) else 'SIP_NULLPTR')
+
+        sf.write('},\n')
+
+    def _g_pyqt_signals_table(self, sf, bindings, klass):
+        """ Generate the PyQt signals table and return True if anything was
+        generated.
+        """
+
+        # Handle the trivial case.
+        if not klass.is_qobject:
+            return False
+
+        spec = self.spec
+
+        is_signals = False
+
+        # The signals must be grouped by name.
+        for member in klass.members:
+            member_nr = member.member_nr
+
+            for overload in klass.overloads:
+                if overload.common is not member or overload.pyqt_method_specifier is not PyQtMethodSpecifier.SIGNAL:
+                    continue
+
+                if member_nr >= 0:
+                    # See if there is a non-signal overload.
+                    for non_sig in klass.overloads:
+                        if non_sig is not overload and non_sig.common is member and non_sig.pyqt_method_specifier is not PyQtMethodSpecifier.SIGNAL:
+                            break
+                    else:
+                        member_nr = -1
+
+                if not is_signals:
+                    is_signals = True
+
+                    self._g_pyqt_emitters(sf, klass)
+
+                    pyqt_version = '5' if self.pyqt5_supported() else '6'
+                    sf.write(
+f'''
+
+/* Define this type's signals. */
+static const pyqt{pyqt_version}QtSignal signals_{klass.iface_file.fq_cpp_name.as_word}[] = {{
+''')
+
+                # We enable a hack that supplies any missing optional
+                # arguments.  We only include the version with all arguments
+                # and provide an emitter function which handles the optional
+                # arguments.
+                self._g_pyqt_signal_table_entry(sf, bindings, klass, overload,
+                        member_nr)
+
+                member_nr = -1
+
+        if is_signals:
+            sf.write('    {SIP_NULLPTR, SIP_NULLPTR, SIP_NULLPTR, SIP_NULLPTR}\n};\n')
+
+        return is_signals
+
+
+def _get_function_table(members):
+    """ Return a sorted list of relevant functions for a namespace. """
+
+    return sorted(members, key=lambda m: m.py_name.name)
+
+
+def _get_method_table(klass):
+    """ Return a sorted list of relevant methods (either lazy or non-lazy) for
+    a class.
+    """
+
+    # Only provide an entry point if there is at least one overload that is
+    # defined in this class and is a non-abstract function or slot.  We allow
+    # private (even though we don't actually generate code) because we need to
+    # intercept the name before it reaches a more public version further up the
+    # class hierarchy.  We add the ctor and any variable handlers as special
+    # entries.
+
+    members = []
+
+    for visible_member in klass.visible_members:
+        if visible_member.member.py_slot is not None:
+            continue
+
+        need_member = False
+
+        for overload in visible_member.scope.overloads:
+            # Skip protected methods if we don't have the means to handle them.
+            if overload.access_specifier is AccessSpecifier.PROTECTED and not klass.has_shadow:
+                continue
+
+            if not skip_overload(overload, visible_member.member, klass, visible_member.scope):
+                need_member = True
+
+        if need_member:
+            members.append(visible_member.member)
+
+    return _get_function_table(members)
+
+
+def _get_subformat_char(arg):
+    """ Return the sub-format character for an argument. """
+
+    flags = 0
+
+    if arg.transfer is Transfer.TRANSFER:
+        flags |= 0x02
+
+    if arg.transfer is Transfer.TRANSFER_BACK:
+        flags |= 0x04
+
+    if arg.type in (ArgumentType.CLASS, ArgumentType.MAPPED):
+        if len(arg.derefs) == 0 or arg.disallow_none:
+            flags |= 0x01
+
+        if arg.transfer is Transfer.TRANSFER_THIS:
+            flags |= 0x10
+
+        if arg.is_constrained or (arg.type is ArgumentType.CLASS and arg.definition.convert_to_type_code is None):
+            flags |= 0x08
+
+    return chr(ord('0') + flags)
+
+
+def _has_class_docstring(bindings, klass):
+    """ Return True if a class has a docstring. """
+
+    auto_docstring = False
+
+    # Check for any explicit docstrings and remember if there were any that
+    # could be automatically generated.
+    if klass.docstring is not None:
+        return True
+
+    for ctor in klass.ctors:
+        if ctor.access_specifier is AccessSpecifier.PRIVATE:
+            continue
+
+        if ctor.docstring is not None:
+            return True
+
+        if bindings.docstrings:
+            auto_docstring = True
+
+    if not klass.can_create:
+        return False
+
+    return auto_docstring
+
+
+def _has_optional_args(overload):
+    """ Return True if an overload has optional arguments. """
+
+    args = overload.cpp_signature.args
+
+    return len(args) != 0 and args[-1].default_value is not None

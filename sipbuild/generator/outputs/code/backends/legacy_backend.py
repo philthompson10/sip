@@ -8,7 +8,8 @@ from ....specification import ArgumentType, WrappedClass
 
 from ...formatters import fmt_argument_as_cpp_type
 
-from ..utils import get_normalised_cached_name, py_scope
+from ..utils import (get_encoded_type, get_normalised_cached_name,
+        get_slot_name, get_user_state_suffix, py_scope, type_needs_user_state)
 
 from .backend import Backend
 
@@ -445,6 +446,350 @@ f'''#define sipIsPyMethod               sipAPI_{module_name}->api_is_py_method
 
         return inst_state
 
+    def g_type_definition(self, sf, bindings, klass, py_debug):
+        """ Generate the type structure that contains all the information
+        needed by the meta-type.  A sub-set of this is used to extend
+        namespaces.
+        """
+
+        spec = self.spec
+        module = spec.module
+        klass_name = klass.iface_file.fq_cpp_name.as_word
+
+        # The super-types table.
+        if len(klass.superclasses) != 0:
+            encoded_types = []
+
+            for superclass in klass.superclasses:
+                last = superclass is klass.superclasses[-1]
+                encoded_types.append(
+                        get_encoded_type(module, superclass, last=last))
+
+            encoded_types = ', '.join(encoded_types)
+
+            sf.write(
+f'''
+
+/* Define this type's super-types. */
+static sipEncodedTypeDef supers_{klass_name}[] = {{{encoded_types}}};
+''')
+
+        # The slots table.
+        is_slots = False
+
+        for member in klass.members:
+            if member.py_slot is None:
+                continue
+
+            if not is_slots:
+                sf.write(
+f'''
+
+/* Define this type's Python slots. */
+static sipPySlotDef slots_{klass_name}[] = {{
+''')
+
+                is_slots = True
+
+            slot_name = get_slot_name(member.py_slot)
+            member_name = member.py_name
+            sf.write(f'    {{(void *)slot_{klass_name}_{member_name}, {slot_name}}},\n')
+
+        if is_slots:
+            sf.write('    {0, (sipPySlotType)0}\n};\n')
+
+        # The attributes tables.
+        nr_methods = self.g_class_method_table(sf, bindings, klass)
+
+        if self.custom_enums_supported():
+            nr_enum_members = self.g_enum_member_table(sf, scope=klass)
+        else:
+            nr_enum_members = -1
+
+        # The property and variable handlers.
+        nr_variables = 0
+
+        if klass.has_variable_handlers:
+            for variable in spec.variables:
+                if variable.scope is klass and variable.needs_handler:
+                    nr_variables += 1
+
+                    self._g_variable_getter(sf, variable)
+
+                    if _can_set_variable(variable):
+                        self._g_variable_setter(sf, variable)
+
+        # Generate any property docstrings.
+        for prop in klass.properties:
+            nr_variables += 1
+
+            if prop.docstring is not None:
+                docstring = self.docstring_text(prop.docstring)
+                sf.write(f'\nPyDoc_STRVAR(doc_{klass_name}_{prop.name}, "{docstring}");\n')
+
+        # The variables table.
+        if nr_variables != 0:
+            sf.write(f'\nsipVariableDef variables_{klass_name}[] = {{\n')
+
+        for prop in klass.properties:
+            fields = ['PropertyVariable', self.cached_name_ref(prop.name)]
+
+            getter_nr = find_method(klass, prop.getter).member_nr
+            fields.append(f'&methods_{klass_name}[{getter_nr}]')
+
+            if prop.setter is None:
+                fields.append('SIP_NULLPTR')
+            else:
+                setter_nr = find_method(klass, prop.setter).member_nr
+                fields.append(f'&methods_{klass_name}[{setter_nr}]')
+
+            # We don't support a deleter yet.
+            fields.append('SIP_NULLPTR')
+
+            if prop.docstring is None:
+                fields.append('SIP_NULLPTR')
+            else:
+                fields.append(f'doc_{klass_name}_{prop.name}')
+
+            fields = ', '.join(fields)
+            sf.write(f'    {{{fields}}},\n')
+
+        if klass.has_variable_handlers:
+            for variable in spec.variables:
+                if variable.scope is klass and variable.needs_handler:
+                    variable_name = variable.fq_cpp_name.as_word
+
+                    fields = []
+
+                    fields.append('ClassVariable' if variable.is_static else 'InstanceVariable')
+                    fields.append(self.cached_name_ref(variable.py_name))
+                    fields.append('(PyMethodDef *)varget_' + variable_name)
+
+                    if _can_set_variable(variable):
+                        fields.append('(PyMethodDef *)varset_' + variable_name)
+                    else:
+                        fields.append('SIP_NULLPTR')
+
+                    fields.append('SIP_NULLPTR')
+                    fields.append('SIP_NULLPTR')
+
+                    fields = ', '.join(fields)
+                    sf.write(f'    {{{fields}}},\n')
+
+        if nr_variables != 0:
+            sf.write('};\n')
+
+        # Generate the static variables table.
+        sv_state = self.g_static_variables_table(sf, scope=klass)
+
+        # Generate the docstring.
+        docstring_ref = self.g_class_docstring(sf, bindings, klass)
+
+        # Generate any plugin-specific data structures.
+        plugin_ref = 'SIP_NULLPTR'
+
+        if self.pyqt5_supported() or self.pyqt6_supported():
+            if self.g_pyqt_class_plugin(sf, bindings, klass):
+                plugin_ref = '&plugin_' + klass_name
+
+        # The type definition structure itself.
+        base_fields = []
+        container_fields = []
+        class_fields = []
+
+        if spec.target_abi < (13, 0):
+            base_fields.append('-1')
+            base_fields.append('SIP_NULLPTR')
+
+        base_fields.append('SIP_NULLPTR')
+
+        flags = []
+
+        if klass.is_abstract:
+            flags.append('SIP_TYPE_ABSTRACT')
+
+        if klass.subclass_base is not None:
+            flags.append('SIP_TYPE_SCC')
+
+        if klass.handles_none:
+            flags.append('SIP_TYPE_ALLOW_NONE')
+
+        if klass.has_nonlazy_method:
+            flags.append('SIP_TYPE_NONLAZY')
+
+        if module.call_super_init:
+            flags.append('SIP_TYPE_SUPER_INIT')
+
+        if not py_debug and module.use_limited_api:
+            flags.append('SIP_TYPE_LIMITED_API')
+
+        flags.append('SIP_TYPE_NAMESPACE' if klass.iface_file.type is IfaceFileType.NAMESPACE else 'SIP_TYPE_CLASS')
+
+        if len(flags) == 0:
+            flags.append('0')
+
+        base_fields.append('|'.join(flags))
+
+        base_fields.append(self.cached_name_ref(klass.iface_file.cpp_name,
+                as_nr=True))
+        base_fields.append('SIP_NULLPTR')
+        base_fields.append(plugin_ref)
+
+        container_fields.append(
+                self.cached_name_ref(klass.py_name, as_nr=True) if klass.real_class is None else '-1')
+
+        if klass.real_class is not None:
+            encoded_type = get_encoded_type(module, klass.real_class)
+        elif py_scope(klass.scope) is not None:
+            encoded_type = get_encoded_type(module, klass.scope)
+        else:
+            encoded_type = '{0, 0, 1}'
+
+        container_fields.append(encoded_type)
+
+        if nr_methods == 0:
+            container_fields.append('0, SIP_NULLPTR')
+        else:
+            container_fields.append(
+                    str(nr_methods) + ', methods_' + klass_name)
+
+        if nr_enum_members == 0:
+            container_fields.append('0, SIP_NULLPTR')
+        elif nr_enum_members > 0:
+            container_fields.append(
+                    str(nr_enum_members) + ', enummembers_' + klass_name)
+
+        if nr_variables == 0:
+            container_fields.append('0, SIP_NULLPTR')
+        else:
+            container_fields.append(
+                    str(nr_variables) + ', variables_' + klass_name)
+
+        instances = []
+
+        instances.append(
+                _class_object_ref('class' in sv_state, 'typeInstances',
+                        klass_name))
+        instances.append(
+                _class_object_ref('voidp' in sv_state, 'voidPtrInstances',
+                        klass_name))
+        instances.append(
+                _class_object_ref('char' in sv_state, 'charInstances',
+                        klass_name))
+        instances.append(
+                _class_object_ref('string' in sv_state, 'stringInstances',
+                        klass_name))
+        instances.append(
+                _class_object_ref('int' in sv_state, 'intInstances',
+                        klass_name))
+        instances.append(
+                _class_object_ref('long' in sv_state, 'longInstances',
+                        klass_name))
+        instances.append(
+                _class_object_ref('ulong' in sv_state, 'unsignedLongInstances',
+                        klass_name))
+        instances.append(
+                _class_object_ref('longlong' in sv_state, 'longLongInstances',
+                        klass_name))
+        instances.append(
+                _class_object_ref('ulonglong' in sv_state,
+                        'unsignedLongLongInstances', klass_name))
+        instances.append(
+                _class_object_ref('double' in sv_state, 'doubleInstances',
+                        klass_name))
+
+        container_fields.append('{' + ', '.join(instances) + '}')
+
+        class_fields.append(docstring_ref)
+        class_fields.append(
+                self.cached_name_ref(klass.metatype, as_nr=True) if klass.metatype is not None else '-1')
+        class_fields.append(
+                self.cached_name_ref(klass.supertype, as_nr=True) if klass.supertype is not None else '-1')
+        class_fields.append(
+                _class_object_ref((len(klass.superclasses) != 0), 'supers',
+                        klass_name))
+        class_fields.append(_class_object_ref(is_slots, 'slots', klass_name))
+        class_fields.append(
+                _class_object_ref(klass.can_create, 'init_type', klass_name))
+        class_fields.append(
+                _class_object_ref((klass.gc_traverse_code is not None),
+                        'traverse', klass_name))
+        class_fields.append(
+                _class_object_ref((klass.gc_clear_code is not None), 'clear',
+                        klass_name))
+        class_fields.append(
+                _class_object_ref((klass.bi_get_buffer_code is not None),
+                        'getbuffer', klass_name))
+        class_fields.append(
+                _class_object_ref((klass.bi_release_buffer_code is not None),
+                        'releasebuffer', klass_name))
+        class_fields.append(
+                _class_object_ref(_need_dealloc(spec, bindings, klass),
+                        'dealloc', klass_name))
+        class_fields.append(
+                _class_object_ref((spec.c_bindings or klass.needs_copy_helper),
+                        'assign', klass_name))
+        class_fields.append(
+                _class_object_ref(
+                        (spec.c_bindings or klass.needs_array_helper), 'array',
+                        klass_name))
+        class_fields.append(
+                _class_object_ref((spec.c_bindings or klass.needs_copy_helper),
+                        'copy', klass_name))
+        class_fields.append(
+                _class_object_ref(
+                        (not spec.c_bindings and klass.iface_file.type is not IfaceFileType.NAMESPACE),
+                        'release', klass_name))
+        class_fields.append(
+                _class_object_ref((len(klass.superclasses) != 0), 'cast',
+                        klass_name))
+        class_fields.append(
+                _class_object_ref(
+                        (klass.convert_to_type_code is not None and klass.iface_file.type is not IfaceFileType.NAMESPACE),
+                        'convertTo', klass_name))
+        class_fields.append(
+                _class_object_ref(
+                        (klass.convert_from_type_code is not None and klass.iface_file.type is not IfaceFileType.NAMESPACE),
+                        'convertFrom', klass_name))
+        class_fields.append('SIP_NULLPTR')
+        class_fields.append(
+                _class_object_ref((klass.pickle_code is not None), 'pickle',
+                        klass_name))
+        class_fields.append(
+                _class_object_ref((klass.finalisation_code is not None),
+                        'final', klass_name))
+        class_fields.append(
+                _class_object_ref(klass.mixin, 'mixin', klass_name))
+
+        if self.abi_supports_array():
+            class_fields.append(
+                    _class_object_ref(
+                            (spec.c_bindings or klass.needs_array_helper),
+                            'array_delete', klass_name))
+
+        if klass.can_create:
+            class_fields.append(f'sizeof ({self.scoped_class_name(klass)})')
+        else:
+            class_fields.append('0')
+
+        base_fields = ',\n        '.join(base_fields)
+        container_fields = ',\n        '.join(container_fields)
+        class_fields = ',\n    '.join(class_fields)
+
+        sf.write(
+f'''
+
+sipClassTypeDef sipTypeDef_{module.py_name}_{klass_name} = {{
+    {{
+        {base_fields},
+    }},
+    {{
+        {container_fields},
+    }},
+    {class_fields},
+}};
+''')
+
     def abi_has_deprecated_message(self):
         """ Return True if the ABI implements sipDeprecated() with a message.
         """
@@ -616,7 +961,7 @@ static sipDoubleInstanceDef doubleInstances{suffix}[]''')
 
                 for enum_member in enum.members:
                     ii_name = self.cached_name_ref(enum_member.py_name)
-                    ii_val = _enum_member(backend, enum_member)
+                    ii_val = self.get_enum_member(enum_member)
                     instances.append((ii_name, ii_val))
 
         # Handle int variables.
@@ -989,34 +1334,605 @@ f'''    if ((sipAPI_{module_name} = sip_init_library(sipModuleDict)) == SIP_NULL
 
             sf.write(f'    sipAddTypeInstance({dict_name}, {py_name}, {ptr}, {self.gto_name(variable.type.definition)});\n')
 
-    @staticmethod
-    def _write_instances_table(sf, scope, instances, declaration_template):
-        """ Write a table of instances.  Return True if there was a table
-        written.
-        """
+    def _g_variable_getter(self, sf, variable):
+        """ Generate a variable getter. """
 
-        if len(instances) == 0:
-            return False
+        spec = self.spec
+        variable_type = variable.type.type
+        first_arg = 'sipSelf' if spec.c_bindings or not variable.is_static else ''
+        last_arg = _use_in_code(variable.get_code, 'sipPyType', spec=spec)
 
-        if scope is None:
-            dict_type = 'module'
-            suffix = ''
+        needs_new = (variable_type in (ArgumentType.CLASS, ArgumentType.MAPPED) and len(variable.type.derefs) == 0 and variable.type.is_const)
+
+        # If the variable is itself a non-const instance of a wrapped class
+        # then two things must happen.  Firstly, the getter must return the
+        # same Python object each time - it must not re-wrap the instance.
+        # This is because the Python object can contain important state
+        # information that must not be lost (specifically references to other
+        # Python objects that it owns).  Therefore the Python object wrapping
+        # the containing class must cache a reference to the Python object
+        # wrapping the variable.  Secondly, the Python object wrapping the
+        # containing class must not be garbage collected before the Python
+        # object wrapping the variable is (because the latter references
+        # memory, ie. the variable itself, that is managed by the former).
+        # Therefore the Python object wrapping the variable must keep a
+        # reference to the Python object wrapping the containing class (but
+        # only if the latter is non-static).
+        var_key = self_key = 0
+
+        if variable_type is ArgumentType.CLASS and len(variable.type.derefs) == 0 and not variable.type.is_const:
+            var_key = variable.type.definition.iface_file.module.next_key
+            variable.type.definition.iface_file.module.next_key -= 1
+
+            if not variable.is_static:
+                self_key = variable.module.next_key
+                variable.module.next_key -= 1
+
+        second_arg = 'sipPySelf' if spec.c_bindings or var_key < 0 else ''
+        variable_as_word = variable.fq_cpp_name.as_word
+
+        sf.write('\n\n')
+
+        if not spec.c_bindings:
+            sf.write(f'extern "C" {{static PyObject *varget_{variable_as_word}(void *, PyObject *, PyObject *);}}\n')
+
+        sf.write(
+f'''static PyObject *varget_{variable_as_word}(void *{first_arg}, PyObject *{second_arg}, PyObject *{last_arg})
+{{
+''')
+
+        if variable.get_code is not None:
+            sip_py_decl = 'PyObject *sipPy'
+        elif var_key < 0:
+            if variable.is_static:
+                sip_py_decl = 'static PyObject *sipPy = SIP_NULLPTR'
+            else:
+                sip_py_decl = 'PyObject *sipPy'
         else:
-            dict_type = 'type'
-            suffix = '_' + scope.iface_file.fq_cpp_name.as_word
+            sip_py_decl = None
 
-        declaration = declaration_template.format(dict_type=dict_type,
-                suffix=suffix)
-        sf.write(f'\n\n{declaration} = {{\n')
+        if sip_py_decl is not None:
+            sf.write('    ' + sip_py_decl + ';\n')
 
-        for instance in instances:
-            entry = ', '.join(instance)
-            sf.write(f'    {{{entry}}},\n')
+        if variable.get_code is None:
+            value_decl = self.get_named_value_decl(variable.scope,
+                    variable.type, 'sipVal')
+            sf.write(f'    {value_decl};\n')
 
-        sentinals = ', '.join('0' * len(instances[0]))
-        sf.write(f'    {{{sentinals}}}\n}};\n')
+        if not variable.is_static:
+            scope_s = backend.scoped_class_name(variable.scope)
 
-        return True
+            if spec.c_bindings:
+                sip_self = f'({scope_s} *)sipSelf'
+            else:
+                sip_self = f'reinterpret_cast<{scope_s} *>(sipSelf)'
+
+            sf.write(f'    {scope_s} *sipCpp = {sip_self};\n')
+
+        sf.write('\n')
+
+        # Handle any handwritten getter.
+        if variable.get_code is not None:
+            sf.write_code(variable.get_code)
+
+            sf.write(
+'''
+    return sipPy;
+}
+''')
+
+            return
+
+        # Get any previously wrapped cached object.
+        if var_key < 0:
+            if variable.is_static:
+                sf.write(
+'''    if (sipPy)
+    {
+        Py_INCREF(sipPy);
+        return sipPy;
+    }
+
+''')
+            else:
+                sf.write(
+f'''    sipPy = sipGetReference(sipPySelf, {self_key});
+
+    if (sipPy)
+        return sipPy;
+
+''')
+
+        variable_type_s = fmt_argument_as_cpp_type(spec, variable.type,
+                plain=True, no_derefs=True)
+
+        if needs_new:
+            if spec.c_bindings:
+                sf.write('    *sipVal = ')
+            else:
+                sf.write(f'    sipVal = new {variable_type_s}(')
+        else:
+            sf.write('    sipVal = ')
+
+            if variable_type in (ArgumentType.CLASS, ArgumentType.MAPPED) and len(variable.type.derefs) == 0:
+                sf.write('&')
+
+        sf.write(self._get_variable_member(variable))
+
+        if needs_new and not spec.c_bindings:
+            sf.write(')')
+
+        sf.write(';\n\n')
+
+        if variable_type in (ArgumentType.CLASS, ArgumentType.MAPPED):
+            prefix_s = 'sipPy =' if var_key < 0 else 'return'
+            new_s = 'New' if needs_new else ''
+            sip_val_s = _const_cast(spec, variable.type, 'sipVal')
+
+            sf.write(f'    {prefix_s} sipConvertFrom{new_s}Type({sip_val_s}, {backend.gto_name(variable.type.definition)}, SIP_NULLPTR);\n')
+
+            if var_key < 0:
+                if variable.is_static:
+                    ref_code = 'Py_INCREF(sipPy)'
+                else:
+                    ref_code = f'sipKeepReference(sipPySelf, {self_key}, sipPy)'
+
+                sf.write(
+f'''
+    if (sipPy)
+    {{
+        sipKeepReference(sipPy, {var_key}, sipPySelf);
+        {ref_code};
+    }}
+
+    return sipPy;
+''')
+
+        elif variable_type in (ArgumentType.BOOL, ArgumentType.CBOOL):
+            sf.write('    return PyBool_FromLong(sipVal);\n')
+
+        elif variable_type is ArgumentType.ASCII_STRING:
+            if len(variable.type.derefs) == 0:
+                sf.write('    return PyUnicode_DecodeASCII(&sipVal, 1, SIP_NULLPTR);\n')
+            else:
+                sf.write(
+'''    if (sipVal == SIP_NULLPTR)
+    {
+        Py_INCREF(Py_None);
+        return Py_None;
+    }
+
+    return PyUnicode_DecodeASCII(sipVal, strlen(sipVal), SIP_NULLPTR);
+''')
+
+        elif variable_type is ArgumentType.LATIN1_STRING:
+            if len(variable.type.derefs) == 0:
+                sf.write('    return PyUnicode_DecodeLatin1(&sipVal, 1, SIP_NULLPTR);\n')
+            else:
+                sf.write(
+'''    if (sipVal == SIP_NULLPTR)
+    {
+        Py_INCREF(Py_None);
+        return Py_None;
+    }
+
+    return PyUnicode_DecodeLatin1(sipVal, strlen(sipVal), SIP_NULLPTR);
+''')
+
+        elif variable_type is ArgumentType.UTF8_STRING:
+            if len(variable.type.derefs) == 0:
+                sf.write('    return PyUnicode_FromStringAndSize(&sipVal, 1);\n')
+            else:
+                sf.write(
+'''    if (sipVal == SIP_NULLPTR)
+    {
+        Py_INCREF(Py_None);
+        return Py_None;
+    }
+
+    return PyUnicode_FromString(sipVal);
+''')
+
+        elif variable_type in (ArgumentType.SSTRING, ArgumentType.USTRING, ArgumentType.STRING):
+            cast_s = '' if variable_type is ArgumentType.STRING else '(char *)'
+
+            if len(variable.type.derefs) == 0:
+                sf.write(f'    return PyBytes_FromStringAndSize({cast_s}&sipVal, 1);\n')
+            else:
+                sf.write(
+f'''    if (sipVal == SIP_NULLPTR)
+    {{
+        Py_INCREF(Py_None);
+        return Py_None;
+    }}
+
+    return PyBytes_FromString({cast_s}sipVal);
+''')
+
+        elif variable_type is ArgumentType.WSTRING:
+            if len(variable.type.derefs) == 0:
+                sf.write('    return PyUnicode_FromWideChar(&sipVal, 1);\n')
+            else:
+                sf.write(
+'''    if (sipVal == SIP_NULLPTR)
+    {
+        Py_INCREF(Py_None);
+        return Py_None;
+    }
+
+    return PyUnicode_FromWideChar(sipVal, (Py_ssize_t)wcslen(sipVal));
+''')
+
+        elif variable_type in (ArgumentType.FLOAT, ArgumentType.CFLOAT):
+            sf.write('    return PyFloat_FromDouble((double)sipVal);\n')
+
+        elif variable_type in (ArgumentType.DOUBLE, ArgumentType.CDOUBLE):
+            sf.write('    return PyFloat_FromDouble(sipVal);\n')
+
+        elif variable_type is ArgumentType.ENUM:
+            if variable.type.definition.fq_cpp_name is None:
+                sf.write('    return PyLong_FromLong(sipVal);\n')
+            else:
+                sip_val_s = 'sipVal' if spec.c_bindings else 'static_cast<int>(sipVal)'
+                sf.write(f'    return sipConvertFromEnum({sip_val_s}, {backend.gto_name(variable.type.definition)});\n')
+
+        elif variable_type in (ArgumentType.BYTE, ArgumentType.SBYTE, ArgumentType.SHORT, ArgumentType.INT, ArgumentType.CINT):
+            sf.write('    return PyLong_FromLong(sipVal);\n')
+
+        elif variable_type is ArgumentType.LONG:
+            sf.write('    return PyLong_FromLong(sipVal);\n')
+
+        elif variable_type in (ArgumentType.UBYTE, ArgumentType.USHORT):
+            sf.write('    return PyLong_FromUnsignedLong(sipVal);\n')
+
+        elif variable_type in (ArgumentType.UINT, ArgumentType.ULONG, ArgumentType.SIZE):
+            sf.write('    return PyLong_FromUnsignedLong(sipVal);\n')
+
+        elif variable_type is ArgumentType.LONGLONG:
+            sf.write('    return PyLong_FromLongLong(sipVal);\n')
+
+        elif variable_type is ArgumentType.ULONGLONG:
+            sf.write('    return PyLong_FromUnsignedLongLong(sipVal);\n')
+
+        elif variable_type in (ArgumentType.STRUCT, ArgumentType.UNION, ArgumentType.VOID):
+            const_s = 'Const' if variable.type.is_const else ''
+            cast_s = _get_void_ptr_cast(variable.type)
+
+            sf.write(f'    return sipConvertFrom{const_s}VoidPtr({cast_s}sipVal);\n')
+
+        elif variable_type is ArgumentType.CAPSULE:
+            cast_s = _get_void_ptr_cast(variable.type)
+
+            sf.write(f'    return PyCapsule_New({cast_s}sipVal, "{variable.type.definition.as_cpp}", SIP_NULLPTR);\n')
+
+        elif variable_type in (ArgumentType.PYOBJECT, ArgumentType.PYTUPLE, ArgumentType.PYLIST, ArgumentType.PYDICT, ArgumentType.PYCALLABLE, ArgumentType.PYSLICE, ArgumentType.PYTYPE, ArgumentType.PYBUFFER, ArgumentType.PYENUM):
+            sf.write(
+'''    Py_XINCREF(sipVal);
+    return sipVal;
+''')
+
+        sf.write('}\n')
+
+    def _g_variable_setter(self, sf, variable):
+        """ Generate a variable setter. """
+
+        spec = self.spec
+        variable_type = variable.type.type
+
+        # We need to keep a reference to the original Python object if it is
+        # providing the memory that the C/C++ variable is pointing to.
+        keep = self.keep_py_reference(variable.type)
+
+        need_sip_cpp = (spec.c_bindings or variable.set_code is None or _is_used_in_code(variable.set_code, 'sipCpp'))
+
+        first_arg = 'sipSelf' if spec.c_bindings or not variable.is_static else ''
+        if not need_sip_cpp:
+            first_arg = ''
+
+        last_arg = 'sipPySelf' if spec.c_bindings or (not variable.is_static and keep) else ''
+
+        sip_py = 'sipPy' if spec.c_bindings or variable.set_code is None or _is_used_in_code(variable.set_code, 'sipPy') else ''
+        variable_as_word = variable.fq_cpp_name.as_word
+
+        sf.write('\n\n')
+
+        if not spec.c_bindings:
+            sf.write(f'extern "C" {{static int varset_{variable_as_word}(void *, PyObject *, PyObject *);}}\n')
+
+        sf.write(
+f'''static int varset_{variable_as_word}(void *{first_arg}, PyObject *{sip_py}, PyObject *{last_arg})
+{{
+''')
+
+        if variable.set_code is None:
+            if variable_type is ArgumentType.BOOL:
+                value_decl = 'int sipVal'
+            else:
+                value_decl = self.get_named_value_decl(variable.scope,
+                        variable.type, 'sipVal')
+
+            sf.write(f'    {value_decl};\n')
+
+        if not variable.is_static and need_sip_cpp:
+            scope_s = self.scoped_class_name(variable.scope)
+
+            if spec.c_bindings:
+                statement = f'({scope_s} *)sipSelf'
+            else:
+                statement = f'reinterpret_cast<{scope_s} *>(sipSelf)'
+
+            sf.write(f'    {scope_s} *sipCpp = {statement};\n\n')
+
+        # Handle any handwritten setter.
+        if variable.set_code is not None:
+            sf.write('   int sipErr = 0;\n\n')
+            sf.write_code(variable.set_code)
+            sf.write(
+'''
+    return (sipErr ? -1 : 0);
+}
+''')
+
+            return
+
+        has_state = False
+
+        if variable_type in (ArgumentType.CLASS, ArgumentType.MAPPED):
+            sf.write('    int sipIsErr = 0;\n')
+
+            if len(variable.type.derefs) == 0:
+                convert_to_type_code = variable.type.definition.convert_to_type_code
+
+                if variable_type is ArgumentType.MAPPED and variable.type.definition.no_release:
+                    convert_to_type_code = None
+
+                if convert_to_type_code is not None:
+                    has_state = True
+
+                    sf.write('    int sipValState;\n')
+
+                    if _type_needs_user_state(variable.type):
+                        sf.write('    void *sipValUserState;\n')
+
+        sf.write(f'    sipVal = {self._get_variable_to_cpp(variable, has_state)};\n')
+
+        deref = ''
+
+        if variable_type in (ArgumentType.CLASS, ArgumentType.MAPPED):
+            if len(variable.type.derefs) == 0:
+                deref = '*'
+
+            error_test = 'sipIsErr'
+        elif variable_type is ArgumentType.BOOL:
+            error_test = 'sipVal < 0'
+        else:
+            error_test = 'PyErr_Occurred() != SIP_NULLPTR'
+
+        sf.write(
+f'''
+    if ({error_test})
+        return -1;
+
+''')
+
+        member = self._get_variable_member(variable)
+
+        if variable_type in (ArgumentType.PYOBJECT, ArgumentType.PYTUPLE, ArgumentType.PYLIST, ArgumentType.PYDICT, ArgumentType.PYCALLABLE, ArgumentType.PYSLICE, ArgumentType.PYTYPE, ArgumentType.PYBUFFER, ArgumentType.PYENUM):
+            sf.write(
+f'''    Py_XDECREF({member});
+    Py_INCREF(sipVal);
+
+''')
+
+        value = deref + 'sipVal'
+
+        if variable_type is ArgumentType.BOOL:
+            if spec.c_bindings:
+                value = '(bool)' + value
+            else:
+                value = f'static_cast<bool>({value})'
+
+        sf.write(f'    {member} = {value};\n')
+
+        # Note that wchar_t * leaks here.
+
+        if has_state:
+            suffix = _user_state_suffix(spec, variable.type)
+
+            sf.write(
+f'''
+    sipReleaseType{suffix}(sipVal, {backend.gto_name(variable.type.definition)}, sipValState''')
+
+            if type_needs_user_state(variable.type):
+                sf.write(', sipValUserState')
+
+            sf.write(');\n')
+
+        # Generate the code to keep the object alive while we use its data.
+        if keep:
+            if variable.is_static:
+                sf.write(
+'''
+    static PyObject *sipKeep = SIP_NULLPTR;
+
+    Py_XDECREF(sipKeep);
+    sipKeep = sipPy;
+    Py_INCREF(sipKeep);
+''')
+            else:
+                key = variable.module.next_key
+                variable.module.next_key -= 1
+
+                sf.write(
+f'''
+    sipKeepReference(sipPySelf, {key}, sipPy);
+''')
+
+        sf.write(
+'''
+    return 0;
+}
+''')
+
+    def _get_variable_member(self, variable):
+        """ Return the member variable of a class. """
+
+        if variable.is_static:
+            scope = self.scoped_variable_name(variable)
+        else:
+            scope = 'sipCpp->' + variable.fq_cpp_name.base_name
+
+        return scope
+
+
+    def _get_variable_to_cpp(self, variable, has_state):
+        """ Return the statement to convert a Python variable to C/C++. """
+
+        spec = self.spec
+        type_s = fmt_argument_as_cpp_type(spec, variable.type, plain=True,
+                no_derefs=True)
+
+        variable_type = variable.type.type
+
+        if variable_type in (ArgumentType.CLASS, ArgumentType.MAPPED):
+            if spec.c_bindings:
+                statement = f'({type_s} *)'
+                cast_tail = ''
+            else:
+                statement = f'reinterpret_cast<{type_s} *>('
+                cast_tail = ')'
+
+            # Note that we don't support /Transfer/ but could do.  We could
+            # also support /Constrained/ (so long as we also supported it for
+            # all types).
+
+            suffix = get_user_state_suffix(spec, variable.type)
+            flags = '0' if len(variable.type.derefs) != 0 else 'SIP_NOT_NONE'
+            state_ptr = '&sipValState' if has_state else 'SIP_NULLPTR'
+
+            statement += f'sipForceConvertToType{suffix}(sipPy, {backend.gto_name(variable.type.definition)}, SIP_NULLPTR, {flags}, {state_ptr}'
+
+            if type_needs_user_state(variable.type):
+                statement += ', &sipValUserState'
+
+            statement += ', &sipIsErr)' + cast_tail
+
+        elif variable_type is ArgumentType.ENUM:
+            statement = f'({type_s})sipConvertToEnum(sipPy, {backend.gto_name(variable.type.definition)})'
+
+        elif variable_type is ArgumentType.SSTRING:
+            if len(variable.type.derefs) == 0:
+                statement = '(signed char)sipBytes_AsChar(sipPy)'
+            elif variable.type.is_const:
+                statement = '(const signed char *)sipBytes_AsString(sipPy)'
+            else:
+                statement = '(signed char *)sipBytes_AsString(sipPy)'
+
+        elif variable_type is ArgumentType.USTRING:
+            if len(variable.type.derefs) == 0:
+                statement = '(unsigned char)sipBytes_AsChar(sipPy)'
+            elif variable.type.is_const:
+                statement = '(const unsigned char *)sipBytes_AsString(sipPy)'
+            else:
+                statement = '(unsigned char *)sipBytes_AsString(sipPy)'
+
+        elif variable_type is ArgumentType.ASCII_STRING:
+            if len(variable.type.derefs) == 0:
+                statement = 'sipString_AsASCIIChar(sipPy)'
+            elif variable.type.is_const:
+                statement = 'sipString_AsASCIIString(&sipPy)'
+            else:
+                statement = '(char *)sipString_AsASCIIString(&sipPy)'
+
+        elif variable_type is ArgumentType.LATIN1_STRING:
+            if len(variable.type.derefs) == 0:
+                statement = 'sipString_AsLatin1Char(sipPy)'
+            elif variable.type.is_const:
+                statement = 'sipString_AsLatin1String(&sipPy)'
+            else:
+                statement = '(char *)sipString_AsLatin1String(&sipPy)'
+
+        elif variable_type is ArgumentType.UTF8_STRING:
+            if len(variable.type.derefs) == 0:
+                statement = 'sipString_AsUTF8Char(sipPy)'
+            elif variable.type.is_const:
+                statement = 'sipString_AsUTF8String(&sipPy)'
+            else:
+                statement = '(char *)sipString_AsUTF8String(&sipPy)'
+
+        elif variable_type is ArgumentType.STRING:
+            if len(variable.type.derefs) == 0:
+                statement = 'sipBytes_AsChar(sipPy)'
+            elif variable.type.is_const:
+                statement = 'sipBytes_AsString(sipPy)'
+            else:
+                statement = '(char *)sipBytes_AsString(sipPy)'
+
+        elif variable_type is ArgumentType.WSTRING:
+            if len(variable.type.derefs) == 0:
+                statement = 'sipUnicode_AsWChar(sipPy)'
+            else:
+                statement = 'sipUnicode_AsWString(sipPy)'
+
+        elif variable_type in (ArgumentType.FLOAT, ArgumentType.CFLOAT):
+            statement = '(float)PyFloat_AsDouble(sipPy)'
+
+        elif variable_type in (ArgumentType.DOUBLE, ArgumentType.CDOUBLE):
+            statement = 'PyFloat_AsDouble(sipPy)'
+
+        elif variable_type in (ArgumentType.BOOL, ArgumentType.CBOOL):
+            statement = 'sipConvertToBool(sipPy)'
+
+        elif variable_type is ArgumentType.BYTE:
+            statement = 'sipLong_AsChar(sipPy)'
+
+        elif variable_type is ArgumentType.SBYTE:
+            statement = 'sipLong_AsSignedChar(sipPy)'
+
+        elif variable_type is ArgumentType.UBYTE:
+            statement = 'sipLong_AsUnsignedChar(sipPy)'
+
+        elif variable_type is ArgumentType.USHORT:
+            statement = 'sipLong_AsUnsignedShort(sipPy)'
+
+        elif variable_type is ArgumentType.SHORT:
+            statement = 'sipLong_AsShort(sipPy)'
+
+        elif variable_type is ArgumentType.UINT:
+            statement = 'sipLong_AsUnsignedInt(sipPy)'
+
+        elif variable_type is ArgumentType.SIZE:
+            statement = 'sipLong_AsSizeT(sipPy)'
+
+        elif variable_type in (ArgumentType.INT, ArgumentType.CINT):
+            statement = 'sipLong_AsInt(sipPy)'
+
+        elif variable_type is ArgumentType.ULONG:
+            statement = 'sipLong_AsUnsignedLong(sipPy)'
+
+        elif variable_type is ArgumentType.LONG:
+            statement = 'sipLong_AsLong(sipPy)'
+
+        elif variable_type is ArgumentType.ULONGLONG:
+            statement = 'sipLong_AsUnsignedLongLong(sipPy)'
+
+        elif variable_type is ArgumentType.LONGLONG:
+            statement = 'sipLong_AsLongLong(sipPy)'
+
+        elif variable_type in (ArgumentType.STRUCT, ArgumentType.UNION):
+            statement = f'({type_s} *)sipConvertToVoidPtr(sipPy)'
+
+        elif variable_type is ArgumentType.VOID:
+            statement = 'sipConvertToVoidPtr(sipPy)'
+
+        elif variable_type is ArgumentType.CAPSULE:
+            statement = f'PyCapsule_GetPointer(sipPy, "{variable.type.definition.as_cpp}")'
+
+        else:
+            # These are just the PyObject types.
+            statement = 'sipPy'
+
+        return statement
 
     def _write_int_instances(self, sf, scope, target_type, type_name):
         """ Generate the code to add a set of a particular type to a
@@ -1046,5 +1962,51 @@ f'''    if ((sipAPI_{module_name} = sip_init_library(sipModuleDict)) == SIP_NULL
         declaration_template = f'''/* Define the {type_name}s to be added to this {{dict_type}} dictionary. */
 static sip{table_type_name}InstanceDef {table_name}Instances{{suffix}}[]'''
 
-        return self._write_instances_table(sf, scope, instances,
+        return _write_instances_table(sf, scope, instances,
                 declaration_template)
+
+
+def _can_set_variable(variable):
+    """ Return True if a variable can be set. """
+
+    if variable.no_setter:
+        return False
+
+    if len(variable.type.derefs) == 0 and variable.type.is_const:
+        return False
+
+    return True
+
+
+def _class_object_ref(test, object_name, klass_name):
+    """ Return an appropriate reference to a class-specific object. """
+
+    return object_name + '_' + klass_name if test else 'SIP_NULLPTR'
+
+
+def _write_instances_table(sf, scope, instances, declaration_template):
+    """ Write a table of instances.  Return True if there was a table written.
+    """
+
+    if len(instances) == 0:
+        return False
+
+    if scope is None:
+        dict_type = 'module'
+            suffix = ''
+    else:
+        dict_type = 'type'
+        suffix = '_' + scope.iface_file.fq_cpp_name.as_word
+
+    declaration = declaration_template.format(dict_type=dict_type,
+            suffix=suffix)
+    sf.write(f'\n\n{declaration} = {{\n')
+
+    for instance in instances:
+        entry = ', '.join(instance)
+        sf.write(f'    {{{entry}}},\n')
+
+    sentinals = ', '.join('0' * len(instances[0]))
+    sf.write(f'    {{{sentinals}}}\n}};\n')
+
+    return True

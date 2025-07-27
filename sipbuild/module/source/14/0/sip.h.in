@@ -363,7 +363,6 @@ typedef struct _sipEnumMemberDef {
 typedef PyObject *(*sipStaticVariableGetterFunc)();
 typedef int (*sipStaticVariableSetterFunc)(PyObject *);
 
-// TODO Consider adding a size_t field to support fixed size arrays.
 typedef struct {
     const char *name;                   /* The name of the value. */
     sipTypeID type_id;                  /* The type of the value. */
@@ -755,7 +754,16 @@ typedef struct _sipContainerDef {
     const sipVariableDef *cod_variables;
 
     /* The static instances. */
+    // TODO Remove this.
     sipInstancesDef cod_instances;
+
+    /* The number of static variables. */
+    // TODO May not need the count.
+    int nr_static_variables;
+
+    /* The sorted table of static variables. */
+    // TODO Only sorted for repeatable builds?
+    const sipStaticVariableDef *const static_variables;
 } sipContainerDef;
 
 
