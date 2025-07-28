@@ -4,7 +4,7 @@
 
 
 from ....scoped_name import STRIP_GLOBAL
-from ....specification import ArgumentType, WrappedClass
+from ....specification import ArgumentType, WrappedClass, WrappedEnum
 
 from ...formatters import fmt_argument_as_cpp_type
 
@@ -153,14 +153,59 @@ const sipAPIDef *sipAPI_{module_name};
         self.g_module_definition(sf, has_module_functions=has_module_functions)
         self._g_module_init_body(sf)
 
-    def g_function_init(self, sf):
-        """ Generate the code at the start of function implementation. """
+    def g_enum_macros(self, sf, scope=None, imported_module=None):
+        """ Generate the type macros for enums. """
+
+        spec = self.spec
+
+        for enum in spec.enums:
+            if enum.fq_cpp_name is None:
+                continue
+
+            # Continue unless the scopes match.
+            if scope is not None:
+                if enum.scope is not scope:
+                    continue
+            elif enum.scope is not None:
+                continue
+
+            value = None
+
+            if imported_module is None:
+                if enum.module is spec.module:
+                    value = f'sipExportedTypes_{spec.module.py_name}[{enum.type_nr}]'
+            elif enum.module is imported_module and enum.needed:
+                value = f'sipImportedTypes_{spec.module.py_name}_{enum.module.py_name}[{enum.type_nr}].it_td'
+
+            if value is not None:
+                sf.write(f'\n#define {self.get_type_ref(enum)} {value}\n')
+
+    def g_function_support_vars(self, sf):
+        """ Generate the variables needed by a function. """
 
         # There is nothing to do.
         pass
 
-    def g_method_init(self, sf):
-        """ Generate the code at the start of method implementation. """
+    def g_mapped_type_api(self, sf, mapped_type):
+        """ Generate the API details for a mapped type. """
+
+        spec = self.spec
+        iface_file = mapped_type.iface_file
+
+        module_name = spec.module.py_name
+        mapped_type_name = iface_file.fq_cpp_name.as_word
+
+        sf.write(
+f'''
+#define {self.get_type_ref(mapped_type)} sipExportedTypes_{module_name}[{iface_file.type_nr}]
+
+extern sipMappedTypeDef sipTypeDef_{module_name}_{mapped_type_name};
+''')
+
+        self.g_enum_macros(sf, scope=mapped_type)
+
+    def g_method_support_vars(self, sf):
+        """ Generate the variables needed by a method. """
 
         # There is nothing to do.
         pass
@@ -407,6 +452,11 @@ f'''#define sipIsPyMethod               sipAPI_{module_name}->api_is_py_method_1
 f'''#define sipIsPyMethod               sipAPI_{module_name}->api_is_py_method
 ''')
 
+    def g_slot_support_vars(self, sf):
+        """ Generate the variables needed by a slot function. """
+
+        pass
+
     def g_static_variables_table(self, sf, scope=None):
         """ Generate the tables of static variables for a scope and return a
         set of strings corresponding to the tables actually generated.
@@ -602,34 +652,7 @@ static sipPySlotDef slots_{klass_name}[] = {{
             base_fields.append('SIP_NULLPTR')
 
         base_fields.append('SIP_NULLPTR')
-
-        flags = []
-
-        if klass.is_abstract:
-            flags.append('SIP_TYPE_ABSTRACT')
-
-        if klass.subclass_base is not None:
-            flags.append('SIP_TYPE_SCC')
-
-        if klass.handles_none:
-            flags.append('SIP_TYPE_ALLOW_NONE')
-
-        if klass.has_nonlazy_method:
-            flags.append('SIP_TYPE_NONLAZY')
-
-        if module.call_super_init:
-            flags.append('SIP_TYPE_SUPER_INIT')
-
-        if not py_debug and module.use_limited_api:
-            flags.append('SIP_TYPE_LIMITED_API')
-
-        flags.append('SIP_TYPE_NAMESPACE' if klass.iface_file.type is IfaceFileType.NAMESPACE else 'SIP_TYPE_CLASS')
-
-        if len(flags) == 0:
-            flags.append('0')
-
-        base_fields.append('|'.join(flags))
-
+        base_fields.append(self.get_class_flags(klass, py_debug)
         base_fields.append(self.cached_name_ref(klass.iface_file.cpp_name,
                 as_nr=True))
         base_fields.append('SIP_NULLPTR')
@@ -826,6 +849,28 @@ sipClassTypeDef sipTypeDef_{module.py_name}_{klass_name} = {{
 
         return self.spec.target_abi[0] < 13
 
+    def get_class_ref_value(self, klass):
+        """ Return the value of a class's reference. """
+
+        module_name = self.spec.module.py_name
+        iface_file = klass.iface_file
+
+        return f'sipExportedTypes_{module_name}[{iface_file.type_nr}]')
+
+    @staticmethod
+    def get_type_ref(wrapped_object):
+        """ Return the reference to the type of a wrapped object. """
+
+        fq_cpp_name = wrapped_object.fq_cpp_name if isinstance(wrapped_object, WrappedEnum) else wrapped_object.iface_file.fq_cpp_name
+
+        return 'sipType_' + fq_cpp_name.as_word
+
+    @staticmethod
+    def get_types_table_prefix():
+        """ Return the prefix in the name of the wrapped types table. """
+
+        return 'sipExportedTypes'
+
     def module_supports_qt(self):
         """ Return True if the module implements Qt support. """
 
@@ -897,7 +942,7 @@ static sipCharInstanceDef charInstances{suffix}[]''')
 
             ti_name = self.cached_name_ref(variable.py_name)
             ti_ptr = '&' + self.scoped_variable_name(variable)
-            ti_type = '&' + self.gto_name(variable.type.definition)
+            ti_type = '&' + self.get_type_ref(variable.type.definition)
             ti_flags = '0'
 
             if variable.type.type is ArgumentType.CLASS:
@@ -1322,7 +1367,7 @@ f'''    if ((sipAPI_{module_name} = sip_init_library(sipModuleDict)) == SIP_NULL
             if py_scope(variable.scope) is None:
                 dict_name = 'sipModuleDict'
             else:
-                dict_name = f'(PyObject *)sipTypeAsPyTypeObject({self.gto_name(variable.scope)})'
+                dict_name = f'(PyObject *)sipTypeAsPyTypeObject({self.get_type_ref(variable.scope)})'
 
             py_name = self.cached_name_ref(variable.py_name)
             ptr = '&' + self.scoped_variable_name(variable)
@@ -1332,7 +1377,7 @@ f'''    if ((sipAPI_{module_name} = sip_init_library(sipModuleDict)) == SIP_NULL
                         plain=True, no_derefs=True)
                 ptr = f'const_cast<{type_name} *>({ptr})'
 
-            sf.write(f'    sipAddTypeInstance({dict_name}, {py_name}, {ptr}, {self.gto_name(variable.type.definition)});\n')
+            sf.write(f'    sipAddTypeInstance({dict_name}, {py_name}, {ptr}, {self.get_type_ref(variable.type.definition)});\n')
 
     def _g_variable_getter(self, sf, variable):
         """ Generate a variable getter. """
@@ -1469,7 +1514,7 @@ f'''    sipPy = sipGetReference(sipPySelf, {self_key});
             new_s = 'New' if needs_new else ''
             sip_val_s = _const_cast(spec, variable.type, 'sipVal')
 
-            sf.write(f'    {prefix_s} sipConvertFrom{new_s}Type({sip_val_s}, {backend.gto_name(variable.type.definition)}, SIP_NULLPTR);\n')
+            sf.write(f'    {prefix_s} sipConvertFrom{new_s}Type({sip_val_s}, {backend.get_type_ref(variable.type.definition)}, SIP_NULLPTR);\n')
 
             if var_key < 0:
                 if variable.is_static:
@@ -1574,7 +1619,7 @@ f'''    if (sipVal == SIP_NULLPTR)
                 sf.write('    return PyLong_FromLong(sipVal);\n')
             else:
                 sip_val_s = 'sipVal' if spec.c_bindings else 'static_cast<int>(sipVal)'
-                sf.write(f'    return sipConvertFromEnum({sip_val_s}, {backend.gto_name(variable.type.definition)});\n')
+                sf.write(f'    return sipConvertFromEnum({sip_val_s}, {backend.get_type_ref(variable.type.definition)});\n')
 
         elif variable_type in (ArgumentType.BYTE, ArgumentType.SBYTE, ArgumentType.SHORT, ArgumentType.INT, ArgumentType.CINT):
             sf.write('    return PyLong_FromLong(sipVal);\n')
@@ -1741,7 +1786,7 @@ f'''    Py_XDECREF({member});
 
             sf.write(
 f'''
-    sipReleaseType{suffix}(sipVal, {backend.gto_name(variable.type.definition)}, sipValState''')
+    sipReleaseType{suffix}(sipVal, {backend.get_type_ref(variable.type.definition)}, sipValState''')
 
             if type_needs_user_state(variable.type):
                 sf.write(', sipValUserState')
@@ -1810,7 +1855,7 @@ f'''
             flags = '0' if len(variable.type.derefs) != 0 else 'SIP_NOT_NONE'
             state_ptr = '&sipValState' if has_state else 'SIP_NULLPTR'
 
-            statement += f'sipForceConvertToType{suffix}(sipPy, {backend.gto_name(variable.type.definition)}, SIP_NULLPTR, {flags}, {state_ptr}'
+            statement += f'sipForceConvertToType{suffix}(sipPy, {backend.get_type_ref(variable.type.definition)}, SIP_NULLPTR, {flags}, {state_ptr}'
 
             if type_needs_user_state(variable.type):
                 statement += ', &sipValUserState'
@@ -1818,7 +1863,7 @@ f'''
             statement += ', &sipIsErr)' + cast_tail
 
         elif variable_type is ArgumentType.ENUM:
-            statement = f'({type_s})sipConvertToEnum(sipPy, {backend.gto_name(variable.type.definition)})'
+            statement = f'({type_s})sipConvertToEnum(sipPy, {backend.get_type_ref(variable.type.definition)})'
 
         elif variable_type is ArgumentType.SSTRING:
             if len(variable.type.derefs) == 0:

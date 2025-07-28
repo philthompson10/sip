@@ -357,7 +357,7 @@ class Backend:
             args.append('&sipSelf')
 
             if not overload.is_static:
-                args.append(self.gto_name(scope))
+                args.append(self.get_type_ref(scope))
                 args.append('&sipCpp')
 
         for arg_nr, arg in enumerate(py_signature.args):
@@ -376,7 +376,7 @@ class Backend:
             if arg.type is ArgumentType.MAPPED:
                 mapped_type = arg.definition
 
-                args.append(self.gto_name(mapped_type))
+                args.append(self.get_type_ref(mapped_type))
                 args.append(arg_name_ref)
 
                 if arg.array is ArrayArgument.ARRAY:
@@ -393,7 +393,7 @@ class Backend:
             elif arg.type is ArgumentType.CLASS:
                 klass = arg.definition
 
-                args.append(self.gto_name(klass))
+                args.append(self.get_type_ref(klass))
                 args.append(arg_name_ref)
 
                 if arg.array is ArrayArgument.ARRAY:
@@ -439,7 +439,7 @@ class Backend:
 
             elif arg.type is ArgumentType.ENUM:
                 if arg.definition.fq_cpp_name is not None:
-                    args.append(self.gto_name(arg.definition))
+                    args.append(self.get_type_ref(arg.definition))
 
                 args.append(arg_name_ref)
 
@@ -549,6 +549,42 @@ class Backend:
 
         return docstring_ref
 
+    def g_class_api(self, sf, klass):
+        """ Generate the C++ API for a class. """
+
+        spec = self.spec
+        iface_file = klass.iface_file
+
+        module_name = spec.module.py_name
+
+        sf.write('\n')
+
+        if klass.real_class is None and not klass.is_hidden_namespace:
+            sf.write(f'#define {self.get_type_ref(klass)} {self.get_class_ref_value(klass)}\n')
+
+        self.g_enum_macros(sf, scope=klass)
+
+        if not klass.external and not klass.is_hidden_namespace:
+            klass_name = iface_file.fq_cpp_name.as_word
+            sf.write(f'\nextern sipClassTypeDef sipTypeDef_{module_name}_{klass_name};\n')
+
+    def g_class_api(self, sf, klass):
+        """ Generate the C++ API for a class. """
+
+        module_name = self.spec.module.py_name
+        iface_file = klass.iface_file
+
+        sf.write('\n')
+
+        if klass.real_class is None and not klass.is_hidden_namespace:
+            sf.write(f'#define {self.get_type_ref(klass)} SIP_TYPE_ID_GENERATED|SIP_TYPE_ID_CURRENT_MODULE|{iface_file.type_nr}\n')
+
+        self.g_enum_macros(sf, scope=klass)
+
+        if not klass.external and not klass.is_hidden_namespace:
+            klass_name = iface_file.fq_cpp_name.as_word
+            sf.write(f'\nextern sipClassTypeDef sipTypeDef_{module_name}_{klass_name};\n')
+
     def g_class_method_table(self, sf, bindings, klass):
         """ Generate the sorted table of methods for a class and return the
         number of entries.
@@ -592,7 +628,7 @@ static const sipWrappedModuleDef sipWrappedModule_{module_name} = {{
 
         if len(module.needed_types) != 0:
             sf.write(f'    .nr_types = {len(module.needed_types)},\n')
-            sf.write(f'    .types = sipExportedTypes_{module_name},\n')
+            sf.write(f'    .types = sipWrappedTypes_{module_name},\n')
 
         if has_external:
             sf.write('    .imports = externalTypesTable,\n')
@@ -638,14 +674,13 @@ static const sipWrappedModuleDef sipWrappedModule_{module_name} = {{
         self._g_module_exec(sf)
         self._g_module_free(sf)
         self._g_module_traverse(sf)
-        self.g_module_init_start(sf)
         has_module_functions = self.g_module_functions_table(sf, bindings)
         self.g_module_definition(sf, has_module_functions=has_module_functions)
+        self.g_module_init_start(sf)
 
         sf.write(
-'''
-    return PyModuleDef_Init(&sip_wrapped_module_def);
-}
+f'''    return PyModuleDef_Init(&sipWrappedModuleDef_{module_name});
+}}
 ''')
 
     def g_delete_temporaries(self, sf, py_signature):
@@ -703,12 +738,18 @@ static const sipWrappedModuleDef sipWrappedModule_{module_name} = {{
                                 plain=True, no_derefs=True)
                         sf.write(f'const_cast<{arg_cpp_plain} *>({arg_name})')
 
-                    sf.write(f', {self.gto_name(arg.definition)}, {arg_name}State')
+                    sf.write(f', {self.get_type_ref(arg.definition)}, {arg_name}State')
 
                     if type_needs_user_state(arg):
                         sf.write(f', {arg_name}UserState')
 
                     sf.write(');\n')
+
+    def g_enum_macros(self, sf, scope=None, imported_module=None):
+        """ Generate the type macros for enums. """
+
+        # TODO
+        pass
 
     def g_enum_member_table(self, sf, scope=None):
         """ Generate the table of enum members for a scope.  Return the number
@@ -767,10 +808,16 @@ static sipEnumMemberDef enummembers_{scope.iface_file.fq_cpp_name.as_word}[] = {
 
         return nr_members
 
-    def g_function_init(self, sf):
-        """ Generate the code at the start of function implementation. """
+    def g_function_support_vars(self, sf):
+        """ Generate the variables needed by a function. """
 
         sf.write('    const sipAPIDef *sipAPI = sipGetAPI(sipModule);\n')
+
+    def g_mapped_type_api(self, sf, mapped_type):
+        """ Generate the API details for a mapped type. """
+
+        # TODO
+        pass
 
     def g_mapped_type_method_table(self, sf, bindings, mapped_type):
         """ Generate the sorted table of static methods for a mapped type and
@@ -837,8 +884,8 @@ static sipEnumMemberDef enummembers_{scope.iface_file.fq_cpp_name.as_word}[] = {
 
         return auto_docstring
 
-    def g_method_init(self, sf):
-        """ Generate the code at the start of method implementation. """
+    def g_method_support_vars(self, sf):
+        """ Generate the variables needed by a method. """
 
         # TODO
         pass
@@ -853,35 +900,40 @@ static sipEnumMemberDef enummembers_{scope.iface_file.fq_cpp_name.as_word}[] = {
         interp_support = 'Py_MOD_MULTIPLE_INTERPRETERS_NOT_SUPPORTED'
 
         sf.write(
-f'''    static PyModuleDef_Slot sip_wrapped_module_slots[] = {{
-        {{Py_mod_exec, (void *)wrapped_module_exec}},
+f'''
+
+/* The wrapped module's immutable slot definitions. */
+static PyModuleDef_Slot sip_wrapped_module_slots[] = {{
+    {{Py_mod_exec, (void *)wrapped_module_exec}},
 #if PY_VERSION_HEX >= 0x030c0000
-        {{Py_mod_multiple_interpreters, {interp_support}}},
+    {{Py_mod_multiple_interpreters, {interp_support}}},
 #endif
 #if PY_VERSION_HEX >= 0x030d0000
-        {{Py_mod_gil, Py_MOD_GIL_USED}},
+    {{Py_mod_gil, Py_MOD_GIL_USED}},
 #endif
-        {{0, SIP_NULLPTR}}
-    }};
+    {{0, SIP_NULLPTR}}
+}};
 
-    static PyModuleDef sip_wrapped_module_def = {{
-        .m_base = PyModuleDef_HEAD_INIT,
-        .m_name = "{module.fq_py_name}",
-        .m_size = sizeof (sipWrappedModuleState),
-        .m_slots = sip_wrapped_module_slots,
-        .m_clear = wrapped_module_clear,
-        .m_traverse = wrapped_module_traverse,
-        .m_free = wrapped_module_free,
+
+/* The wrapped module's immutable definition. */
+PyModuleDef sipWrappedModuleDef_{module.py_name} = {{
+    .m_base = PyModuleDef_HEAD_INIT,
+    .m_name = "{module.fq_py_name}",
+    .m_size = sizeof (sipWrappedModuleState),
+    .m_slots = sip_wrapped_module_slots,
+    .m_clear = wrapped_module_clear,
+    .m_traverse = wrapped_module_traverse,
+    .m_free = wrapped_module_free,
 ''')
 
         if module.docstring is not None:
             # TODO The name should have a sip_ prefix.
-            sf.write(f'        .m_doc = doc_mod_{module.py_name},\n')
+            sf.write(f'    .m_doc = doc_mod_{module.py_name},\n')
 
         if has_module_functions:
-            sf.write('        .m_methods = sip_methods,\n')
+            sf.write('    .m_methods = sip_methods,\n')
 
-        sf.write('    };\n')
+        sf.write('};\n')
 
     def g_module_docstring(self, sf):
         """ Generate the definition of the module's optional docstring. """
@@ -1031,7 +1083,12 @@ f'''
         # TODO These have been reviewed as part of the public v14 API.
         sf.write(
 f'''
+
+extern PyModuleDef sipWrappedModuleDef_{module_name};
+
 #define sipBuildResult              sipAPI->api_build_result
+#define sipGetAddress               sipAPI->api_get_address
+#define sipIsOwnedByPython          sipAPI->api_is_owned_by_python
 ''')
 
         # TODO These have been reviewed as part of the private v14 API.
@@ -1072,7 +1129,6 @@ f'''#define sipMalloc                   sipAPI->api_malloc
 #define sipWrapperType_Type         sipAPI->api_wrappertype_type
 #define sipVoidPtr_Type             sipAPI->api_voidptr_type
 #define sipGetPyObject              sipAPI->api_get_pyobject
-#define sipGetAddress               sipAPI->api_get_address
 #define sipGetMixinAddress          sipAPI->api_get_mixin_address
 #define sipGetCppPtr                sipAPI->api_get_cpp_ptr
 #define sipGetComplexCppPtr         sipAPI->api_get_complex_cpp_ptr
@@ -1144,7 +1200,6 @@ f'''#define sipMalloc                   sipAPI->api_malloc
 #define sipUnicodeData              sipAPI->api_unicode_data
 #define sipGetBufferInfo            sipAPI->api_get_buffer_info
 #define sipReleaseBufferInfo        sipAPI->api_release_buffer_info
-#define sipIsOwnedByPython          sipAPI->api_is_owned_by_python
 #define sipIsDerivedClass           sipAPI->api_is_derived_class
 #define sipGetUserObject            sipAPI->api_get_user_object
 #define sipSetUserObject            sipAPI->api_set_user_object
@@ -1180,6 +1235,15 @@ f'''#define sipMalloc                   sipAPI->api_malloc
         if self.py_enums_supported():
             sf.write(
 f'''#define sipIsEnumFlag               sipAPI->api_is_enum_flag
+''')
+
+    def g_slot_support_vars(self, sf):
+        """ Generate the variables needed by a slot function. """
+
+        sf.write(
+f'''    PyObject *sipModule = sipGetModule(sipSelf, &sipWrappedModuleDef_{self.spec.module.py_name});
+    const sipAPIDef *sipAPI = sipGetAPI(sipModule);
+
 ''')
 
     def g_static_variables_table(self, sf, scope=None):
@@ -1482,8 +1546,108 @@ static const sipStaticVariableDef sipStaticVariablesTable{suffix}[] = {{
         namespaces.
         """
 
-        # TODO
-        pass
+        spec = self.spec
+        module = spec.module
+        klass_name = klass.iface_file.fq_cpp_name.as_word
+
+        base_fields = []
+        container_fields = []
+        class_fields = []
+
+        base_fields.append(
+                '.ctd_base.td_flags = ' + self.get_class_flags(klass, py_debug))
+        base_fields.append(
+                '.ctd_base.td_cname = ' + self.cached_name_ref(klass.iface_file.cpp_name))
+
+        base_fields = ',\n    '.join(base_fields)
+        container_fields = ',\n    '.join(container_fields)
+        class_fields = ',\n    '.join(class_fields)
+
+        sf.write(
+f'''
+
+sipClassTypeDef sipTypeDef_{module.py_name}_{klass_name} = {{
+    {base_fields},
+    //{container_fields},
+    //{class_fields},
+}};
+''')
+
+    def get_class_flags(self, klass, py_debug):
+        """ Return the flags for a class. """
+
+        module = self.spec.module
+        flags = []
+
+        if klass.is_abstract:
+            flags.append('SIP_TYPE_ABSTRACT')
+
+        if klass.subclass_base is not None:
+            flags.append('SIP_TYPE_SCC')
+
+        if klass.handles_none:
+            flags.append('SIP_TYPE_ALLOW_NONE')
+
+        if klass.has_nonlazy_method:
+            flags.append('SIP_TYPE_NONLAZY')
+
+        if module.call_super_init:
+            flags.append('SIP_TYPE_SUPER_INIT')
+
+        if not py_debug and module.use_limited_api:
+            flags.append('SIP_TYPE_LIMITED_API')
+
+        flags.append('SIP_TYPE_NAMESPACE' if klass.iface_file.type is IfaceFileType.NAMESPACE else 'SIP_TYPE_CLASS')
+
+        return '|'.join(flags)
+
+    def get_class_ref_value(self, klass):
+        """ Return the value of a class's reference. """
+
+        return f'SIP_TYPE_ID_GENERATED|SIP_TYPE_ID_CURRENT_MODULE|{klass.iface_file.type_nr}'
+
+    @staticmethod
+    def get_types_table_prefix():
+        """ Return the prefix in the name of the wrapped types table. """
+
+        return 'sipWrappedTypes'
+
+    @classmethod
+    def g_types_table(cls, sf, module, needed_enums):
+        """ Generate the types table for a module. """
+
+        module_name = module.py_name
+
+        sf.write(
+f'''
+
+/*
+ * This defines each type in this module.
+ */
+sipTypeDef *{cls.get_types_table_prefix()}_{module_name}[] = {{
+''')
+
+        for needed_type in module.needed_types:
+            if needed_type.type is ArgumentType.CLASS:
+                klass = needed_type.definition
+
+                if klass.external:
+                    sf.write('    0,\n')
+                elif not klass.is_hidden_namespace:
+                    sf.write(f'    &sipTypeDef_{module_name}_{klass.iface_file.fq_cpp_name.as_word}.ctd_base,\n')
+
+            elif needed_type.type is ArgumentType.MAPPED:
+                mapped_type = needed_type.definition
+
+                sf.write(f'    &sipTypeDef_{module_name}_{mapped_type.iface_file.fq_cpp_name.as_word}.mtd_base,\n')
+
+            elif needed_type.type is ArgumentType.ENUM:
+                enum = needed_type.definition
+                enum_index = needed_enums.index(enum)
+
+                sf.write(f'    &enumTypes[{enum_index}].etd_base,\n')
+
+        sf.write('};\n')
 
     def abi_has_deprecated_message(self):
         """ Return True if the ABI implements sipDeprecated() with a message.
@@ -1610,13 +1774,12 @@ static const sipStaticVariableDef sipStaticVariablesTable{suffix}[] = {{
         return named_value_decl
 
     @staticmethod
-    def gto_name(wrapped_object):
-        """ Return the name of the generated type object for a wrapped object.
-        """
+    def get_type_ref(wrapped_object):
+        """ Return the reference to the type of a wrapped object. """
 
         fq_cpp_name = wrapped_object.fq_cpp_name if isinstance(wrapped_object, WrappedEnum) else wrapped_object.iface_file.fq_cpp_name
 
-        return 'sipType_' + fq_cpp_name.as_word
+        return 'sipTypeID_' + fq_cpp_name.as_word
 
     # The types that need a Python reference.
     _PY_REF_TYPES = (ArgumentType.ASCII_STRING, ArgumentType.LATIN1_STRING,

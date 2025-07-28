@@ -142,6 +142,7 @@ typedef struct _sipSipModuleState {
 } sipSipModuleState;
 
 
+// TODO Review if the first 3 are needed.
 PyObject *sip_get_sip_module(PyTypeObject *defining_class);
 sipSipModuleState *sip_get_sip_module_state_from_any_type(PyTypeObject *type);
 sipSipModuleState *sip_get_sip_module_state_from_wrapper_type(

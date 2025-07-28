@@ -129,8 +129,8 @@ extern const sipAPIDef *sipAPI_{module_name};
 extern sipExportedModuleDef sipModuleAPI_{module_name};
 ''')
 
-    if len(module.needed_types) != 0:
-        sf.write(f'extern sipTypeDef *sipExportedTypes_{module_name}[];\n')
+        if len(module.needed_types) != 0:
+            sf.write(f'extern sipTypeDef *sipExportedTypes_{module_name}[];\n')
 
     for imported_module in module.all_imports:
         imported_module_name = imported_module.py_name
@@ -539,7 +539,7 @@ f'    {{{{{v12_fields}SIP_NULLPTR, {sip_type}, sipNameNr_{cpp_name}, SIP_NULLPTR
 
     # Generate the types table.
     if len(module.needed_types) != 0:
-        _types_table(sf, module, needed_enums)
+        backend.g_types_table(sf, module, needed_enums)
 
     # Generate the typedefs table.
     if module.nr_typedefs > 0:
@@ -922,43 +922,6 @@ const char sipStrings_{spec.module.py_name}[] = {{
     return has_sip_strings
 
 
-def _types_table(sf, module, needed_enums):
-    """ Generate the types table for a module. """
-
-    module_name = module.py_name
-
-    sf.write(
-f'''
-
-/*
- * This defines each type in this module.
- */
-sipTypeDef *sipExportedTypes_{module_name}[] = {{
-''')
-
-    for needed_type in module.needed_types:
-        if needed_type.type is ArgumentType.CLASS:
-            klass = needed_type.definition
-
-            if klass.external:
-                sf.write('    0,\n')
-            elif not klass.is_hidden_namespace:
-                sf.write(f'    &sipTypeDef_{module_name}_{klass.iface_file.fq_cpp_name.as_word}.ctd_base,\n')
-
-        elif needed_type.type is ArgumentType.MAPPED:
-            mapped_type = needed_type.definition
-
-            sf.write(f'    &sipTypeDef_{module_name}_{mapped_type.iface_file.fq_cpp_name.as_word}.mtd_base,\n')
-
-        elif needed_type.type is ArgumentType.ENUM:
-            enum = needed_type.definition
-            enum_index = needed_enums.index(enum)
-
-            sf.write(f'    &enumTypes[{enum_index}].etd_base,\n')
-
-    sf.write('};\n')
-
-
 def _subclass_convertors(sf, spec, module):
     """ Generate all the sub-class convertors for a module and return the
     number of them.
@@ -1074,9 +1037,9 @@ def _ordinary_function(backend, sf, bindings, member, scope=None):
 
         if need_intro:
             if py_scope is None:
-                backend.g_function_init(sf)
+                backend.g_function_support_vars(sf)
             else:
-                backend.g_method_init(sf)
+                backend.g_method_support_vars(sf)
 
             sf.write('    PyObject *sipParseErr = SIP_NULLPTR;\n')
 
@@ -1628,19 +1591,19 @@ f'''    if (!PyObject_TypeCheck(sipSelf, sipTypeAsPyTypeObject(sip{prefix}_{fq_c
 ''')
 
         if not is_number_slot(member.py_slot):
-            gto_name = backend.gto_name(scope)
+            type_ref = backend.get_type_ref(scope)
 
             if isinstance(scope, WrappedClass):
                 cpp_name = backend.scoped_class_name(scope)
                 sf.write(
-f'''    {cpp_name} *sipCpp = reinterpret_cast<{cpp_name} *>(sipGetCppPtr((sipSimpleWrapper *)sipSelf, {gto_name}));
+f'''    {cpp_name} *sipCpp = reinterpret_cast<{cpp_name} *>(sipGetCppPtr((sipSimpleWrapper *)sipSelf, {type_ref}));
 
     if (!sipCpp)
 ''')
             else:
                 cpp_name = fq_cpp_name.as_cpp
                 sf.write(
-f'''    {cpp_name} sipCpp = static_cast<{cpp_name}>(sipConvertToEnum(sipSelf, {gto_name}));
+f'''    {cpp_name} sipCpp = static_cast<{cpp_name}>(sipConvertToEnum(sipSelf, {type_ref}));
 
     if (PyErr_Occurred())
 ''')
@@ -1707,7 +1670,7 @@ f'''
                     else:
                         sf.write(
 f'''
-    return sipPySlotExtend(&sipModuleAPI_{spec.module.py_name}, {get_slot_name(member.py_slot)}, {backend.gto_name(scope)}, sipSelf, sipArg);
+    return sipPySlotExtend(&sipModuleAPI_{spec.module.py_name}, {get_slot_name(member.py_slot)}, {backend.get_type_ref(scope)}, sipSelf, sipArg);
 ''')
                 elif is_inplace_number_slot(member.py_slot):
                     sf.write(
@@ -1773,7 +1736,7 @@ static void *cast_{as_word}(void *sipCppV, const sipTypeDef *targetType)
 {{
     {_class_from_void(backend, klass)};
 
-    if (targetType == {backend.gto_name(klass)})
+    if (targetType == {backend.get_type_ref(klass)})
         return sipCppV;
 
 ''')
@@ -1781,13 +1744,13 @@ static void *cast_{as_word}(void *sipCppV, const sipTypeDef *targetType)
         for superclass in klass.superclasses:
             sc_fq_cpp_name = superclass.iface_file.fq_cpp_name
             sc_scope_s = backend.scoped_class_name(superclass)
-            sc_gto_name = backend.gto_name(superclass)
+            sc_type_ref = backend.get_type_ref(superclass)
 
             if len(superclass.superclasses) != 0:
                 # Delegate to the super-class's cast function.  This will
                 # handle virtual and non-virtual diamonds.
                 sf.write(
-f'''    sipCppV = ((const sipClassTypeDef *){sc_gto_name})->ctd_cast(static_cast<{sc_scope_s} *>(sipCpp), targetType);
+f'''    sipCppV = ((const sipClassTypeDef *){sc_type_ref})->ctd_cast(static_cast<{sc_scope_s} *>(sipCpp), targetType);
     if (sipCppV)
         return sipCppV;
 
@@ -1796,7 +1759,7 @@ f'''    sipCppV = ((const sipClassTypeDef *){sc_gto_name})->ctd_cast(static_cast
                 # The super-class is a base class and so doesn't have a cast
                 # function.  It also means that a simple check will do instead.
                 sf.write(
-f'''    if (targetType == {sc_gto_name})
+f'''    if (targetType == {sc_type_ref})
         return static_cast<{sc_scope_s} *>(sipCpp);
 
 ''')
@@ -2131,6 +2094,8 @@ f'''    return new {scope_s}(reinterpret_cast<const {scope_s} *>(sipSrc)[sipSrcI
 
         sf.write(f'static void dealloc_{as_word}(sipSimpleWrapper *sipSelf)\n{{\n')
 
+        backend.g_slot_support_vars(sf)
+
         if bindings.tracing:
             sf.write(f'    sipTrace(SIP_TRACE_DEALLOCS, "dealloc_{as_word}()\\n");\n\n')
 
@@ -2211,7 +2176,7 @@ def _shadow_code(backend, sf, bindings, klass):
     # The meta methods if required.
     if (backend.pyqt5_supported() or backend.pyqt6_supported()) and klass.is_qobject:
         module_name = spec.module.py_name
-        gto_name = backend.gto_name(klass)
+        type_ref = backend.get_type_ref(klass)
 
         if not klass.pyqt_no_qmetaobject:
             sf.write(
@@ -2219,7 +2184,7 @@ f'''
 const QMetaObject *sip{klass_name}::metaObject() const
 {{
     if (sipGetInterpreter())
-        return QObject::d_ptr->metaObject ? QObject::d_ptr->dynamicMetaObject() : sip_{module_name}_qt_metaobject(sipPySelf, {gto_name});
+        return QObject::d_ptr->metaObject ? QObject::d_ptr->dynamicMetaObject() : sip_{module_name}_qt_metaobject(sipPySelf, {type_ref});
 
     return {klass_cpp_name}::metaObject();
 }}
@@ -2234,7 +2199,7 @@ int sip{klass_name}::qt_metacall(QMetaObject::Call _c, int _id, void **_a)
     if (_id >= 0)
     {{
         SIP_BLOCK_THREADS
-        _id = sip_{module_name}_qt_metacall(sipPySelf, {gto_name}, _c, _id, _a);
+        _id = sip_{module_name}_qt_metacall(sipPySelf, {type_ref}, _c, _id, _a);
         SIP_UNBLOCK_THREADS
     }}
 
@@ -2245,7 +2210,7 @@ void *sip{klass_name}::qt_metacast(const char *_clname)
 {{
     void *sipCpp;
 
-    return (sip_{module_name}_qt_metacast(sipPySelf, {gto_name}, _clname, &sipCpp) ? sipCpp : {klass_cpp_name}::qt_metacast(_clname));
+    return (sip_{module_name}_qt_metacast(sipPySelf, {type_ref}, _clname, &sipCpp) ? sipCpp : {klass_cpp_name}::qt_metacast(_clname));
 }}
 ''')
 
@@ -3069,7 +3034,7 @@ def _add_parse_result_extra_params(backend, params, module, arg, arg_nr=-1):
     """
 
     if arg.type in (ArgumentType.CLASS, ArgumentType.MAPPED, ArgumentType.ENUM):
-        params.append(backend.gto_name(arg.definition))
+        params.append(backend.get_type_ref(arg.definition))
     elif arg.type is ArgumentType.PYTUPLE:
         params.append('&PyTuple_Type')
     elif arg.type is ArgumentType.PYLIST:
@@ -3389,7 +3354,7 @@ def _tuple_builder(backend, signature):
                         signature.args[array_len_arg_nr], array_len_arg_nr)
                 args.append('(Py_ssize_t)' + array_len_arg_name)
 
-            args.append(backend.gto_name(arg.definition))
+            args.append(backend.get_type_ref(arg.definition))
 
             if arg.array is not ArrayArgument.ARRAY:
                 args.append('SIP_NULLPTR')
@@ -3407,7 +3372,7 @@ def _tuple_builder(backend, signature):
                         signature.args[array_len_arg_nr], array_len_arg_nr)
                 args.append('(Py_ssize_t)' + array_len_arg_name)
             elif arg.type is ArgumentType.ENUM and arg.definition.fq_cpp_name is not None:
-                args.append(backend.gto_name(arg.definition))
+                args.append(backend.get_type_ref(arg.definition))
 
     return ', '.join(args)
 
@@ -3432,7 +3397,7 @@ def _module_api(backend, sf, bindings):
 
     for klass in spec.classes:
         if klass.iface_file.module is module:
-            _class_api(backend, sf, klass)
+            backend.g_class_api(sf, klass)
 
         if klass.export_derived:
             sf.write_code(klass.iface_file.type_header_code)
@@ -3440,7 +3405,7 @@ def _module_api(backend, sf, bindings):
 
     for mapped_type in spec.mapped_types:
         if mapped_type.iface_file.module is module:
-            _mapped_type_api(backend, sf, mapped_type)
+            backend.g_mapped_type_api(sf, mapped_type)
 
     no_exceptions = True
 
@@ -3458,7 +3423,7 @@ extern PyObject *sipExportedExceptions_{module_name}[];
 
             sf.write(f'#define sipException_{exception.iface_file.fq_cpp_name.as_word} sipExportedExceptions_{module_name}[{exception.exception_nr}]\n')
 
-    _enum_macros(backend, sf)
+    backend.g_enum_macros(sf)
 
     for virtual_error_handler in spec.virtual_error_handlers:
         if virtual_error_handler.module is module:
@@ -3476,17 +3441,17 @@ def _imported_module_api(backend, sf, imported_module):
 
         if iface_file.module is imported_module:
             if iface_file.needed:
-                gto_name = backend.gto_name(klass)
+                type_ref = backend.get_type_ref(klass)
 
                 if iface_file.type is IfaceFileType.NAMESPACE:
-                    sf.write(f'\n#if !defined({gto_name})')
+                    sf.write(f'\n#if !defined({type_ref})')
 
-                sf.write(f'\n#define {gto_name} sipImportedTypes_{module_name}_{iface_file.module.py_name}[{iface_file.type_nr}].it_td\n')
+                sf.write(f'\n#define {type_ref} sipImportedTypes_{module_name}_{iface_file.module.py_name}[{iface_file.type_nr}].it_td\n')
 
                 if iface_file.type is IfaceFileType.NAMESPACE:
                     sf.write('#endif\n')
 
-            _enum_macros(backend, sf, scope=klass,
+            backend.g_enum_macros(sf, scope=klass,
                     imported_module=imported_module)
 
     for mapped_type in spec.mapped_types:
@@ -3494,9 +3459,9 @@ def _imported_module_api(backend, sf, imported_module):
 
         if iface_file.module is imported_module:
             if iface_file.needed:
-                sf.write(f'\n#define {backend.gto_name(mapped_type)} sipImportedTypes_{module_name}_{iface_file.module.py_name}[{iface_file.type_nr}].it_td\n')
+                sf.write(f'\n#define {backend.get_type_ref(mapped_type)} sipImportedTypes_{module_name}_{iface_file.module.py_name}[{iface_file.type_nr}].it_td\n')
 
-            _enum_macros(backend, sf, scope=mapped_type,
+            backend.g_enum_macros(sf, scope=mapped_type,
                     imported_module=imported_module)
 
     for exception in spec.exceptions:
@@ -3508,74 +3473,7 @@ def _imported_module_api(backend, sf, imported_module):
             # copy of the Python object.
             sf.write(f'\n#define sipException_{iface_file.fq_cpp_name.as_word} sipImportedExceptions_{module_name}_{iface_file.module.py_name}[{exception.exception_nr}].iexc_object\n')
 
-    _enum_macros(backend, sf, imported_module=imported_module)
-
-
-def _mapped_type_api(backend, sf, mapped_type):
-    """ Generate the API details for a mapped type. """
-
-    spec = backend.spec
-    iface_file = mapped_type.iface_file
-
-    module_name = spec.module.py_name
-    mapped_type_name = iface_file.fq_cpp_name.as_word
-
-    sf.write(
-f'''
-#define {backend.gto_name(mapped_type)} sipExportedTypes_{module_name}[{iface_file.type_nr}]
-
-extern sipMappedTypeDef sipTypeDef_{module_name}_{mapped_type_name};
-''')
-
-    _enum_macros(backend, sf, scope=mapped_type)
-
-
-def _class_api(backend, sf, klass):
-    """ Generate the C++ API for a class. """
-
-    spec = backend.spec
-    iface_file = klass.iface_file
-
-    module_name = spec.module.py_name
-
-    sf.write('\n')
-
-    if klass.real_class is None and not klass.is_hidden_namespace:
-        sf.write(f'#define {backend.gto_name(klass)} sipExportedTypes_{module_name}[{iface_file.type_nr}]\n')
-
-    _enum_macros(backend, sf, scope=klass)
-
-    if not klass.external and not klass.is_hidden_namespace:
-        klass_name = iface_file.fq_cpp_name.as_word
-        sf.write(f'\nextern sipClassTypeDef sipTypeDef_{module_name}_{klass_name};\n')
-
-
-def _enum_macros(backend, sf, scope=None, imported_module=None):
-    """ Generate the type macros for enums. """
-
-    spec = backend.spec
-
-    for enum in spec.enums:
-        if enum.fq_cpp_name is None:
-            continue
-
-        # Continue unless the scopes match.
-        if scope is not None:
-            if enum.scope is not scope:
-                continue
-        elif enum.scope is not None:
-            continue
-
-        value = None
-
-        if imported_module is None:
-            if enum.module is spec.module:
-                value = f'sipExportedTypes_{spec.module.py_name}[{enum.type_nr}]'
-        elif enum.module is imported_module and enum.needed:
-            value = f'sipImportedTypes_{spec.module.py_name}_{enum.module.py_name}[{enum.type_nr}].it_td'
-
-        if value is not None:
-            sf.write(f'\n#define {backend.gto_name(enum)} {value}\n')
+    backend.g_enum_macros(sf, imported_module=imported_module)
 
 
 def _shadow_class_declaration(backend, sf, bindings, klass):
@@ -3745,17 +3643,29 @@ def _type_init(backend, sf, bindings, klass):
     sf.write('\n\n')
 
     if not spec.c_bindings:
-        sf.write(f'extern "C" {{static void *init_type_{klass_name}(sipSimpleWrapper *, PyObject *, PyObject *, PyObject **, PyObject **, PyObject **);}}\n')
+        if spec.target_abi >= (14, 0):
+            sf.write(f'extern "C" {{static void *init_type_{klass_name}(sipSimpleWrapper *, PyObject *const *, Py_ssize_t, PyObject *, PyObject **, PyObject **, PyObject **);}}\n')
+        else:
+            sf.write(f'extern "C" {{static void *init_type_{klass_name}(sipSimpleWrapper *, PyObject *, PyObject *, PyObject **, PyObject **, PyObject **);}}\n')
 
     sip_self = 'sipSelf' if need_self else ''
     sip_owner = 'sipOwner' if need_owner else ''
     sip_cpp_type = 'sip' + klass_name if klass.has_shadow else backend.scoped_class_name(klass)
 
-    sf.write(
+    if spec.target_abi >= (14, 0):
+        sf.write(
+f'''static void *init_type_{klass_name}(sipSimpleWrapper *sipSelf, PyObject *const *sipArgs, Py_ssize_t sipNrArgs, PyObject *sipKwds, PyObject **sipUnused, PyObject **{sip_owner}, PyObject **sipParseErr)
+{{
+''')
+    else:
+        sf.write(
 f'''static void *init_type_{klass_name}(sipSimpleWrapper *{sip_self}, PyObject *sipArgs, PyObject *sipKwds, PyObject **sipUnused, PyObject **{sip_owner}, PyObject **sipParseErr)
 {{
-    {sip_cpp_type} *sipCpp = SIP_NULLPTR;
 ''')
+
+    backend.g_slot_support_vars(sf)
+
+    sf.write(f'    {sip_cpp_type} *sipCpp = SIP_NULLPTR;\n')
 
     if bindings.tracing:
         sf.write(f'\n    sipTrace(SIP_TRACE_INITS, "init_type_{klass_name}()\\n");\n')
@@ -3902,7 +3812,7 @@ f'''            catch ({exception_cpp_stripped} &{sip_exception_ref})
 f'''                /* Hope that there is a valid copy ctor. */
                 {exception_cpp} *sipExceptionCopy = new {exception_cpp}(sipExceptionRef);
 
-                sipRaiseTypeException({backend.gto_name(exception)}, sipExceptionCopy);
+                sipRaiseTypeException({backend.get_type_ref(exception)}, sipExceptionCopy);
 ''')
     else:
         sf.write_code(exception.raise_code)
@@ -4177,7 +4087,7 @@ def _member_function(backend, sf, bindings, klass, member, original_klass):
             # Note that we would like to rename 'sipSelfWasArg' to
             # 'sipExplicitScope' but it is part of the public API.
             if spec.target_abi >= (13, 0):
-                sipself_test = f'!PyObject_TypeCheck(sipSelf, sipTypeAsPyTypeObject({backend.gto_name(klass)}))'
+                sipself_test = f'!PyObject_TypeCheck(sipSelf, sipTypeAsPyTypeObject({backend.get_type_ref(klass)}))'
             else:
                 sipself_test = '!sipSelf'
 
@@ -4309,7 +4219,7 @@ f'''            Py_INCREF(Py_None);
 
     # Handle results that are classes or mapped types separately.
     if result is not None and result.type in (ArgumentType.CLASS, ArgumentType.MAPPED):
-        result_gto_name = backend.gto_name(result.definition)
+        result_type_ref = backend.get_type_ref(result.definition)
 
         if overload.transfer is Transfer.TRANSFER_BACK:
             result_owner = 'Py_None'
@@ -4324,7 +4234,7 @@ f'''            Py_INCREF(Py_None);
             this_action = action if nr_return_values == 1 else 'PyObject *sipResObj ='
             owner = '(PyObject *)sipOwner' if has_owner and overload.factory else result_owner
 
-            sf.write(f'            {this_action} sipConvertFromNewType({sip_res}, {result_gto_name}, {owner});\n')
+            sf.write(f'            {this_action} sipConvertFromNewType({sip_res}, {result_type_ref}, {owner});\n')
 
             # Shortcut if this is the only value returned.
             if nr_return_values == 1:
@@ -4335,7 +4245,7 @@ f'''            Py_INCREF(Py_None);
             this_action = 'PyObject *sipResObj =' if nr_return_values > 1 or need_xfer else action
             owner = 'SIP_NULLPTR' if need_xfer else result_owner
 
-            sf.write(f'            {this_action} sipConvertFromType({sip_res}, {result_gto_name}, {owner});\n')
+            sf.write(f'            {this_action} sipConvertFromType({sip_res}, {result_type_ref}, {owner});\n')
 
             # Transferring the result of a static overload needs an explicit
             # call to sipTransferTo().
@@ -4375,7 +4285,8 @@ f'''            Py_INCREF(Py_None);
             build_result_args.append('sipResObj' if result.type in (ArgumentType.CLASS, ArgumentType.MAPPED) else 'sipRes')
 
             if result.type is ArgumentType.ENUM and result.definition.fq_cpp_name is not None:
-                build_result_args.append(backend.gto_name(result.definition))
+                build_result_args.append(
+                        backend.get_type_ref(result.definition))
 
         for arg_nr, arg in enumerate(overload.py_signature.args):
             if arg.is_out:
@@ -4383,12 +4294,14 @@ f'''            Py_INCREF(Py_None);
                         arg_nr))
 
                 if arg.type in (ArgumentType.CLASS, ArgumentType.MAPPED):
-                    build_result_args.append(backend.gto_name(arg.definition))
+                    build_result_args.append(
+                            backend.get_type_ref(arg.definition))
 
                     transfer = 'Py_None' if arg.transfer is Transfer.TRANSFER_BACK else 'SIP_NULLPTR'
                     build_result_args.append(transfer)
                 elif arg.type is ArgumentType.ENUM and arg.definition.fq_cpp_name is not None:
-                    build_result_args.append(backend.gto_name(arg.definition))
+                    build_result_args.append(
+                            backend.get_type_ref(arg.definition))
 
         build_result_args = ', '.join(build_result_args)
 
@@ -4412,14 +4325,14 @@ f'''            Py_INCREF(Py_None);
         value_name = _const_cast(spec, value, value_name)
         transfer = 'Py_None' if not need_new_instance and value.transfer is Transfer.TRANSFER_BACK else 'SIP_NULLPTR'
 
-        sf.write(f'            {action} {convertor}({value_name}, {backend.gto_name(value.definition)}, {transfer});\n')
+        sf.write(f'            {action} {convertor}({value_name}, {backend.get_type_ref(value.definition)}, {transfer});\n')
 
     elif value.type is ArgumentType.ENUM:
         if value.definition.fq_cpp_name is not None:
             if not spec.c_bindings:
                 value_name = f'static_cast<int>({value_name})'
 
-            sf.write(f'            {action} sipConvertFromEnum({value_name}, {backend.gto_name(value.definition)});\n')
+            sf.write(f'            {action} sipConvertFromEnum({value_name}, {backend.get_type_ref(value.definition)});\n')
         else:
             sf.write(f'            {action} PyLong_FromLong({value_name});\n')
 

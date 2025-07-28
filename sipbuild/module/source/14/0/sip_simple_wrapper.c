@@ -199,6 +199,7 @@ static int SimpleWrapper_init(PyObject *self, PyObject *args, PyObject *kwds)
         /* Call the C++ ctor. */
         owner = NULL;
 
+        // TODO Convert args and kwds to the vector call equivalents.
         sipNew = ctd->ctd_init(sw, args, kwds, unused_p, (PyObject **)&owner,
                 &parseErr);
 

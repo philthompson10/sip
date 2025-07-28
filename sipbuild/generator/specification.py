@@ -1718,7 +1718,8 @@ class WrappedEnum:
     type_nr: int = -1
 
     def __hash__(self):
-        """ Reimplemented so an Argument object can be used as a dict key. """
+        """ Reimplemented so a WrappedEnum object can be used as a dict key.
+        """
 
         return id(self)
 
