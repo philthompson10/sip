@@ -627,8 +627,8 @@ static const sipWrappedModuleDef sipWrappedModule_{module_name} = {{
             sf.write('    .imports = importsTable,\n')
 
         if len(module.needed_types) != 0:
-            sf.write(f'    .nr_types = {len(module.needed_types)},\n')
-            sf.write(f'    .types = sipWrappedTypes_{module_name},\n')
+            sf.write(f'    .nr_type_defs = {len(module.needed_types)},\n')
+            sf.write(f'    .type_defs = sipTypeDefs_{module_name},\n')
 
         if has_external:
             sf.write('    .imports = externalTypesTable,\n')
@@ -1610,7 +1610,7 @@ sipClassTypeDef sipTypeDef_{module.py_name}_{klass_name} = {{
     def get_types_table_prefix():
         """ Return the prefix in the name of the wrapped types table. """
 
-        return 'sipWrappedTypes'
+        return 'static const sipTypeDef *const sipTypeDefs'
 
     @classmethod
     def g_types_table(cls, sf, module, needed_enums):
@@ -1624,7 +1624,7 @@ f'''
 /*
  * This defines each type in this module.
  */
-sipTypeDef *{cls.get_types_table_prefix()}_{module_name}[] = {{
+{cls.get_types_table_prefix()}_{module_name}[] = {{
 ''')
 
         for needed_type in module.needed_types:

@@ -275,6 +275,8 @@ const sipAPIDef sip_api = {
 /* Forward references. */
 static void call_py_dtor(sipWrappedModuleState *wms, sipSimpleWrapper *self);
 static int compare_typedef_name(const void *key, const void *el);
+static PyTypeObject *create_class_type(sipWrappedModuleState *wms,
+        const sipClassTypeDef *ctd);
 static PyTypeObject *create_container_type(sipSipModuleState *sms,
         const sipContainerDef *cod, const sipTypeDef *td, PyObject *bases,
         PyObject *metatype, PyObject *wmod_dict, PyObject *type_dict,
@@ -457,8 +459,8 @@ static void sip_api_add_delayed_dtor(sipSimpleWrapper *sw)
         const sipWrappedModuleDef *md = ms->wrapped_module_def;
         int i;
 
-        for (i = 0; i < md->nr_types; ++i)
-            if (md->types[i] == (const sipTypeDef *)ctd)
+        for (i = 0; i < md->nr_type_defs; ++i)
+            if (md->type_defs[i] == (const sipTypeDef *)ctd)
             {
                 sipDelayedDtor *dd;
 
@@ -921,9 +923,8 @@ reterr:
 /*
  * Create a single class type object.
  */
-PyTypeObject *sip_create_class_type(sipSipModuleState *sms,
-        const sipWrappedModuleDef *wmd, const sipClassTypeDef *ctd,
-        PyObject *wmod_dict)
+static PyTypeObject *create_class_type(sipWrappedModuleState *wms,
+        const sipClassTypeDef *ctd)
 {
 #if 0
 ZZZ need wms
@@ -1064,6 +1065,7 @@ relbases:
 
 reterr:
 #endif
+    PyErr_SetString(PyExc_TypeError, "create_class_type() not yet implemented");
     return NULL;
 }
 
@@ -1122,7 +1124,7 @@ PyTypeObject *sip_get_py_type_from_name(sipSipModuleState *sms,
             const sipWrappedModuleDef *wmd = wms->wrapped_module_def;
             int p;
 
-            for (p = 0; p < wmd->nr_types; p++)
+            for (p = 0; p < wmd->nr_type_defs; p++)
             {
                 PyTypeObject *py_type = wms->py_types[p];
 
@@ -1200,7 +1202,7 @@ static PyObject *pickle_type(PyObject *self, PyTypeObject *defining_class,
 
         int ti;
 
-        for (ti = 0; ti < md->nr_types; ti++)
+        for (ti = 0; ti < md->nr_type_defs; ti++)
         {
             const sipTypeDef *td = md->types[ti];
 
@@ -1873,13 +1875,14 @@ static sipTypeID sip_api_find_type_id(PyObject *wmod, const char *type)
         const sipWrappedModuleDef *md = ((sipWrappedModuleState *)PyModule_GetState(PyList_GET_ITEM(module_list, i)))->wrapped_module_def;
 
         const sipTypeDef *const *tdp = (const sipTypeDef *const *)bsearch(
-                (const void *)type, (const void *)md->types, md->nr_types,
-                sizeof (const sipTypeDef *), compare_type_def);
+                (const void *)type, (const void *)md->type_defs,
+                md->nr_type_defs, sizeof (const sipTypeDef *),
+                compare_type_def);
 
         if (tdp != NULL)
         {
             /* Determine the type number. */
-            Py_ssize_t type_nr = (tdp - md->types) / sizeof (const sipTypeDef *);
+            Py_ssize_t type_nr = (tdp - md->type_defs) / sizeof (const sipTypeDef *);
 
             /* Return an absolute ID of a generated type. */
             return SIP_TYPE_ID_GENERATED | SIP_TYPE_ID_ABSOLUTE | (i << 16) | type_nr;
@@ -1990,6 +1993,7 @@ static sipWrappedModuleState *get_defining_wrapped_module_state(
  * Return the type definition for a type ID.  This can be invalid if the ID
  * refers to an unresolved external type.
  */
+// TODO Is this still needed?
 const sipTypeDef *sip_get_type_def(sipWrappedModuleState *wms,
         sipTypeID type_id)
 {
@@ -2000,20 +2004,49 @@ const sipTypeDef *sip_get_type_def(sipWrappedModuleState *wms,
      * Note that we don't go through the Python type object as Python enums
      * would require special handling.
      */
-    return wms->wrapped_module_def->types[sipTypeIDTypeNr(type_id)];
+    return wms->wrapped_module_def->type_defs[sipTypeIDTypeNr(type_id)];
 }
 
 
 /*
- * Return the Python type object for a type ID.  This can be invalid if the ID
- * refers to an unresolved external type.
+ * Return a borrowed reference to the Python type object for a type number in
+ * the current module, creating it if necessary.
+ */
+PyTypeObject *sip_get_local_py_type(sipWrappedModuleState *wms, int type_nr)
+{
+    PyTypeObject *py_type = wms->py_types[type_nr];
+    if (py_type != NULL)
+        return py_type;
+
+    const sipTypeDef *td = wms->wrapped_module_def->type_defs[type_nr];
+
+    // TODO Handle unresolved external types.
+    // TODO Handle enums.
+    // TODO Handle mapped types.
+    // TODO Handle namespace extenders.
+    assert(sipTypeIsClass(td));
+
+    /* Create the type. */
+    py_type = create_class_type(wms, (const sipClassTypeDef *)td);
+    if (py_type == NULL)
+        return NULL;
+
+    wms->py_types[type_nr] = py_type;
+
+    return py_type;
+}
+
+
+/*
+ * Return a borrowed reference to the Python type object for a type ID,
+ * creating it if necessary.
  */
 PyTypeObject *sip_get_py_type(sipWrappedModuleState *wms, sipTypeID type_id)
 {
     if ((wms = get_defining_wrapped_module_state(wms, type_id)) == NULL)
         return NULL;
 
-    return wms->py_types[sipTypeIDTypeNr(type_id)];
+    return sip_get_local_py_type(wms, sipTypeIDTypeNr(type_id));
 }
 
 
@@ -2021,6 +2054,7 @@ PyTypeObject *sip_get_py_type(sipWrappedModuleState *wms, sipTypeID type_id)
  * Return the Python type object and the type definition (via a pointer) for a
  * type ID.
  */
+// TODO Is this needed?
 PyTypeObject *sip_get_py_type_and_type_def(sipWrappedModuleState *wms,
         sipTypeID type_id, const sipTypeDef **tdp)
 {
@@ -2033,6 +2067,7 @@ PyTypeObject *sip_get_py_type_and_type_def(sipWrappedModuleState *wms,
 /*
  * Return the generated class type structure of a class's super-class.
  */
+// TODO Is this needed?
 const sipClassTypeDef *sip_get_generated_class_type_def(sipTypeID type_id,
         const sipClassTypeDef *ctd)
 {

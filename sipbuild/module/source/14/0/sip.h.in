@@ -217,11 +217,12 @@ typedef struct {
     PyObject *imported_modules;
 
     /*
-     * The array of type objects accessed using the type ID.  These can be
-     * wrapper types, custom enum types or Python enum types.  We don't use a
-     * Python list because some elements can be NULL (ie. related to a mapped
-     * type, a lazy attribute or an external class).
+     * The array of type object references accessed using the type ID.  These
+     * can be wrapper types, custom enum types or Python enum types.  We don't
+     * use a Python list because some elements can be NULL (ie. related to a
+     * mapped type, a lazy attribute or an external class).
      */
+    // TODO Use None rather than NULL and use a Python list?
     PyTypeObject **py_types;
 
     /* A strong reference to the sip module. */
@@ -985,13 +986,14 @@ struct _sipWrappedModuleDef {
     /* The names of the imported modules. */
     const char *const *imports;
 
-    /* The number of types. */
-    int nr_types;
+    /* The number of type definitions. */
+    int nr_type_defs;
 
-    /* The table of types. */
-    const sipTypeDef *const *types;
+    /* The table of type definitions. */
+    const sipTypeDef *const *type_defs;
 
     /* The table of external types. */
+    // TODO This probably goes.
     const sipExternalTypeDef *const external;
 
 #if defined(SIP_CONFIGURATION_CustomEnums)

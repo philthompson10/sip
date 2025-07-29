@@ -869,7 +869,7 @@ sipClassTypeDef sipTypeDef_{module.py_name}_{klass_name} = {{
     def get_types_table_prefix():
         """ Return the prefix in the name of the wrapped types table. """
 
-        return 'sipExportedTypes'
+        return 'sipTypeDef *sipExportedTypes'
 
     def module_supports_qt(self):
         """ Return True if the module implements Qt support. """

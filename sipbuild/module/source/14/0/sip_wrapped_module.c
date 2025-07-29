@@ -30,7 +30,7 @@ int sip_api_wrapped_module_clear(sipWrappedModuleState *wms)
     int i;
 
     /* Clear the wrapped types. */
-    for (i = 0; i < wms->wrapped_module_def->nr_types; i++)
+    for (i = 0; i < wms->wrapped_module_def->nr_type_defs; i++)
         Py_CLEAR(wms->py_types[i]);
 
     Py_CLEAR(wms->extra_refs);
@@ -169,7 +169,7 @@ int sip_api_wrapped_module_init(PyObject *wmod, const sipWrappedModuleDef *wmd,
         return -1;
 
     /* Allocate the space for any wrapped type type objects. */
-    if (wmd->nr_types > 0 && (wms->py_types = PyMem_Calloc(wmd->nr_types, sizeof (PyTypeObject *))) == NULL)
+    if (wmd->nr_type_defs > 0 && (wms->py_types = PyMem_Calloc(wmd->nr_type_defs, sizeof (PyTypeObject *))) == NULL)
             return -1;
 
     /* Import any required wrapped modules. */
@@ -202,105 +202,6 @@ int sip_api_wrapped_module_init(PyObject *wmod, const sipWrappedModuleDef *wmd,
     const sipIntInstanceDef *next_int = wmd->instances.id_int;
 #endif
 #endif
-
-    /* Create the module's types. */
-    PyObject *wmod_dict = PyModule_GetDict(wmod);
-    int i;
-
-    for (i = 0; i < wmd->nr_types; ++i)
-    {
-        const sipTypeDef *td = wmd->types[i];
-
-        /* Skip external classes. */
-        if (td == NULL)
-             continue;
-
-        /* Skip if it is already initialised. */
-        PyTypeObject *py_type = wms->py_types[i];
-
-        if (py_type != NULL)
-            continue;
-
-#if defined(SIP_CONFIGURATION_PyEnums)
-#if 0
-// Need to specify the enums in a different way.
-        if (sipTypeIsEnum(td))
-        {
-            const sipEnumTypeDef *etd = (const sipEnumTypeDef *)td;
-
-            if (etd->etd_scope < 0 && (py_type = sip_enum_create_py_enum(wms, etd, &next_int, wmod_dict)) == NULL)
-                return -1;
-        }
-#endif
-#endif
-#if defined(SIP_CONFIGURATION_CustomEnums)
-        if (sipTypeIsEnum(td) || sipTypeIsScopedEnum(td))
-        {
-            const sipEnumTypeDef *etd = (const sipEnumTypeDef *)td;
-
-            if ((py_type = sip_enum_create_custom_enum(sms, wmd, etd, i, wmod_dict)) == NULL)
-                return -1;
-
-            /*
-             * Register the enum pickler for nested enums (non-nested enums
-             * don't need special treatment).
-             */
-            if (sipTypeIsEnum(td) && etd->etd_scope >= 0)
-            {
-                static PyMethodDef md = {
-                    "_pickle_enum", (PyCFunction)sip_enum_pickle_custom_enum, METH_METHOD|METH_FASTCALL|METH_KEYWORDS, NULL
-                };
-
-                if (set_reduce(py_type, &md) < 0)
-                    return -1;
-            }
-        }
-#endif
-        else if (sipTypeIsMapped(td))
-        {
-            const sipMappedTypeDef *mtd = (const sipMappedTypeDef *)td;
-
-            /* If there is a name then we need a namespace. */
-            if (mtd->mtd_container.cod_name != NULL && (py_type = sip_create_mapped_type(sms, wmd, mtd, wmod_dict)) == NULL)
-                    return -1;
-        }
-        else
-        {
-            const sipClassTypeDef *ctd = (const sipClassTypeDef *)td;
-
-            /* See if this is a namespace extender. */
-            if (ctd->ctd_container.cod_name == NULL)
-            {
-#if 0
-                const sipTypeDef *real_nspace;
-                sipClassTypeDef **last;
-
-                real_nspace = sip_get_type_def(wms, ctd->ctd_container.cod_scope);
-
-                /* Append this type to the real one. */
-                last = &((const sipClassTypeDef *)real_nspace)->ctd_nsextender;
-
-                while (*last != NULL)
-                    last = &(*last)->ctd_nsextender;
-
-                *last = ctd;
-
-                /*
-                 * Save the real namespace type so that it is the correct scope
-                 * for any enums or classes defined in this module.
-                 */
-                wmd->types[i] = real_nspace;
-#endif
-            }
-            else if ((py_type = sip_create_class_type(sms, wmd, ctd, wmod_dict)) != NULL)
-            {
-                return -1;
-            }
-        }
-
-        /* Save the new type. */
-        wms->py_types[i] = py_type;
-    }
 
 #if defined(SIP_CONFIGURATION_PyEnums)
 #if 0
@@ -372,9 +273,11 @@ int sip_api_wrapped_module_init(PyObject *wmod, const sipWrappedModuleDef *wmd,
         return -1;
 #endif
 
+#if 0
     /* Add any license. */
     if (wmd->license != NULL && add_license(wmod_dict, wmd->license) < 0)
         return -1;
+#endif
 
 #if 0
     /* See if the new module satisfies any outstanding external types. */
@@ -399,9 +302,9 @@ int sip_api_wrapped_module_init(PyObject *wmod, const sipWrappedModuleDef *wmd,
             if (etd->et_name == NULL)
                 continue;
 
-            for (i = 0; i < wmd->nr_types; ++i)
+            for (i = 0; i < wmd->nr_type_defs; ++i)
             {
-                sipTypeDef *td = wmd->types[i];
+                sipTypeDef *td = wmd->type_defs[i];
 
                 if (td != NULL && sipTypeIsClass(td))
                 {
@@ -409,7 +312,7 @@ int sip_api_wrapped_module_init(PyObject *wmod, const sipWrappedModuleDef *wmd,
 
                     if (strcmp(etd->et_name, pyname) == 0)
                     {
-                        md->types[etd->et_nr] = td;
+                        md->type_defs[etd->et_nr] = td;
                         etd->et_name = NULL;
 
                         break;
@@ -431,7 +334,7 @@ int sip_api_wrapped_module_traverse(sipWrappedModuleState *wms,
     int i;
 
     /* Visit the types. */
-    for (i = 0; i < wms->wrapped_module_def->nr_types; i++)
+    for (i = 0; i < wms->wrapped_module_def->nr_type_defs; i++)
         Py_VISIT(wms->py_types[i]);
 
     Py_VISIT(wms->extra_refs);

@@ -23,9 +23,6 @@ extern "C" {
 #endif
 
 
-struct _sipSipModuleState;
-
-
 /*
  * The meta-type of a wrapper type.
  */
@@ -37,9 +34,11 @@ struct _sipWrapperType {
     PyHeapTypeObject super;
 
     /* Set if the type is a user implemented Python sub-class. */
+    // TODO Is this still needed.
     unsigned wt_user_type : 1;
 
     /* Set if the type's dictionary contains all lazy attributes. */
+    // TODO Hopefully remove this.
     unsigned wt_dict_complete : 1;
 
     /* Set if autoconversion of the type is disabled. */
@@ -48,7 +47,7 @@ struct _sipWrapperType {
     /* Unused and available for future use. */
     unsigned wt_unused : 29;
 
-    /* The generated type structure. */
+    /* The wrapped type definition. */
     // TODO Review if this is necessary if wt_type_id is present.
     const sipTypeDef *wt_td;
 
@@ -58,7 +57,8 @@ struct _sipWrapperType {
     // object.  Note that it isn't set up yet.  It is useful in Array_new() but
     // is it useful elsewhere?  The problem is that sip_convert_from_type()
     // needs the type object because it needs to check the autoconversion flag.
-    // Should we be passing sipWrapperType around rather than sipTypeID?
+    // If we get rid of it then we might also get rid of the idea of absolute
+    // type IDs.
     sipTypeID wt_type_id;
 
     /* The list of init extenders. */
@@ -73,7 +73,7 @@ struct _sipWrapperType {
 };
 
 
-int sip_wrapper_type_init(PyObject *module, struct _sipSipModuleState *sms);
+int sip_wrapper_type_init(PyObject *module, sipSipModuleState *sms);
 
 
 #ifdef __cplusplus

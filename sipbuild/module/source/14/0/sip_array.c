@@ -451,6 +451,7 @@ static PyObject *Array_new(PyTypeObject *cls, PyObject *args, PyObject *kw)
     if (!PyArg_ParseTupleAndKeywords(args, kw, "O!n:array", kwlist, sms->wrapper_type_type, (PyObject **)&wt, &length))
         return NULL;
 
+    // TODO We want to keep wt_td but not wt_type_id???
     const sipClassTypeDef *ctd = (const sipClassTypeDef *)sip_get_type_def(
             NULL, wt->wt_type_id);
 

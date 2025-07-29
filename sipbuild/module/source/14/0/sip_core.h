@@ -95,9 +95,6 @@ void *sip_cast_cpp_ptr(void *ptr, PyTypeObject *src_type,
         const sipTypeDef *dst_type);
 int sip_check_pointer(void *ptr, sipSimpleWrapper *sw);
 void sip_clear_access_func(sipSimpleWrapper *sw);
-PyTypeObject *sip_create_class_type(sipSipModuleState *sms,
-        const sipWrappedModuleDef *wmd, const sipClassTypeDef *ctd,
-        PyObject *wmod_dict);
 PyTypeObject *sip_create_mapped_type(sipSipModuleState *sms,
         const sipWrappedModuleDef *wmd, const sipMappedTypeDef *mtd,
         PyObject *wmod_dict);
@@ -116,6 +113,7 @@ sipConvertFromFunc sip_get_from_convertor(PyTypeObject *py_type,
         const sipTypeDef *td);
 const sipClassTypeDef *sip_get_generated_class_type_def(sipTypeID type_id,
         const sipClassTypeDef *ctd);
+PyTypeObject *sip_get_local_py_type(sipWrappedModuleState *wms, int type_nr);
 PyTypeObject *sip_get_py_type_and_type_def(sipWrappedModuleState *wms,
         sipTypeID type_id, const sipTypeDef **tdp);
 const sipTypeDef *sip_get_type_def(sipWrappedModuleState *wms,

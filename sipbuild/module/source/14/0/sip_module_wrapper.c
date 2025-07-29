@@ -50,7 +50,9 @@ static PyType_Spec ModuleWrapper_TypeSpec = {
 /* Forward declarations. */
 static int compare_static_variable(const void *key, const void *el);
 static const sipStaticVariableDef *get_static_variable_def(
-        sipWrappedModuleState *wms, PyObject *name);
+        sipWrappedModuleState *wms, const char *utf8_name);
+static int get_wrapped_type_nr(sipWrappedModuleState *wms,
+        const char *utf8_name);
 static void raise_internal_error(const sipStaticVariableDef *svd);
 
 
@@ -61,10 +63,48 @@ static PyObject *ModuleWrapper_getattro(PyObject *self, PyObject *name)
 {
     sipWrappedModuleState *wms = (sipWrappedModuleState *)PyModule_GetState(
             self);
-    const sipStaticVariableDef *svd = get_static_variable_def(wms, name);
+    const char *utf8_name = PyUnicode_AsUTF8(name);
+
+    /*
+     * The behaviour wrapped attributes is that of a data descriptor and take
+     * precedence over any attributes set by the user.
+     */
+    const sipStaticVariableDef *svd = get_static_variable_def(wms, utf8_name);
 
     if (svd == NULL)
-        return Py_TYPE(self)->tp_base->tp_getattro(self, name);
+    {
+        /*
+         * Revert to the super-class behaviour.  This will pick up any wrapped
+         * types already created and any attributes set by the user (including
+         * replacements of wrapped types.
+         */
+        PyObject *attr = Py_TYPE(self)->tp_base->tp_getattro(self, name);
+
+        if (attr != NULL)
+            return attr;
+
+        /* See if it is a wrapped type. */
+        int type_nr = get_wrapped_type_nr(wms, utf8_name);
+        if (type_nr < 0)
+            return NULL;
+
+        PyErr_Clear();
+
+        /*
+         * The type object wasn't found but it may have been created and
+         * patched out of the module dict.
+         */
+        attr = (PyObject *)sip_get_local_py_type(wms, type_nr);
+        if (attr == NULL)
+            return NULL;
+
+        /* Save it so it will be found as normal next time. */
+        if (PyObject_SetAttr(self, attr, name) < 0)
+            return NULL;
+
+        Py_INCREF(attr);
+        return attr;
+    }
 
     if (svd->getter != NULL)
         return svd->getter();
@@ -272,7 +312,8 @@ static int ModuleWrapper_setattro(PyObject *self, PyObject *name,
 {
     sipWrappedModuleState *wms = (sipWrappedModuleState *)PyModule_GetState(
             self);
-    const sipStaticVariableDef *svd = get_static_variable_def(wms, name);
+    const char *utf8_name = PyUnicode_AsUTF8(name);
+    const sipStaticVariableDef *svd = get_static_variable_def(wms, utf8_name);
 
     if (svd == NULL)
         return Py_TYPE(self)->tp_base->tp_setattro(self, name, value);
@@ -763,17 +804,38 @@ static int compare_static_variable(const void *key, const void *el)
  * Return the static value definition for a name or NULL if there was none.
  */
 static const sipStaticVariableDef *get_static_variable_def(
-        sipWrappedModuleState *wms, PyObject *name)
+        sipWrappedModuleState *wms, const char *utf8_name)
 {
     const sipWrappedModuleDef *wmd = wms->wrapped_module_def;
 
     if (wmd->nr_static_variables == 0)
         return NULL;
 
-    return (const sipStaticVariableDef *)bsearch(
-            (const void *)PyUnicode_AsUTF8(name),
+    return (const sipStaticVariableDef *)bsearch((const void *)utf8_name,
             (const void *)wmd->static_variables, wmd->nr_static_variables,
             sizeof (sipStaticVariableDef), compare_static_variable);
+}
+
+
+/*
+ * Return the type number for a name or a negative value if there was none.
+ */
+static int get_wrapped_type_nr(sipWrappedModuleState *wms,
+        const char *utf8_name)
+{
+    const sipWrappedModuleDef *wmd = wms->wrapped_module_def;
+
+    // TODO
+#if 0
+    if (wmd->nr_static_variables == 0)
+        return NULL;
+
+    return (const sipStaticVariableDef *)bsearch((const void *)utf8_name,
+            (const void *)wmd->static_variables, wmd->nr_static_variables,
+            sizeof (sipStaticVariableDef), compare_static_variable);
+#endif
+    printf("!!!! Searching for type '%s'\n", utf8_name);
+    return -1;
 }
 
 
