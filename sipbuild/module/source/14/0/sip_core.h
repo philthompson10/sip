@@ -113,7 +113,8 @@ sipConvertFromFunc sip_get_from_convertor(PyTypeObject *py_type,
         const sipTypeDef *td);
 const sipClassTypeDef *sip_get_generated_class_type_def(sipTypeID type_id,
         const sipClassTypeDef *ctd);
-PyTypeObject *sip_get_local_py_type(sipWrappedModuleState *wms, int type_nr);
+PyTypeObject *sip_get_local_py_type(sipWrappedModuleState *wms,
+        Py_ssize_t type_nr);
 PyTypeObject *sip_get_py_type_and_type_def(sipWrappedModuleState *wms,
         sipTypeID type_id, const sipTypeDef **tdp);
 const sipTypeDef *sip_get_type_def(sipWrappedModuleState *wms,

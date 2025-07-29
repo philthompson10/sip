@@ -49,9 +49,10 @@ static PyType_Spec ModuleWrapper_TypeSpec = {
 
 /* Forward declarations. */
 static int compare_static_variable(const void *key, const void *el);
+static int compare_type_def(const void *key, const void *el);
 static const sipStaticVariableDef *get_static_variable_def(
         sipWrappedModuleState *wms, const char *utf8_name);
-static int get_wrapped_type_nr(sipWrappedModuleState *wms,
+static Py_ssize_t get_wrapped_type_nr(sipWrappedModuleState *wms,
         const char *utf8_name);
 static void raise_internal_error(const sipStaticVariableDef *svd);
 
@@ -84,7 +85,7 @@ static PyObject *ModuleWrapper_getattro(PyObject *self, PyObject *name)
             return attr;
 
         /* See if it is a wrapped type. */
-        int type_nr = get_wrapped_type_nr(wms, utf8_name);
+        Py_ssize_t type_nr = get_wrapped_type_nr(wms, utf8_name);
         if (type_nr < 0)
             return NULL;
 
@@ -801,6 +802,18 @@ static int compare_static_variable(const void *key, const void *el)
 
 
 /*
+ * The bsearch() helper function for searching a type definitions table.
+ */
+static int compare_type_def(const void *key, const void *el)
+{
+    const char *s1 = (const char *)key;
+    const char *s2 = (*(const sipTypeDef **)el)->td_cname;
+
+    return strcmp(s1, s2);
+}
+
+
+/*
  * Return the static value definition for a name or NULL if there was none.
  */
 static const sipStaticVariableDef *get_static_variable_def(
@@ -820,22 +833,20 @@ static const sipStaticVariableDef *get_static_variable_def(
 /*
  * Return the type number for a name or a negative value if there was none.
  */
-static int get_wrapped_type_nr(sipWrappedModuleState *wms,
+static Py_ssize_t get_wrapped_type_nr(sipWrappedModuleState *wms,
         const char *utf8_name)
 {
     const sipWrappedModuleDef *wmd = wms->wrapped_module_def;
 
-    // TODO
-#if 0
-    if (wmd->nr_static_variables == 0)
-        return NULL;
+    const sipTypeDef *const *td_p = (const sipTypeDef *const *)bsearch(
+                (const void *)utf8_name, (const void *)wmd->type_defs,
+                wmd->nr_type_defs, sizeof (const sipTypeDef *),
+                compare_type_def);
 
-    return (const sipStaticVariableDef *)bsearch((const void *)utf8_name,
-            (const void *)wmd->static_variables, wmd->nr_static_variables,
-            sizeof (sipStaticVariableDef), compare_static_variable);
-#endif
-    printf("!!!! Searching for type '%s'\n", utf8_name);
-    return -1;
+    if (td_p == NULL)
+        return -1;
+
+    return (td_p - wmd->type_defs) / sizeof (const sipTypeDef *);
 }
 
 
