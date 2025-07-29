@@ -20,6 +20,7 @@
 
 
 /* Forward declarations of slots. */
+#if 0
 static PyObject *WrapperType_alloc(PyTypeObject *self, Py_ssize_t nitems);
 static void WrapperType_dealloc(PyObject *self);
 static PyObject *WrapperType_getattro(PyObject *self, PyObject *name);
@@ -28,18 +29,21 @@ static int WrapperType_init(sipWrapperType *self, PyObject *args,
 static int WrapperType_setattro(PyObject *self, PyObject *name,
         PyObject *value);
 static int WrapperType_traverse(PyObject *self, visitproc visit, void *arg);
+#endif
 
 
 /*
  * The type specification.
  */
 static PyType_Slot WrapperType_slots[] = {
+#if 0
     {Py_tp_alloc, WrapperType_alloc},
     {Py_tp_dealloc, WrapperType_dealloc},
     {Py_tp_getattro, WrapperType_getattro},
     {Py_tp_init, WrapperType_init},
     {Py_tp_setattro, WrapperType_setattro},
     {Py_tp_traverse, WrapperType_traverse},
+#endif
     {0, NULL}
 };
 
@@ -53,12 +57,13 @@ static PyType_Spec WrapperType_TypeSpec = {
 #if defined(Py_TPFLAGS_IMMUTABLETYPE)
              Py_TPFLAGS_IMMUTABLETYPE |
 #endif
-             Py_TPFLAGS_HAVE_GC |
+             //Py_TPFLAGS_HAVE_GC |
              Py_TPFLAGS_TYPE_SUBCLASS,
     .slots = WrapperType_slots,
 };
 
 
+#if 0
 /*
  * The metatype alloc slot.
  */
@@ -149,11 +154,9 @@ static PyObject *WrapperType_getattro(PyObject *self, PyObject *name)
 
     if (sip_container_add_lazy_attrs(wms, ((sipWrapperType *)self)->wt_td) < 0)
         return NULL;
+#endif
 
     return PyType_Type.tp_getattro(self, name);
-#else
-    return NULL;
-#endif
 }
 
 
@@ -167,6 +170,7 @@ static int WrapperType_init(sipWrapperType *self, PyObject *args,
     if (PyType_Type.tp_init((PyObject *)self, args, kwds) < 0)
         return -1;
 
+#if 0
     /*
      * If we don't yet have any extra type specific information (because we are
      * a programmer defined sub-class) then get it from the (first) super-type.
@@ -208,6 +212,7 @@ static int WrapperType_init(sipWrapperType *self, PyObject *args,
             }
         }
     }
+#endif
 
     return 0;
 }
@@ -225,11 +230,9 @@ static int WrapperType_setattro(PyObject *self, PyObject *name,
 
     if (sip_container_add_lazy_attrs(wms, ((sipWrapperType *)self)->wt_td) < 0)
         return -1;
+#endif
 
     return PyType_Type.tp_setattro(self, name, value);
-#else
-    return -1;
-#endif
 }
 
 
@@ -242,6 +245,7 @@ static int WrapperType_traverse(PyObject *self, visitproc visit, void *arg)
 
     return 0;
 }
+#endif
 
 
 /*

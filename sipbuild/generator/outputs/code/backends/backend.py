@@ -1087,6 +1087,7 @@ f'''
 extern PyModuleDef sipWrappedModuleDef_{module_name};
 
 #define sipBuildResult              sipAPI->api_build_result
+#define sipFindTypeID               sipAPI->api_find_type_id
 #define sipGetAddress               sipAPI->api_get_address
 #define sipIsOwnedByPython          sipAPI->api_is_owned_by_python
 ''')
@@ -1153,7 +1154,6 @@ f'''#define sipMalloc                   sipAPI->api_malloc
 #define sipGetState                 sipAPI->api_get_state
 #define sipExportSymbol             sipAPI->api_export_symbol
 #define sipImportSymbol             sipAPI->api_import_symbol
-#define sipFindType                 sipAPI->api_find_type
 #define sipBytes_AsChar             sipAPI->api_bytes_as_char
 #define sipBytes_AsString           sipAPI->api_bytes_as_string
 #define sipString_AsASCIIChar       sipAPI->api_string_as_ascii_char
@@ -1550,26 +1550,32 @@ static const sipStaticVariableDef sipStaticVariablesTable{suffix}[] = {{
         module = spec.module
         klass_name = klass.iface_file.fq_cpp_name.as_word
 
-        base_fields = []
-        container_fields = []
-        class_fields = []
+        fields = []
 
-        base_fields.append(
+        fields.append(
                 '.ctd_base.td_flags = ' + self.get_class_flags(klass, py_debug))
-        base_fields.append(
+        fields.append(
                 '.ctd_base.td_cname = ' + self.cached_name_ref(klass.iface_file.cpp_name))
 
-        base_fields = ',\n    '.join(base_fields)
-        container_fields = ',\n    '.join(container_fields)
-        class_fields = ',\n    '.join(class_fields)
+        if klass.real_class is None:
+            fields.append(
+                    '.ctd_container.cod_name = ' + self.cached_name_ref(klass.py_name))
+
+        if klass.metatype is not None:
+            fields.append(
+                    '.ctd_metatype = ' + self.cached_name_ref(klass.metatype))
+
+        if klass.supertype is not None:
+            fields.append(
+                    '.ctd_supertype = ' + self.cached_name_ref(klass.supertype))
+
+        fields = ',\n    '.join(fields)
 
         sf.write(
 f'''
 
 sipClassTypeDef sipTypeDef_{module.py_name}_{klass_name} = {{
-    {base_fields},
-    //{container_fields},
-    //{class_fields},
+    {fields}
 }};
 ''')
 

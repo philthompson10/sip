@@ -36,7 +36,6 @@ int sip_api_wrapped_module_clear(sipWrappedModuleState *wms)
     Py_CLEAR(wms->extra_refs);
     Py_CLEAR(wms->imported_modules);
     Py_CLEAR(wms->sip_module);
-    Py_CLEAR(wms->wrapped_module_name);
 
 #if !_SIP_MODULE_SHARED
     sip_sip_module_clear(wms->sip_module_state);
@@ -133,8 +132,8 @@ int sip_api_wrapped_module_init(PyObject *wmod, const sipWrappedModuleDef *wmd,
     if (sip_sip_module_init(wms->sip_module_state, wmod) < 0)
         return -1;
 #endif
+    wms->wrapped_module = wmod;
     wms->wrapped_module_def = wmd;
-    wms->wrapped_module_name = PyModule_GetNameObject(wmod);
 
     /* Update the new module's super-type. */
     PyObject *class_s = PyUnicode_InternFromString("__class__");
@@ -340,7 +339,6 @@ int sip_api_wrapped_module_traverse(sipWrappedModuleState *wms,
     Py_VISIT(wms->extra_refs);
     Py_VISIT(wms->imported_modules);
     Py_VISIT(wms->sip_module);
-    Py_VISIT(wms->wrapped_module_name);
 
 #if !_SIP_MODULE_SHARED
     sip_sip_module_traverse(wms->sip_module_state, visit, arg);
@@ -353,6 +351,7 @@ int sip_api_wrapped_module_traverse(sipWrappedModuleState *wms,
 /*
  * Add a license to a dictionary.
  */
+#if 0
 static int add_license(PyObject *dict, const sipLicenseDef *lc)
 {
     int rc;
@@ -427,3 +426,4 @@ deldict:
 
     return -1;
 }
+#endif

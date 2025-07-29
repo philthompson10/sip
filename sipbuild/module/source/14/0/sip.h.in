@@ -63,6 +63,8 @@ extern "C" {
 #define SIP_VERSION_STR             "@_SIP_VERSION_STR@"
 
 /* These are all dependent on the user-specified name of the sip module. */
+// TODO _SIP_MODULE_FQ_NAME should be the name of the module that it is
+// embedding it if it is not shared.
 #define _SIP_MODULE_FQ_NAME         "@_SIP_MODULE_FQ_NAME@"
 #define _SIP_MODULE_NAME            "@_SIP_MODULE_NAME@"
 #define _SIP_MODULE_SHARED          @_SIP_MODULE_SHARED@
@@ -234,11 +236,11 @@ typedef struct {
     /* The module state of the sip module. */
     sipSipModuleState *sip_module_state;
 
+    /* A borrowed reference to the wrapped module. */
+    PyObject *wrapped_module;
+
     /* The definition of the wrapped module. */
     const struct _sipWrappedModuleDef *wrapped_module_def;
-
-    /* A strong reference to the name of the wrapped module. */
-    PyObject *wrapped_module_name;
 
     /* TODO Extensions to the state provided by the bindings author. */
     // sipStateExtension *user;
@@ -785,13 +787,13 @@ typedef struct _sipClassTypeDef {
     const char *ctd_docstring;
 
     /*
-     * The meta-type name, -1 to use the meta-type of the first super-type
+     * The meta-type name, NULL to use the meta-type of the first super-type
      * (normally sipWrapperType).
      */
-    int ctd_metatype;
+    const char *ctd_metatype;
 
-    /* The super-type name, -1 to use sipWrapper. */
-    int ctd_supertype;
+    /* The super-type name, NULL to use sipWrapper. */
+    const char *ctd_supertype;
 
     /* The super-types. */
     const sipTypeID *ctd_supers;

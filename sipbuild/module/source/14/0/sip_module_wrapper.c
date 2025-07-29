@@ -91,19 +91,9 @@ static PyObject *ModuleWrapper_getattro(PyObject *self, PyObject *name)
 
         PyErr_Clear();
 
-        /*
-         * The type object wasn't found but it may have been created and
-         * patched out of the module dict.
-         */
         attr = (PyObject *)sip_get_local_py_type(wms, type_nr);
-        if (attr == NULL)
-            return NULL;
+        Py_XINCREF(attr);
 
-        /* Save it so it will be found as normal next time. */
-        if (PyObject_SetAttr(self, attr, name) < 0)
-            return NULL;
-
-        Py_INCREF(attr);
         return attr;
     }
 

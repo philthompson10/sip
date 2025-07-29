@@ -278,8 +278,17 @@ static PyObject *create_enum_object(sipWrappedModuleState *wms,
     if (module_s == NULL)
         goto rel_kw_args;
 
-    rc = PyDict_SetItem(kw_args, module_s, wms->wrapped_module_name);
+    PyObject *module_name = PyModule_GetNameObject(wms->wrapped_module);
+
+    if (module_name == NULL)
+    {
+        Py_DECREF(module_s);
+        goto rel_kw_args;
+    }
+
+    rc = PyDict_SetItem(kw_args, module_s, module_name);
     Py_DECREF(module_s);
+    Py_DECREF(module_name);
 
     if (rc < 0)
         goto rel_kw_args;

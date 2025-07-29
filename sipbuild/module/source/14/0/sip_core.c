@@ -277,14 +277,10 @@ static void call_py_dtor(sipWrappedModuleState *wms, sipSimpleWrapper *self);
 static int compare_typedef_name(const void *key, const void *el);
 static PyTypeObject *create_class_type(sipWrappedModuleState *wms,
         const sipClassTypeDef *ctd);
-static PyTypeObject *create_container_type(sipSipModuleState *sms,
-        const sipContainerDef *cod, const sipTypeDef *td, PyObject *bases,
-        PyObject *metatype, PyObject *wmod_dict, PyObject *type_dict,
-        const sipWrappedModuleDef *wmd);
-#if 0
+static PyTypeObject *create_container_type(sipWrappedModuleState *wms,
+        const sipContainerDef *cod, PyObject *bases, PyTypeObject *metatype);
 static PyTypeObject *find_registered_py_type(sipSipModuleState *sms,
         const char *name);
-#endif
 static void *find_slot(PyObject *self, sipPySlotType st);
 static void *find_slot_in_class(const sipClassTypeDef *psd, sipPySlotType st);
 static void *find_slot_in_slot_list(const sipPySlotDef *psd, sipPySlotType st);
@@ -408,8 +404,6 @@ int sip_register_py_type(sipSipModuleState *sms, PyTypeObject *type)
  * Find the registered type with the given name.  Raise an exception if it
  * couldn't be found.
  */
-#if 0
-Not needed yet.
 static PyTypeObject *find_registered_py_type(sipSipModuleState *sms,
         const char *name)
 {
@@ -431,7 +425,6 @@ static PyTypeObject *find_registered_py_type(sipSipModuleState *sms,
 
     return NULL;
 }
-#endif
 
 
 /*
@@ -837,48 +830,37 @@ PyObject *sip_get_scope_dict(sipSipModuleState *sms, const sipTypeDef *td,
 /*
  * Create a container type and return a strong reference to it.
  */
-static PyTypeObject *create_container_type(sipSipModuleState *sms,
-        const sipContainerDef *cod, const sipTypeDef *td, PyObject *bases,
-        PyObject *metatype, PyObject *wmod_dict, PyObject *type_dict,
-        const sipWrappedModuleDef *wmd)
+static PyTypeObject *create_container_type(sipWrappedModuleState *wms,
+        const sipContainerDef *cod, PyObject *bases, PyTypeObject *metatype)
 {
-#if 0
-ZZZ also need wms so just pass wmod
-    PyObject *py_type, *scope_dict, *name, *args;
-    const sipTypeDef *scope_td;
+    /* Configure the type. */
+    static PyType_Slot no_slots[] = {{0, NULL}};
 
-    /* Get the dictionary to place the type in. */
-    if (cod->cod_scope != sipTypeID_Invalid)
-    {
-        scope_td = sip_get_type_def(wms, cod->cod_scope);
-        scope_dict = sip_get_scope_dict(sms, scope_td, wmod_dict, wmd);
+    // TODO Get from cod if there are any.
+    PyType_Slot *slots = no_slots;
 
-        if (scope_dict == NULL)
-            goto reterr;
-    }
-    else
-    {
-        scope_td = NULL;
-        scope_dict = wmod_dict;
-    }
+    PyType_Spec spec = {
+        // TODO This should probably be the fully qualified name.  At the
+        // moment __name__ and __qualname__ are both the simple name so there
+        // is an issue with compatibility.
+        .name = cod->cod_name,
+        .basicsize = 0,
+        // TODO Is the default Ok?
+        //.flags = XXX,
+        .slots = slots,
+    };
 
-    /* Create an object corresponding to the type name. */
-    if ((name = PyUnicode_FromString(cod->cod_name)) == NULL)
-        goto reterr;
-
-    /* Create the type by calling the metatype. */
-    if ((args = PyTuple_Pack(3, name, bases, type_dict)) == NULL)
-        goto relname;
-
-    /* Pass the type via the back door. */
-    assert(sms->current_type_def_backdoor == NULL);
-    sms->current_type_def_backdoor = td;
-    py_type = PyObject_Call(metatype, args, NULL);
-    sms->current_type_def_backdoor = NULL;
+    // TODO This is only available in Python v3.12 and later.
+    PyObject *py_type = PyType_FromMetaclass(metatype, wms->wrapped_module,
+            &spec, bases);
 
     if (py_type == NULL)
-        goto relargs;
+        goto ret_error;
 
+    if (PyType_Ready((PyTypeObject *)py_type) < 0)
+        goto rel_type;
+
+#if 0
     /* Fix __qualname__ if there is a scope. */
     if (scope_td != NULL)
     {
@@ -886,36 +868,41 @@ ZZZ also need wms so just pass wmod
         PyObject *qualname = sip_get_qualname(scope_td, name);
 
         if (qualname == NULL)
-            goto reltype;
+            goto rel_type;
 
         ht = (PyHeapTypeObject *)py_type;
 
         Py_CLEAR(ht->ht_qualname);
         ht->ht_qualname = qualname;
     }
+#endif
 
-    /* Add the type to the "parent" dictionary. */
-    if (PyDict_SetItem(scope_dict, name, py_type) < 0)
-        goto reltype;
+    /* Add the type to the scope. */
+    PyObject *scope;
 
-    Py_DECREF(args);
-    Py_DECREF(name);
+    if (cod->cod_scope != sipTypeID_Invalid)
+    {
+        scope = (PyObject *)sip_get_py_type(wms, cod->cod_scope);
 
-    return py_type;
+        if (scope == NULL)
+            goto rel_type;
+    }
+    else
+    {
+        scope = wms->wrapped_module;
+    }
+
+    if (PyObject_SetAttrString(scope, cod->cod_name, py_type) < 0)
+        goto rel_type;
+
+    return (PyTypeObject *)py_type;
 
     /* Unwind on error. */
 
-reltype:
+rel_type:
     Py_DECREF(py_type);
 
-relargs:
-    Py_DECREF(args);
-
-relname:
-    Py_DECREF(name);
-
-reterr:
-#endif
+ret_error:
     return NULL;
 }
 
@@ -926,14 +913,16 @@ reterr:
 static PyTypeObject *create_class_type(sipWrappedModuleState *wms,
         const sipClassTypeDef *ctd)
 {
-#if 0
-ZZZ need wms
+    sipSipModuleState *sms = wms->sip_module_state;
+
     /* Create the tuple of super-types. */
-    PyObject *bases, *metatype, *py_type, *type_dict;
+    PyObject *bases;
 
     if (ctd->ctd_supers == NULL)
     {
-        if (ctd->ctd_supertype < 0)
+        // TODO This returns a 1-tuple but Python should accept a single type
+        // object.
+        if (ctd->ctd_supertype == NULL)
         {
             bases = sipTypeIsNamespace(&ctd->ctd_base) ?
                 sms->base_tuple_simple_wrapper :
@@ -942,57 +931,42 @@ ZZZ need wms
         }
         else
         {
-            PyObject *supertype;
-            const char *supertype_name = sipNameFromPool(wmd,
+            PyObject *supertype = (PyObject *)find_registered_py_type(sms,
                     ctd->ctd_supertype);
 
-            if ((supertype = (PyObject *)find_registered_py_type(sms, supertype_name)) == NULL)
-                goto reterr;
+            if (supertype == NULL)
+                goto ret_error;
 
             bases = PyTuple_Pack(1, supertype);
 
             if (bases == NULL)
-                goto reterr;
+                goto ret_error;
         }
     }
     else
     {
+        // TODO Don't create a tuple if there is only one super-class.
         const sipTypeID *supers;
-        int nr_supers = 1;
+        Py_ssize_t nr_supers = 1;
 
-        for (supers = ctd->ctd_supers; !sipTypeIDIsSentinel(*super); super++)
+        for (supers = ctd->ctd_supers; !sipTypeIDIsSentinel(*supers); supers++)
             nr_supers++;
 
         if ((bases = PyTuple_New(nr_supers)) == NULL)
-            goto reterr;
+            goto ret_error;
 
-        int i;
+        Py_ssize_t i;
 
-        for (i = 0; i < nrsupers; i++)
+        for (i = 0; i < nr_supers; i++)
         {
-            const sipTypeDef *sup_td = sip_get_type_def(wms, ctd->ctd_supers[i]);
+            PyTypeObject *sup_py_type = sip_get_py_type(wms,
+                    ctd->ctd_supers[i]);
 
-            /*
-             * Initialise the super-class if necessary.  It will always be in
-             * the same module if it needs doing.
-             */
-            if (sip_create_class_type(sms, wmd, (const sipClassTypeDef *)sup_td, wmod_dict) < 0)
-                goto relbases;
+            if (sup_py_type == NULL)
+                goto rel_bases;
 
-            PyObject *st = (PyObject *)sipTypeAsPyTypeObject(sup_td);
-
-            Py_INCREF(st);
-            PyTuple_SET_ITEM(bases, i, st);
-
-            /*
-             * Inherit any garbage collector code rather than look for it each
-             * time it is needed.
-             */
-            if (ctd->ctd_traverse == NULL)
-                ctd->ctd_traverse = ((sipClassTypeDef *)sup_td)->ctd_traverse;
-
-            if (ctd->ctd_clear == NULL)
-                ctd->ctd_clear = ((sipClassTypeDef *)sup_td)->ctd_clear;
+            Py_INCREF(sup_py_type);
+            PyTuple_SET_ITEM(bases, i, sup_py_type);
         }
     }
 
@@ -1000,21 +974,27 @@ ZZZ need wms
      * Use the explicit meta-type if there is one, otherwise use the meta-type
      * of the first super-type.
      */
-    if (ctd->ctd_metatype >= 0)
-    {
-        const char *metatype_name = sipNameFromPool(wmd, ctd->ctd_metatype);
+    PyTypeObject *metatype;
 
-        if ((metatype = (PyObject *)find_registered_py_type(sms, metatype_name)) == NULL)
-            goto relbases;
+    if (ctd->ctd_metatype != NULL)
+    {
+        metatype = find_registered_py_type(sms, ctd->ctd_metatype);
+
+        if (metatype == NULL)
+            goto rel_bases;
     }
     else
     {
-        metatype = (PyObject *)Py_TYPE(PyTuple_GET_ITEM(bases, 0));
+        metatype = Py_TYPE(PyTuple_GET_ITEM(bases, 0));
     }
 
+#if 0
+This should go.
     /* Create the type dictionary and populate it with any non-lazy methods. */
+    PyObject *type_dict;
+
     if ((type_dict = sip_create_type_dict(wmd)) == NULL)
-        goto relbases;
+        goto rel_bases;
 
     if (sipTypeHasNonlazyMethod(&ctd->ctd_base))
     {
@@ -1023,18 +1003,25 @@ ZZZ need wms
         for (i = 0; i < ctd->ctd_container.cod_nrmethods; ++i)
         {
             if (is_nonlazy_method(pmd) && add_method(sms, type_dict, pmd) < 0)
-                goto reldict;
+                goto rel_dict;
 
             ++pmd;
         }
     }
+#endif
 
-    if ((py_type = create_container_type(sms, &ctd->ctd_container, (const sipTypeDef *)ctd, bases, metatype, wmod_dict, type_dict, wmd)) == NULL)
-        goto reldict;
+    PyTypeObject *py_type = create_container_type(wms, &ctd->ctd_container,
+            bases, metatype);
 
+    if (py_type == NULL)
+        goto rel_bases;
+
+#if 0
     if (ctd->ctd_pyslots != NULL)
         sip_fix_slots(py_type, ctd->ctd_pyslots);
+#endif
 
+#if 0
     /* Handle the pickle function. */
     if (ctd->ctd_pickle != NULL)
     {
@@ -1043,29 +1030,34 @@ ZZZ need wms
         };
 
         if (set_reduce(py_type, &md) < 0)
-            goto reltype;
+            goto rel_type;
     }
+#endif
 
     /* We can now release our references. */
     Py_DECREF(bases);
+#if 0
     Py_DECREF(type_dict);
+#endif
 
     return py_type;
 
     /* Unwind after an error. */
 
-reltype:
+#if 0
+rel_type:
     Py_DECREF(py_type);
+#endif
 
-reldict:
+#if 0
+rel_dict:
     Py_DECREF(type_dict);
+#endif
 
-relbases:
+rel_bases:
     Py_DECREF(bases);
 
-reterr:
-#endif
-    PyErr_SetString(PyExc_TypeError, "create_class_type() not yet implemented");
+ret_error:
     return NULL;
 }
 
@@ -1073,6 +1065,7 @@ reterr:
 /*
  * Create a single mapped type object.
  */
+#if 0
 PyTypeObject *sip_create_mapped_type(sipSipModuleState *sms,
         const sipWrappedModuleDef *wmd, const sipMappedTypeDef *mtd,
         PyObject *wmod_dict)
@@ -1091,6 +1084,7 @@ PyTypeObject *sip_create_mapped_type(sipSipModuleState *sms,
 
     return container;
 }
+#endif
 
 
 /*
@@ -1885,6 +1879,8 @@ static sipTypeID sip_api_find_type_id(PyObject *wmod, const char *type)
             Py_ssize_t type_nr = (tdp - md->type_defs) / sizeof (const sipTypeDef *);
 
             /* Return an absolute ID of a generated type. */
+            // TODO Does it need to be absolute rather than just relative to
+            // the given module?
             return SIP_TYPE_ID_GENERATED | SIP_TYPE_ID_ABSOLUTE | (i << 16) | type_nr;
         }
     }
