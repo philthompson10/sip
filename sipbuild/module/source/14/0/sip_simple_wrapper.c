@@ -643,12 +643,6 @@ int sip_simple_wrapper_init(PyObject *module, sipSipModuleState *sms)
     if (PyModule_AddType(module, sms->simple_wrapper_type) < 0)
         return -1;
 
-    sms->base_tuple_simple_wrapper = PyTuple_Pack(1,
-            (PyObject *)sms->simple_wrapper_type);
-
-    if (sms->base_tuple_simple_wrapper == NULL)
-        return -1;
-
     return 0;
 }
 

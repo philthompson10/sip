@@ -51,13 +51,10 @@ static PyType_Spec WrapperType_TypeSpec = {
     .name = _SIP_MODULE_FQ_NAME ".wrappertype",
     .basicsize = sizeof (sipWrapperType),
     .flags = Py_TPFLAGS_DEFAULT |
-#if defined(Py_TPFLAGS_DISALLOW_INSTANTIATION)
-             Py_TPFLAGS_DISALLOW_INSTANTIATION |
-#endif
 #if defined(Py_TPFLAGS_IMMUTABLETYPE)
              Py_TPFLAGS_IMMUTABLETYPE |
 #endif
-             //Py_TPFLAGS_HAVE_GC |
+             Py_TPFLAGS_BASETYPE |
              Py_TPFLAGS_TYPE_SUBCLASS,
     .slots = WrapperType_slots,
 };
@@ -171,6 +168,8 @@ static int WrapperType_init(sipWrapperType *self, PyObject *args,
         return -1;
 
 #if 0
+May need to keep this just for the event handler.  Is it still needed?  Is
+there a better way?
     /*
      * If we don't yet have any extra type specific information (because we are
      * a programmer defined sub-class) then get it from the (first) super-type.

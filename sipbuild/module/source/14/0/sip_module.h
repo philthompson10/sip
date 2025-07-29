@@ -36,18 +36,6 @@ typedef struct _sipSipModuleState {
     PyTypeObject *custom_enum_type;
 #endif
 
-    /*
-     * A 1-tuple of the sip.simplewrapper type object used for wrappers with no
-     * super-type.
-     */
-    PyObject *base_tuple_simple_wrapper;
-
-    /*
-     * A 1-tuple of the sip.wrapper type object used for wrappers with no
-     * super-type.
-     */
-    PyObject *base_tuple_wrapper;
-
 #if defined(SIP_CONFIGURATION_PyEnums)
     /* The builtin int type object. */
     PyObject *builtin_int_type;

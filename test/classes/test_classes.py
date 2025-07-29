@@ -23,3 +23,7 @@ class ClassesTestCase(SIPTestCase):
         """ Test the support simple classes. """
 
         self.assertIsInstance(self.c_mod.Klass(), self.c_mod.Klass)
+
+        self.assertEqual(self.c_mod.Klass.__module__, 'classes_module')
+        self.assertEqual(self.c_mod.Klass.__name__, 'Klass')
+        self.assertEqual(self.c_mod.Klass.__qualname__, 'Klass')

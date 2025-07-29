@@ -836,23 +836,22 @@ static PyTypeObject *create_container_type(sipWrappedModuleState *wms,
     /* Configure the type. */
     static PyType_Slot no_slots[] = {{0, NULL}};
 
-    // TODO Get from cod if there are any.
+    // TODO Get from cod if there are any.  Will there always be at least one?
     PyType_Slot *slots = no_slots;
 
     PyType_Spec spec = {
-        // TODO This should probably be the fully qualified name.  At the
-        // moment __name__ and __qualname__ are both the simple name so there
-        // is an issue with compatibility.
         .name = cod->cod_name,
         .basicsize = 0,
-        // TODO Is the default Ok?
-        //.flags = XXX,
+        .flags = Py_TPFLAGS_DEFAULT|Py_TPFLAGS_BASETYPE,
         .slots = slots,
     };
 
-    // TODO This is only available in Python v3.12 and later.
+#if PY_VERSION_HEX >= 0x030c0000
     PyObject *py_type = PyType_FromMetaclass(metatype, wms->wrapped_module,
             &spec, bases);
+#else
+    // TODO support for version prior to v3.12.
+#endif
 
     if (py_type == NULL)
         goto ret_error;
@@ -915,37 +914,39 @@ static PyTypeObject *create_class_type(sipWrappedModuleState *wms,
 {
     sipSipModuleState *sms = wms->sip_module_state;
 
-    /* Create the tuple of super-types. */
     PyObject *bases;
 
     if (ctd->ctd_supers == NULL)
     {
-        // TODO This returns a 1-tuple but Python should accept a single type
-        // object.
         if (ctd->ctd_supertype == NULL)
         {
             bases = sipTypeIsNamespace(&ctd->ctd_base) ?
-                sms->base_tuple_simple_wrapper :
-                sms->base_tuple_wrapper;
-            Py_INCREF(bases);
+                (PyObject *)sms->simple_wrapper_type :
+                (PyObject *)sms->wrapper_type;
         }
         else
         {
-            PyObject *supertype = (PyObject *)find_registered_py_type(sms,
+            bases = (PyObject *)find_registered_py_type(sms,
                     ctd->ctd_supertype);
 
-            if (supertype == NULL)
-                goto ret_error;
-
-            bases = PyTuple_Pack(1, supertype);
+            // TODO Check it is a sub-type of simple_wrapper_type.
 
             if (bases == NULL)
-                goto ret_error;
+                return NULL;
         }
+
+        Py_INCREF(bases);
+    }
+    else if (sipTypeIDIsSentinel(ctd->ctd_supers[0]))
+    {
+        /* There is only one super-type. */
+        bases = (PyObject *)sip_get_py_type(wms, ctd->ctd_supers[0]);
+
+        if (bases == NULL)
+            return NULL;
     }
     else
     {
-        // TODO Don't create a tuple if there is only one super-class.
         const sipTypeID *supers;
         Py_ssize_t nr_supers = 1;
 
@@ -953,7 +954,7 @@ static PyTypeObject *create_class_type(sipWrappedModuleState *wms,
             nr_supers++;
 
         if ((bases = PyTuple_New(nr_supers)) == NULL)
-            goto ret_error;
+            return NULL;
 
         Py_ssize_t i;
 
@@ -982,10 +983,13 @@ static PyTypeObject *create_class_type(sipWrappedModuleState *wms,
 
         if (metatype == NULL)
             goto rel_bases;
+
+        // TODO Check it is a sub-type of wrapper_type_type.
     }
     else
     {
-        metatype = Py_TYPE(PyTuple_GET_ITEM(bases, 0));
+        PyObject *first = PyTuple_CheckExact(bases) ? PyTuple_GET_ITEM(bases, 0) : bases;
+        metatype = Py_TYPE(first);
     }
 
 #if 0
@@ -1013,8 +1017,10 @@ This should go.
     PyTypeObject *py_type = create_container_type(wms, &ctd->ctd_container,
             bases, metatype);
 
+    Py_DECREF(bases);
+
     if (py_type == NULL)
-        goto rel_bases;
+        return NULL;
 
 #if 0
     if (ctd->ctd_pyslots != NULL)
@@ -1034,30 +1040,13 @@ This should go.
     }
 #endif
 
-    /* We can now release our references. */
-    Py_DECREF(bases);
-#if 0
-    Py_DECREF(type_dict);
-#endif
-
     return py_type;
 
     /* Unwind after an error. */
 
-#if 0
-rel_type:
-    Py_DECREF(py_type);
-#endif
-
-#if 0
-rel_dict:
-    Py_DECREF(type_dict);
-#endif
-
 rel_bases:
     Py_DECREF(bases);
 
-ret_error:
     return NULL;
 }
 
@@ -1077,7 +1066,8 @@ PyTypeObject *sip_create_mapped_type(sipSipModuleState *sms,
         return NULL;
 
     PyTypeObject *container = create_container_type(sms, &mtd->mtd_container,
-            (const sipTypeDef *)mtd, sms->base_tuple_wrapper,
+            // TODO Why wrapper_type instead of simple_wrapper_type?
+            (const sipTypeDef *)mtd, sms->wrapper_type,
             (PyObject *)sms->wrapper_type_type, wmod_dict, type_dict, wmd);
 
     Py_DECREF(type_dict);

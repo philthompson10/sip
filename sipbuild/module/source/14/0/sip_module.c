@@ -203,8 +203,6 @@ int sip_sip_module_clear(sipSipModuleState *sms)
 #if defined(SIP_CONFIGURATION_CustomEnums)
     Py_CLEAR(sms->custom_enum_type);
 #endif
-    Py_CLEAR(sms->base_tuple_simple_wrapper);
-    Py_CLEAR(sms->base_tuple_wrapper);
     Py_CLEAR(sms->empty_tuple);
 #if defined(SIP_CONFIGURATION_CustomEnums)
     Py_CLEAR(sms->enum_enum_type);
@@ -301,8 +299,6 @@ int sip_sip_module_traverse(sipSipModuleState *sms, visitproc visit, void *arg)
 #if defined(SIP_CONFIGURATION_CustomEnums)
     Py_VISIT(sms->custom_enum_type);
 #endif
-    Py_VISIT(sms->base_tuple_simple_wrapper);
-    Py_VISIT(sms->base_tuple_wrapper);
     Py_VISIT(sms->empty_tuple);
 #if defined(SIP_CONFIGURATION_CustomEnums)
     Py_VISIT(sms->enum_enum_type);

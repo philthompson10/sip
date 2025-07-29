@@ -1559,7 +1559,7 @@ static const sipStaticVariableDef sipStaticVariablesTable{suffix}[] = {{
 
         if klass.real_class is None:
             fields.append(
-                    '.ctd_container.cod_name = ' + self.cached_name_ref(klass.py_name))
+                    f'.ctd_container.cod_name = "{klass.iface_file.module.fq_py_name.name}.{klass.py_name.name}"')
 
         if klass.metatype is not None:
             fields.append(
