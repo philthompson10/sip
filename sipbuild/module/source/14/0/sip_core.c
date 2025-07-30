@@ -2850,7 +2850,7 @@ void sip_forget_object(sipSimpleWrapper *sw)
     sipSipModuleState *sms = sip_get_sip_module_state_from_wrapper_type(
             Py_TYPE((PyObject *)sw));
     //sipEventHandler *eh;
-    const sipClassTypeDef *ctd = (const sipClassTypeDef *)((sipWrapperType *)Py_TYPE(sw))->wt_td;
+    //const sipClassTypeDef *ctd = (const sipClassTypeDef *)((sipWrapperType *)Py_TYPE(sw))->wt_td;
 
 #if 0
     /* Invoke any event handlers. */

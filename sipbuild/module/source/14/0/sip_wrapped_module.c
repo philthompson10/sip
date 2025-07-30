@@ -21,7 +21,7 @@
 
 
 /* Forward references. */
-static int add_license(PyObject *dict, const sipLicenseDef *lc);
+static int add_license(PyObject *wmod, const sipLicenseDef *lc);
 
 
 /* The wrapped module's clear slot. */
@@ -272,11 +272,9 @@ int sip_api_wrapped_module_init(PyObject *wmod, const sipWrappedModuleDef *wmd,
         return -1;
 #endif
 
-#if 0
     /* Add any license. */
-    if (wmd->license != NULL && add_license(wmod_dict, wmd->license) < 0)
+    if (wmd->license != NULL && add_license(wmod, wmd->license) < 0)
         return -1;
-#endif
 
 #if 0
     /* See if the new module satisfies any outstanding external types. */
@@ -349,13 +347,12 @@ int sip_api_wrapped_module_traverse(sipWrappedModuleState *wms,
 
 
 /*
- * Add a license to a dictionary.
+ * Add a license to a module.
  */
-#if 0
-static int add_license(PyObject *dict, const sipLicenseDef *lc)
+static int add_license(PyObject *wmod, const sipLicenseDef *lc)
 {
     int rc;
-    PyObject *ldict, *proxy, *o;
+    PyObject *ldict, *o;
 
     /* We use a dictionary to hold the license information. */
     if ((ldict = PyDict_New()) == NULL)
@@ -410,20 +407,28 @@ static int add_license(PyObject *dict, const sipLicenseDef *lc)
             goto deldict;
     }
 
-    /* Create a read-only proxy. */
-    if ((proxy = PyDictProxy_New(ldict)) == NULL)
+    /* Create and save a read-only proxy. */
+#if PY_MAJOR_VERSION >= 0x030d0000
+    rc = PyModule_Add(wmod, "__license__", PyDictProxy_New(ldict));
+#else
+    PyObject *proxy = PyDictProxy_New(ldict);
+#if PY_MAJOR_VERSION >= 0x030a0000
+    rc = PyModule_AddObjectRef(wmod, "__license__", proxy);
+    Py_XDECREF(proxy);
+#else
+    if (proxy == NULL)
         goto deldict;
 
+    rc = PyModule_AddObject(wmod, "__license__", proxy);
+    if (rc < 0)
+        Py_DECREF(proxy);
+#endif
+#endif
+
     Py_DECREF(ldict);
-
-    rc = PyDict_SetItemString(dict, "__license__", proxy);
-    Py_DECREF(proxy);
-
     return rc;
 
 deldict:
     Py_DECREF(ldict);
-
     return -1;
 }
-#endif
