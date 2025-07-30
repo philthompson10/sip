@@ -309,6 +309,13 @@ static int ModuleWrapper_setattro(PyObject *self, PyObject *name,
     if (svd == NULL)
         return Py_TYPE(self)->tp_base->tp_setattro(self, name, value);
 
+    if (value == NULL)
+    {
+        PyErr_Format(PyExc_AttributeError, "'%s' cannot be deleted",
+                svd->name);
+        return -1;
+    }
+
     if (svd->setter != NULL)
         return svd->setter(value);
 

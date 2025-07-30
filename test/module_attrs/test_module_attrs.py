@@ -333,6 +333,26 @@ class ModuleAttrsTestCase(SIPTestCase):
         self.assertIs(self.ma.pyobject_attr, obj)
         self.assertEqual(getrefcount(self.ma.pyobject_attr), obj_refcount + 1)
 
+    def test_del_attrs(self):
+        """ Test the support for deleting module attributes. """
+
+        with self.assertRaises(AttributeError):
+            del self.ma.int_attr
+
+    def test_nonwrapped_attrs(self):
+        """ Test the support for non-wrapped module attributes. """
+
+        with self.assertRaises(AttributeError):
+            self.ma.foo
+
+        self.ma.foo = 'bar'
+        self.assertEqual(self.ma.foo, 'bar')
+
+        del self.ma.foo
+
+        with self.assertRaises(AttributeError):
+            self.ma.foo
+
     def test_const_types(self):
         """ Test the support for const module attributes. """
 

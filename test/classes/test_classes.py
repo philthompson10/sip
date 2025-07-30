@@ -20,10 +20,40 @@ class ClassesTestCase(SIPTestCase):
         cls.c_mod = c_mod
 
     def test_simple_classes(self):
-        """ Test the support simple classes. """
+        """ Test the support for simple classes. """
 
         self.assertIsInstance(self.c_mod.Klass(), self.c_mod.Klass)
 
         self.assertEqual(self.c_mod.Klass.__module__, 'classes_module')
         self.assertEqual(self.c_mod.Klass.__name__, 'Klass')
         self.assertEqual(self.c_mod.Klass.__qualname__, 'Klass')
+
+    def test_class_attributes(self):
+        """ Test the support for class attributes. """
+
+        with self.assertRaises(AttributeError):
+            self.c_mod.Klass.foo
+
+        self.c_mod.Klass.foo = 'bar'
+        self.assertEqual(self.c_mod.Klass.foo, 'bar')
+
+        del self.c_mod.Klass.foo
+
+        with self.assertRaises(AttributeError):
+            self.c_mod.Klass.foo
+
+    def test_instance_attributes(self):
+        """ Test the support for instance attributes. """
+
+        klass = self.c_mod.Klass()
+
+        with self.assertRaises(AttributeError):
+            klass.foo
+
+        klass.foo = 'bar'
+        self.assertEqual(klass.foo, 'bar')
+
+        del klass.foo
+
+        with self.assertRaises(AttributeError):
+            klass.foo
