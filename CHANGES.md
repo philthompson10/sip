@@ -17,6 +17,8 @@ The `%AccessCode` directive is no longer supported.
 The `%GetCode` and `%SetCode` directives are now supported for module
 attributes.
 
+The deprecated `sipIsErr` error flag is no longer supported.
+
 Module attributes can now be modified with the same restrictions as class
 attributes.  Therefore module attributes that are constants can no longer be
 modified.

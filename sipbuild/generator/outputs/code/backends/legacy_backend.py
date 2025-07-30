@@ -9,7 +9,8 @@ from ....specification import ArgumentType, WrappedClass, WrappedEnum
 from ...formatters import fmt_argument_as_cpp_type
 
 from ..utils import (get_encoded_type, get_normalised_cached_name,
-        get_slot_name, get_user_state_suffix, py_scope, type_needs_user_state)
+        get_slot_name, get_user_state_suffix, is_used_in_code, py_scope,
+        type_needs_user_state)
 
 from .backend import Backend
 
@@ -813,6 +814,27 @@ sipClassTypeDef sipTypeDef_{module.py_name}_{klass_name} = {{
 }};
 ''')
 
+    def g_type_init(self, sf, bindings, klass, need_self, need_owner):
+        """ Generate the code that initialises a type. """
+
+        spec = self.spec
+        klass_name = klass.iface_file.fq_cpp_name.as_word
+
+        if not spec.c_bindings:
+            sf.write(f'extern "C" {{static void *init_type_{klass_name}(sipSimpleWrapper *, PyObject *, PyObject *, PyObject **, PyObject **, PyObject **);}}\n')
+
+        sip_self = 'sipSelf' if need_self else ''
+        sip_owner = 'sipOwner' if need_owner else ''
+
+        sf.write(
+f'''static void *init_type_{klass_name}(sipSimpleWrapper *{sip_self}, PyObject *sipArgs, PyObject *sipKwds, PyObject **sipUnused, PyObject **{sip_owner}, PyObject **sipParseErr)
+{{
+''')
+
+        self.g_type_init_body(sf, bindings, klass)
+
+        sf.write('}\n')
+
     def abi_has_deprecated_message(self):
         """ Return True if the ABI implements sipDeprecated() with a message.
         """
@@ -898,6 +920,14 @@ sipClassTypeDef sipTypeDef_{module.py_name}_{klass_name} = {{
         target_abi = self.spec.target_abi
 
         return target_abi >= min_13 or (min_12 <= target_abi < (13, 0))
+
+    @staticmethod
+    def need_deprecated_error_flag(code):
+        """ Return True if the deprecated error flag is need by some
+        handwritten code.
+        """
+
+        return is_used_in_code(code, 'sipIsErr')
 
     def _g_instances_char(self, sf, scope):
         """ Generate the code to add a set of characters to a dictionary.

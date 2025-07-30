@@ -7,8 +7,9 @@ from .....sip_module_configuration import SipModuleConfiguration
 
 from ....python_slots import is_number_slot
 from ....scoped_name import STRIP_GLOBAL
-from ....specification import (ArgumentType, ArrayArgument, IfaceFileType,
-        KwArgs, MappedType, PySlot, Transfer, WrappedClass, WrappedEnum)
+from ....specification import (AccessSpecifier, ArgumentType, ArrayArgument,
+        IfaceFileType, KwArgs, MappedType, PySlot, Transfer, WrappedClass,
+        WrappedEnum)
 
 from ...formatters import (fmt_argument_as_cpp_type, fmt_argument_as_name,
         fmt_class_as_scoped_name, fmt_signature_as_type_hint,
@@ -16,7 +17,8 @@ from ...formatters import (fmt_argument_as_cpp_type, fmt_argument_as_name,
 
 from ..utils import (arg_is_small_enum, callable_overloads,
         get_convert_to_type_code, get_normalised_cached_name,
-        has_method_docstring, py_scope, skip_overload)
+        has_method_docstring, is_used_in_code, need_error_flag, py_scope,
+        release_gil, skip_overload)
 
 
 class Backend:
@@ -549,6 +551,109 @@ class Backend:
 
         return docstring_ref
 
+    def g_catch(self, sf, bindings, py_signature, throw_args, release_gil):
+        """ Generate the catch blocks for a call. """
+
+        if not _handling_exceptions(bindings, throw_args):
+            return
+
+        spec = self.spec
+
+        use_handler = self.abi_has_next_exception_handler()
+
+        sf.write('            }\n')
+
+        if not use_handler:
+            if throw_args is not None:
+                for exception in throw_args.arguments:
+                    self.g_catch_block(sf, exception,
+                            py_signature=py_signature, release_gil=release_gil)
+            elif spec.module.default_exception is not None:
+                self.g_catch_block(sf, spec.module.default_exception,
+                        py_signature=py_signature, release_gil=release_gil)
+
+        sf.write(
+'''            catch (...)
+            {
+''')
+
+        if release_gil:
+            sf.write(
+'''                Py_BLOCK_THREADS
+
+''')
+
+        self._g_delete_outs(sf, py_signature)
+        self.g_delete_temporaries(sf, py_signature)
+
+        if use_handler:
+            sf.write(
+'''                void *sipExcState = SIP_NULLPTR;
+                sipExceptionHandler sipExcHandler;
+                std::exception_ptr sipExcPtr = std::current_exception();
+
+                while ((sipExcHandler = sipNextExceptionHandler(&sipExcState)) != SIP_NULLPTR)
+                    if (sipExcHandler(sipExcPtr))
+                        return SIP_NULLPTR;
+
+''')
+
+        sf.write(
+'''                sipRaiseUnknownException();
+                return SIP_NULLPTR;
+            }
+''')
+
+    def g_catch_block(self, sf, exception, py_signature=None,
+            release_gil=False):
+        """ Generate a single catch block. """
+
+        exception_fq_cpp_name = exception.iface_file.fq_cpp_name
+
+        # The global scope is stripped from the exception name to be consistent
+        # with older versions of SIP.
+        exception_cpp_stripped = exception_fq_cpp_name.cpp_stripped(
+                STRIP_GLOBAL)
+
+        sip_exception_ref = 'sipExceptionRef' if exception.class_exception is not None or is_used_in_code(exception.raise_code, 'sipExceptionRef') else ''
+
+        sf.write(
+f'''            catch ({exception_cpp_stripped} &{sip_exception_ref})
+            {{
+''')
+
+        if release_gil:
+            sf.write(
+'''
+                Py_BLOCK_THREADS
+''')
+
+        if py_signature is not None:
+            self._g_delete_outs(sf, py_signature)
+            self.g_delete_temporaries(sf, py_signature)
+            result = 'SIP_NULLPTR'
+        else:
+            result = 'true'
+
+        # See if the exception is a wrapped class.
+        if exception.class_exception is not None:
+            exception_cpp = exception_fq_cpp_name.as_cpp
+
+            sf.write(
+f'''                /* Hope that there is a valid copy ctor. */
+                {exception_cpp} *sipExceptionCopy = new {exception_cpp}(sipExceptionRef);
+
+                sipRaiseTypeException({self.get_type_ref(exception)}, sipExceptionCopy);
+''')
+        else:
+            sf.write_code(exception.raise_code)
+
+        sf.write(
+f'''
+                return {result};
+            }}
+''')
+
     def g_class_api(self, sf, klass):
         """ Generate the C++ API for a class. """
 
@@ -812,6 +917,15 @@ static sipEnumMemberDef enummembers_{scope.iface_file.fq_cpp_name.as_word}[] = {
         """ Generate the variables needed by a function. """
 
         sf.write('    const sipAPIDef *sipAPI = sipGetAPI(sipModule);\n')
+
+    @staticmethod
+    def g_gc_ellipsis(sf, signature):
+        """ Generate the code to garbage collect any ellipsis argument. """
+
+        last = len(signature.args) - 1
+
+        if last >= 0 and signature.args[last].type is ArgumentType.ELLIPSIS:
+            sf.write(f'\n            Py_DECREF(a{last});\n')
 
     def g_mapped_type_api(self, sf, mapped_type):
         """ Generate the API details for a mapped type. """
@@ -1540,6 +1654,18 @@ static const sipStaticVariableDef sipStaticVariablesTable{suffix}[] = {{
 
         return nr_static_variables
 
+    @staticmethod
+    def g_try(sf, bindings, throw_args):
+        """ Generate the try block for a call. """
+
+        if not _handling_exceptions(bindings, throw_args):
+            return
+
+        sf.write(
+'''            try
+            {
+''')
+
     def g_type_definition(self, sf, bindings, klass, py_debug):
         """ Generate the type structure that contains all the information
         needed by the meta-type.  A sub-set of this is used to extend
@@ -1579,44 +1705,64 @@ sipClassTypeDef sipTypeDef_{module.py_name}_{klass_name} = {{
 }};
 ''')
 
-    def get_class_flags(self, klass, py_debug):
-        """ Return the flags for a class. """
+    def g_type_init(self, sf, bindings, klass, need_self, need_owner):
+        """ Generate the code that initialises a type. """
 
-        module = self.spec.module
-        flags = []
+        spec = self.spec
+        klass_name = klass.iface_file.fq_cpp_name.as_word
 
-        if klass.is_abstract:
-            flags.append('SIP_TYPE_ABSTRACT')
+        if not spec.c_bindings:
+            sf.write(f'extern "C" {{static void *init_type_{klass_name}(sipSimpleWrapper *, PyObject *const *, Py_ssize_t, PyObject *, PyObject **, PyObject **, PyObject **);}}\n')
 
-        if klass.subclass_base is not None:
-            flags.append('SIP_TYPE_SCC')
+        sip_owner = 'sipOwner' if need_owner else ''
 
-        if klass.handles_none:
-            flags.append('SIP_TYPE_ALLOW_NONE')
+        sf.write(
+f'''static void *init_type_{klass_name}(sipSimpleWrapper *sipSelf, PyObject *const *sipArgs, Py_ssize_t sipNrArgs, PyObject *sipKwds, PyObject **sipUnused, PyObject **{sip_owner}, PyObject **sipParseErr)
+{{
+''')
 
-        if klass.has_nonlazy_method:
-            flags.append('SIP_TYPE_NONLAZY')
+        self.g_slot_support_vars(sf)
 
-        if module.call_super_init:
-            flags.append('SIP_TYPE_SUPER_INIT')
+        self.g_type_init_body(sf, bindings, klass)
 
-        if not py_debug and module.use_limited_api:
-            flags.append('SIP_TYPE_LIMITED_API')
+        sf.write('}\n')
 
-        flags.append('SIP_TYPE_NAMESPACE' if klass.iface_file.type is IfaceFileType.NAMESPACE else 'SIP_TYPE_CLASS')
+    def g_type_init_body(self, sf, bindings, klass):
+        """ Generate the main body of the type initialisation function. """
 
-        return '|'.join(flags)
+        sip_cpp_type = 'sip' + klass_name if klass.has_shadow else self.scoped_class_name(klass)
 
-    def get_class_ref_value(self, klass):
-        """ Return the value of a class's reference. """
+        sf.write(f'    {sip_cpp_type} *sipCpp = SIP_NULLPTR;\n')
 
-        return f'SIP_TYPE_ID_GENERATED|SIP_TYPE_ID_CURRENT_MODULE|{klass.iface_file.type_nr}'
+        if bindings.tracing:
+            klass_name = klass.iface_file.fq_cpp_name.as_word
+            sf.write(f'\n    sipTrace(SIP_TRACE_INITS, "init_type_{klass_name}()\\n");\n')
 
-    @staticmethod
-    def get_types_table_prefix():
-        """ Return the prefix in the name of the wrapped types table. """
+        # Generate the code that parses the Python arguments and calls the
+        # correct constructor.
+        for ctor in klass.ctors:
+            if ctor.access_specifier is AccessSpecifier.PRIVATE:
+                continue
 
-        return 'static const sipTypeDef *const sipTypeDefs'
+            sf.write('\n    {\n')
+
+            if ctor.method_code is not None:
+                error_flag = need_error_flag(ctor.method_code)
+                old_error_flag = self.need_deprecated_error_flag(
+                        ctor.method_code)
+            else:
+                error_flag = old_error_flag = False
+
+            self.g_arg_parser(sf, klass, ctor.py_signature, ctor=ctor)
+            self._g_ctor_call(sf, bindings, klass, ctor, error_flag,
+                    old_error_flag)
+
+            sf.write('    }\n')
+
+        sf.write(
+'''
+    return SIP_NULLPTR;
+''')
 
     @classmethod
     def g_types_table(cls, sf, module, needed_enums):
@@ -1718,6 +1864,39 @@ f'''
 
         return s
 
+    def get_class_flags(self, klass, py_debug):
+        """ Return the flags for a class. """
+
+        module = self.spec.module
+        flags = []
+
+        if klass.is_abstract:
+            flags.append('SIP_TYPE_ABSTRACT')
+
+        if klass.subclass_base is not None:
+            flags.append('SIP_TYPE_SCC')
+
+        if klass.handles_none:
+            flags.append('SIP_TYPE_ALLOW_NONE')
+
+        if klass.has_nonlazy_method:
+            flags.append('SIP_TYPE_NONLAZY')
+
+        if module.call_super_init:
+            flags.append('SIP_TYPE_SUPER_INIT')
+
+        if not py_debug and module.use_limited_api:
+            flags.append('SIP_TYPE_LIMITED_API')
+
+        flags.append('SIP_TYPE_NAMESPACE' if klass.iface_file.type is IfaceFileType.NAMESPACE else 'SIP_TYPE_CLASS')
+
+        return '|'.join(flags)
+
+    def get_class_ref_value(self, klass):
+        """ Return the value of a class's reference. """
+
+        return f'SIP_TYPE_ID_GENERATED|SIP_TYPE_ID_CURRENT_MODULE|{klass.iface_file.type_nr}'
+
     def get_enum_class_scope(self, enum):
         """ Return the scope of an unscoped enum as a string. """
 
@@ -1792,6 +1971,12 @@ f'''
         ArgumentType.UTF8_STRING, ArgumentType.USTRING, ArgumentType.SSTRING,
         ArgumentType.STRING)
 
+    @staticmethod
+    def get_types_table_prefix():
+        """ Return the prefix in the name of the wrapped types table. """
+
+        return 'static const sipTypeDef *const sipTypeDefs'
+
     def keep_py_reference(self, arg):
         """ Return True if the argument has a type that requires an extra
         reference to the originating object to be kept.
@@ -1806,6 +1991,15 @@ f'''
         # wchar_t strings/arrays don't leak in ABI v14 and later.  Note that
         # this solution could be adopted for earlier ABIs.
         return self.spec.target_abi >= (14, 0) and arg.type is ArgumentType.WSTRING
+
+    @staticmethod
+    def need_deprecated_error_flag(code):
+        """ Return True if the deprecated error flag is need by some
+        handwritten code.
+        """
+
+        # The flag isn't supported.
+        return False
 
     @staticmethod
     def optional_ptr(is_ptr, name):
@@ -2077,6 +2271,177 @@ f'''
             signature = fmt_signature_as_type_hint(self.spec,
                     ctor.py_signature, need_self=False, exclude_result=True)
             sf.write(py_name + signature)
+
+    def _g_ctor_call(self, sf, bindings, klass, ctor, error_flag,
+            old_error_flag):
+        """ Generate a single constructor call. """
+
+        spec = self.spec
+        klass_name = klass.iface_file.fq_cpp_name.as_word
+        scope_s = self.scoped_class_name(klass)
+
+        sf.write('        {\n')
+
+        if ctor.premethod_code is not None:
+            sf.write('\n')
+            sf.write_code(ctor.premethod_code)
+            sf.write('\n')
+
+        if error_flag:
+            sf.write('            sipErrorState sipError = sipErrorNone;\n\n')
+        elif old_error_flag:
+            sf.write('            int sipIsErr = 0;\n\n')
+
+        if ctor.deprecated is not None:
+            # Note that any temporaries will leak if an exception is raised.
+
+            if self.abi_has_deprecated_message():
+                str_deprecated_message = f'"{ctor.deprecated}"' if ctor.deprecated else 'SIP_NULLPTR'
+                sf.write(f'            if (sipDeprecated({self.cached_name_ref(klass.py_name)}, SIP_NULLPTR, {str_deprecated_message}) < 0)\n')
+            else:
+                sf.write(f'            if (sipDeprecated({self.cached_name_ref(klass.py_name)}, SIP_NULLPTR) < 0)\n')
+
+            sf.write(f'                return SIP_NULLPTR;\n\n')
+
+        # Call any pre-hook.
+        if ctor.prehook is not None:
+            sf.write(f'            sipCallHook("{ctor.prehook}");\n\n')
+
+        if ctor.method_code is not None:
+            sf.write_code(ctor.method_code)
+        elif spec.c_bindings:
+            sf.write(f'            sipCpp = sipMalloc(sizeof ({scope_s}));\n')
+        else:
+            rel_gil = release_gil(ctor.gil_action, bindings)
+
+            if ctor.raises_py_exception:
+                sf.write('            PyErr_Clear();\n\n')
+
+            if rel_gil:
+                sf.write('            Py_BEGIN_ALLOW_THREADS\n')
+
+            self.g_try(sf, bindings, ctor.throw_args)
+
+            klass_type = 'sip' + klass_name if klass.has_shadow else scope_s
+            sf.write(f'            sipCpp = new {klass_type}(')
+
+            if ctor.is_cast:
+                # We have to fiddle the type to generate the correct code.
+                arg0 = ctor.py_signature.args[0]
+                saved_definition = arg0.definition
+                arg0.definition = klass
+                cast_call = fmt_argument_as_cpp_type(spec, arg0)
+                arg0.definition = saved_definition
+
+                sf.write(f'a0->operator {cast_call}()')
+            else:
+                self.g_call_args(sf, ctor.cpp_signature, ctor.py_signature)
+
+            sf.write(');\n')
+
+            self.g_catch(sf, bindings, ctor.py_signature, ctor.throw_args,
+                    rel_gil)
+
+            if rel_gil:
+                sf.write('            Py_END_ALLOW_THREADS\n')
+
+            # This is a bit of a hack to say we want the result transferred.
+            # We don't simply call sipTransferTo() because the wrapper object
+            # hasn't been fully initialised yet.
+            if ctor.transfer is Transfer.TRANSFER:
+                sf.write('\n            *sipOwner = Py_None;\n')
+
+        # Handle any /KeepReference/ arguments.
+        for arg_nr, arg in enumerate(ctor.py_signature.args):
+            if not arg.is_in:
+                continue
+
+            if arg.key is not None:
+                arg_name = fmt_argument_as_name(spec, arg, arg_nr)
+                suffix = 'Keep' if (arg.type in (ArgumentType.ASCII_STRING, ArgumentType.LATIN1_STRING, ArgumentType.UTF8_STRING) and len(arg.derefs) == 1) or not arg.get_wrapper else 'Wrapper'
+
+                sf.write(f'\n            sipKeepReference((PyObject *)sipSelf, {arg.key}, {arg_name}{suffix});\n')
+
+        self.g_gc_ellipsis(sf, ctor.py_signature)
+        self.g_delete_temporaries(sf, ctor.py_signature)
+
+        sf.write('\n')
+
+        if ctor.raises_py_exception:
+            sf.write(
+'''            if (PyErr_Occurred())
+            {
+                delete sipCpp;
+                return SIP_NULLPTR;
+            }
+
+''')
+
+        if error_flag:
+            sf.write('            if (sipError == sipErrorNone)\n')
+
+            if klass.has_shadow or ctor.posthook is not None:
+                sf.write('            {\n')
+
+            if klass.has_shadow:
+                sf.write('                sipCpp->sipPySelf = sipSelf;\n\n')
+
+            # Call any post-hook.
+            if ctor.posthook is not None:
+                sf.write(f'            sipCallHook("{ctor.posthook}");\n\n')
+
+            sf.write('                return sipCpp;\n')
+
+            if klass.has_shadow or ctor.posthook is not None:
+                sf.write('            }\n')
+
+            sf.write(
+'''
+            if (sipUnused)
+            {
+                Py_XDECREF(*sipUnused);
+            }
+
+            sipAddException(sipError, sipParseErr);
+
+            if (sipError == sipErrorFail)
+                return SIP_NULLPTR;
+''')
+        else:
+            if old_error_flag:
+                sf.write(
+'''            if (sipIsErr)
+            {
+                if (sipUnused)
+                {
+                    Py_XDECREF(*sipUnused);
+                }
+
+                sipAddException(sipErrorFail, sipParseErr);
+                return SIP_NULLPTR;
+            }
+
+''')
+
+            if klass.has_shadow:
+                sf.write('            sipCpp->sipPySelf = sipSelf;\n\n')
+
+            # Call any post-hook.
+            if ctor.posthook is not None:
+                sf.write(f'            sipCallHook("{ctor.posthook}");\n\n')
+
+            sf.write('            return sipCpp;\n')
+
+        sf.write('        }\n')
+
+    def _g_delete_outs(self, sf, py_signature):
+        """ Generate the code to delete any instances created to hold /Out/
+        arguments.
+        """
+
+        for arg_nr, arg in enumerate(py_signature.args):
+            if arg.type in (ArgumentType.CLASS, ArgumentType.MAPPED) and _need_new_instance(arg):
+                sf.write(f'                delete {fmt_argument_as_name(self.spec, arg, arg_nr)};\n')
 
     def _g_method_auto_docstring(self, sf, bindings, overload, is_method):
         """ Generate the automatic docstring for a function/method. """
@@ -2579,6 +2944,14 @@ def _has_class_docstring(bindings, klass):
         return False
 
     return auto_docstring
+
+
+def _handling_exceptions(bindings, throw_args):
+    """ Return True if exceptions from a callable are being handled. """
+
+    # Handle any exceptions if there was no throw specifier, or a non-empty
+    # throw specifier.
+    return bindings.exceptions and (throw_args is None or throw_args.arguments is not None)
 
 
 def _has_optional_args(overload):

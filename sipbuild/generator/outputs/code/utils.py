@@ -3,8 +3,8 @@
 # Copyright (c) 2025 Phil Thompson <phil@riverbankcomputing.com>
 
 
-from ...specification import (AccessSpecifier, ArgumentType,
-        PyQtMethodSpecifier, WrappedClass)
+from ...specification import (AccessSpecifier, ArgumentType, CodeBlock,
+        GILAction, PyQtMethodSpecifier, WrappedClass)
 
 
 # TODO Review these for ones that are only needed by one backend.
@@ -97,10 +97,39 @@ def has_method_docstring(bindings, member, overloads):
     return auto_docstring
 
 
+def is_used_in_code(code, s):
+    """ Return True if a string is used in code. """
+
+    # The code may be a list of code blocks or an optional code block.
+    if code is None:
+        return False
+
+    if isinstance(code, CodeBlock):
+        code = [code]
+
+    for cb in code:
+        if s in cb.text:
+            return True
+
+    return False
+
+
+def need_error_flag(code):
+    """ Return True if handwritten code uses the error flag. """
+
+    return is_used_in_code(code, 'sipError')
+
+
 def py_scope(scope):
     """ Return the Python scope by accounting for hidden C++ namespaces. """
 
     return None if isinstance(scope, WrappedClass) and scope.is_hidden_namespace else scope
+
+
+def release_gil(gil_action, bindings):
+    """ Return True if the GIL is to be released. """
+
+    return bindings.release_gil if gil_action is GILAction.DEFAULT else gil_action is GILAction.RELEASE
 
 
 def skip_overload(overload, member, klass, scope, want_local=True):

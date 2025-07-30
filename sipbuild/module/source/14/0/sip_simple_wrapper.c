@@ -273,7 +273,7 @@ static int SimpleWrapper_init(PyObject *self, PyObject *args, PyObject *kwds)
         from_cpp = FALSE;
     }
 
-    /* Handler any owner if the type supports the concept. */
+    /* Handle any owner if the type supports the concept. */
     if (PyObject_TypeCheck(self, sms->wrapper_type))
     {
         /*

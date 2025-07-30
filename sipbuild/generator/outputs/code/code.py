@@ -15,9 +15,9 @@ from ...python_slots import (is_hash_return_slot, is_inplace_number_slot,
         is_ssize_return_slot, is_void_return_slot, is_zero_arg_slot)
 from ...scoped_name import STRIP_GLOBAL, STRIP_NONE
 from ...specification import (AccessSpecifier, Argument, ArgumentType,
-        ArrayArgument, CodeBlock, DocstringSignature, GILAction, IfaceFileType,
-        KwArgs, MappedType, PyQtMethodSpecifier, PySlot, QualifierType,
-        Transfer, ValueType, WrappedClass, WrappedEnum)
+        ArrayArgument, DocstringSignature, IfaceFileType, KwArgs, MappedType,
+        PyQtMethodSpecifier, PySlot, QualifierType, Transfer, ValueType,
+        WrappedClass, WrappedEnum)
 from ...utils import find_method, py_as_int, same_signature
 
 from ..formatters import (fmt_argument_as_cpp_type, fmt_argument_as_name,
@@ -29,8 +29,9 @@ from ..formatters import (fmt_argument_as_cpp_type, fmt_argument_as_name,
 from .backends import Backend
 from .utils import (arg_is_small_enum, callable_overloads,
         get_convert_to_type_code, get_encoded_type, get_normalised_cached_name,
-        get_slot_name, get_user_state_suffix, has_method_docstring, py_scope,
-        skip_overload, type_needs_user_state)
+        get_slot_name, get_user_state_suffix, has_method_docstring,
+        is_used_in_code, need_error_flag, py_scope, release_gil, skip_overload,
+        type_needs_user_state)
 
 
 def output_code(spec, bindings, project, buildable):
@@ -950,7 +951,7 @@ def _subclass_convertors(sf, spec, module):
 f'extern "C" {{static const sipTypeDef *sipSubClass_{klass_name}(void **);}}\n')
 
         # Allow the deprecated use of sipClass rather than sipType.
-        if _is_used_in_code(klass.convert_to_subclass_code, 'sipClass'):
+        if is_used_in_code(klass.convert_to_subclass_code, 'sipClass'):
             decl = 'sipWrapperType *sipClass'
             result = '(sipClass ? sipClass->wt_td : 0)'
         else:
@@ -1234,7 +1235,7 @@ f'''    {mapped_type_type} *sipPtr = sipMalloc(sizeof ({mapped_type_type}));
 
         sf.write('\n\n/* Call the mapped type\'s destructor. */\n')
 
-        need_state = _is_used_in_code(mapped_type.release_code, 'sipState')
+        need_state = is_used_in_code(mapped_type.release_code, 'sipState')
 
         if not spec.c_bindings:
             arg_3 = ', void *' if spec.target_abi >= (13, 0) else ''
@@ -1772,7 +1773,7 @@ f'''    if (targetType == {sc_type_ref})
     if klass.iface_file.type is not IfaceFileType.NAMESPACE and not spec.c_bindings:
         # Generate the release function without compiler warnings.
         need_state = False
-        need_ptr = need_cast_ptr = _is_used_in_code(klass.dealloc_code,
+        need_ptr = need_cast_ptr = is_used_in_code(klass.dealloc_code,
                 'sipCpp')
 
         public_dtor = klass.dtor is AccessSpecifier.PUBLIC
@@ -1803,13 +1804,13 @@ f'''    if (targetType == {sc_type_ref})
             sf.write('\n')
 
         if klass.can_create or public_dtor:
-            release_gil = _release_gil(klass.dtor_gil_action, bindings)
+            rel_gil = release_gil(klass.dtor_gil_action, bindings)
 
             # If there is an explicit public dtor then assume there is some way
             # to call it which we haven't worked out (because we don't fully
             # understand C++).
 
-            if release_gil:
+            if rel_gil:
                 sf.write('    Py_BEGIN_ALLOW_THREADS\n\n')
 
             if (backend.pyqt5_supported() or backend.pyqt6_supported()) and klass.is_qobject and public_dtor:
@@ -1837,7 +1838,7 @@ f'''    else
 f'''    delete reinterpret_cast<{backend.scoped_class_name(klass)} *>(sipCppV);
 ''')
 
-            if release_gil:
+            if rel_gil:
                 sf.write('\n    Py_END_ALLOW_THREADS\n')
 
         sf.write('}\n')
@@ -1892,7 +1893,7 @@ f'''static int clear_{as_word}(void *sipCppV)
     if klass.bi_get_buffer_code is not None:
         code = klass.bi_get_buffer_code
 
-        need_cpp = _is_used_in_code(code, 'sipCpp')
+        need_cpp = is_used_in_code(code, 'sipCpp')
         sip_self = _arg_name(spec, 'sipSelf', code)
         sip_cpp_v = 'sipCppV' if spec.c_bindings or need_cpp else ''
 
@@ -1923,7 +1924,7 @@ f'''static int clear_{as_word}(void *sipCppV)
     if klass.bi_release_buffer_code is not None:
         code = klass.bi_release_buffer_code
 
-        need_cpp = _is_used_in_code(code, 'sipCpp')
+        need_cpp = is_used_in_code(code, 'sipCpp')
         sip_self = _arg_name(spec, 'sipSelf', code)
         sip_cpp_v = 'sipCppV' if spec.c_bindings or need_cpp else ''
 
@@ -1973,7 +1974,7 @@ f'''static PyObject *pickle_{as_word}(void *sipCppV)
     if klass.finalisation_code is not None:
         code = klass.finalisation_code
 
-        need_cpp = _is_used_in_code(code, 'sipCpp')
+        need_cpp = is_used_in_code(code, 'sipCpp')
         sip_self = _arg_name(spec, 'sipSelf', code)
         sip_cpp_v = 'sipCppV' if spec.c_bindings or need_cpp else ''
         sip_kwds = _arg_name(spec, 'sipKwds', code)
@@ -2810,7 +2811,7 @@ f'''
     if result_is_returned and backend.keep_py_reference(result):
         sf.write(', int')
 
-        if handler.virtual_catcher_code is None or _is_used_in_code(handler.virtual_catcher_code, 'sipResKey'):
+        if handler.virtual_catcher_code is None or is_used_in_code(handler.virtual_catcher_code, 'sipResKey'):
             sf.write(' sipResKey')
 
     for arg_nr, arg in enumerate(handler.cpp_signature.args):
@@ -2889,8 +2890,9 @@ f'''
 ''')
 
     if handler.virtual_catcher_code is not None:
-        error_flag = _need_error_flag(handler.virtual_catcher_code)
-        old_error_flag = _need_old_error_flag(handler.virtual_catcher_code)
+        error_flag = need_error_flag(handler.virtual_catcher_code)
+        old_error_flag = backend.need_deprecated_error_flag(
+                handler.virtual_catcher_code)
 
         if error_flag:
             sf.write('    sipErrorState sipError = sipErrorNone;\n')
@@ -3613,7 +3615,6 @@ def _type_init(backend, sf, bindings, klass):
     """ Generate the initialisation function for the type. """
 
     spec = backend.spec
-    klass_name = klass.iface_file.fq_cpp_name.as_word
 
     # See if we need to name the self and owner arguments so that we can avoid
     # a compiler warning about an unused argument.
@@ -3621,7 +3622,7 @@ def _type_init(backend, sf, bindings, klass):
     need_owner = spec.c_bindings
 
     for ctor in klass.ctors:
-        if _is_used_in_code(ctor.method_code, 'sipSelf'):
+        if is_used_in_code(ctor.method_code, 'sipSelf'):
             need_self = True
 
         if ctor.transfer is Transfer.TRANSFER:
@@ -3642,59 +3643,7 @@ def _type_init(backend, sf, bindings, klass):
 
     sf.write('\n\n')
 
-    if not spec.c_bindings:
-        if spec.target_abi >= (14, 0):
-            sf.write(f'extern "C" {{static void *init_type_{klass_name}(sipSimpleWrapper *, PyObject *const *, Py_ssize_t, PyObject *, PyObject **, PyObject **, PyObject **);}}\n')
-        else:
-            sf.write(f'extern "C" {{static void *init_type_{klass_name}(sipSimpleWrapper *, PyObject *, PyObject *, PyObject **, PyObject **, PyObject **);}}\n')
-
-    sip_self = 'sipSelf' if need_self else ''
-    sip_owner = 'sipOwner' if need_owner else ''
-    sip_cpp_type = 'sip' + klass_name if klass.has_shadow else backend.scoped_class_name(klass)
-
-    if spec.target_abi >= (14, 0):
-        sf.write(
-f'''static void *init_type_{klass_name}(sipSimpleWrapper *sipSelf, PyObject *const *sipArgs, Py_ssize_t sipNrArgs, PyObject *sipKwds, PyObject **sipUnused, PyObject **{sip_owner}, PyObject **sipParseErr)
-{{
-''')
-    else:
-        sf.write(
-f'''static void *init_type_{klass_name}(sipSimpleWrapper *{sip_self}, PyObject *sipArgs, PyObject *sipKwds, PyObject **sipUnused, PyObject **{sip_owner}, PyObject **sipParseErr)
-{{
-''')
-
-    backend.g_slot_support_vars(sf)
-
-    sf.write(f'    {sip_cpp_type} *sipCpp = SIP_NULLPTR;\n')
-
-    if bindings.tracing:
-        sf.write(f'\n    sipTrace(SIP_TRACE_INITS, "init_type_{klass_name}()\\n");\n')
-
-    # Generate the code that parses the Python arguments and calls the correct
-    # constructor.
-    for ctor in klass.ctors:
-        if ctor.access_specifier is AccessSpecifier.PRIVATE:
-            continue
-
-        sf.write('\n    {\n')
-
-        if ctor.method_code is not None:
-            error_flag = _need_error_flag(ctor.method_code)
-            old_error_flag = _need_old_error_flag(ctor.method_code)
-        else:
-            error_flag = old_error_flag = False
-
-        backend.g_arg_parser(sf, klass, ctor.py_signature, ctor=ctor)
-        _constructor_call(backend, sf, bindings, klass, ctor, error_flag,
-                old_error_flag)
-
-        sf.write('    }\n')
-
-    sf.write(
-'''
-    return SIP_NULLPTR;
-}
-''')
+    backend.g_type_init(sf, bindings, klass, need_self, need_owner)
 
 
 def _count_virtual_overloads(spec, klass):
@@ -3703,294 +3652,10 @@ def _count_virtual_overloads(spec, klass):
     return len(list(_unique_class_virtual_overloads(spec, klass)))
 
  
-def _handling_exceptions(bindings, throw_args):
-    """ Return True if exceptions from a callable are being handled. """
-
-    # Handle any exceptions if there was no throw specifier, or a non-empty
-    # throw specifier.
-    return bindings.exceptions and (throw_args is None or throw_args.arguments is not None)
-
-
-def _try(sf, bindings, throw_args):
-    """ Generate the try block for a call. """
-
-    # Generate the block if there was no throw specifier, or a non-empty throw
-    # specifier.
-    if _handling_exceptions(bindings, throw_args):
-        sf.write(
-'''            try
-            {
-''')
-
-
-def _catch(backend, sf, bindings, py_signature, throw_args, release_gil):
-    """ Generate the catch blocks for a call. """
-
-    if _handling_exceptions(bindings, throw_args):
-        spec = backend.spec
-
-        use_handler = backend.abi_has_next_exception_handler()
-
-        sf.write('            }\n')
-
-        if not use_handler:
-            if throw_args is not None:
-                for exception in throw_args.arguments:
-                    _catch_block(backend, sf, exception,
-                            py_signature=py_signature, release_gil=release_gil)
-            elif spec.module.default_exception is not None:
-                _catch_block(backend, sf, spec.module.default_exception,
-                        py_signature=py_signature, release_gil=release_gil)
-
-        sf.write(
-'''            catch (...)
-            {
-''')
-
-        if release_gil:
-            sf.write(
-'''                Py_BLOCK_THREADS
-
-''')
-
-        _delete_outs(backend, sf, py_signature)
-        backend.g_delete_temporaries(sf, py_signature)
-
-        if use_handler:
-            sf.write(
-'''                void *sipExcState = SIP_NULLPTR;
-                sipExceptionHandler sipExcHandler;
-                std::exception_ptr sipExcPtr = std::current_exception();
-
-                while ((sipExcHandler = sipNextExceptionHandler(&sipExcState)) != SIP_NULLPTR)
-                    if (sipExcHandler(sipExcPtr))
-                        return SIP_NULLPTR;
-
-''')
-
-        sf.write(
-'''                sipRaiseUnknownException();
-                return SIP_NULLPTR;
-            }
-''')
-
-
-def _catch_block(backend, sf, exception, py_signature=None, release_gil=False):
-    """ Generate a single catch block. """
-
-    exception_fq_cpp_name = exception.iface_file.fq_cpp_name
-
-    # The global scope is stripped from the exception name to be consistent
-    # with older versions of SIP.
-    exception_cpp_stripped = exception_fq_cpp_name.cpp_stripped(STRIP_GLOBAL)
-
-    sip_exception_ref = 'sipExceptionRef' if exception.class_exception is not None or _is_used_in_code(exception.raise_code, 'sipExceptionRef') else ''
-
-    sf.write(
-f'''            catch ({exception_cpp_stripped} &{sip_exception_ref})
-            {{
-''')
-
-    if release_gil:
-        sf.write(
-'''
-                Py_BLOCK_THREADS
-''')
-
-    if py_signature is not None:
-        _delete_outs(backend, sf, py_signature)
-        backend.g_delete_temporaries(sf, py_signature)
-        result = 'SIP_NULLPTR'
-    else:
-        result = 'true'
-
-    # See if the exception is a wrapped class.
-    if exception.class_exception is not None:
-        exception_cpp = exception_fq_cpp_name.as_cpp
-
-        sf.write(
-f'''                /* Hope that there is a valid copy ctor. */
-                {exception_cpp} *sipExceptionCopy = new {exception_cpp}(sipExceptionRef);
-
-                sipRaiseTypeException({backend.get_type_ref(exception)}, sipExceptionCopy);
-''')
-    else:
-        sf.write_code(exception.raise_code)
-
-    sf.write(
-f'''
-                return {result};
-            }}
-''')
-
-
 def _throw_specifier(bindings, throw_args):
     """ Return a throw specifier. """
 
     return ' noexcept' if bindings.exceptions and throw_args is not None and throw_args.arguments is None else ''
-
-
-def _constructor_call(backend, sf, bindings, klass, ctor, error_flag,
-        old_error_flag):
-    """ Generate a single constructor call. """
-
-    spec = backend.spec
-    klass_name = klass.iface_file.fq_cpp_name.as_word
-    scope_s = backend.scoped_class_name(klass)
-
-    sf.write('        {\n')
-
-    if ctor.premethod_code is not None:
-        sf.write('\n')
-        sf.write_code(ctor.premethod_code)
-        sf.write('\n')
-
-    if error_flag:
-        sf.write('            sipErrorState sipError = sipErrorNone;\n\n')
-    elif old_error_flag:
-        sf.write('            int sipIsErr = 0;\n\n')
-
-    if ctor.deprecated is not None:
-        # Note that any temporaries will leak if an exception is raised.
-
-        if backend.abi_has_deprecated_message():
-            str_deprecated_message = f'"{ctor.deprecated}"' if ctor.deprecated else 'SIP_NULLPTR'
-            sf.write(f'            if (sipDeprecated({backend.cached_name_ref(klass.py_name)}, SIP_NULLPTR, {str_deprecated_message}) < 0)\n')
-        else:
-            sf.write(f'            if (sipDeprecated({backend.cached_name_ref(klass.py_name)}, SIP_NULLPTR) < 0)\n')
-            
-        sf.write(f'                return SIP_NULLPTR;\n\n')
-
-    # Call any pre-hook.
-    if ctor.prehook is not None:
-        sf.write(f'            sipCallHook("{ctor.prehook}");\n\n')
-
-    if ctor.method_code is not None:
-        sf.write_code(ctor.method_code)
-    elif spec.c_bindings:
-        sf.write(f'            sipCpp = sipMalloc(sizeof ({scope_s}));\n')
-    else:
-        release_gil = _release_gil(ctor.gil_action, bindings)
-
-        if ctor.raises_py_exception:
-            sf.write('            PyErr_Clear();\n\n')
-
-        if release_gil:
-            sf.write('            Py_BEGIN_ALLOW_THREADS\n')
-
-        _try(sf, bindings, ctor.throw_args)
-
-        klass_type = 'sip' + klass_name if klass.has_shadow else scope_s
-        sf.write(f'            sipCpp = new {klass_type}(')
-
-        if ctor.is_cast:
-            # We have to fiddle the type to generate the correct code.
-            arg0 = ctor.py_signature.args[0]
-            saved_definition = arg0.definition
-            arg0.definition = klass
-            cast_call = fmt_argument_as_cpp_type(spec, arg0)
-            arg0.definition = saved_definition
-
-            sf.write(f'a0->operator {cast_call}()')
-        else:
-            backend.g_call_args(sf, ctor.cpp_signature, ctor.py_signature)
-
-        sf.write(');\n')
-
-        _catch(backend, sf, bindings, ctor.py_signature, ctor.throw_args,
-                release_gil)
-
-        if release_gil:
-            sf.write('            Py_END_ALLOW_THREADS\n')
-
-        # This is a bit of a hack to say we want the result transferred.  We
-        # don't simply call sipTransferTo() because the wrapper object hasn't
-        # been fully initialised yet.
-        if ctor.transfer is Transfer.TRANSFER:
-            sf.write('\n            *sipOwner = Py_None;\n')
-
-    # Handle any /KeepReference/ arguments.
-    for arg_nr, arg in enumerate(ctor.py_signature.args):
-        if not arg.is_in:
-            continue
-
-        if arg.key is not None:
-            arg_name = fmt_argument_as_name(spec, arg, arg_nr)
-            suffix = 'Keep' if (arg.type in (ArgumentType.ASCII_STRING, ArgumentType.LATIN1_STRING, ArgumentType.UTF8_STRING) and len(arg.derefs) == 1) or not arg.get_wrapper else 'Wrapper'
-
-            sf.write(f'\n            sipKeepReference((PyObject *)sipSelf, {arg.key}, {arg_name}{suffix});\n')
-
-    _gc_ellipsis(sf, ctor.py_signature)
-    backend.g_delete_temporaries(sf, ctor.py_signature)
-
-    sf.write('\n')
-
-    if ctor.raises_py_exception:
-        sf.write(
-'''            if (PyErr_Occurred())
-            {
-                delete sipCpp;
-                return SIP_NULLPTR;
-            }
-
-''')
-
-    if error_flag:
-        sf.write('            if (sipError == sipErrorNone)\n')
-
-        if klass.has_shadow or ctor.posthook is not None:
-            sf.write('            {\n')
-
-        if klass.has_shadow:
-            sf.write('                sipCpp->sipPySelf = sipSelf;\n\n')
-
-        # Call any post-hook.
-        if ctor.posthook is not None:
-            sf.write(f'            sipCallHook("{ctor.posthook}");\n\n')
-
-        sf.write('                return sipCpp;\n')
-
-        if klass.has_shadow or ctor.posthook is not None:
-            sf.write('            }\n')
-
-        sf.write(
-'''
-            if (sipUnused)
-            {
-                Py_XDECREF(*sipUnused);
-            }
-
-            sipAddException(sipError, sipParseErr);
-
-            if (sipError == sipErrorFail)
-                return SIP_NULLPTR;
-''')
-    else:
-        if old_error_flag:
-            sf.write(
-'''            if (sipIsErr)
-            {
-                if (sipUnused)
-                {
-                    Py_XDECREF(*sipUnused);
-                }
-
-                sipAddException(sipErrorFail, sipParseErr);
-                return SIP_NULLPTR;
-            }
-
-''')
-
-        if klass.has_shadow:
-            sf.write('            sipCpp->sipPySelf = sipSelf;\n\n')
-
-        # Call any post-hook.
-        if ctor.posthook is not None:
-            sf.write(f'            sipCallHook("{ctor.posthook}");\n\n')
-
-        sf.write('            return sipCpp;\n')
-
-    sf.write('        }\n')
 
 
 def _member_function(backend, sf, bindings, klass, member, original_klass):
@@ -4020,7 +3685,7 @@ def _member_function(backend, sf, bindings, klass, member, original_klass):
 
                     if overload.is_abstract:
                         need_orig_self = True
-                    elif overload.is_virtual or overload.is_virtual_reimplementation or _is_used_in_code(overload.method_code, 'sipSelfWasArg'):
+                    elif overload.is_virtual or overload.is_virtual_reimplementation or is_used_in_code(overload.method_code, 'sipSelfWasArg'):
                         need_selfarg = True
 
     # Handle the trivial case.
@@ -4658,11 +4323,11 @@ def _function_call(backend, sf, bindings, scope, overload, dereferenced,
 
     if overload.method_code is not None:
         # See if the handwritten code seems to be using the error flag.
-        if _need_error_flag(overload.method_code):
+        if need_error_flag(overload.method_code):
             sf.write('            sipErrorState sipError = sipErrorNone;\n')
             error_flag = True
             separating_newline = True
-        elif _need_old_error_flag(overload.method_code):
+        elif backend.need_deprecated_error_flag(overload.method_code):
             sf.write('            int sipIsErr = 0;\n')
             old_error_flag = True
             separating_newline = True
@@ -4701,7 +4366,7 @@ f'''            if (!sipOrigSelf)
     if overload.method_code is not None:
         sf.write_code(overload.method_code)
     else:
-        release_gil = _release_gil(overload.gil_action, bindings)
+        rel_gil = release_gil(overload.gil_action, bindings)
         needs_closing_paren = False
 
         if is_new_instance and spec.c_bindings:
@@ -4710,7 +4375,7 @@ f'''            if ((sipRes = ({result_cpp_type} *)sipMalloc(sizeof ({result_cpp
         {{
 ''')
 
-            _gc_ellipsis(sf, overload.py_signature)
+            backend.g_gc_ellipsis(sf, overload.py_signature)
 
             sf.write(
 '''                return SIP_NULLPTR;
@@ -4724,10 +4389,10 @@ f'''            if ((sipRes = ({result_cpp_type} *)sipMalloc(sizeof ({result_cpp
         if isinstance(scope, WrappedClass) and scope.len_cpp_name is not None:
             _sequence_support(sf, spec, scope, overload)
 
-        if release_gil:
+        if rel_gil:
             sf.write('            Py_BEGIN_ALLOW_THREADS\n')
 
-        _try(sf, bindings, overload.throw_args)
+        backend.g_try(sf, bindings, overload.throw_args)
 
         sf.write('            ')
 
@@ -4764,10 +4429,10 @@ f'''            if ((sipRes = ({result_cpp_type} *)sipMalloc(sizeof ({result_cpp
 
         sf.write(';\n')
 
-        _catch(backend, sf, bindings, overload.py_signature,
-                overload.throw_args, release_gil)
+        backend.g_catch(sf, bindings, overload.py_signature,
+                overload.throw_args, rel_gil)
 
-        if release_gil:
+        if rel_gil:
             sf.write('            Py_END_ALLOW_THREADS\n')
 
     for arg_nr, arg in enumerate(overload.py_signature.args):
@@ -4795,7 +4460,7 @@ f'''            if ((sipRes = ({result_cpp_type} *)sipMalloc(sizeof ({result_cpp
     if overload.transfer is Transfer.TRANSFER_THIS:
         sf.write('\n            sipTransferTo(sipSelf, SIP_NULLPTR);\n')
 
-    _gc_ellipsis(sf, overload.py_signature)
+    backend.g_gc_ellipsis(sf, overload.py_signature)
 
     if delete_temporaries and not is_zero_arg_slot(py_slot):
         backend.g_delete_temporaries(sf, overload.py_signature)
@@ -5159,37 +4824,6 @@ def _get_number_slot_call(spec, overload, operator):
     return f'({arg0} {operator} {arg1})'
 
 
-def _gc_ellipsis(sf, signature):
-    """ Generate the code to garbage collect any ellipsis argument. """
-
-    last = len(signature.args) - 1
-
-    if last >= 0 and signature.args[last].type is ArgumentType.ELLIPSIS:
-        sf.write(f'\n            Py_DECREF(a{last});\n')
-
-
-def _delete_outs(backend, sf, py_signature):
-    """ Generate the code to delete any instances created to hold /Out/
-    arguments.
-    """
-
-    for arg_nr, arg in enumerate(py_signature.args):
-        if arg.type in (ArgumentType.CLASS, ArgumentType.MAPPED) and _need_new_instance(arg):
-            sf.write(f'                delete {fmt_argument_as_name(backend.spec, arg, arg_nr)};\n')
-
-
-def _need_error_flag(code):
-    """ Return True if handwritten code uses the error flag. """
-
-    return _is_used_in_code(code, 'sipError')
-
-
-def _need_old_error_flag(code):
-    """ Return True if handwritten code uses the deprecated error flag. """
-
-    return _is_used_in_code(code, 'sipIsErr')
-
-
 def _need_new_instance(arg):
     """ Return True if the argument type means an instance needs to be created
     on the heap to pass back to Python.
@@ -5303,7 +4937,7 @@ def _arg_name(spec, name, code):
         return name
 
     # Use the name if it is used in the handwritten code.
-    if _is_used_in_code(code, name):
+    if is_used_in_code(code, name):
         return name
 
     # Don't use the name.
@@ -5319,24 +4953,7 @@ def _use_in_code(code, s, spec=None):
     if spec is not None and spec.c_bindings:
         return s
 
-    return s if _is_used_in_code(code, s) else ''
-
-
-def _is_used_in_code(code, s):
-    """ Return True if a string is used in code. """
-
-    # The code may be a list of code blocks or an optional code block.
-    if code is None:
-        return False
-
-    if isinstance(code, CodeBlock):
-        code = [code]
-
-    for cb in code:
-        if s in cb.text:
-            return True
-
-    return False
+    return s if is_used_in_code(code, s) else ''
 
 
 def _class_from_void(backend, klass):
@@ -5444,7 +5061,7 @@ bool sipExceptionHandler_{spec.module.py_name}(std::exception_ptr sipExcPtr)
 
                 need_decl = False
 
-            _catch_block(backend, sf, exception)
+            backend.g_catch_block(sf, exception)
 
     if not need_decl:
         sf.write(
@@ -5621,12 +5238,6 @@ def _overload_cpp_name(overload):
     py_slot = overload.common.py_slot
 
     return overload.cpp_name if py_slot is None else _SLOT_NAME_MAP[py_slot]
-
-
-def _release_gil(gil_action, bindings):
-    """ Return True if the GIL is to be released. """
-
-    return bindings.release_gil if gil_action is GILAction.DEFAULT else gil_action is GILAction.RELEASE
 
 
 class SourceFile:
