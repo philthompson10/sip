@@ -53,6 +53,9 @@ struct _sipSimpleWrapper {
     /* The instance dictionary. */
     PyObject *dict;
 
+    /* The argument-dependent type initialisation function. */
+    vectorcallfunc instance_init;
+
     /* The main instance if this is a mixin. */
     PyObject *mixin_main;
 

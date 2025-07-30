@@ -50,10 +50,6 @@ typedef struct _sipSipModuleState {
     const sipTypeDef *current_enum_backdoor;
 #endif
 
-    /* The type definition used in creating the current type. */
-    // TODO Try and get rid of this.
-    const sipTypeDef *current_type_def_backdoor;
-
     /* The empty tuple. */
     PyObject *empty_tuple;
 

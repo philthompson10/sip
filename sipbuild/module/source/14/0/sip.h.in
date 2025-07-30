@@ -310,8 +310,9 @@ typedef uint32_t sipTypeID;
 /*
  * Some convenient function pointers.
  */
-typedef void *(*sipInitFunc)(sipSimpleWrapper *, PyObject *const *, Py_ssize_t,
-        PyObject *, PyObject **, PyObject **, PyObject **);
+typedef void *(*sipInstanceInitFunc)(PyObject *, sipSimpleWrapper *,
+        PyObject *const *, Py_ssize_t, PyObject *, PyObject **, PyObject **,
+        PyObject **);
 typedef int (*sipFinalFunc)(PyObject *, void *, PyObject *, PyObject **);
 typedef void *(*sipAccessFunc)(sipSimpleWrapper *, AccessFuncOp);
 typedef int (*sipTraverseFunc)(void *, visitproc, void *);
@@ -421,7 +422,7 @@ typedef struct _sipInstancesDef {
  */
 typedef struct _sipInitExtenderDef {
     /* The extender function. */
-    sipInitFunc ie_extender;
+    sipInstanceInitFunc ie_extender;
 
     /* The class being extended. */
     sipTypeID ie_class;
@@ -801,8 +802,8 @@ typedef struct _sipClassTypeDef {
     /* The table of Python slots. */
     const sipPySlotDef *ctd_pyslots;
 
-    /* The initialisation function. */
-    sipInitFunc ctd_init;
+    /* The instance initialisation function. */
+    sipInstanceInitFunc ctd_init;
 
     /* The traverse function. */
     sipTraverseFunc ctd_traverse;

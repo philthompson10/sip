@@ -278,7 +278,8 @@ static int compare_typedef_name(const void *key, const void *el);
 static PyTypeObject *create_class_type(sipWrappedModuleState *wms,
         const sipClassTypeDef *ctd);
 static PyTypeObject *create_container_type(sipWrappedModuleState *wms,
-        const sipContainerDef *cod, PyObject *bases, PyTypeObject *metatype);
+        const sipContainerDef *cod, const sipTypeDef *td, PyObject *bases,
+        PyTypeObject *metatype);
 static PyTypeObject *find_registered_py_type(sipSipModuleState *sms,
         const char *name);
 static void *find_slot(PyObject *self, sipPySlotType st);
@@ -831,7 +832,8 @@ PyObject *sip_get_scope_dict(sipSipModuleState *sms, const sipTypeDef *td,
  * Create a container type and return a strong reference to it.
  */
 static PyTypeObject *create_container_type(sipWrappedModuleState *wms,
-        const sipContainerDef *cod, PyObject *bases, PyTypeObject *metatype)
+        const sipContainerDef *cod, const sipTypeDef *td, PyObject *bases,
+        PyTypeObject *metatype)
 {
     /* Configure the type. */
     static PyType_Slot no_slots[] = {{0, NULL}};
@@ -842,6 +844,8 @@ static PyTypeObject *create_container_type(sipWrappedModuleState *wms,
     PyType_Spec spec = {
         .name = cod->cod_name,
         .basicsize = 0,
+        // TODO Add flags to support namespaces, abstract classes etc. so that
+        // legacy runtime checks can be removed.
         .flags = Py_TPFLAGS_DEFAULT|Py_TPFLAGS_BASETYPE,
         .slots = slots,
     };
@@ -855,6 +859,10 @@ static PyTypeObject *create_container_type(sipWrappedModuleState *wms,
 
     if (py_type == NULL)
         goto ret_error;
+
+    /* Configure the type. */
+    // TODO Are we going to keep wt_type_id?
+    ((sipWrapperType *)py_type)->wt_td = td;
 
     if (PyType_Ready((PyTypeObject *)py_type) < 0)
         goto rel_type;
@@ -1015,7 +1023,7 @@ This should go.
 #endif
 
     PyTypeObject *py_type = create_container_type(wms, &ctd->ctd_container,
-            bases, metatype);
+            (const sipTypeDef *)ctd, bases, metatype);
 
     Py_DECREF(bases);
 
@@ -2841,9 +2849,10 @@ void sip_forget_object(sipSimpleWrapper *sw)
 {
     sipSipModuleState *sms = sip_get_sip_module_state_from_wrapper_type(
             Py_TYPE((PyObject *)sw));
-    sipEventHandler *eh;
+    //sipEventHandler *eh;
     const sipClassTypeDef *ctd = (const sipClassTypeDef *)((sipWrapperType *)Py_TYPE(sw))->wt_td;
 
+#if 0
     /* Invoke any event handlers. */
     for (eh = sms->event_handlers[sipEventCollectingWrapper]; eh != NULL; eh = eh->next)
     {
@@ -2854,6 +2863,7 @@ void sip_forget_object(sipSimpleWrapper *sw)
             handler((const sipTypeDef *)ctd, sw);
         }
     }
+#endif
 
     PyObject_GC_UnTrack((PyObject *)sw);
 

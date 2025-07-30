@@ -39,12 +39,6 @@ static PyType_Spec Wrapper_TypeSpec = {
     .basicsize = sizeof (sipWrapper),
     .flags = Py_TPFLAGS_DEFAULT |
              Py_TPFLAGS_BASETYPE |
-#if defined(Py_TPFLAGS_DISALLOW_INSTANTIATION)
-             Py_TPFLAGS_DISALLOW_INSTANTIATION |
-#endif
-#if defined(Py_TPFLAGS_IMMUTABLETYPE)
-             Py_TPFLAGS_IMMUTABLETYPE |
-#endif
              Py_TPFLAGS_HAVE_GC,
     .slots = Wrapper_slots,
 };

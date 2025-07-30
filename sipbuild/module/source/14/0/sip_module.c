@@ -147,7 +147,6 @@ static sipWrappedModuleInitFunc bootstrap(int abi_major)
  */
 int sip_sip_module_init(sipSipModuleState *sms, PyObject *mod)
 {
-    sms->current_type_def_backdoor = NULL;
     sms->module_list = NULL;
     sms->registered_py_types = NULL;
     sms->symbol_list = NULL;
@@ -360,19 +359,9 @@ sipSipModuleState *sip_get_sip_module_state_from_any_type(PyTypeObject *type)
 
 
 /*
- * Return the state for the sip module from a wrapper type (or a type known to
- * be associated with the sip module).
+ * Return the state for the sip module from a wrapper type.
  */
-// TODO Review the need for this.
 sipSipModuleState *sip_get_sip_module_state_from_wrapper_type(PyTypeObject *wt)
 {
-#if 0
-    // TODO module_def isn't available with an embedded sip module.
-    PyObject *mod = PyType_GetModuleByDef(wt, &module_def);
-    assert(mod != NULL);
-
-    return (sipSipModuleState *)PyModule_GetState(mod);
-#else
-    return NULL;
-#endif
+    return ((sipWrappedModuleState *)PyType_GetModuleState(wt))->sip_module_state;
 }

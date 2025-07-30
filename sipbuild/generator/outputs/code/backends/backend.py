@@ -1695,6 +1695,9 @@ static const sipStaticVariableDef sipStaticVariablesTable{suffix}[] = {{
             fields.append(
                     '.ctd_supertype = ' + self.cached_name_ref(klass.supertype))
 
+        if klass.can_create:
+            fields.append('.ctd_init = init_type_' + klass_name)
+
         fields = ',\n    '.join(fields)
 
         sf.write(
@@ -1712,16 +1715,19 @@ sipClassTypeDef sipTypeDef_{module.py_name}_{klass_name} = {{
         klass_name = klass.iface_file.fq_cpp_name.as_word
 
         if not spec.c_bindings:
-            sf.write(f'extern "C" {{static void *init_type_{klass_name}(sipSimpleWrapper *, PyObject *const *, Py_ssize_t, PyObject *, PyObject **, PyObject **, PyObject **);}}\n')
+            sf.write(f'extern "C" {{static void *init_type_{klass_name}(PyObject *, sipSimpleWrapper *, PyObject *const *, Py_ssize_t, PyObject *, PyObject **, PyObject **, PyObject **);}}\n')
 
         sip_owner = 'sipOwner' if need_owner else ''
 
         sf.write(
-f'''static void *init_type_{klass_name}(sipSimpleWrapper *sipSelf, PyObject *const *sipArgs, Py_ssize_t sipNrArgs, PyObject *sipKwds, PyObject **sipUnused, PyObject **{sip_owner}, PyObject **sipParseErr)
+f'''static void *init_type_{klass_name}(PyObject *sipModule, sipSimpleWrapper *sipSelf, PyObject *const *sipArgs, Py_ssize_t sipNrArgs, PyObject *sipKwds, PyObject **sipUnused, PyObject **{sip_owner}, PyObject **sipParseErr)
 {{
 ''')
 
-        self.g_slot_support_vars(sf)
+        # TODO We are passed the module.  Can the same approach be taken with
+        # other slots?
+        #self.g_slot_support_vars(sf)
+        sf.write('    const sipAPIDef *sipAPI = sipGetAPI(sipModule);\n\n')
 
         self.g_type_init_body(sf, bindings, klass)
 
