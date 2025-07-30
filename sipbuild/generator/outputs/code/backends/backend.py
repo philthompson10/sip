@@ -12,8 +12,8 @@ from ....specification import (AccessSpecifier, ArgumentType, ArrayArgument,
         WrappedEnum)
 
 from ...formatters import (fmt_argument_as_cpp_type, fmt_argument_as_name,
-        fmt_class_as_scoped_name, fmt_signature_as_type_hint,
-        fmt_value_list_as_cpp_expression)
+        fmt_class_as_scoped_name, fmt_scoped_py_name,
+        fmt_signature_as_type_hint, fmt_value_list_as_cpp_expression)
 
 from ..utils import (arg_is_small_enum, callable_overloads,
         get_convert_to_type_code, get_normalised_cached_name,
@@ -1676,6 +1676,9 @@ static const sipStaticVariableDef sipStaticVariablesTable{suffix}[] = {{
         module = spec.module
         klass_name = klass.iface_file.fq_cpp_name.as_word
 
+        # Generate the docstring.
+        docstring_ref = self.g_class_docstring(sf, bindings, klass)
+
         fields = []
 
         fields.append(
@@ -1683,9 +1686,39 @@ static const sipStaticVariableDef sipStaticVariablesTable{suffix}[] = {{
         fields.append(
                 '.ctd_base.td_cname = ' + self.cached_name_ref(klass.iface_file.cpp_name))
 
+        if self.pyqt5_supported() or self.pyqt6_supported():
+            if self.g_pyqt_class_plugin(sf, bindings, klass):
+                fields.append(
+                        '.ctd_base.td_plugin_data = &plugin_' + klass_name)
+
         if klass.real_class is None:
             fields.append(
                     f'.ctd_container.cod_name = "{klass.iface_file.module.fq_py_name.name}.{klass.py_name.name}"')
+
+        # TODO
+        #if klass.real_class is not None:
+        #    cod_scope = type id of the real class
+        #elif py_scope(klass.scope) is not None:
+        #    cod_scope = type id of the class scope
+
+        # TODO cod_methods (lazy methods so remove?) if not NULL
+
+        # TODO
+        #if self.custom_enums_supported() and nrenummembers > 0:
+        #    cod_nrenummembers
+        #    cod_enummembers
+
+        # TODO
+        #if nrvariables > 0:
+        #    cod_nrvariables
+        #    cod_variables
+
+        # TODO
+        #if nr_static_variables > 0:
+        #    nr_static_variables
+        #    static_variables
+
+        fields.append('.ctd_docstring = ' + docstring_ref)
 
         if klass.metatype is not None:
             fields.append(
@@ -1695,8 +1728,65 @@ static const sipStaticVariableDef sipStaticVariablesTable{suffix}[] = {{
             fields.append(
                     '.ctd_supertype = ' + self.cached_name_ref(klass.supertype))
 
+        # TODO
+        #if len(klass.superclasses) != 0:
+        #    ctd_supers
+
+        # TODO
+        # ctd_pyslots if there are any (remove?)
+
         if klass.can_create:
             fields.append('.ctd_init = init_type_' + klass_name)
+            fields.append(
+                    f'.ctd_sizeof = sizeof ({self.scoped_class_name(klass)})')
+
+        if klass.gc_traverse_code is not None:
+            fields.append('.ctd_traverse = traverse_' + klass_name)
+
+        if klass.gc_clear_code is not None:
+            fields.append('.ctd_clear = clear_' + klass_name)
+
+        if klass.bi_get_buffer_code is not None:
+            fields.append('.ctd_getbuffer = getbuffer_' + klass_name)
+
+        if klass.bi_release_buffer_code is not None:
+            fields.append('.ctd_releasebuffer = releasebuffer_' + klass_name)
+
+        if self.need_dealloc(bindings, klass):
+            fields.append('.ctd_dealloc = dealloc_' + klass_name)
+
+        if spec.c_bindings or klass.needs_copy_helper:
+            fields.append('.ctd_assign = assign_' + klass_name)
+
+        if spec.c_bindings or klass.needs_array_helper:
+            fields.append('.ctd_array = array_' + klass_name)
+
+        if spec.c_bindings or klass.needs_copy_helper:
+            fields.append('.ctd_copy = copy_' + klass_name)
+
+        if not spec.c_bindings and klass.iface_file.type is not IfaceFileType.NAMESPACE:
+            fields.append('.ctd_release = release_' + klass_name)
+
+        if len(klass.superclasses) != 0:
+            fields.append('.ctd_cast = cast_' + klass_name)
+
+        if klass.convert_to_type_code is not None and klass.iface_file.type is not IfaceFileType.NAMESPACE:
+            fields.append('.ctd_cto = convertTo_' + klass_name)
+
+        if klass.convert_from_type_code is not None and klass.iface_file.type is not IfaceFileType.NAMESPACE:
+            fields.append('.ctd_cfrom = convertFrom_' + klass_name)
+
+        if klass.pickle_code is not None:
+            fields.append('.ctd_pickle = pickle_' + klass_name)
+
+        if klass.finalisation_code is not None:
+            fields.append('.ctd_final = final_' + klass_name)
+
+        if klass.mixin:
+            fields.append('.ctd_mixin = mixin_' + klass_name)
+
+        if spec.c_bindings or klass.needs_array_helper:
+            fields.append('.ctd_array_delete = array_delete_' + klass_name)
 
         fields = ',\n    '.join(fields)
 
@@ -1997,6 +2087,31 @@ f'''
         # wchar_t strings/arrays don't leak in ABI v14 and later.  Note that
         # this solution could be adopted for earlier ABIs.
         return self.spec.target_abi >= (14, 0) and arg.type is ArgumentType.WSTRING
+
+    def need_dealloc(self, bindings, klass):
+        """ Return True if a dealloc function is needed for a class. """
+
+        if klass.iface_file.type is IfaceFileType.NAMESPACE:
+            return False
+
+        # Each of these conditions cause some code to be generated.
+
+        if bindings.tracing:
+            return True
+
+        if self.spec.c_bindings:
+            return True
+
+        if len(klass.dealloc_code) != 0:
+            return True
+
+        if klass.dtor is AccessSpecifier.PUBLIC:
+            return True
+
+        if klass.has_shadow:
+            return True
+
+        return False
 
     @staticmethod
     def need_deprecated_error_flag(code):

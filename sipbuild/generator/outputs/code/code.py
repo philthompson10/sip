@@ -2087,7 +2087,7 @@ f'''    return new {scope_s}(reinterpret_cast<const {scope_s} *>(sipSrc)[sipSrcI
         sf.write('}\n')
 
     # The dealloc function.
-    if _need_dealloc(spec, bindings, klass):
+    if backend.need_dealloc(bindings, klass):
         sf.write('\n\n')
 
         if not spec.c_bindings:
@@ -4899,32 +4899,6 @@ def _restore_protections(protection_state):
 
     for protected in protection_state:
         protected.is_protected = True
-
-
-def _need_dealloc(spec, bindings, klass):
-    """ Return True if a dealloc function is needed for a class. """
-
-    if klass.iface_file.type is IfaceFileType.NAMESPACE:
-        return False
-
-    # Each of these conditions cause some code to be generated.
-
-    if bindings.tracing:
-        return True
-
-    if spec.c_bindings:
-        return True
-
-    if len(klass.dealloc_code) != 0:
-        return True
-
-    if klass.dtor is AccessSpecifier.PUBLIC:
-        return True
-
-    if klass.has_shadow:
-        return True
-
-    return False
 
 
 def _arg_name(spec, name, code):

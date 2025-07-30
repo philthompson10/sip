@@ -748,7 +748,7 @@ static sipPySlotDef slots_{klass_name}[] = {{
                 _class_object_ref((klass.bi_release_buffer_code is not None),
                         'releasebuffer', klass_name))
         class_fields.append(
-                _class_object_ref(_need_dealloc(spec, bindings, klass),
+                _class_object_ref(self.need_dealloc(bindings, klass),
                         'dealloc', klass_name))
         class_fields.append(
                 _class_object_ref((spec.c_bindings or klass.needs_copy_helper),
