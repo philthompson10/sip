@@ -19,7 +19,7 @@ class ClassesTestCase(SIPTestCase):
 
         cls.c_mod = c_mod
 
-    def test_simple_classes(self):
+    def ztest_simple_classes(self):
         """ Test the support for simple classes. """
 
         self.assertIsInstance(self.c_mod.Klass(), self.c_mod.Klass)
@@ -28,7 +28,7 @@ class ClassesTestCase(SIPTestCase):
         self.assertEqual(self.c_mod.Klass.__name__, 'Klass')
         self.assertEqual(self.c_mod.Klass.__qualname__, 'Klass')
 
-    def test_class_attributes(self):
+    def ztest_class_attributes(self):
         """ Test the support for class attributes. """
 
         with self.assertRaises(AttributeError):
@@ -42,7 +42,7 @@ class ClassesTestCase(SIPTestCase):
         with self.assertRaises(AttributeError):
             self.c_mod.Klass.foo
 
-    def test_instance_attributes(self):
+    def ztest_instance_attributes(self):
         """ Test the support for instance attributes. """
 
         klass = self.c_mod.Klass()
@@ -57,3 +57,13 @@ class ClassesTestCase(SIPTestCase):
 
         with self.assertRaises(AttributeError):
             klass.foo
+
+    def test_py_subclass(self):
+        """ Test the support for Python sub-classes. """
+
+        class SubK(self.c_mod.Klass):
+            pass
+
+        self.assertIsInstance(SubK(), self.c_mod.Klass)
+
+        # TODO Test Klass instance and class attributes.

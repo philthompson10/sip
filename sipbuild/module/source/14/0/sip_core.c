@@ -269,6 +269,7 @@ const sipAPIDef sip_api = {
     sip_api_wrapped_module_clear,
     sip_api_wrapped_module_free,
     sip_api_wrapped_module_traverse,
+    sip_api_simple_wrapper_init,
 };
 
 
@@ -642,7 +643,10 @@ void sip_instance_destroyed(sipWrappedModuleState *wms,
         call_py_dtor(wms, sipSelf);
         PyErr_Restore(xtype, xvalue, xtb);
 
+#if 0
+        // TODO Get base_ctd
         sip_om_remove_object(&sms->object_map, sipSelf);
+#endif
 
         /*
          * This no longer points to anything useful.  Actually it might do as
@@ -836,10 +840,18 @@ static PyTypeObject *create_container_type(sipWrappedModuleState *wms,
         PyTypeObject *metatype)
 {
     /* Configure the type. */
-    static PyType_Slot no_slots[] = {{0, NULL}};
+    // TODO At moment cod_py_slots is only populated for classes.  If it turns
+    // out that other containers don't have slots then move to ctd_py_slots
+    // and pass in as an extra argument.  Also check if other containers have
+    // optional slots - if not then remove the handling of this possibility.
+    const PyType_Slot *slots = cod->cod_py_slots;
 
-    // TODO Get from cod if there are any.  Will there always be at least one?
-    PyType_Slot *slots = no_slots;
+    if (slots == NULL)
+    {
+        static PyType_Slot no_slots[] = {{0, NULL}};
+
+        slots = no_slots;
+    }
 
     PyType_Spec spec = {
         .name = cod->cod_name,
@@ -847,25 +859,21 @@ static PyTypeObject *create_container_type(sipWrappedModuleState *wms,
         // TODO Add flags to support namespaces, abstract classes etc. so that
         // legacy runtime checks can be removed.
         .flags = Py_TPFLAGS_DEFAULT|Py_TPFLAGS_BASETYPE,
-        .slots = slots,
+        .slots = (PyType_Slot *)slots,
     };
 
-#if PY_VERSION_HEX >= 0x030c0000
+    printf("++++++++ calling PyType_FromMetaclass()\n");
     PyObject *py_type = PyType_FromMetaclass(metatype, wms->wrapped_module,
             &spec, bases);
-#else
-    // TODO support for version prior to v3.12.
-#endif
+    printf("++++++++ returned from PyType_FromMetaclass()\n");
 
     if (py_type == NULL)
         goto ret_error;
 
     /* Configure the type. */
     // TODO Are we going to keep wt_type_id?
+    // TODO Can we get rid of wt_td?
     ((sipWrapperType *)py_type)->wt_td = td;
-
-    if (PyType_Ready((PyTypeObject *)py_type) < 0)
-        goto rel_type;
 
 #if 0
     /* Fix __qualname__ if there is a scope. */
@@ -2119,6 +2127,7 @@ static void *find_slot(PyObject *self, sipPySlotType st)
  */
 static void *find_slot_in_class(const sipClassTypeDef *ctd, sipPySlotType st)
 {
+#if 0
     void *slot;
 
     if (ctd->ctd_pyslots != NULL)
@@ -2149,6 +2158,9 @@ static void *find_slot_in_class(const sipClassTypeDef *ctd, sipPySlotType st)
     }
 
     return slot;
+#else
+    return NULL;
+#endif
 }
 
 
@@ -2877,7 +2889,10 @@ void sip_forget_object(sipSimpleWrapper *sw)
      * Python.)  By removing it from the map first we ensure that a new Python
      * object is created.
      */
+#if 0
+    // TODO Get base_ctd
     sip_om_remove_object(&sms->object_map, sw);
+#endif
 
     if (sms->interpreter_state != NULL)
     {

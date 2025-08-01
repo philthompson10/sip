@@ -152,16 +152,15 @@ sipSimpleWrapper *sip_om_find_object(sipObjectMap *om, void *key,
 /*
  * Add a C/C++ address and the corresponding wrapped Python object to the map.
  */
-void sip_om_add_object(sipWrappedModuleState *wms, sipSimpleWrapper *val)
+void sip_om_add_object(sipWrappedModuleState *wms, sipSimpleWrapper *val,
+        const sipClassTypeDef *base_ctd)
 {
     void *addr = get_unguarded_pointer(val);
-    const sipClassTypeDef *base_ctd;
 
     /* Add the object. */
     add_object(wms, addr, val);
 
     /* Add any aliases. */
-    base_ctd = (const sipClassTypeDef *)((sipWrapperType *)Py_TYPE(val))->wt_td;
     add_aliases(wms, addr, val, base_ctd, base_ctd);
 }
 
@@ -362,10 +361,10 @@ static void reorganise_map(sipObjectMap *om)
  * Remove a C/C++ object from the table.  Return 0 if it was removed
  * successfully.
  */
-int sip_om_remove_object(sipObjectMap *om, sipSimpleWrapper *val)
+int sip_om_remove_object(sipObjectMap *om, sipSimpleWrapper *val,
+        const sipClassTypeDef *base_ctd)
 {
     void *addr;
-    const sipClassTypeDef *base_ctd;
 
     /* Handle the trivial case. */
     if (sipNotInMap(val))
@@ -375,7 +374,6 @@ int sip_om_remove_object(sipObjectMap *om, sipSimpleWrapper *val)
         return 0;
 
     /* Remove any aliases. */
-    base_ctd = (const sipClassTypeDef *)((sipWrapperType *)Py_TYPE(val))->wt_td;
     remove_aliases(om, addr, val, base_ctd, base_ctd);
 
     /* Remove the object. */

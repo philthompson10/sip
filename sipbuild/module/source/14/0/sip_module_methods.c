@@ -476,7 +476,10 @@ static void clear_wrapper(sipSipModuleState *sms, sipSimpleWrapper *sw)
      */
     sipResetPyOwned(sw);
 
+#if 0
+    // TODO Get base_ctd
     sip_om_remove_object(&sms->object_map, sw);
+#endif
     sip_clear_access_func(sw);
 }
 

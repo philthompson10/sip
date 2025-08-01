@@ -1213,6 +1213,7 @@ f'''#define sipNoFunction               sipAPI->api_no_function
 #define sipParseArgs                sipAPI->api_parse_args
 #define sipParseKwdArgs             sipAPI->api_parse_kwd_args
 #define sipParsePair                sipAPI->api_parse_pair
+#define sipSimpleWrapperInit        sipAPI->api_simple_wrapper_init
 ''')
 
         # TODO These have yet to be reviewed.
@@ -1674,17 +1675,50 @@ static const sipStaticVariableDef sipStaticVariablesTable{suffix}[] = {{
 
         spec = self.spec
         module = spec.module
+        module_name = module.py_name
         klass_name = klass.iface_file.fq_cpp_name.as_word
+
+        # Generate the tp_init function.  This gets the defining module and
+        # calls the SIP API to perform the majority of the initialisation which
+        # will itself call the type's instance initialisation function, if
+        # necessary, to create the C/C++ instance.
+        sf.write(
+f'''
+
+static int sip_tp_init_{klass_name}(sipSimpleWrapper *sipSelf, PyObject *args, PyObject *kwds)
+{{
+''')
+
+        self.g_slot_support_vars(sf)
+
+        sf.write(
+f'''    return sipSimpleWrapperInit(sipModule, sipSelf, args, kwds, sip_init_instance_{klass_name}, &sipTypeDef_{module_name}_{klass_name});
+}}
+''')
+
+        # Generate the table of slots.
+        sf.write(
+f'''
+
+static PyType_Slot sip_py_slots_{klass_name}[] = {{
+    {{Py_tp_init, (void *)sip_tp_init_{klass_name}}},
+    {{0, NULL}}
+}};
+''')
 
         # Generate the docstring.
         docstring_ref = self.g_class_docstring(sf, bindings, klass)
 
+        # Generate the type definition itself.
         fields = []
 
         fields.append(
                 '.ctd_base.td_flags = ' + self.get_class_flags(klass, py_debug))
         fields.append(
                 '.ctd_base.td_cname = ' + self.cached_name_ref(klass.iface_file.cpp_name))
+        # TODO Probably remove.
+        fields.append(
+                '.ctd_base.defining_module = &sipWrappedModuleDef_' + module_name)
 
         if self.pyqt5_supported() or self.pyqt6_supported():
             if self.g_pyqt_class_plugin(sf, bindings, klass):
@@ -1700,6 +1734,8 @@ static const sipStaticVariableDef sipStaticVariablesTable{suffix}[] = {{
         #    cod_scope = type id of the real class
         #elif py_scope(klass.scope) is not None:
         #    cod_scope = type id of the class scope
+
+        fields.append('.ctd_container.cod_py_slots = sip_py_slots_' + klass_name)
 
         # TODO cod_methods (lazy methods so remove?) if not NULL
 
@@ -1736,7 +1772,6 @@ static const sipStaticVariableDef sipStaticVariablesTable{suffix}[] = {{
         # ctd_pyslots if there are any (remove?)
 
         if klass.can_create:
-            fields.append('.ctd_init = init_type_' + klass_name)
             fields.append(
                     f'.ctd_sizeof = sizeof ({self.scoped_class_name(klass)})')
 
@@ -1793,7 +1828,7 @@ static const sipStaticVariableDef sipStaticVariablesTable{suffix}[] = {{
         sf.write(
 f'''
 
-sipClassTypeDef sipTypeDef_{module.py_name}_{klass_name} = {{
+sipClassTypeDef sipTypeDef_{module_name}_{klass_name} = {{
     {fields}
 }};
 ''')
@@ -1805,12 +1840,12 @@ sipClassTypeDef sipTypeDef_{module.py_name}_{klass_name} = {{
         klass_name = klass.iface_file.fq_cpp_name.as_word
 
         if not spec.c_bindings:
-            sf.write(f'extern "C" {{static void *init_type_{klass_name}(PyObject *, sipSimpleWrapper *, PyObject *const *, Py_ssize_t, PyObject *, PyObject **, PyObject **, PyObject **);}}\n')
+            sf.write(f'extern "C" {{static void *sip_init_instance_{klass_name}(PyObject *, sipSimpleWrapper *, PyObject *const *, Py_ssize_t, PyObject *, PyObject **, PyObject **, PyObject **);}}\n')
 
         sip_owner = 'sipOwner' if need_owner else ''
 
         sf.write(
-f'''static void *init_type_{klass_name}(PyObject *sipModule, sipSimpleWrapper *sipSelf, PyObject *const *sipArgs, Py_ssize_t sipNrArgs, PyObject *sipKwds, PyObject **sipUnused, PyObject **{sip_owner}, PyObject **sipParseErr)
+f'''static void *sip_init_instance_{klass_name}(PyObject *sipModule, sipSimpleWrapper *sipSelf, PyObject *const *sipArgs, Py_ssize_t sipNrArgs, PyObject *sipKwds, PyObject **sipUnused, PyObject **{sip_owner}, PyObject **sipParseErr)
 {{
 ''')
 
@@ -1832,7 +1867,7 @@ f'''static void *init_type_{klass_name}(PyObject *sipModule, sipSimpleWrapper *s
 
         if bindings.tracing:
             klass_name = klass.iface_file.fq_cpp_name.as_word
-            sf.write(f'\n    sipTrace(SIP_TRACE_INITS, "init_type_{klass_name}()\\n");\n')
+            sf.write(f'\n    sipTrace(SIP_TRACE_INITS, "sip_init_instance_{klass_name}()\\n");\n')
 
         # Generate the code that parses the Python arguments and calls the
         # correct constructor.

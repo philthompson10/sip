@@ -26,8 +26,6 @@
 
 /* Forward declarations of slots. */
 static void SimpleWrapper_dealloc(PyObject *self);
-static int SimpleWrapper_init(sipSimpleWrapper *self, PyObject *args,
-        PyObject *kwds);
 #if 0
 static PyObject *SimpleWrapper_new(PyTypeObject *cls, PyObject *args,
         PyObject *kwds);
@@ -48,7 +46,6 @@ static PyGetSetDef SimpleWrapper_getset[] = {
 
 static PyMemberDef SimpleWrapper_members[] = {
     {"__dictoffset__", Py_T_PYSSIZET, offsetof(sipSimpleWrapper, dict), Py_READONLY},
-    {"__vectorcalloffset__", Py_T_PYSSIZET, offsetof(sipSimpleWrapper, instance_init), Py_READONLY},
     {NULL}
 };
 
@@ -57,8 +54,9 @@ static PyType_Slot SimpleWrapper_slots[] = {
     {Py_bf_releasebuffer, sipSimpleWrapper_releasebuffer},
     {Py_tp_clear, sipSimpleWrapper_clear},
     {Py_tp_dealloc, SimpleWrapper_dealloc},
-    {Py_tp_init, SimpleWrapper_init},
-    //{Py_tp_new, SimpleWrapper_new},
+#if 0
+    {Py_tp_new, SimpleWrapper_new},
+#endif
     {Py_tp_traverse, sipSimpleWrapper_traverse},
     {Py_tp_getset, SimpleWrapper_getset},
     {Py_tp_members, SimpleWrapper_members},
@@ -74,8 +72,6 @@ static PyType_Spec SimpleWrapper_TypeSpec = {
 
 
 /* Forward declarations. */
-static PyObject *instance_init(sipSimpleWrapper *self, PyObject *const *args,
-        size_t nargsf, PyObject *kw_names);
 #if 0
 Not yet needed.
 static void *explicit_access_func(sipSimpleWrapper *sw, AccessFuncOp op);
@@ -89,6 +85,7 @@ static void *indirect_access_func(sipSimpleWrapper *sw, AccessFuncOp op);
  */
 int sipSimpleWrapper_clear(PyObject *self)
 {
+    printf("!!!!!!! in sipSimpleWrapper_clear()\n");
     sipSimpleWrapper *sw = (sipSimpleWrapper *)self;
 
     int vret = 0;
@@ -115,6 +112,7 @@ int sipSimpleWrapper_clear(PyObject *self)
  */
 static void SimpleWrapper_dealloc(PyObject *self)
 {
+    printf("!!!!!!! in sipSimpleWrapper_dealloc()\n");
     sip_forget_object((sipSimpleWrapper *)self);
 
     /*
@@ -134,6 +132,7 @@ static void SimpleWrapper_dealloc(PyObject *self)
  */
 int sipSimpleWrapper_getbuffer(PyObject *self, Py_buffer *buf, int flags)
 {
+    printf("!!!!!!! in sipSimpleWrapper_getbuffer()\n");
     void *ptr;
     const sipClassTypeDef *ctd;
 
@@ -166,6 +165,7 @@ int sipSimpleWrapper_getbuffer(PyObject *self, Py_buffer *buf, int flags)
 /*
  * The simple wrapper init slot.
  */
+#if 0
 static int SimpleWrapper_init(sipSimpleWrapper *self, PyObject *args,
         PyObject *kwds)
 {
@@ -186,8 +186,10 @@ static int SimpleWrapper_init(sipSimpleWrapper *self, PyObject *args,
 
     return 0;
 }
+#endif
 
 
+// TODO Test that the behaviour here can be achieved with appropriate TP_FLAGS.
 #if 0
 /*
  * The simple wrapper new slot.
@@ -281,6 +283,7 @@ static PyObject *SimpleWrapper_new(PyTypeObject *cls, PyObject *args,
  */
 void sipSimpleWrapper_releasebuffer(PyObject *self, Py_buffer *buf)
 {
+    printf("!!!!!!! in sipSimpleWrapper_releasebuffer()\n");
     void *ptr;
     const sipClassTypeDef *ctd;
 
@@ -305,6 +308,7 @@ void sipSimpleWrapper_releasebuffer(PyObject *self, Py_buffer *buf)
  */
 int sipSimpleWrapper_traverse(PyObject *self, visitproc visit, void *arg)
 {
+    printf("!!!!!!! in sipSimpleWrapper_traverse()\n");
     sipSimpleWrapper *sw = (sipSimpleWrapper *)self;
 
     Py_VISIT(Py_TYPE(self));
@@ -336,6 +340,7 @@ int sipSimpleWrapper_traverse(PyObject *self, visitproc visit, void *arg)
  */
 static PyObject *SimpleWrapper_get_dict(PyObject *self, void *closure)
 {
+    printf("!!!!!!! in sipSimpleWrapper_get_dict()\n");
     sipSimpleWrapper *sw = (sipSimpleWrapper *)self;
 
     (void)closure;
@@ -360,6 +365,7 @@ static PyObject *SimpleWrapper_get_dict(PyObject *self, void *closure)
 static int SimpleWrapper_set_dict(PyObject *self, PyObject *value,
         void *closure)
 {
+    printf("!!!!!!! in sipSimpleWrapper_set_dict()\n");
     sipSimpleWrapper *sw = (sipSimpleWrapper *)self;
 
     (void)closure;
@@ -383,47 +389,21 @@ static int SimpleWrapper_set_dict(PyObject *self, PyObject *value,
 
 
 /*
- * Initialise the simple wrapper type.
- */
-int sip_simple_wrapper_init(PyObject *module, sipSipModuleState *sms)
-{
-#if PY_VERSION_HEX >= 0x030c0000
-    sms->simple_wrapper_type = (PyTypeObject *)PyType_FromMetaclass(
-            sms->wrapper_type_type, module, &SimpleWrapper_TypeSpec, NULL);
-#else
-    // TODO support for version prior to v3.12.
-#endif
-
-    if (sms->simple_wrapper_type == NULL)
-        return -1;
-
-    if (PyModule_AddType(module, sms->simple_wrapper_type) < 0)
-        return -1;
-
-    return 0;
-}
-
-
-/*
  * Perform the part of the instance initialisation that deals with the
  * arguments.
  */
-static PyObject *instance_init(sipSimpleWrapper *self, PyObject *const *args,
-        size_t nargsf, PyObject *kw_names)
+int sip_api_simple_wrapper_init(PyObject *dmod, sipSimpleWrapper *self,
+        PyObject *args, PyObject *kwd_args, sipInstanceInitFunc init_instance,
+        const sipClassTypeDef *ctd)
 {
-    PyObject *wmod = PyType_GetModule(Py_TYPE((PyObject *)self));
+    printf("!!!!! int type init\n");
     sipWrappedModuleState *wms = (sipWrappedModuleState *)PyModule_GetState(
-            wmod);
+            dmod);
     sipSipModuleState *sms = wms->sip_module_state;
-
-    Py_ssize_t nr_args = PyVectorcall_NARGS(nargsf);
 
     void *sipNew;
     int sipFlags, from_cpp = TRUE;
     sipWrapper *owner;
-    sipWrapperType *wt = (sipWrapperType *)Py_TYPE(self);
-    const sipTypeDef *td = wt->wt_td;
-    const sipClassTypeDef *ctd = (sipClassTypeDef *)td;
     PyObject *unused = NULL;
 #if 0
     sipFinalFunc final_func = find_finalisation(ctd);
@@ -431,7 +411,7 @@ static PyObject *instance_init(sipSimpleWrapper *self, PyObject *const *args,
 
     /* Check for an existing C++ instance waiting to be wrapped. */
     if (sip_get_pending(sms, &sipNew, &owner, &sipFlags) < 0)
-        return NULL;
+        return -1;
 
     if (sipNew == NULL)
     {
@@ -446,10 +426,85 @@ static PyObject *instance_init(sipSimpleWrapper *self, PyObject *const *args,
         /* Call the C++ ctor. */
         owner = NULL;
 
-        /* TODO This can be NULL, but in this context? */
-        assert(ctd->ctd_init != NULL);
-        sipNew = ctd->ctd_init(wmod, self, args, nr_args, kw_names, unused_p,
-                (PyObject **)&owner, &parseErr);
+        /*
+         * Convert the traditional arguments to vectorcall style.  This steals
+         * its approach from the Python internals.
+         */
+        assert(PyTuple_Check(args));
+        Py_ssize_t nr_pos_args = (args == NULL ? 0 : PyTuple_GET_SIZE(args));
+
+        assert(PyDict_Check(kwargs));
+        Py_ssize_t nr_kwd_args = (kwd_args == NULL ? 0 : PyDict_GET_SIZE(kwd_args));
+
+        /* Minimise the memory allocations for most cases. */
+#define SMALL_ARGV 8
+
+        PyObject *small_argv[SMALL_ARGV];
+        PyObject **argv;
+        Py_ssize_t nr_args = nr_pos_args + nr_kwd_args;
+
+        if (nr_args <= SMALL_ARGV)
+        {
+            argv = small_argv;
+        }
+        else
+        {
+            argv = sip_api_malloc(nr_args * sizeof (PyObject *));
+
+            if (argv == NULL)
+                return -1;
+        }
+
+        Py_ssize_t i = 0;
+
+        for (i = 0; i < nr_pos_args; i++)
+            argv[i] = Py_NewRef(PyTuple_GET_ITEM(args, i));
+
+        PyObject *kw_names;
+        unsigned long names_are_strings = Py_TPFLAGS_UNICODE_SUBCLASS;
+
+        if (nr_kwd_args == 0)
+        {
+            kw_names = NULL;
+        }
+        else
+        {
+            if ((kw_names = PyTuple_New(nr_kwd_args)) == NULL)
+                return -1;
+
+            Py_ssize_t pos = 0;
+            PyObject *key, *value;
+            i = 0;
+
+            while (PyDict_Next(kwd_args, &pos, &key, &value))
+            {
+                names_are_strings &= Py_TYPE(key)->tp_flags;
+                PyTuple_SET_ITEM(kw_names, i, Py_NewRef(key));
+                argv[nr_pos_args + i] = Py_NewRef(value);
+                i++;
+            }
+        }
+
+        if (names_are_strings)
+            sipNew = init_instance(dmod, self, argv, nr_pos_args, kw_names,
+#if 0
+                    unused_p, (PyObject **)&owner, &parseErr);
+#else
+                    NULL, (PyObject **)&owner, &parseErr);
+#endif
+        else
+            PyErr_SetString(PyExc_TypeError, "keywords must be strings");
+
+        Py_XDECREF(kw_names);
+
+        for (i = 0; i < nr_args; i++)
+            Py_DECREF(argv[i]);
+
+        if (argv != small_argv)
+            sip_api_free(argv);
+
+        if (!names_are_strings)
+            return -1;
 
         if (sipNew != NULL)
         {
@@ -461,7 +516,7 @@ static PyObject *instance_init(sipSimpleWrapper *self, PyObject *const *args,
              * The C++ ctor must have raised an exception which has been
              * translated to a Python exception.
              */
-            return NULL;
+            return -1;
         }
         else
         {
@@ -474,7 +529,7 @@ static PyObject *instance_init(sipSimpleWrapper *self, PyObject *const *args,
              */
             while (PyList_Check(parseErr) && ie != NULL)
             {
-                sipNew = ie->ie_extender(self, args, kwds, &unused,
+                sipNew = ie->ie_extender(self, args, kwd_args, &unused,
                         (PyObject **)&owner, &parseErr);
 
                 if (sipNew != NULL)
@@ -503,7 +558,7 @@ static PyObject *instance_init(sipSimpleWrapper *self, PyObject *const *args,
                 sip_api_no_function(parseErr, ctd->ctd_container.cod_name,
                         docstring);
 
-                return NULL;
+                return -1;
             }
 
             sipFlags = 0;
@@ -557,7 +612,7 @@ static PyObject *instance_init(sipSimpleWrapper *self, PyObject *const *args,
         self->access_func = NULL;
 
     if (!sipNotInMap(self))
-        sip_om_add_object(wms, self);
+        sip_om_add_object(wms, self, ctd);
 
     /* If we are wrapping an instance returned from C/C++ then we are done. */
     if (from_cpp)
@@ -577,14 +632,13 @@ static PyObject *instance_init(sipSimpleWrapper *self, PyObject *const *args,
                     sipWrappedInstanceEventHandler handler = (sipWrappedInstanceEventHandler)eh->handler;
 
                     if (handler((const sipTypeDef *)ctd, sipNew) < 0)
-                        return NULL;
+                        return -1;
                 }
             }
         }
 #endif
 
-        Py_INCREF(Py_None);
-        return Py_None;
+        return 0;
     }
 
 #if 0
@@ -614,7 +668,7 @@ static PyObject *instance_init(sipSimpleWrapper *self, PyObject *const *args,
         if (final_func(self, sipNew, unused, new_unused_p) < 0)
         {
             Py_XDECREF(unused);
-            return NULL;
+            return -1;
         }
 
         if (new_unused != NULL)
@@ -648,15 +702,12 @@ static PyObject *instance_init(sipSimpleWrapper *self, PyObject *const *args,
 
             Py_XDECREF(unused);
 
-            if (rc < 0)
-                return NULL;
-
-            Py_INCREF(Py_None);
-            return Py_None;
+            return rc;
         }
     }
 #endif
 
+#if 0
     if (sms->unused_backdoor != NULL)
     {
         /*
@@ -681,14 +732,33 @@ static PyObject *instance_init(sipSimpleWrapper *self, PyObject *const *args,
 
             Py_DECREF(unused);
 
-            return NULL;
+            return -1;
         }
 
         Py_DECREF(unused);
     }
+#endif
 
-    Py_INCREF(Py_None);
-    return Py_None;
+    printf("!!!!! returning from type init\n");
+    return 0;
+}
+
+
+/*
+ * Initialise the simple wrapper type.
+ */
+int sip_simple_wrapper_init(PyObject *module, sipSipModuleState *sms)
+{
+    sms->simple_wrapper_type = (PyTypeObject *)PyType_FromMetaclass(
+            sms->wrapper_type_type, module, &SimpleWrapper_TypeSpec, NULL);
+
+    if (sms->simple_wrapper_type == NULL)
+        return -1;
+
+    if (PyModule_AddType(module, sms->simple_wrapper_type) < 0)
+        return -1;
+
+    return 0;
 }
 
 

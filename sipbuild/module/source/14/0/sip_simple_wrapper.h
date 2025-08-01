@@ -53,9 +53,6 @@ struct _sipSimpleWrapper {
     /* The instance dictionary. */
     PyObject *dict;
 
-    /* The argument-dependent type initialisation function. */
-    vectorcallfunc instance_init;
-
     /* The main instance if this is a mixin. */
     PyObject *mixin_main;
 
@@ -68,6 +65,10 @@ int sipSimpleWrapper_clear(PyObject *self);
 int sipSimpleWrapper_traverse(PyObject *self, visitproc visit, void *arg);
 int sipSimpleWrapper_getbuffer(PyObject *self, Py_buffer *buf, int flags);
 void sipSimpleWrapper_releasebuffer(PyObject *self, Py_buffer *buf);
+
+int sip_api_simple_wrapper_init(PyObject *dmod, sipSimpleWrapper *self,
+        PyObject *args, PyObject *kwd_args, sipInstanceInitFunc init_instance,
+        const sipClassTypeDef *ctd);
 
 int sip_simple_wrapper_init(PyObject *module, struct _sipSipModuleState *sms);
 

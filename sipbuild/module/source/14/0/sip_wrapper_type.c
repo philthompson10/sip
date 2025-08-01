@@ -24,8 +24,10 @@
 static PyObject *WrapperType_alloc(PyTypeObject *self, Py_ssize_t nitems);
 static void WrapperType_dealloc(PyObject *self);
 static PyObject *WrapperType_getattro(PyObject *self, PyObject *name);
-static int WrapperType_init(sipWrapperType *self, PyObject *args,
-        PyObject *kwds);
+#endif
+//static int WrapperType_init(sipWrapperType *self, PyObject *args,
+//        PyObject *kwds);
+#if 0
 static int WrapperType_setattro(PyObject *self, PyObject *name,
         PyObject *value);
 static int WrapperType_traverse(PyObject *self, visitproc visit, void *arg);
@@ -40,7 +42,9 @@ static PyType_Slot WrapperType_slots[] = {
     {Py_tp_alloc, WrapperType_alloc},
     {Py_tp_dealloc, WrapperType_dealloc},
     {Py_tp_getattro, WrapperType_getattro},
-    {Py_tp_init, WrapperType_init},
+#endif
+//    {Py_tp_init, WrapperType_init},
+#if 0
     {Py_tp_setattro, WrapperType_setattro},
     {Py_tp_traverse, WrapperType_traverse},
 #endif
@@ -155,14 +159,19 @@ static PyObject *WrapperType_getattro(PyObject *self, PyObject *name)
 
     return PyType_Type.tp_getattro(self, name);
 }
+#endif
 
 
+#if 0
 /*
- * The metatype init slot.
+ * The metatype init slot.  Note that this is *not* called for wrapped types
+ * (because they are created using PyType_FromMetaclass()) but is called for
+ * user-defined sub-classes of wrapped types.
  */
 static int WrapperType_init(sipWrapperType *self, PyObject *args,
         PyObject *kwds)
 {
+    printf("++++++ in WrapperType_init() for %p\n", self);
     /* Call the standard super-metatype init. */
     if (PyType_Type.tp_init((PyObject *)self, args, kwds) < 0)
         return -1;
@@ -215,8 +224,10 @@ there a better way?
 
     return 0;
 }
+#endif
 
 
+#if 0
 /*
  * The metatype setattro slot.
  */

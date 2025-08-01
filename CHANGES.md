@@ -3,6 +3,8 @@
 This is an ad-hoc list of changes when ABI v14 is used.  Eventually these
 should drive changes to the documentation.
 
+Python v3.12 or later is required.
+
 The `%SipModuleConfiguration` directive has been added.
 
 All `__hash__` handwritten code must return `Py_hash_t`.
