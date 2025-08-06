@@ -8,9 +8,17 @@
 class Klass
 {
 };
+
+class SimpleKlass
+{
+};
 %End
 
 
 class Klass
+{
+};
+
+class SimpleKlass /Supertype=classes_module.simplewrapper/
 {
 };

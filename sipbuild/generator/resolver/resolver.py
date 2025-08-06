@@ -740,6 +740,7 @@ def _set_mro(spec, klass, error_log, seen=None):
         if klass.supertype is not None:
             # If the super-type ends with 'sip.wrapper' then assume it is the
             # default.
+            # TODO Just test for '.wrapper' for embedded sip modules.
             if klass.supertype.name.endswith('sip.wrapper'):
                 klass.supertype = None
 

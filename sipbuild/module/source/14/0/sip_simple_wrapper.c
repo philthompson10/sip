@@ -25,7 +25,6 @@
 
 
 /* Forward declarations of slots. */
-static void SimpleWrapper_dealloc(PyObject *self);
 #if 0
 static PyObject *SimpleWrapper_new(PyTypeObject *cls, PyObject *args,
         PyObject *kwds);
@@ -50,16 +49,16 @@ static PyMemberDef SimpleWrapper_members[] = {
 };
 
 static PyType_Slot SimpleWrapper_slots[] = {
+#if 0
     {Py_bf_getbuffer, sipSimpleWrapper_getbuffer},
     {Py_bf_releasebuffer, sipSimpleWrapper_releasebuffer},
     {Py_tp_clear, sipSimpleWrapper_clear},
     {Py_tp_dealloc, SimpleWrapper_dealloc},
-#if 0
     {Py_tp_new, SimpleWrapper_new},
-#endif
     {Py_tp_traverse, sipSimpleWrapper_traverse},
     {Py_tp_getset, SimpleWrapper_getset},
     {Py_tp_members, SimpleWrapper_members},
+#endif
     {0, NULL}
 };
 
@@ -396,7 +395,6 @@ int sip_api_simple_wrapper_init(PyObject *dmod, sipSimpleWrapper *self,
         PyObject *args, PyObject *kwd_args, sipInstanceInitFunc init_instance,
         const sipClassTypeDef *ctd)
 {
-    printf("!!!!! int type init\n");
     sipWrappedModuleState *wms = (sipWrappedModuleState *)PyModule_GetState(
             dmod);
     sipSipModuleState *sms = wms->sip_module_state;
@@ -739,7 +737,6 @@ int sip_api_simple_wrapper_init(PyObject *dmod, sipSimpleWrapper *self,
     }
 #endif
 
-    printf("!!!!! returning from type init\n");
     return 0;
 }
 

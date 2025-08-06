@@ -19,8 +19,8 @@ class ClassesTestCase(SIPTestCase):
 
         cls.c_mod = c_mod
 
-    def ztest_simple_classes(self):
-        """ Test the support for simple classes. """
+    def ztest_plain_classes(self):
+        """ Test the support for plain classes. """
 
         self.assertIsInstance(self.c_mod.Klass(), self.c_mod.Klass)
 
@@ -58,7 +58,7 @@ class ClassesTestCase(SIPTestCase):
         with self.assertRaises(AttributeError):
             klass.foo
 
-    def test_py_subclass(self):
+    def ztest_py_subclass(self):
         """ Test the support for Python sub-classes. """
 
         class SubK(self.c_mod.Klass):
@@ -66,4 +66,18 @@ class ClassesTestCase(SIPTestCase):
 
         self.assertIsInstance(SubK(), self.c_mod.Klass)
 
-        # TODO Test Klass instance and class attributes.
+    def test_simple_plain_class(self):
+        """ Test the support for plain classes using simplewrapper. """
+
+        self.assertEqual(len(self.c_mod.SimpleKlass.__mro__), 3)
+        self.assertIsInstance(self.c_mod.SimpleKlass(), self.c_mod.SimpleKlass)
+
+    def ztest_simple_py_subclass(self):
+        """ Test the support for Python sub-classes using simplewrapper. """
+
+        class SimpleSubK(self.c_mod.SimpleKlass):
+            pass
+
+        self.assertIsInstance(SimpleSubK(), self.c_mod.SimpleKlass)
+
+    # TODO Test Klass instance and class attributes.

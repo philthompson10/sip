@@ -268,7 +268,7 @@ class Builder(AbstractBuilder):
             # know the target ABI.
             copy_sip_h(project.build_abi, sip_module_configuration,
                     project.build_dir, project.sip_module,
-                    version_info=project.version_info)
+                    sip_is_embedded=False, version_info=project.version_info)
 
         # Create __init__.py if required.
         if project.dunder_init:

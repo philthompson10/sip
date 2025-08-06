@@ -673,23 +673,6 @@ f'''
             klass_name = iface_file.fq_cpp_name.as_word
             sf.write(f'\nextern sipClassTypeDef sipTypeDef_{module_name}_{klass_name};\n')
 
-    def g_class_api(self, sf, klass):
-        """ Generate the C++ API for a class. """
-
-        module_name = self.spec.module.py_name
-        iface_file = klass.iface_file
-
-        sf.write('\n')
-
-        if klass.real_class is None and not klass.is_hidden_namespace:
-            sf.write(f'#define {self.get_type_ref(klass)} SIP_TYPE_ID_GENERATED|SIP_TYPE_ID_CURRENT_MODULE|{iface_file.type_nr}\n')
-
-        self.g_enum_macros(sf, scope=klass)
-
-        if not klass.external and not klass.is_hidden_namespace:
-            klass_name = iface_file.fq_cpp_name.as_word
-            sf.write(f'\nextern sipClassTypeDef sipTypeDef_{module_name}_{klass_name};\n')
-
     def g_class_method_table(self, sf, bindings, klass):
         """ Generate the sorted table of methods for a class and return the
         number of entries.

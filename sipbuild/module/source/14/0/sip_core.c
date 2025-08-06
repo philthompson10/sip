@@ -862,10 +862,8 @@ static PyTypeObject *create_container_type(sipWrappedModuleState *wms,
         .slots = (PyType_Slot *)slots,
     };
 
-    printf("++++++++ calling PyType_FromMetaclass()\n");
     PyObject *py_type = PyType_FromMetaclass(metatype, wms->wrapped_module,
             &spec, bases);
-    printf("++++++++ returned from PyType_FromMetaclass()\n");
 
     if (py_type == NULL)
         goto ret_error;
@@ -1882,7 +1880,7 @@ static sipTypeID sip_api_find_type_id(PyObject *wmod, const char *type)
         if (tdp != NULL)
         {
             /* Determine the type number. */
-            Py_ssize_t type_nr = (tdp - md->type_defs) / sizeof (const sipTypeDef *);
+            Py_ssize_t type_nr = tdp - md->type_defs;
 
             /* Return an absolute ID of a generated type. */
             // TODO Does it need to be absolute rather than just relative to

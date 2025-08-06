@@ -63,8 +63,6 @@ extern "C" {
 #define SIP_VERSION_STR             "@_SIP_VERSION_STR@"
 
 /* These are all dependent on the user-specified name of the sip module. */
-// TODO _SIP_MODULE_FQ_NAME should be the name of the module that it is
-// embedding it if it is not shared.
 #define _SIP_MODULE_FQ_NAME         "@_SIP_MODULE_FQ_NAME@"
 #define _SIP_MODULE_NAME            "@_SIP_MODULE_NAME@"
 #define _SIP_MODULE_SHARED          @_SIP_MODULE_SHARED@

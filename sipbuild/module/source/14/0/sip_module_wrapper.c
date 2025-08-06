@@ -843,7 +843,7 @@ static Py_ssize_t get_wrapped_type_nr(sipWrappedModuleState *wms,
     if (td_p == NULL)
         return -1;
 
-    return (td_p - wmd->type_defs) / sizeof (const sipTypeDef *);
+    return td_p - wmd->type_defs;
 }
 
 
