@@ -32,43 +32,44 @@ struct _sipSipModuleState;
 struct _sipSimpleWrapper {
     PyObject_HEAD
 
-    /*
-     * The data, initially a pointer to the C/C++ object, as interpreted by the
-     * access function.
-     */
+    /* The type's immutable definition. */
+    const sipClassTypeDef *ctd;
+
+    /* The data, ie. a pointer to the C/C++ object. */
     void *data;
 
-    /* The optional access function. */
-    sipAccessFunc access_func;
+    /* The instance dictionary. */
+    PyObject *dict;
 
-    /* Object flags. */
-    unsigned sw_flags;
+    /* A strong reference to the defining module. */
+    PyObject *dmod;
 
     /* The optional dictionary of extra references using an int key. */
     PyObject *extra_refs;
 
-    /* For the user to use. */
-    PyObject *user;
-
-    /* The instance dictionary. */
-    PyObject *dict;
+    /* Object flags. */
+    unsigned flags;
 
     /* The main instance if this is a mixin. */
     PyObject *mixin_main;
 
     /* Next object at this address. */
     struct _sipSimpleWrapper *next;
+
+    /* For the user to use. */
+    PyObject *user;
 };
 
 
 int sipSimpleWrapper_clear(PyObject *self);
 int sipSimpleWrapper_traverse(PyObject *self, visitproc visit, void *arg);
-int sipSimpleWrapper_getbuffer(PyObject *self, Py_buffer *buf, int flags);
-void sipSimpleWrapper_releasebuffer(PyObject *self, Py_buffer *buf);
+//int sipSimpleWrapper_getbuffer(PyObject *self, Py_buffer *buf, int flags);
+//void sipSimpleWrapper_releasebuffer(PyObject *self, Py_buffer *buf);
 
-int sip_api_simple_wrapper_init(PyObject *dmod, sipSimpleWrapper *self,
-        PyObject *args, PyObject *kwd_args, sipInstanceInitFunc init_instance,
+void sip_api_simple_wrapper_configure(sipSimpleWrapper *self, PyObject *dmod,
         const sipClassTypeDef *ctd);
+int sip_api_simple_wrapper_init(sipSimpleWrapper *self, PyObject *args,
+        PyObject *kwd_args);
 
 int sip_simple_wrapper_init(PyObject *module, struct _sipSipModuleState *sms);
 

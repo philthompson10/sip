@@ -34,17 +34,15 @@ static uintptr_t hash_primes[] = {
 
 
 /* Forward declarations. */
-static void add_aliases(sipWrappedModuleState *wms, void *addr,
-        sipSimpleWrapper *val, const sipClassTypeDef *base_ctd,
-        const sipClassTypeDef *ctd);
-static void add_object(sipWrappedModuleState *wms, void *addr,
-        sipSimpleWrapper *val);
+static void add_aliases(sipWrappedModuleState *wms, sipSimpleWrapper *val,
+        void *addr, const sipClassTypeDef *ctd);
+static void add_object(sipWrappedModuleState *wms, sipSimpleWrapper *val,
+        void *addr);
 static sipHashEntry *find_hash_entry(sipObjectMap *om, void *key);
-static void *get_unguarded_pointer(sipSimpleWrapper *sw);
 static sipHashEntry *new_hash_table(uintptr_t size);
-static void remove_aliases(sipObjectMap *om, void *addr, sipSimpleWrapper *val,
-        const sipClassTypeDef *base_ctd, const sipClassTypeDef *ctd);
-static int remove_object(sipObjectMap *om, void *addr, sipSimpleWrapper *val);
+static void remove_aliases(sipObjectMap *om, sipSimpleWrapper *val, void *addr,
+        const sipClassTypeDef *ctd);
+static int remove_object(sipObjectMap *om, sipSimpleWrapper *val, void *addr);
 static void reorganise_map(sipObjectMap *om);
 
 
@@ -152,25 +150,21 @@ sipSimpleWrapper *sip_om_find_object(sipObjectMap *om, void *key,
 /*
  * Add a C/C++ address and the corresponding wrapped Python object to the map.
  */
-void sip_om_add_object(sipWrappedModuleState *wms, sipSimpleWrapper *val,
-        const sipClassTypeDef *base_ctd)
+void sip_om_add_object(sipWrappedModuleState *wms, sipSimpleWrapper *val)
 {
-    void *addr = get_unguarded_pointer(val);
-
     /* Add the object. */
-    add_object(wms, addr, val);
+    add_object(wms, val, val->data);
 
     /* Add any aliases. */
-    add_aliases(wms, addr, val, base_ctd, base_ctd);
+    add_aliases(wms, val, val->data, val->ctd);
 }
 
 
 /*
  * Add an alias for any address that is different when cast to a super-type.
  */
-static void add_aliases(sipWrappedModuleState *wms, void *addr,
-        sipSimpleWrapper *val, const sipClassTypeDef *base_ctd,
-        const sipClassTypeDef *ctd)
+static void add_aliases(sipWrappedModuleState *wms, sipSimpleWrapper *val,
+        void *addr, const sipClassTypeDef *ctd)
 {
     const sipTypeID *supers;
 
@@ -183,7 +177,7 @@ static void add_aliases(sipWrappedModuleState *wms, void *addr,
                 type_id, ctd);
 
         /* Recurse up the hierachy for the first super-class. */
-        add_aliases(wms, addr, val, base_ctd, sup_ctd);
+        add_aliases(wms, val, addr, sup_ctd);
 
         /*
          * We only check for aliases for subsequent super-classes because the
@@ -197,9 +191,9 @@ static void add_aliases(sipWrappedModuleState *wms, void *addr,
             sup_ctd = sip_get_generated_class_type_def(type_id, ctd);
 
             /* Recurse up the hierachy for the remaining super-classes. */
-            add_aliases(wms, addr, val, base_ctd, sup_ctd);
+            add_aliases(wms, val, addr, sup_ctd);
 
-            sup_addr = (*base_ctd->ctd_cast)(addr, (sipTypeDef *)sup_ctd);
+            sup_addr = (*val->ctd->ctd_cast)(addr, (sipTypeDef *)sup_ctd);
 
             if (sup_addr != addr)
             {
@@ -216,11 +210,11 @@ static void add_aliases(sipWrappedModuleState *wms, void *addr,
                      */
                     *alias = *val;
 
-                    alias->sw_flags = (val->sw_flags & SIP_SHARE_MAP) | SIP_ALIAS;
+                    alias->flags = (val->flags & SIP_SHARE_MAP) | SIP_ALIAS;
                     alias->data = val;
                     alias->next = NULL;
 
-                    add_object(wms, sup_addr, alias);
+                    add_object(wms, alias, sup_addr);
                 }
             }
         }
@@ -231,8 +225,8 @@ static void add_aliases(sipWrappedModuleState *wms, void *addr,
 /*
  * Add a wrapper (which may be an alias) to the map.
  */
-static void add_object(sipWrappedModuleState *wms, void *addr,
-        sipSimpleWrapper *val)
+static void add_object(sipWrappedModuleState *wms, sipSimpleWrapper *val,
+        void *addr)
 {
     sipSipModuleState *sms = wms->sip_module_state;
     sipHashEntry *he = find_hash_entry(&sms->object_map, addr);
@@ -258,7 +252,7 @@ static void add_object(sipWrappedModuleState *wms, void *addr,
          * pointers as invalid and reuse the entry.  Otherwise we just add this
          * one to the existing list of objects at this address.
          */
-        if (!(val->sw_flags & SIP_SHARE_MAP))
+        if (!(val->flags & SIP_SHARE_MAP))
         {
             sipSimpleWrapper *sw = he->first;
 
@@ -361,31 +355,21 @@ static void reorganise_map(sipObjectMap *om)
  * Remove a C/C++ object from the table.  Return 0 if it was removed
  * successfully.
  */
-int sip_om_remove_object(sipObjectMap *om, sipSimpleWrapper *val,
-        const sipClassTypeDef *base_ctd)
+int sip_om_remove_object(sipObjectMap *om, sipSimpleWrapper *val)
 {
-    void *addr;
-
-    /* Handle the trivial case. */
-    if (sipNotInMap(val))
-        return 0;
-
-    if ((addr = get_unguarded_pointer(val)) == NULL)
-        return 0;
-
     /* Remove any aliases. */
-    remove_aliases(om, addr, val, base_ctd, base_ctd);
+    remove_aliases(om, val, val->data, val->ctd);
 
     /* Remove the object. */
-    return remove_object(om, addr, val);
+    return remove_object(om, val, val->data);
 }
 
 
 /*
  * Remove an alias for any address that is different when cast to a super-type.
  */
-static void remove_aliases(sipObjectMap *om, void *addr, sipSimpleWrapper *val,
-        const sipClassTypeDef *base_ctd, const sipClassTypeDef *ctd)
+static void remove_aliases(sipObjectMap *om, sipSimpleWrapper *val, void *addr,
+        const sipClassTypeDef *ctd)
 {
     const sipTypeID *supers;
 
@@ -398,7 +382,7 @@ static void remove_aliases(sipObjectMap *om, void *addr, sipSimpleWrapper *val,
                 type_id, ctd);
 
         /* Recurse up the hierachy for the first super-class. */
-        remove_aliases(om, addr, val, base_ctd, sup_ctd);
+        remove_aliases(om, val, addr, sup_ctd);
 
         /*
          * We only check for aliases for subsequent super-classes because the
@@ -412,12 +396,12 @@ static void remove_aliases(sipObjectMap *om, void *addr, sipSimpleWrapper *val,
             sup_ctd = sip_get_generated_class_type_def(type_id, ctd);
 
             /* Recurse up the hierachy for the remaining super-classes. */
-            remove_aliases(om, addr, val, base_ctd, sup_ctd);
+            remove_aliases(om, val, addr, sup_ctd);
 
-            sup_addr = (*base_ctd->ctd_cast)(addr, (sipTypeDef *)sup_ctd);
+            sup_addr = (*val->ctd->ctd_cast)(addr, (sipTypeDef *)sup_ctd);
 
             if (sup_addr != addr)
-                remove_object(om, sup_addr, val);
+                remove_object(om, val, sup_addr);
         }
     }
 }
@@ -426,7 +410,7 @@ static void remove_aliases(sipObjectMap *om, void *addr, sipSimpleWrapper *val,
 /*
  * Remove a wrapper from the map.
  */
-static int remove_object(sipObjectMap *om, void *addr, sipSimpleWrapper *val)
+static int remove_object(sipObjectMap *om, sipSimpleWrapper *val, void *addr)
 {
     sipHashEntry *he = find_hash_entry(om, addr);
     sipSimpleWrapper **swp;
@@ -476,16 +460,6 @@ static int remove_object(sipObjectMap *om, void *addr, sipSimpleWrapper *val)
     }
 
     return -1;
-}
-
-
-/*
- * Return the unguarded pointer to a C/C++ instance, ie. the pointer was valid
- * but may longer be.
- */
-static void *get_unguarded_pointer(sipSimpleWrapper *sw)
-{
-    return (sw->access_func != NULL) ? sw->access_func(sw, UnguardedPointer) : sw->data;
 }
 
 

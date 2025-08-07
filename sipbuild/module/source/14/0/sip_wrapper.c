@@ -52,7 +52,12 @@ static int Wrapper_clear(PyObject *self)
     sipWrapper *sw = (sipWrapper *)self;
     int vret;
 
+#if 0
+    // TODO
     vret = sipSimpleWrapper_clear(self);
+#else
+    vret = 0;
+#endif
 
     /* Detach any children (which will be owned by C/C++). */
     while (sw->first_child != NULL)
@@ -71,7 +76,10 @@ static void Wrapper_dealloc(PyObject *self)
      * We can't simply call the super-type because things have to be done in a
      * certain order.  The first thing is to get rid of the wrapped instance.
      */
+#if 0
+    // TODO
     sip_forget_object((sipSimpleWrapper *)self);
+#endif
 
     Wrapper_clear(self);
 
@@ -87,8 +95,11 @@ static int Wrapper_traverse(PyObject *self, visitproc visit, void *arg)
 {
     int vret;
 
+#if 0
+    // TODO
     if ((vret = sipSimpleWrapper_traverse(self, visit, arg)) != 0)
         return vret;
+#endif
 
     sipWrapper *w;
 

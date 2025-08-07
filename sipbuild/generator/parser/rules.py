@@ -3277,6 +3277,7 @@ def p_variable(p):
     variable.no_setter = annotations.get('NoSetter', False)
     variable.no_type_hint = annotations.get('NoTypeHint', False)
 
+    # TODO %AccessCode is not supported by ABI v14.
     variable.access_code = body.get('%AccessCode')
     variable.get_code = body.get('%GetCode')
     variable.set_code = body.get('%SetCode')

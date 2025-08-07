@@ -94,14 +94,13 @@ int sip_append_py_object_to_list(PyObject **listp, PyObject *object);
 void *sip_cast_cpp_ptr(void *ptr, PyTypeObject *src_type,
         const sipTypeDef *dst_type);
 int sip_check_pointer(void *ptr, sipSimpleWrapper *sw);
-void sip_clear_access_func(sipSimpleWrapper *sw);
 PyTypeObject *sip_create_mapped_type(sipSipModuleState *sms,
         const sipWrappedModuleDef *wmd, const sipMappedTypeDef *mtd,
         PyObject *wmod_dict);
 PyObject *sip_create_type_dict(const sipWrappedModuleDef *wmd);
 int sip_dict_set_and_discard(PyObject *dict, const char *name, PyObject *obj);
 void sip_fix_slots(PyTypeObject *py_type, sipPySlotDef *psd);
-void sip_forget_object(sipSimpleWrapper *sw);
+void sip_forget_object(sipSimpleWrapper *self);
 const sipContainerDef *sip_get_container(const sipTypeDef *td);
 void *sip_get_complex_cpp_ptr(sipWrappedModuleState *wms, sipSimpleWrapper *w,
         sipTypeID type_id);
@@ -119,8 +118,6 @@ PyTypeObject *sip_get_py_type_and_type_def(sipWrappedModuleState *wms,
         sipTypeID type_id, const sipTypeDef **tdp);
 const sipTypeDef *sip_get_type_def(sipWrappedModuleState *wms,
         sipTypeID type_id);
-void *sip_get_ptr_type_def(sipSimpleWrapper *self,
-        const sipClassTypeDef **ctd);
 PyTypeObject *sip_get_py_type(sipWrappedModuleState *wms, sipTypeID type_id);
 PyTypeObject *sip_get_py_type_from_name(sipSipModuleState *sms,
         PyObject *target_module_name_obj, const char *target_type_name);

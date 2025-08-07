@@ -1187,6 +1187,8 @@ extern PyModuleDef sipWrappedModuleDef_{module_name};
 #define sipFindTypeID               sipAPI->api_find_type_id
 #define sipGetAddress               sipAPI->api_get_address
 #define sipIsOwnedByPython          sipAPI->api_is_owned_by_python
+#define sipSimpleWrapperConfigure   sipAPI->api_simple_wrapper_configure
+#define sipSimpleWrapperInit        sipAPI->api_simple_wrapper_init
 ''')
 
         # TODO These have been reviewed as part of the private v14 API.
@@ -1196,7 +1198,6 @@ f'''#define sipNoFunction               sipAPI->api_no_function
 #define sipParseArgs                sipAPI->api_parse_args
 #define sipParseKwdArgs             sipAPI->api_parse_kwd_args
 #define sipParsePair                sipAPI->api_parse_pair
-#define sipSimpleWrapperInit        sipAPI->api_simple_wrapper_init
 ''')
 
         # TODO These have yet to be reviewed.
@@ -1665,17 +1666,24 @@ static const sipStaticVariableDef sipStaticVariablesTable{suffix}[] = {{
         # calls the SIP API to perform the majority of the initialisation which
         # will itself call the type's instance initialisation function, if
         # necessary, to create the C/C++ instance.
-        sf.write(
-f'''
+        sf.write('\n\n')
 
-static int sip_tp_init_{klass_name}(sipSimpleWrapper *sipSelf, PyObject *args, PyObject *kwds)
+        if not spec.c_bindings:
+            sf.write(
+f'''extern "C" {{static int sip_tp_init_{klass_name}(sipSimpleWrapper *, PyObject *, PyObject *);}}
+''')
+
+        sf.write(
+f'''static int sip_tp_init_{klass_name}(sipSimpleWrapper *sipSelf, PyObject *args, PyObject *kwds)
 {{
 ''')
 
         self.g_slot_support_vars(sf)
 
         sf.write(
-f'''    return sipSimpleWrapperInit(sipModule, sipSelf, args, kwds, sip_init_instance_{klass_name}, &sipTypeDef_{module_name}_{klass_name});
+f'''    sipSimpleWrapperConfigure(sipSelf, sipModule, &sipTypeDef_{module_name}_{klass_name});
+
+    return sipSimpleWrapperInit(sipSelf, args, kwds);
 }}
 ''')
 
@@ -1699,9 +1707,6 @@ static PyType_Slot sip_py_slots_{klass_name}[] = {{
                 '.ctd_base.td_flags = ' + self.get_class_flags(klass, py_debug))
         fields.append(
                 '.ctd_base.td_cname = ' + self.cached_name_ref(klass.iface_file.cpp_name))
-        # TODO Probably remove.
-        fields.append(
-                '.ctd_base.defining_module = &sipWrappedModuleDef_' + module_name)
 
         if self.pyqt5_supported() or self.pyqt6_supported():
             if self.g_pyqt_class_plugin(sf, bindings, klass):
@@ -1747,9 +1752,15 @@ static PyType_Slot sip_py_slots_{klass_name}[] = {{
             fields.append(
                     '.ctd_supertype = ' + self.cached_name_ref(klass.supertype))
 
+
         # TODO
         #if len(klass.superclasses) != 0:
         #    ctd_supers
+
+        fields.append('.ctd_init = init_type_' + klass_name)
+
+        if self.need_dealloc(bindings, klass):
+            fields.append('.ctd_dealloc = dealloc_' + klass_name)
 
         # TODO
         # ctd_pyslots if there are any (remove?)
@@ -1769,9 +1780,6 @@ static PyType_Slot sip_py_slots_{klass_name}[] = {{
 
         if klass.bi_release_buffer_code is not None:
             fields.append('.ctd_releasebuffer = releasebuffer_' + klass_name)
-
-        if self.need_dealloc(bindings, klass):
-            fields.append('.ctd_dealloc = dealloc_' + klass_name)
 
         if spec.c_bindings or klass.needs_copy_helper:
             fields.append('.ctd_assign = assign_' + klass_name)
@@ -1823,19 +1831,16 @@ sipClassTypeDef sipTypeDef_{module_name}_{klass_name} = {{
         klass_name = klass.iface_file.fq_cpp_name.as_word
 
         if not spec.c_bindings:
-            sf.write(f'extern "C" {{static void *sip_init_instance_{klass_name}(PyObject *, sipSimpleWrapper *, PyObject *const *, Py_ssize_t, PyObject *, PyObject **, PyObject **, PyObject **);}}\n')
+            sf.write(f'extern "C" {{static void *init_type_{klass_name}(sipSimpleWrapper *, PyObject *const *, Py_ssize_t, PyObject *, PyObject **, PyObject **, PyObject **);}}\n')
 
         sip_owner = 'sipOwner' if need_owner else ''
 
         sf.write(
-f'''static void *sip_init_instance_{klass_name}(PyObject *sipModule, sipSimpleWrapper *sipSelf, PyObject *const *sipArgs, Py_ssize_t sipNrArgs, PyObject *sipKwds, PyObject **sipUnused, PyObject **{sip_owner}, PyObject **sipParseErr)
+f'''static void *init_type_{klass_name}(sipSimpleWrapper *sipSelf, PyObject *const *sipArgs, Py_ssize_t sipNrArgs, PyObject *sipKwds, PyObject **sipUnused, PyObject **{sip_owner}, PyObject **sipParseErr)
 {{
 ''')
 
-        # TODO We are passed the module.  Can the same approach be taken with
-        # other slots?
-        #self.g_slot_support_vars(sf)
-        sf.write('    const sipAPIDef *sipAPI = sipGetAPI(sipModule);\n\n')
+        self.g_slot_support_vars(sf)
 
         self.g_type_init_body(sf, bindings, klass)
 

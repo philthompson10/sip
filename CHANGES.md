@@ -5,6 +5,11 @@ should drive changes to the documentation.
 
 Python v3.12 or later is required.
 
+The `%AccessCode` directive has been removed.  `%GetCode` should be used
+instead.
+
+`sip.cast()` is no longer supported.
+
 The `%SipModuleConfiguration` directive has been added.
 
 All `__hash__` handwritten code must return `Py_hash_t`.

@@ -27,7 +27,6 @@
 
 /* Forward declarations of method implementations. */
 static PyObject *meth_assign(PyObject *mod, PyObject *args);
-static PyObject *meth_cast(PyObject *mod, PyObject *args);
 static PyObject *meth_delete(PyObject *mod, PyObject *arg);
 static PyObject *meth_dump(PyObject *mod, PyObject *arg);
 static PyObject *meth_enableautoconversion(PyObject *mod, PyObject *args);
@@ -44,7 +43,6 @@ static PyObject *meth_unwrapinstance(PyObject *mod, PyObject *args);
 
 PyMethodDef sipModuleMethods[] = {
     {"assign", meth_assign, METH_VARARGS, NULL},
-    {"cast", meth_cast, METH_VARARGS, NULL},
     {"delete", meth_delete, METH_VARARGS, NULL},
     {"dump", meth_dump, METH_O, NULL},
     {"enableautoconversion", meth_enableautoconversion, METH_VARARGS, NULL},
@@ -137,51 +135,6 @@ static PyObject *meth_assign(PyObject *mod, PyObject *args)
 
 
 /*
- * Cast an instance to one of it's sub or super-classes by returning a new
- * Python object with the superclass type wrapping the same C++ instance.
- */
-static PyObject *meth_cast(PyObject *mod, PyObject *args)
-{
-#if 0
-    sipSipModuleState *sms = (sipSipModuleState *)PyModule_GetState(mod);
-    sipSimpleWrapper *sw;
-    sipWrapperType *wt;
-
-    if (!PyArg_ParseTuple(args, "O!O!:cast", sms->simple_wrapper_type, &sw, sms->wrapper_type_type, &wt))
-        return NULL;
-
-    const sipTypeDef *td;
-    PyTypeObject *ft = Py_TYPE(sw);
-    PyTypeObject *tt = (PyTypeObject *)wt;
-
-    if (ft == tt || PyType_IsSubtype(tt, ft))
-        td = NULL;
-    else if (PyType_IsSubtype(ft, tt))
-        td = wt->wt_td;
-    else
-    {
-        PyErr_SetString(PyExc_TypeError, "argument 1 of cast() must be an instance of a sub or super-type of argument 2");
-        return NULL;
-    }
-
-    void *addr;
-
-    if ((addr = sip_api_get_cpp_ptr(sw, td)) == NULL)
-        return NULL;
-
-    /*
-     * We don't put this new object into the map so that the original object is
-     * always found.  It would also totally confuse the map logic.
-     */
-    return sip_wrap_simple_instance(sms, addr, (PyTypeObject *)wt, NULL,
-            (sw->sw_flags | SIP_NOT_IN_MAP) & ~SIP_PY_OWNED);
-#else
-    return NULL;
-#endif
-}
-
-
-/*
  * Call an instance's dtor.
  */
 static PyObject *meth_delete(PyObject *mod, PyObject *args)
@@ -192,15 +145,12 @@ static PyObject *meth_delete(PyObject *mod, PyObject *args)
     if (!PyArg_ParseTuple(args, "O!:delete", sms->simple_wrapper_type, &sw))
         return NULL;
 
-    const sipClassTypeDef *ctd;
-    void *addr = sip_get_ptr_type_def(sw, &ctd);
-
-    if (sip_check_pointer(addr, sw) < 0)
+    if (sip_check_pointer(sw->data, sw) < 0)
         return NULL;
 
     clear_wrapper(sms, sw);
 
-    sip_release(addr, (const sipTypeDef *)ctd, sw->sw_flags, NULL);
+    sip_release(sw->data, (const sipTypeDef *)sw->ctd, sw->flags, NULL);
 
     Py_INCREF(Py_None);
     return Py_None;
@@ -476,11 +426,7 @@ static void clear_wrapper(sipSipModuleState *sms, sipSimpleWrapper *sw)
      */
     sipResetPyOwned(sw);
 
-#if 0
-    // TODO Get base_ctd
     sip_om_remove_object(&sms->object_map, sw);
-#endif
-    sip_clear_access_func(sw);
 }
 
 

@@ -269,6 +269,7 @@ const sipAPIDef sip_api = {
     sip_api_wrapped_module_clear,
     sip_api_wrapped_module_free,
     sip_api_wrapped_module_traverse,
+    sip_api_simple_wrapper_configure,
     sip_api_simple_wrapper_init,
 };
 
@@ -434,6 +435,8 @@ static PyTypeObject *find_registered_py_type(sipSipModuleState *sms,
  */
 static void sip_api_add_delayed_dtor(sipSimpleWrapper *sw)
 {
+#if 0
+    // TODO
     void *ptr;
     const sipClassTypeDef *ctd;
 
@@ -473,6 +476,7 @@ static void sip_api_add_delayed_dtor(sipSimpleWrapper *sw)
                 return;
             }
     }
+#endif
 }
 
 
@@ -643,17 +647,7 @@ void sip_instance_destroyed(sipWrappedModuleState *wms,
         call_py_dtor(wms, sipSelf);
         PyErr_Restore(xtype, xvalue, xtb);
 
-#if 0
-        // TODO Get base_ctd
         sip_om_remove_object(&sms->object_map, sipSelf);
-#endif
-
-        /*
-         * This no longer points to anything useful.  Actually it might do as
-         * the partialy destroyed C++ instance may still be trying to invoke
-         * reimplemented virtuals.
-         */
-        sip_clear_access_func(sipSelf);
 
         /*
          * If C/C++ has a reference (and therefore no parent) then remove it.
@@ -679,22 +673,6 @@ void sip_instance_destroyed(sipWrappedModuleState *wms,
     }
 
     SIP_UNBLOCK_THREADS
-}
-
-
-/*
- * Clear any access function so that sip_api_get_address() will always return a
- * NULL pointer.
- */
-void sip_clear_access_func(sipSimpleWrapper *sw)
-{
-    if (sw->access_func != NULL)
-    {
-        sw->access_func(sw, ReleaseGuard);
-        sw->access_func = NULL;
-    }
-
-    sw->data = NULL;
 }
 
 
@@ -1627,11 +1605,11 @@ static PyObject *sip_api_is_py_method(PyObject *wmod, sip_gilstate_t *gil,
 
 
 /*
- * The default access function.
+ * Return the address of the C/C++ instance.
  */
 void *sip_api_get_address(sipSimpleWrapper *w)
 {
-    return (w->access_func != NULL) ? w->access_func(w, GuardedPointer) : w->data;
+    return w->data;
 }
 
 
@@ -1774,9 +1752,7 @@ static PyObject *sip_api_get_reference(PyObject *self, int key)
 
 
 /*
- * Return TRUE if an object is owned by Python.  Note that this isn't
- * implemented as a macro in sip.h because the position of the sw_flags field
- * is dependent on the version of Python.
+ * Return TRUE if an object is owned by Python.
  */
 static int sip_api_is_owned_by_python(sipSimpleWrapper *sw)
 {
@@ -1785,9 +1761,7 @@ static int sip_api_is_owned_by_python(sipSimpleWrapper *sw)
 
 
 /*
- * Return TRUE if the type of a C++ instance is a derived class.  Note that
- * this isn't implemented as a macro in sip.h because the position of the
- * sw_flags field is dependent on the version of Python.
+ * Return TRUE if the type of a C++ instance is a derived class.
  */
 static int sip_api_is_derived_class(sipSimpleWrapper *sw)
 {
@@ -1796,9 +1770,7 @@ static int sip_api_is_derived_class(sipSimpleWrapper *sw)
 
 
 /*
- * Get the user defined object from a wrapped object.  Note that this isn't
- * implemented as a macro in sip.h because the position of the user field is
- * dependent on the version of Python.
+ * Get the user defined object from a wrapped object.
  */
 static PyObject *sip_api_get_user_object(const sipSimpleWrapper *sw)
 {
@@ -1807,9 +1779,7 @@ static PyObject *sip_api_get_user_object(const sipSimpleWrapper *sw)
 
 
 /*
- * Set the user defined object in a wrapped object.  Note that this isn't
- * implemented as a macro in sip.h because the position of the user field is
- * dependent on the version of Python.
+ * Set the user defined object in a wrapped object.
  */
 static void sip_api_set_user_object(sipSimpleWrapper *sw, PyObject *user)
 {
@@ -2176,17 +2146,6 @@ static void *find_slot_in_slot_list(const sipPySlotDef *psd, sipPySlotType st)
     }
 
     return NULL;
-}
-
-
-/*
- * Return the C/C++ address and the generated class structure for a wrapper.
- */
-void *sip_get_ptr_type_def(sipSimpleWrapper *self, const sipClassTypeDef **ctd)
-{
-    *ctd = (const sipClassTypeDef *)((sipWrapperType *)Py_TYPE(self))->wt_td;
-
-    return (sipNotInMap(self) ? NULL : sip_api_get_address(self));
 }
 
 
@@ -2855,27 +2814,29 @@ void sip_add_type_slots(PyHeapTypeObject *heap_to, const sipPySlotDef *slots)
  * Remove the object from the map and call the C/C++ dtor if we own the
  * instance.
  */
-void sip_forget_object(sipSimpleWrapper *sw)
+void sip_forget_object(sipSimpleWrapper *self)
 {
-    sipSipModuleState *sms = sip_get_sip_module_state_from_wrapper_type(
-            Py_TYPE((PyObject *)sw));
-    //sipEventHandler *eh;
-    //const sipClassTypeDef *ctd = (const sipClassTypeDef *)((sipWrapperType *)Py_TYPE(sw))->wt_td;
+    sipWrappedModuleState *wms = (sipWrappedModuleState *)PyModule_GetState(
+            self->dmod);
+    sipSipModuleState *sms = wms->sip_module_state;
 
 #if 0
+    // TODO
     /* Invoke any event handlers. */
+    sipEventHandler *eh;
+
     for (eh = sms->event_handlers[sipEventCollectingWrapper]; eh != NULL; eh = eh->next)
     {
         if (sipTypeIsClass(eh->td) && sip_is_subtype(ctd, (const sipClassTypeDef *)eh->td))
         {
             sipCollectingWrapperEventHandler handler = (sipCollectingWrapperEventHandler)eh->handler;
 
-            handler((const sipTypeDef *)ctd, sw);
+            handler((const sipTypeDef *)ctd, self);
         }
     }
 #endif
 
-    PyObject_GC_UnTrack((PyObject *)sw);
+    PyObject_GC_UnTrack((PyObject *)self);
 
     /*
      * Remove the object from the map before calling the class specific dealloc
@@ -2887,20 +2848,10 @@ void sip_forget_object(sipSimpleWrapper *sw)
      * Python.)  By removing it from the map first we ensure that a new Python
      * object is created.
      */
-#if 0
-    // TODO Get base_ctd
-    sip_om_remove_object(&sms->object_map, sw);
-#endif
+    sip_om_remove_object(&sms->object_map, self);
 
-    if (sms->interpreter_state != NULL)
-    {
-        const sipClassTypeDef *ctd;
-
-        if (sip_get_ptr_type_def(sw, &ctd) != NULL && ctd->ctd_dealloc != NULL)
-            ctd->ctd_dealloc(sw);
-    }
-
-    sip_clear_access_func(sw);
+    if (sms->interpreter_state != NULL && self->ctd->ctd_dealloc != NULL)
+        self->ctd->ctd_dealloc(self);
 }
 
 
