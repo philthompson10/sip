@@ -19,16 +19,17 @@ class ClassesTestCase(SIPTestCase):
 
         cls.c_mod = c_mod
 
-    def ztest_plain_classes(self):
+    def test_plain_classes(self):
         """ Test the support for plain classes. """
 
+        self.assertEqual(len(self.c_mod.Klass.__mro__), 4)
         self.assertIsInstance(self.c_mod.Klass(), self.c_mod.Klass)
 
         self.assertEqual(self.c_mod.Klass.__module__, 'classes_module')
         self.assertEqual(self.c_mod.Klass.__name__, 'Klass')
         self.assertEqual(self.c_mod.Klass.__qualname__, 'Klass')
 
-    def ztest_class_attributes(self):
+    def test_class_attributes(self):
         """ Test the support for class attributes. """
 
         with self.assertRaises(AttributeError):
@@ -42,7 +43,7 @@ class ClassesTestCase(SIPTestCase):
         with self.assertRaises(AttributeError):
             self.c_mod.Klass.foo
 
-    def ztest_instance_attributes(self):
+    def test_instance_attributes(self):
         """ Test the support for instance attributes. """
 
         klass = self.c_mod.Klass()
@@ -58,7 +59,7 @@ class ClassesTestCase(SIPTestCase):
         with self.assertRaises(AttributeError):
             klass.foo
 
-    def ztest_py_subclass(self):
+    def test_py_subclass(self):
         """ Test the support for Python sub-classes. """
 
         class SubK(self.c_mod.Klass):
@@ -72,7 +73,7 @@ class ClassesTestCase(SIPTestCase):
         self.assertEqual(len(self.c_mod.SimpleKlass.__mro__), 3)
         self.assertIsInstance(self.c_mod.SimpleKlass(), self.c_mod.SimpleKlass)
 
-    def ztest_simple_py_subclass(self):
+    def test_simple_py_subclass(self):
         """ Test the support for Python sub-classes using simplewrapper. """
 
         class SimpleSubK(self.c_mod.SimpleKlass):
