@@ -76,7 +76,7 @@ static PyType_Slot SimpleWrapper_slots[] = {
 static PyType_Spec SimpleWrapper_TypeSpec = {
     .name = _SIP_MODULE_FQ_NAME ".simplewrapper",
     .basicsize = sizeof (sipSimpleWrapper),
-    .flags = Py_TPFLAGS_DEFAULT|Py_TPFLAGS_BASETYPE,
+    .flags = Py_TPFLAGS_DEFAULT|Py_TPFLAGS_BASETYPE|Py_TPFLAGS_HAVE_GC,
     .slots = SimpleWrapper_slots,
 };
 
