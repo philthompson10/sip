@@ -2811,51 +2811,6 @@ void sip_add_type_slots(PyHeapTypeObject *heap_to, const sipPySlotDef *slots)
 
 
 /*
- * Remove the object from the map and call the C/C++ dtor if we own the
- * instance.
- */
-void sip_forget_object(sipSimpleWrapper *self)
-{
-    sipWrappedModuleState *wms = (sipWrappedModuleState *)PyModule_GetState(
-            self->dmod);
-    sipSipModuleState *sms = wms->sip_module_state;
-
-#if 0
-    // TODO
-    /* Invoke any event handlers. */
-    sipEventHandler *eh;
-
-    for (eh = sms->event_handlers[sipEventCollectingWrapper]; eh != NULL; eh = eh->next)
-    {
-        if (sipTypeIsClass(eh->td) && sip_is_subtype(ctd, (const sipClassTypeDef *)eh->td))
-        {
-            sipCollectingWrapperEventHandler handler = (sipCollectingWrapperEventHandler)eh->handler;
-
-            handler((const sipTypeDef *)ctd, self);
-        }
-    }
-#endif
-
-    PyObject_GC_UnTrack((PyObject *)self);
-
-    /*
-     * Remove the object from the map before calling the class specific dealloc
-     * code.  This code calls the C++ dtor and may result in further calls that
-     * pass the instance as an argument.  If this is still in the map then it's
-     * reference count would be increased (to one) and bad things happen when
-     * it drops back to zero again.  (An example is PyQt events generated
-     * during the dtor call being passed to an event filter implemented in
-     * Python.)  By removing it from the map first we ensure that a new Python
-     * object is created.
-     */
-    sip_om_remove_object(&sms->object_map, self);
-
-    if (sms->interpreter_state != NULL && self->ctd->ctd_dealloc != NULL)
-        self->ctd->ctd_dealloc(self);
-}
-
-
-/*
  * If the given name is that of a typedef then the corresponding type is
  * returned.
  */

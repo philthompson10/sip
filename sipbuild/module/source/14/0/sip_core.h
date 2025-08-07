@@ -100,7 +100,6 @@ PyTypeObject *sip_create_mapped_type(sipSipModuleState *sms,
 PyObject *sip_create_type_dict(const sipWrappedModuleDef *wmd);
 int sip_dict_set_and_discard(PyObject *dict, const char *name, PyObject *obj);
 void sip_fix_slots(PyTypeObject *py_type, sipPySlotDef *psd);
-void sip_forget_object(sipSimpleWrapper *self);
 const sipContainerDef *sip_get_container(const sipTypeDef *td);
 void *sip_get_complex_cpp_ptr(sipWrappedModuleState *wms, sipSimpleWrapper *w,
         sipTypeID type_id);

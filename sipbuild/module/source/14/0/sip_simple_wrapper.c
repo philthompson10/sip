@@ -21,40 +21,58 @@
 #include "sip_object_map.h"
 #include "sip_parsers.h"
 #include "sip_threads.h"
+#include "sip_wrapper.h"
 #include "sip_wrapper_type.h"
 
 
-/* Forward declarations of slots. */
+/*
+ * The type's getters and setters..
+ */
 static PyObject *SimpleWrapper_get_dict(PyObject *self, void *closure);
 static int SimpleWrapper_set_dict(PyObject *self, PyObject *value,
         void *closure);
 
-
-/*
- * The type specification.
- */
 static PyGetSetDef SimpleWrapper_getset[] = {
     {"__dict__", SimpleWrapper_get_dict, SimpleWrapper_set_dict, NULL, NULL},
     {NULL, NULL, NULL, NULL, NULL}
 };
 
+
+/*
+ * The type's members.
+ */
 static PyMemberDef SimpleWrapper_members[] = {
     {"__dictoffset__", Py_T_PYSSIZET, offsetof(sipSimpleWrapper, dict), Py_READONLY},
     {NULL}
 };
 
+
+/*
+ * The type's slots.
+ */
+static int SimpleWrapper_clear(sipSimpleWrapper *self);
+static void SimpleWrapper_dealloc(sipSimpleWrapper *self);
+//static int SimpleWrapper_getbuffer(PyObject *self, Py_buffer *buf, int flags);
+//static void SimpleWrapper_releasebuffer(PyObject *self, Py_buffer *buf);
+static int SimpleWrapper_traverse(sipSimpleWrapper *self, visitproc visit,
+        void *arg);
+
 static PyType_Slot SimpleWrapper_slots[] = {
-#if 0
-    {Py_bf_getbuffer, sipSimpleWrapper_getbuffer},
-    {Py_bf_releasebuffer, sipSimpleWrapper_releasebuffer},
-    {Py_tp_clear, sipSimpleWrapper_clear},
-    {Py_tp_traverse, sipSimpleWrapper_traverse},
-#endif
+    //{Py_bf_getbuffer, sipSimpleWrapper_getbuffer},
+    //{Py_bf_releasebuffer, sipSimpleWrapper_releasebuffer},
+    {Py_tp_clear, SimpleWrapper_clear},
+    {Py_tp_dealloc, SimpleWrapper_dealloc},
     {Py_tp_getset, SimpleWrapper_getset},
+    {Py_tp_init, sip_api_simple_wrapper_init},
     {Py_tp_members, SimpleWrapper_members},
+    {Py_tp_traverse, SimpleWrapper_traverse},
     {0, NULL}
 };
 
+
+/*
+ * The type specification.
+ */
 static PyType_Spec SimpleWrapper_TypeSpec = {
     .name = _SIP_MODULE_FQ_NAME ".simplewrapper",
     .basicsize = sizeof (sipSimpleWrapper),
@@ -73,23 +91,104 @@ static sipFinalFunc find_finalisation(const sipClassTypeDef *ctd);
 /*
  * The simple wrapper clear slot.
  */
-int sipSimpleWrapper_clear(PyObject *self)
+static int SimpleWrapper_clear(sipSimpleWrapper *self)
 {
-    sipSimpleWrapper *sw = (sipSimpleWrapper *)self;
-
+    sipWrappedModuleState *wms = (sipWrappedModuleState *)PyModule_GetState(
+            self->dmod);
+    sipSipModuleState *sms = wms->sip_module_state;
     int vret = 0;
 
-    /* Call any handwritten clear code. */
-    if (sw->data != NULL && sw->ctd != NULL && sw->ctd->ctd_clear != NULL)
-        vret = sw->ctd->ctd_clear(sw->data);
+    /*
+     * Call any handwritten clear code.  Note that this can be called after the
+     * the C/C++ instance has been destroyed (because we can be called by
+     * sipWrapper_dealloc()).  This feels wrong but we retain this historical
+     * behaviour as it doesn't seem to have caused problems in the wild.
+     */
+    sipClearFunc clear = self->ctd->ctd_clear;
 
-    Py_CLEAR(sw->dict);
-    Py_CLEAR(sw->dmod);
-    Py_CLEAR(sw->extra_refs);
-    Py_CLEAR(sw->mixin_main);
-    Py_CLEAR(sw->user);
+    if (clear != NULL)
+        vret = clear(self->data);
+
+    Py_CLEAR(self->dict);
+    Py_CLEAR(self->dmod);
+    Py_CLEAR(self->extra_refs);
+    Py_CLEAR(self->mixin_main);
+    Py_CLEAR(self->user);
+
+    /* Handle any children if the type supports the concept. */
+    if (PyObject_TypeCheck(self, sms->wrapper_type))
+    {
+        sipWrapper *w = (sipWrapper *)self;
+
+        /* Detach any children (which will be owned by C/C++). */
+        while (w->first_child != NULL)
+            sip_remove_from_parent(w->first_child);
+    }
 
     return vret;
+}
+
+
+/*
+ * The simple wrapper dealloc slot.
+ */
+static void SimpleWrapper_dealloc(sipSimpleWrapper *self)
+{
+    PyObject_GC_UnTrack((PyObject *)self);
+
+    /*
+     * Remove the object from the map and call the C/C++ dtor if we own the
+     * instance.
+     */
+    sipWrappedModuleState *wms = (sipWrappedModuleState *)PyModule_GetState(
+            self->dmod);
+    sipSipModuleState *sms = wms->sip_module_state;
+
+#if 0
+    // TODO
+    /* Invoke any event handlers. */
+    sipEventHandler *eh;
+
+    for (eh = sms->event_handlers[sipEventCollectingWrapper]; eh != NULL; eh = eh->next)
+    {
+        if (sipTypeIsClass(eh->td) && sip_is_subtype(ctd, (const sipClassTypeDef *)eh->td))
+        {
+            sipCollectingWrapperEventHandler handler = (sipCollectingWrapperEventHandler)eh->handler;
+
+            handler((const sipTypeDef *)ctd, self);
+        }
+    }
+#endif
+
+    /*
+     * Remove the object from the map before calling the class specific dealloc
+     * code.  This code calls the C++ dtor and may result in further calls that
+     * pass the instance as an argument.  If this is still in the map then it's
+     * reference count would be increased (to one) and bad things happen when
+     * it drops back to zero again.  (An example is PyQt events generated
+     * during the dtor call being passed to an event filter implemented in
+     * Python.)  By removing it from the map first we ensure that a new Python
+     * object is created.
+     */
+    sip_om_remove_object(&sms->object_map, self);
+
+    if (sms->interpreter_state != NULL && self->ctd->ctd_dealloc != NULL)
+    {
+        sipDeallocFunc dealloc = self->ctd->ctd_dealloc;
+
+        if (dealloc != NULL)
+            dealloc(self);
+    }
+
+    /*
+     * Now that the C++ object no longer exists (as far as we are concerned) we
+     * can tidy up the Python object.
+     */
+    SimpleWrapper_clear(self);
+
+    PyTypeObject *type = Py_TYPE(self);
+    type->tp_free(self);
+    Py_DECREF(type);
 }
 
 
@@ -98,7 +197,7 @@ int sipSimpleWrapper_clear(PyObject *self)
  */
 #if 0
 // TODO
-int sipSimpleWrapper_getbuffer(PyObject *self, Py_buffer *buf, int flags)
+static int SimpleWrapper_getbuffer(PyObject *self, Py_buffer *buf, int flags)
 {
     void *ptr;
     const sipClassTypeDef *ctd;
@@ -224,7 +323,7 @@ static PyObject *SimpleWrapper_new(PyTypeObject *cls, PyObject *args,
  */
 #if 0
 // TODO
-void sipSimpleWrapper_releasebuffer(PyObject *self, Py_buffer *buf)
+static void SimpleWrapper_releasebuffer(PyObject *self, Py_buffer *buf)
 {
     void *ptr;
     const sipClassTypeDef *ctd;
@@ -249,32 +348,57 @@ void sipSimpleWrapper_releasebuffer(PyObject *self, Py_buffer *buf)
 /*
  * The simple wrapper traverse slot.
  */
-int sipSimpleWrapper_traverse(PyObject *self, visitproc visit, void *arg)
+static int SimpleWrapper_traverse(sipSimpleWrapper *self, visitproc visit,
+        void *arg)
 {
-    sipSimpleWrapper *sw = (sipSimpleWrapper *)self;
+    sipWrappedModuleState *wms = (sipWrappedModuleState *)PyModule_GetState(
+            self->dmod);
+    sipSipModuleState *sms = wms->sip_module_state;
 
     Py_VISIT(Py_TYPE(self));
 
     /* Call any handwritten traverse code. */
-#if 0
-    void *ptr;
-    const sipClassTypeDef *ctd;
+    sipTraverseFunc traverse = self->ctd->ctd_traverse;
 
-    if ((ptr = sip_get_ptr_type_def(sw, &ctd)) != NULL)
-        if (ctd->ctd_traverse != NULL)
+    if (traverse != NULL)
+    {
+        int vret = traverse(self->data, visit, arg);
+
+        if (vret != 0)
+            return vret;
+    }
+
+    Py_VISIT(self->dict);
+    Py_VISIT(self->dmod);
+    Py_VISIT(self->extra_refs);
+    Py_VISIT(self->mixin_main);
+    Py_VISIT(self->user);
+
+    /* Handle any children if the type supports the concept. */
+    if (PyObject_TypeCheck(self, sms->wrapper_type))
+    {
+        sipWrapper *w = ((sipWrapper *)self)->first_child;
+
+        while (w != NULL)
         {
-            int vret;
+            /*
+             * We don't traverse if the wrapper is a child of itself.  We do
+             * this so that wrapped objects returned by virtual methods with
+             * the /Factory/ don't have those objects collected.  This then
+             * means that plugins implemented in Python have a chance of
+             * working.
+             */
+            if (w != (sipWrapper *)self)
+            {
+                int vret = visit((PyObject *)w, arg);
 
-            if ((vret = ctd->ctd_traverse(ptr, visit, arg)) != 0)
-                return vret;
+                if (vret != 0)
+                    return vret;
+            }
+
+            w = w->sibling_next;
         }
-#endif
-
-    Py_VISIT(sw->dict);
-    Py_VISIT(sw->dmod);
-    Py_VISIT(sw->extra_refs);
-    Py_VISIT(sw->mixin_main);
-    Py_VISIT(sw->user);
+    }
 
     return 0;
 }
@@ -328,26 +452,6 @@ static int SimpleWrapper_set_dict(PyObject *self, PyObject *value,
     sw->dict = value;
 
     return 0;
-}
-
-
-/*
- * Perform the common parts of the dealloc slot.
- */
-void sip_api_simple_wrapper_dealloc(sipSimpleWrapper *self)
-{
-    // TODO Should ctd_clear() get called first?
-    sip_forget_object(self);
-
-    /*
-     * Now that the C++ object no longer exists we can tidy up the Python
-     * object.
-     */
-    //sip_api_simple_wrapper_clear(self, ctd);
-
-    PyTypeObject *type = Py_TYPE(self);
-    type->tp_free(self);
-    Py_DECREF(type);
 }
 
 
