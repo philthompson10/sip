@@ -40,9 +40,10 @@ static void add_object(sipWrappedModuleState *wms, sipSimpleWrapper *val,
         void *addr);
 static sipHashEntry *find_hash_entry(sipObjectMap *om, void *key);
 static sipHashEntry *new_hash_table(uintptr_t size);
-static void remove_aliases(sipObjectMap *om, sipSimpleWrapper *val, void *addr,
-        const sipClassTypeDef *ctd);
-static int remove_object(sipObjectMap *om, sipSimpleWrapper *val, void *addr);
+static void remove_aliases(sipWrappedModuleState *wms, sipSimpleWrapper *val,
+        void *addr, const sipClassTypeDef *ctd);
+static int remove_object(sipWrappedModuleState *wms, sipSimpleWrapper *val,
+        void *addr);
 static void reorganise_map(sipObjectMap *om);
 
 
@@ -171,29 +172,31 @@ static void add_aliases(sipWrappedModuleState *wms, sipSimpleWrapper *val,
     /* See if there are any super-classes. */
     if ((supers = ctd->ctd_supers) != NULL)
     {
-        sipTypeID type_id = *supers++;
+        sipTypeID sup_type_id = *supers++;
 
-        const sipClassTypeDef *sup_ctd = sip_get_generated_class_type_def(
-                type_id, ctd);
+        sipWrappedModuleState *defining_wms;
+        const sipTypeDef *sup_td = sip_get_type_def(wms, sup_type_id,
+                &defining_wms);
 
         /* Recurse up the hierachy for the first super-class. */
-        add_aliases(wms, val, addr, sup_ctd);
+        add_aliases(defining_wms, val, addr, (const sipClassTypeDef *)sup_td);
 
         /*
          * We only check for aliases for subsequent super-classes because the
          * first one can never need one.
          */
-        while (!sipTypeIDIsSentinel(type_id))
+        while (!sipTypeIDIsSentinel(sup_type_id))
         {
-            type_id = *supers++;
+            sup_type_id = *supers++;
             void *sup_addr;
 
-            sup_ctd = sip_get_generated_class_type_def(type_id, ctd);
+            sup_td = sip_get_type_def(wms, sup_type_id, &defining_wms);
 
             /* Recurse up the hierachy for the remaining super-classes. */
-            add_aliases(wms, val, addr, sup_ctd);
+            add_aliases(defining_wms, val, addr,
+                    (const sipClassTypeDef *)sup_td);
 
-            sup_addr = (*val->ctd->ctd_cast)(addr, (sipTypeDef *)sup_ctd);
+            sup_addr = (*val->ctd->ctd_cast)(addr, sup_td);
 
             if (sup_addr != addr)
             {
@@ -355,53 +358,56 @@ static void reorganise_map(sipObjectMap *om)
  * Remove a C/C++ object from the table.  Return 0 if it was removed
  * successfully.
  */
-int sip_om_remove_object(sipObjectMap *om, sipSimpleWrapper *val)
+int sip_om_remove_object(sipWrappedModuleState *wms, sipSimpleWrapper *val)
 {
     /* Remove any aliases. */
-    remove_aliases(om, val, val->data, val->ctd);
+    remove_aliases(wms, val, val->data, val->ctd);
 
     /* Remove the object. */
-    return remove_object(om, val, val->data);
+    return remove_object(wms, val, val->data);
 }
 
 
 /*
  * Remove an alias for any address that is different when cast to a super-type.
  */
-static void remove_aliases(sipObjectMap *om, sipSimpleWrapper *val, void *addr,
-        const sipClassTypeDef *ctd)
+static void remove_aliases(sipWrappedModuleState *wms, sipSimpleWrapper *val,
+        void *addr, const sipClassTypeDef *ctd)
 {
     const sipTypeID *supers;
 
     /* See if there are any super-classes. */
     if ((supers = ctd->ctd_supers) != NULL)
     {
-        sipTypeID type_id = *supers++;
+        sipTypeID sup_type_id = *supers++;
 
-        const sipClassTypeDef *sup_ctd = sip_get_generated_class_type_def(
-                type_id, ctd);
+        sipWrappedModuleState *defining_wms;
+        const sipTypeDef *sup_td = sip_get_type_def(wms, sup_type_id,
+                &defining_wms);
 
         /* Recurse up the hierachy for the first super-class. */
-        remove_aliases(om, val, addr, sup_ctd);
+        remove_aliases(defining_wms, val, addr,
+                (const sipClassTypeDef *)sup_td);
 
         /*
          * We only check for aliases for subsequent super-classes because the
          * first one can never need one.
          */
-        while (!sipTypeIDIsSentinel(type_id))
+        while (!sipTypeIDIsSentinel(sup_type_id))
         {
-            type_id = *supers++;
+            sup_type_id = *supers++;
             void *sup_addr;
 
-            sup_ctd = sip_get_generated_class_type_def(type_id, ctd);
+            sup_td = sip_get_type_def(wms, sup_type_id, &defining_wms);
 
             /* Recurse up the hierachy for the remaining super-classes. */
-            remove_aliases(om, val, addr, sup_ctd);
+            remove_aliases(defining_wms, val, addr,
+                    (const sipClassTypeDef *)sup_td);
 
-            sup_addr = (*val->ctd->ctd_cast)(addr, (sipTypeDef *)sup_ctd);
+            sup_addr = (*val->ctd->ctd_cast)(addr, sup_td);
 
             if (sup_addr != addr)
-                remove_object(om, val, sup_addr);
+                remove_object(wms, val, sup_addr);
         }
     }
 }
@@ -410,9 +416,11 @@ static void remove_aliases(sipObjectMap *om, sipSimpleWrapper *val, void *addr,
 /*
  * Remove a wrapper from the map.
  */
-static int remove_object(sipObjectMap *om, sipSimpleWrapper *val, void *addr)
+static int remove_object(sipWrappedModuleState *wms, sipSimpleWrapper *val,
+        void *addr)
 {
-    sipHashEntry *he = find_hash_entry(om, addr);
+    sipSipModuleState *sms = wms->sip_module_state;
+    sipHashEntry *he = find_hash_entry(&sms->object_map, addr);
     sipSimpleWrapper **swp;
 
     for (swp = &he->first; *swp != NULL; swp = &(*swp)->next)
@@ -453,7 +461,7 @@ static int remove_object(sipObjectMap *om, sipSimpleWrapper *val, void *addr)
              * table.
              */
             if (he->first == NULL)
-                om->stale++;
+                sms->object_map.stale++;
 
             return 0;
         }

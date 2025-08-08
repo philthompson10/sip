@@ -911,7 +911,7 @@ void *sip_force_convert_to_type_us(sipWrappedModuleState *wms, PyObject *pyObj,
     /* See if the object's type can be converted. */
     if (!can_convert_to_type(wms, pyObj, type_id, flags))
     {
-        const sipTypeDef *td = sip_get_type_def(wms, type_id);
+        const sipTypeDef *td = sip_get_type_def(wms, type_id, NULL);
 
         if (sipTypeIsMapped(td))
             raise_no_convert_to(pyObj, td);
@@ -1656,7 +1656,7 @@ static PyObject *convert_from_new_type(sipWrappedModuleState *wms, void *cpp,
 static int convert_from_sequence(sipWrappedModuleState *wms, PyObject *seq,
         sipTypeID type_id, void **array, Py_ssize_t *nr_elem)
 {
-    const sipTypeDef *td = sip_get_type_def(wms, type_id);
+    const sipTypeDef *td = sip_get_type_def(wms, type_id, NULL);
 
     sipArrayFunc array_helper;
     sipAssignFunc assign_helper;
@@ -1832,7 +1832,7 @@ static int convert_subclass_pass(sipSipModuleState *sms,
 static PyObject *convert_to_sequence(sipWrappedModuleState *wms, void *array,
         Py_ssize_t nr_elem, sipTypeID type_id)
 {
-    const sipTypeDef *td = sip_get_type_def(wms, type_id);
+    const sipTypeDef *td = sip_get_type_def(wms, type_id, NULL);
 
     sipCopyFunc copy_helper;
 
@@ -1875,7 +1875,7 @@ static void *convert_to_type_us(sipWrappedModuleState *wms, PyObject *pyObj,
         sipTypeID type_id, PyObject *transferObj, int flags, int *statep,
         void **user_statep, int *iserrp)
 {
-    const sipTypeDef *td = sip_get_type_def(wms, type_id);
+    const sipTypeDef *td = sip_get_type_def(wms, type_id, NULL);
 
     assert(sipTypeIsClass(td) || sipTypeIsMapped(td));
 
@@ -2678,7 +2678,7 @@ static int parse_pass_1(sipWrappedModuleState *wms, PyObject **parse_err_p,
                 else
                     va_arg(va, int *);
 
-                if (sipTypeNeedsUserState(sip_get_type_def(wms, type_id)))
+                if (sipTypeNeedsUserState(sip_get_type_def(wms, type_id, NULL)))
                     va_arg(va, void **);
 
                 if (arg != NULL && !can_convert_to_type(wms, arg, type_id, iflgs))
@@ -3643,7 +3643,7 @@ static int parse_pass_2(sipWrappedModuleState *wms, PyObject *self,
                     statep = va_arg(va, int *);
                 }
 
-                if (sipTypeNeedsUserState(sip_get_type_def(wms, type_id)))
+                if (sipTypeNeedsUserState(sip_get_type_def(wms, type_id, NULL)))
                     user_statep = va_arg(va, void **);
                 else
                     user_statep = NULL;
@@ -4329,7 +4329,7 @@ static int parse_result(sipWrappedModuleState *wms, PyObject *method,
                         else if (flags & FMT_RP_MAKE_COPY)
                         {
                             const sipTypeDef *td = sip_get_type_def(wms,
-                                    type_id);
+                                    type_id, NULL);
 
                             sipAssignFunc assign_helper;
 
@@ -4571,7 +4571,8 @@ static void release_type_us(sipWrappedModuleState *wms, void *cpp,
 {
     /* See if there is something to release. */
     if (state & SIP_TEMPORARY)
-        sip_release(cpp, sip_get_type_def(wms, type_id), state, user_state);
+        sip_release(cpp, sip_get_type_def(wms, type_id, NULL), state,
+                user_state);
 }
 
 

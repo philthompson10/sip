@@ -586,7 +586,7 @@ static PyObject *sip_api_pyslot_extend(PyObject *wmod, sipPySlotType st,
                 continue;
 
             /* Check against the type if one was given. */
-            if (td != NULL && td != sip_get_type_def(wms, ex->pse_class))
+            if (td != NULL && td != sip_get_type_def(wms, ex->pse_class, NULL))
                 continue;
 
             PyErr_Clear();
@@ -1332,7 +1332,7 @@ sipTypeID sip_type_scope(sipWrappedModuleState *wms, sipTypeID type_id)
             cod = &((const sipClassTypeDef *)td)->ctd_container;
 
         if (cod->cod_scope != sipTypeID_Invalid)
-            return sip_get_type_def(wms, cod->cod_scope);
+            return sip_get_type_def(wms, cod->cod_scope, NULL);
     }
 #endif
 
@@ -1963,12 +1963,14 @@ static sipWrappedModuleState *get_defining_wrapped_module_state(
  * Return the type definition for a type ID.  This can be invalid if the ID
  * refers to an unresolved external type.
  */
-// TODO Is this still needed?
 const sipTypeDef *sip_get_type_def(sipWrappedModuleState *wms,
-        sipTypeID type_id)
+        sipTypeID type_id, sipWrappedModuleState **defining_wms_p)
 {
     if ((wms = get_defining_wrapped_module_state(wms, type_id)) == NULL)
         return NULL;
+
+    if (defining_wms_p != NULL)
+        *defining_wms_p = wms;
 
     /*
      * Note that we don't go through the Python type object as Python enums
@@ -2033,21 +2035,6 @@ PyTypeObject *sip_get_py_type_and_type_def(sipWrappedModuleState *wms,
 
     // TODO
     return NULL;
-}
-
-/*
- * Return the generated class type structure of a class's super-class.
- */
-// TODO Is this needed?
-const sipClassTypeDef *sip_get_generated_class_type_def(sipTypeID type_id,
-        const sipClassTypeDef *ctd)
-{
-#if 0
-    return (const sipClassTypeDef *)sip_get_type_def(type_id,
-            ctd->ctd_base.td_module);
-#else
-    return NULL;
-#endif
 }
 
 
@@ -3527,7 +3514,7 @@ static int sip_api_register_event_handler(PyObject *wmod, sipEventType type,
 {
     sipWrappedModuleState *wms = (sipWrappedModuleState *)PyModule_GetState(
             wmod);
-    const sipTypeDef *td = sip_get_type_def(wms, type_id);
+    const sipTypeDef *td = sip_get_type_def(wms, type_id, NULL);
 
     assert(sipTypeIsClass(td) || sipTypeIsMapped(td));
 
@@ -3551,7 +3538,8 @@ static int sip_api_register_event_handler(PyObject *wmod, sipEventType type,
  * class type.
  */
 // TODO Use the Python type objects?
-int sip_is_subtype(const sipClassTypeDef *ctd, const sipClassTypeDef *base_ctd)
+int sip_is_subtype(sipWrappedModuleState *wms, const sipClassTypeDef *ctd,
+        const sipClassTypeDef *base_ctd)
 {
     /* Handle the trivial cases. */
     if (ctd == base_ctd)
@@ -3563,19 +3551,20 @@ int sip_is_subtype(const sipClassTypeDef *ctd, const sipClassTypeDef *base_ctd)
         return FALSE;
 
     /* Search the super-types. */
-    sipTypeID type_id;
+    sipTypeID sup_type_id;
 
     do
     {
-        type_id = *supers++;
+        sup_type_id = *supers++;
 
-        const sipClassTypeDef *sup_ctd = sip_get_generated_class_type_def(
-                type_id, ctd);
+        sipWrappedModuleState *defining_wms;
+        const sipTypeDef *sup_td = sip_get_type_def(wms, sup_type_id,
+                &defining_wms);
 
-        if (sip_is_subtype(sup_ctd, base_ctd))
+        if (sip_is_subtype(defining_wms, (const sipClassTypeDef *)sup_td, base_ctd))
             return TRUE;
     }
-    while (!sipTypeIDIsSentinel(type_id));
+    while (!sipTypeIDIsSentinel(sup_type_id));
 
     return FALSE;
 }

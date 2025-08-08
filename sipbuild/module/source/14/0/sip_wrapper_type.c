@@ -209,7 +209,7 @@ there a better way?
                 /* Invoke any event handlers. */
                 for (eh = sms->event_handlers[sipEventPySubclassCreated]; eh != NULL; eh = eh->next)
                 {
-                    if (sipTypeIsClass(eh->td) && sip_is_subtype((const sipClassTypeDef *)self->wt_td, (const sipClassTypeDef *)eh->td))
+                    if (sipTypeIsClass(eh->td) && sip_is_subtype(wms, (const sipClassTypeDef *)self->wt_td, (const sipClassTypeDef *)eh->td))
                     {
                         sipPySubclassCreatedEventHandler handler = (sipPySubclassCreatedEventHandler)eh->handler;
 

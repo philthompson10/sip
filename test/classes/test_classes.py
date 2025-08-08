@@ -81,4 +81,4 @@ class ClassesTestCase(SIPTestCase):
 
         self.assertIsInstance(SimpleSubK(), self.c_mod.SimpleKlass)
 
-    # TODO Test Klass instance and class attributes.
+    # TODO Test Klass instance and class wrapped attributes.

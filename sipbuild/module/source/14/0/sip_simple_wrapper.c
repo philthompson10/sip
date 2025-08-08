@@ -82,10 +82,8 @@ static PyType_Spec SimpleWrapper_TypeSpec = {
 
 
 /* Forward declarations. */
-#if 0
-Not yet needed.
-static sipFinalFunc find_finalisation(const sipClassTypeDef *ctd);
-#endif
+static sipFinalFunc find_finalisation(sipWrappedModuleState *wms,
+        const sipClassTypeDef *ctd);
 
 
 /*
@@ -151,7 +149,7 @@ static void SimpleWrapper_dealloc(sipSimpleWrapper *self)
 
     for (eh = sms->event_handlers[sipEventCollectingWrapper]; eh != NULL; eh = eh->next)
     {
-        if (sipTypeIsClass(eh->td) && sip_is_subtype(ctd, (const sipClassTypeDef *)eh->td))
+        if (sipTypeIsClass(eh->td) && sip_is_subtype(wms, ctd, (const sipClassTypeDef *)eh->td))
         {
             sipCollectingWrapperEventHandler handler = (sipCollectingWrapperEventHandler)eh->handler;
 
@@ -170,7 +168,7 @@ static void SimpleWrapper_dealloc(sipSimpleWrapper *self)
      * Python.)  By removing it from the map first we ensure that a new Python
      * object is created.
      */
-    sip_om_remove_object(&sms->object_map, self);
+    sip_om_remove_object(wms, self);
 
     if (sms->interpreter_state != NULL && self->ctd->ctd_dealloc != NULL)
     {
@@ -472,9 +470,7 @@ int sip_api_simple_wrapper_init(sipSimpleWrapper *self, PyObject *args,
     int sipFlags, from_cpp = TRUE;
     sipWrapper *owner;
     PyObject *unused = NULL;
-#if 0
-    sipFinalFunc final_func = find_finalisation(self->ctd);
-#endif
+    sipFinalFunc final_func = find_finalisation(wms, self->ctd);
 
     /* Check for an existing C++ instance waiting to be wrapped. */
     if (sip_get_pending(sms, &sipNew, &owner, &sipFlags) < 0)
@@ -679,7 +675,7 @@ int sip_api_simple_wrapper_init(sipSimpleWrapper *self, PyObject *args,
 
         for (eh = sms->event_handlers[sipEventWrappedInstance]; eh != NULL; eh = eh->next)
         {
-            if (sipTypeIsClass(eh->td) && sip_is_subtype(self->ctd, (const sipClassTypeDef *)eh->td))
+            if (sipTypeIsClass(eh->td) && sip_is_subtype(wms, self->ctd, (const sipClassTypeDef *)eh->td))
             {
                 sipWrappedInstanceEventHandler handler = (sipWrappedInstanceEventHandler)eh->handler;
 
@@ -823,37 +819,41 @@ int sip_simple_wrapper_init(PyObject *module, sipSipModuleState *sms)
 }
 
 
-#if 0
-Not yet needed.
 /*
  * Find any finalisation function for a class, searching its super-classes if
  * necessary.
  */
-static sipFinalFunc find_finalisation(const sipClassTypeDef *ctd)
+static sipFinalFunc find_finalisation(sipWrappedModuleState *wms,
+        const sipClassTypeDef *ctd)
 {
     if (ctd->ctd_final != NULL)
         return ctd->ctd_final;
 
-    const sipTypeID *supers;
+    const sipTypeID *supers = ctd->ctd_supers;
 
-    if ((supers = ctd->ctd_supers) != NULL)
+    if (supers != NULL)
     {
-        sipTypeID type_id;
+        sipTypeID sup_type_id;
 
         do
         {
-            type_id = *supers++;
+            sup_type_id = *supers++;
 
-            const sipClassTypeDef *sup_ctd = sip_get_generated_class_type_def(
-                    type_id, ctd);
-            sipFinalFunc func;
+            sipWrappedModuleState *defining_wms;
+            const sipTypeDef *sup_td = sip_get_type_def(wms, sup_type_id,
+                    &defining_wms);
 
-            if ((func = find_finalisation(sup_ctd)) != NULL)
+            if (sup_td == NULL)
+                return NULL;
+
+            sipFinalFunc func = find_finalisation(defining_wms,
+                    (const sipClassTypeDef *)sup_td);
+
+            if (func != NULL)
                 return func;
         }
-        while (!sipTypeIDIsSentinel(type_id));
+        while (!sipTypeIDIsSentinel(sup_type_id));
     }
 
     return NULL;
 }
-#endif

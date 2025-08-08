@@ -109,14 +109,12 @@ void *sip_get_final_address(sipSipModuleState *sms, const sipTypeDef *td,
         void *cpp);
 sipConvertFromFunc sip_get_from_convertor(PyTypeObject *py_type,
         const sipTypeDef *td);
-const sipClassTypeDef *sip_get_generated_class_type_def(sipTypeID type_id,
-        const sipClassTypeDef *ctd);
 PyTypeObject *sip_get_local_py_type(sipWrappedModuleState *wms,
         Py_ssize_t type_nr);
 PyTypeObject *sip_get_py_type_and_type_def(sipWrappedModuleState *wms,
         sipTypeID type_id, const sipTypeDef **tdp);
 const sipTypeDef *sip_get_type_def(sipWrappedModuleState *wms,
-        sipTypeID type_id);
+        sipTypeID type_id, sipWrappedModuleState **defining_wms_p);
 PyTypeObject *sip_get_py_type(sipWrappedModuleState *wms, sipTypeID type_id);
 PyTypeObject *sip_get_py_type_from_name(sipSipModuleState *sms,
         PyObject *target_module_name_obj, const char *target_type_name);
@@ -125,7 +123,7 @@ PyObject *sip_get_scope_dict(sipSipModuleState *sms, const sipTypeDef *td,
         PyObject *mod_dict, const sipWrappedModuleDef *wmd);
 void sip_instance_destroyed(sipWrappedModuleState *wms,
         sipSimpleWrapper **sipSelfp);
-int sip_is_subtype(const sipClassTypeDef *ctd,
+int sip_is_subtype(sipWrappedModuleState *wms, const sipClassTypeDef *ctd,
         const sipClassTypeDef *base_ctd);
 int sip_keep_reference(sipWrappedModuleState *wms, sipSimpleWrapper *w,
         int key, PyObject *obj);

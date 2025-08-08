@@ -1500,6 +1500,7 @@ struct _sipAPIDef {
 
 
 /* These are held in flags. */
+// TODO Move to sip_simple_wrapper.h to make sure they are not exposed.
 #if !defined(Py_LIMITED_API)
 #define SIP_PY_OWNED        0x0010  /* If owned by Python. */
 #define SIP_SHARE_MAP       0x0020  /* If the map slot might be occupied. */

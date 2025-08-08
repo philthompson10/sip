@@ -272,7 +272,8 @@ static int Array_ass_subscript(PyObject *self, PyObject *key, PyObject *value)
 
     if (sipTypeIDIsGeneratedType(array->type_id))
     {
-        const sipTypeDef *td = sip_get_type_def(array->wms, array->type_id);
+        const sipTypeDef *td = sip_get_type_def(array->wms, array->type_id,
+                NULL);
 
         sipAssignFunc assign = ((const sipClassTypeDef *)td)->ctd_assign;
         if (assign == NULL)
@@ -405,7 +406,7 @@ static void Array_dealloc(PyObject *self)
         if (sipTypeIDIsGeneratedType(array->type_id))
         {
             const sipTypeDef *td = sip_get_type_def(array->wms,
-                    array->type_id);
+                    array->type_id, NULL);
 
             ((const sipClassTypeDef *)td)->ctd_array_delete(array->data);
         }
@@ -453,7 +454,7 @@ static PyObject *Array_new(PyTypeObject *cls, PyObject *args, PyObject *kw)
 
     // TODO We want to keep wt_td but not wt_type_id???
     const sipClassTypeDef *ctd = (const sipClassTypeDef *)sip_get_type_def(
-            NULL, wt->wt_type_id);
+            NULL, wt->wt_type_id, NULL);
 
     if (ctd->ctd_array == NULL || ctd->ctd_sizeof == 0)
     {
@@ -487,7 +488,7 @@ int sip_array_can_convert(sipWrappedModuleState *wms, PyObject *obj,
 
     Array *array = (Array *)obj;
 
-    return sip_get_type_def(array->wms, array->type_id) == sip_get_type_def(wms, type_id);
+    return sip_get_type_def(array->wms, array->type_id, NULL) == sip_get_type_def(wms, type_id, NULL);
 }
 
 
@@ -671,7 +672,7 @@ static void *get_slice(Array *array, PyObject *value, Py_ssize_t len)
         {
             if (sipTypeIDIsGeneratedType(other->type_id))
             {
-                if (sip_get_type_def(array->wms, array->type_id) == sip_get_type_def(other->wms, other->type_id))
+                if (sip_get_type_def(array->wms, array->type_id, NULL) == sip_get_type_def(other->wms, other->type_id, NULL))
                 {
                     bad_type = FALSE;
                 }
@@ -723,7 +724,7 @@ static const char *get_type_name(Array *array)
 
     if (sipTypeIDIsGeneratedType(array->type_id))
     {
-        type_name = sip_get_type_def(array->wms, array->type_id)->td_cname;
+        type_name = sip_get_type_def(array->wms, array->type_id, NULL)->td_cname;
     }
     else
     {

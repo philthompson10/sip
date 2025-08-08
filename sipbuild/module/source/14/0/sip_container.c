@@ -291,7 +291,7 @@ static int add_lazy_attrs(sipWrappedModuleState *wms, PyTypeObject *py_type,
 
     for (eh = wms->sip_module_state->event_handlers[sipEventFinalisingType]; eh != NULL; eh = eh->next)
     {
-        if (sipTypeIsClass(eh->td) && sip_is_subtype((const sipClassTypeDef *)td, (const sipClassTypeDef *)eh->td))
+        if (sipTypeIsClass(eh->td) && sip_is_subtype(wms, (const sipClassTypeDef *)td, (const sipClassTypeDef *)eh->td))
         {
             sipFinalisingTypeEventHandler handler = (sipFinalisingTypeEventHandler)eh->handler;
 
