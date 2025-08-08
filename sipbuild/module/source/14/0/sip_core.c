@@ -623,10 +623,8 @@ static void sip_api_instance_destroyed(PyObject *wmod,
 void sip_instance_destroyed(sipWrappedModuleState *wms,
         sipSimpleWrapper **sipSelfp)
 {
-    sipSipModuleState *sms = wms->sip_module_state;
-
     /* If there is no interpreter just do the minimum and get out. */
-    if (sms->interpreter_state == NULL)
+    if (wms->sip_module_state->interpreter_state == NULL)
     {
         *sipSelfp = NULL;
         return;
@@ -645,7 +643,7 @@ void sip_instance_destroyed(sipWrappedModuleState *wms,
         call_py_dtor(wms, sipSelf);
         PyErr_Restore(xtype, xvalue, xtb);
 
-        sip_om_remove_object(&sms->object_map, sipSelf);
+        sip_om_remove_object(wms, sipSelf);
 
         /*
          * If C/C++ has a reference (and therefore no parent) then remove it.
@@ -656,7 +654,7 @@ void sip_instance_destroyed(sipWrappedModuleState *wms,
             sipResetCppHasRef(sipSelf);
             Py_DECREF(sipSelf);
         }
-        else if (PyObject_TypeCheck((PyObject *)sipSelf, sms->wrapper_type))
+        else if (((sipWrapperType *)Py_TYPE(sipSelf))->wt_is_wrapper)
         {
             sip_remove_from_parent((sipWrapper *)sipSelf);
         }
@@ -818,8 +816,7 @@ static PyTypeObject *create_container_type(sipWrappedModuleState *wms,
     /* Configure the type. */
     // TODO At moment cod_py_slots is only populated for classes.  If it turns
     // out that other containers don't have slots then move to ctd_py_slots
-    // and pass in as an extra argument.  Also check if other containers have
-    // optional slots - if not then remove the handling of this possibility.
+    // and pass in as an extra argument.
     const PyType_Slot *slots = cod->cod_py_slots;
 
     if (slots == NULL)
@@ -846,6 +843,8 @@ static PyTypeObject *create_container_type(sipWrappedModuleState *wms,
 
     /* Configure the type. */
     // TODO Are we going to keep wt_type_id?
+    ((sipWrapperType *)py_type)->wt_is_wrapper = PyType_IsSubtype(
+            (PyTypeObject *)py_type, wms->sip_module_state->wrapper_type);
     ((sipWrapperType *)py_type)->wt_dmod = Py_NewRef(wms->wrapped_module);
     ((sipWrapperType *)py_type)->wt_td = td;
 
@@ -1445,8 +1444,13 @@ static void sip_api_transfer_back(PyObject *wmod, PyObject *self)
 {
     sipWrappedModuleState *wms = (sipWrappedModuleState *)PyModule_GetState(
             wmod);
+    sipSipModuleState *sms = wms->sip_module_state;
 
-    sip_transfer_back(wms->sip_module_state, self);
+    /* Note that we can't assume self is a SIP generated type. */
+    if (self == NULL || !PyObject_TypeCheck(self, sms->wrapper_type))
+        return;
+
+    sip_transfer_back(self);
 }
 
 
@@ -1454,11 +1458,9 @@ static void sip_api_transfer_back(PyObject *wmod, PyObject *self)
  * Implement the transfer of ownership of a class instance to Python from
  * C/C++.
  */
-void sip_transfer_back(sipSipModuleState *sms, PyObject *self)
+void sip_transfer_back(PyObject *self)
 {
-    if (self == NULL || !PyObject_TypeCheck(self, sms->wrapper_type))
-        return;
-
+    /* self's type is known to be valid at this point. */
     sipSimpleWrapper *sw = (sipSimpleWrapper *)self;
 
     if (sipCppHasRef(sw))
@@ -1496,12 +1498,13 @@ void sip_transfer_to(sipSipModuleState *sms, PyObject *self,
         PyObject *owner)
 {
     /*
-     * There is a legitimate case where we try to transfer a PyObject that
-     * may not be a SIP generated class.  The virtual handler code calls
-     * this function to keep the C/C++ instance alive when it gets rid of
-     * the Python object returned by the Python method.  A class may have
-     * handwritten code that converts a regular Python type - so we can't
-     * assume that we can simply cast to sipWrapper.
+     * Note that we can't assume self is a SIP generated type.  There is a
+     * legitimate case where we try to transfer a PyObject that may not be a
+     * SIP generated class.  The virtual handler code calls this function to
+     * keep the C/C++ instance alive when it gets rid of the Python object
+     * returned by the Python method.  A class may have handwritten code that
+     * converts a regular Python type - so we can't assume that we can simply
+     * cast to sipWrapper.
      */
 
     if (self == NULL || !PyObject_TypeCheck(self, sms->wrapper_type))

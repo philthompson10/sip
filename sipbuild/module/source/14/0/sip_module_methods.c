@@ -184,7 +184,7 @@ static PyObject *meth_dump(PyObject *mod, PyObject *arg)
     printf("    Created by: %s\n", (sipIsDerived(sw) ? "Python" : "C/C++"));
     printf("    To be destroyed by: %s\n", (sipIsPyOwned(sw) ? "Python" : "C/C++"));
 
-    if (PyObject_TypeCheck((PyObject *)sw, sms->wrapper_type))
+    if (((sipWrapperType *)Py_TYPE(sw))->wt_is_wrapper)
     {
         sipWrapper *w = (sipWrapper *)sw;
 
@@ -323,7 +323,7 @@ static PyObject *meth_transferback(PyObject *mod, PyObject *args)
     if (!PyArg_ParseTuple(args, "O!:transferback", sms->wrapper_type, &w))
         return NULL;
 
-    sip_transfer_back(sms, w);
+    sip_transfer_back(w);
 
     Py_INCREF(Py_None);
     return Py_None;
@@ -349,7 +349,7 @@ static PyObject *meth_transferto(PyObject *mod, PyObject *args)
          */
         owner = NULL;
     }
-    else if (!PyObject_TypeCheck(owner, sms->wrapper_type))
+    else if (!((sipWrapperType *)Py_TYPE(owner))->wt_is_wrapper)
     {
         PyErr_Format(PyExc_TypeError,
                 "transferto() argument 2 must be " _SIP_MODULE_FQ_NAME ".wrapper, not %s",
@@ -418,7 +418,9 @@ static PyObject *meth_wrapinstance(PyObject *mod, PyObject *args)
  */
 static void clear_wrapper(sipSipModuleState *sms, sipSimpleWrapper *sw)
 {
-    if (PyObject_TypeCheck((PyObject *)sw, sms->wrapper_type))
+    sipWrapperType *wt = (sipWrapperType *)Py_TYPE(sw);
+
+    if (wt->wt_is_wrapper)
         sip_remove_from_parent((sipWrapper *)sw);
 
     /*
@@ -427,7 +429,6 @@ static void clear_wrapper(sipSipModuleState *sms, sipSimpleWrapper *sw)
      */
     sipResetPyOwned(sw);
 
-    sipWrapperType *wt = (sipWrapperType *)Py_TYPE(sw);
     sipWrappedModuleState *wms = (sipWrappedModuleState *)PyModule_GetState(
             wt->wt_dmod);
 

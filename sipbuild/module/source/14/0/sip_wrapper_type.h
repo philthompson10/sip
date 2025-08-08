@@ -40,12 +40,18 @@ struct _sipWrapperType {
     // TODO Hopefully remove this.
     unsigned wt_dict_complete : 1;
 
+    /*
+     * Set if the type is a sub-type of wrapper rather than simple wrapper.
+     * This can only be used if we know we have a SIP generated type.
+     */
+    unsigned wt_is_wrapper : 1;
+
     /* Set if the type is a user implemented Python sub-class. */
     // TODO Is this still needed?
     unsigned wt_user_type : 1;
 
     /* Unused and available for future use. */
-    unsigned wt_unused : 29;
+    unsigned wt_unused : 28;
 
     /* A string reference to the defining module. */
     PyObject *wt_dmod;

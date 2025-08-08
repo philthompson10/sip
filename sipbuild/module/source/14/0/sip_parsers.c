@@ -887,7 +887,7 @@ PyObject *sip_convert_from_type(sipWrappedModuleState *wms, void *cpp,
     if (transferObj != NULL)
     {
         if (transferObj == Py_None)
-            sip_transfer_back(sms, py);
+            sip_transfer_back(py);
         else
             sip_transfer_to(sms, py, transferObj);
     }
@@ -1907,7 +1907,7 @@ static void *convert_to_type_us(sipWrappedModuleState *wms, PyObject *pyObj,
                     else if (transferObj != NULL)
                     {
                         if (transferObj == Py_None)
-                            sip_transfer_back(wms->sip_module_state, pyObj);
+                            sip_transfer_back(pyObj);
                         else
                             sip_transfer_to(wms->sip_module_state, pyObj,
                                     transferObj);

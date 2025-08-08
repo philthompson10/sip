@@ -133,7 +133,7 @@ void sip_remove_from_parent(sipWrapper *self);
 int sip_register_py_type(sipSipModuleState *sms, PyTypeObject *supertype);
 int sip_super_init(PyObject *self, PyObject *args, PyObject *kwds,
         PyObject *type);
-void sip_transfer_back(sipSipModuleState *sms, PyObject *self);
+void sip_transfer_back(PyObject *self);
 void sip_transfer_to(sipSipModuleState *sms, PyObject *self, PyObject *owner);
 sipTypeID sip_type_scope(sipWrappedModuleState *wms, sipTypeID type_id);
 PyObject *sip_unpickle_type(PyObject *mod, PyObject *args);

@@ -206,6 +206,7 @@ static int WrapperType_init(sipWrapperType *self, PyObject *args,
     if (base != NULL && PyObject_TypeCheck((PyObject *)base, sms->wrapper_type_type))
     {
         // TODO Check if dmod can be NULL (ie. when wt_td might be NULL).
+        self->wt_is_wrapper = ((sipWrapperType *)base)->wt_is_wrapper;
         self->wt_dmod = Py_XNewRef(((sipWrapperType *)base)->wt_dmod);
         self->wt_td = ((sipWrapperType *)base)->wt_td;
 

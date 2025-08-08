@@ -116,7 +116,7 @@ static int SimpleWrapper_clear(sipSimpleWrapper *self)
     Py_CLEAR(self->user);
 
     /* Handle any children if the type supports the concept. */
-    if (PyObject_TypeCheck(self, sms->wrapper_type))
+    if (wt->wt_is_wrapper)
     {
         sipWrapper *w = (sipWrapper *)self;
 
@@ -376,7 +376,7 @@ static int SimpleWrapper_traverse(sipSimpleWrapper *self, visitproc visit,
     Py_VISIT(self->user);
 
     /* Handle any children if the type supports the concept. */
-    if (PyObject_TypeCheck(self, sms->wrapper_type))
+    if (wt->wt_is_wrapper)
     {
         sipWrapper *w = ((sipWrapper *)self)->first_child;
 
@@ -648,7 +648,7 @@ static int SimpleWrapper_init(sipSimpleWrapper *self, PyObject *args,
     }
 
     /* Handle any owner if the type supports the concept. */
-    if (PyObject_TypeCheck(self, sms->wrapper_type))
+    if (wt->wt_is_wrapper)
     {
         /*
          * The application may be doing something very unadvisable (like
@@ -659,6 +659,8 @@ static int SimpleWrapper_init(sipSimpleWrapper *self, PyObject *args,
 
         if (owner != NULL)
         {
+            // TODO If owner might be bad (ie. it comes from the user and
+            // hasn't already been checked) then check properly (and earlier).
             assert(PyObject_TypeCheck((PyObject *)owner, sms->wrapper_type));
 
             sip_add_to_parent((sipWrapper *)self, (sipWrapper *)owner);
