@@ -103,7 +103,7 @@ static int SimpleWrapper_clear(sipSimpleWrapper *self)
      * sipWrapper_dealloc()).  This feels wrong but we retain this historical
      * behaviour as it doesn't seem to have caused problems in the wild.
      */
-    sipClearFunc clear = self->ctd->ctd_clear;
+    sipClearFunc clear = ((const sipClassTypeDef *)wt->wt_td)->ctd_clear;
 
     if (clear != NULL)
         vret = clear(self->data);
@@ -171,9 +171,9 @@ static void SimpleWrapper_dealloc(sipSimpleWrapper *self)
      */
     sip_om_remove_object(wms, self);
 
-    if (sms->interpreter_state != NULL && self->ctd->ctd_dealloc != NULL)
+    if (sms->interpreter_state != NULL)
     {
-        sipDeallocFunc dealloc = self->ctd->ctd_dealloc;
+        sipDeallocFunc dealloc = ((const sipClassTypeDef *)wt->wt_td)->ctd_dealloc;
 
         if (dealloc != NULL)
             dealloc(self);
@@ -358,7 +358,7 @@ static int SimpleWrapper_traverse(sipSimpleWrapper *self, visitproc visit,
     Py_VISIT(Py_TYPE(self));
 
     /* Call any handwritten traverse code. */
-    sipTraverseFunc traverse = self->ctd->ctd_traverse;
+    sipTraverseFunc traverse = ((const sipClassTypeDef *)wt->wt_td)->ctd_traverse;
 
     if (traverse != NULL)
     {
@@ -467,14 +467,17 @@ int sip_api_simple_wrapper_init(sipSimpleWrapper *self, PyObject *args,
     sipSipModuleState *sms = wms->sip_module_state;
 
     void *sipNew;
-    int sipFlags, from_cpp = TRUE;
     sipWrapper *owner;
-    PyObject *unused = NULL;
-    sipFinalFunc final_func = find_finalisation(wms, self->ctd);
+    int sipFlags;
 
     /* Check for an existing C++ instance waiting to be wrapped. */
     if (sip_get_pending(sms, &sipNew, &owner, &sipFlags) < 0)
         return -1;
+
+    int from_cpp = TRUE;
+    PyObject *unused = NULL;
+    const sipClassTypeDef *ctd = (const sipClassTypeDef *)wt->wt_td;
+    sipFinalFunc final_func = find_finalisation(wms, ctd);
 
     if (sipNew == NULL)
     {
@@ -482,7 +485,7 @@ int sip_api_simple_wrapper_init(sipSimpleWrapper *self, PyObject *args,
 
 #if 0
         /* See if we are interested in any unused keyword arguments. */
-        if (sipTypeCallSuperInit(&self->ctd->ctd_base) || final_func != NULL)
+        if (sipTypeCallSuperInit(&ctd->ctd_base) || final_func != NULL)
             unused_p = &unused;
 #endif
 
@@ -549,7 +552,7 @@ int sip_api_simple_wrapper_init(sipSimpleWrapper *self, PyObject *args,
         }
 
         if (names_are_strings)
-            sipNew = self->ctd->ctd_init(self, argv, nr_pos_args, kw_names,
+            sipNew = ctd->ctd_init(self, argv, nr_pos_args, kw_names,
 #if 0
                     unused_p, (PyObject **)&owner, &parseErr);
 #else
@@ -604,7 +607,7 @@ int sip_api_simple_wrapper_init(sipSimpleWrapper *self, PyObject *args,
 
             if (sipNew == NULL)
             {
-                const char *docstring = self->ctd->ctd_docstring;
+                const char *docstring = ctd->ctd_docstring;
 
                 /*
                  * Use the docstring for errors if it was automatically
@@ -618,8 +621,8 @@ int sip_api_simple_wrapper_init(sipSimpleWrapper *self, PyObject *args,
                         docstring = NULL;
                 }
 
-                sip_api_no_function(parseErr,
-                        self->ctd->ctd_container.cod_name, docstring);
+                sip_api_no_function(parseErr, ctd->ctd_container.cod_name,
+                        docstring);
 
                 return -1;
             }
@@ -675,11 +678,11 @@ int sip_api_simple_wrapper_init(sipSimpleWrapper *self, PyObject *args,
 
         for (eh = sms->event_handlers[sipEventWrappedInstance]; eh != NULL; eh = eh->next)
         {
-            if (sipTypeIsClass(eh->td) && sip_is_subtype(wms, self->ctd, (const sipClassTypeDef *)eh->td))
+            if (sipTypeIsClass(eh->td) && sip_is_subtype(wms, ctd, (const sipClassTypeDef *)eh->td))
             {
                 sipWrappedInstanceEventHandler handler = (sipWrappedInstanceEventHandler)eh->handler;
 
-                if (handler((const sipTypeDef *)self->ctd, sipNew) < 0)
+                if (handler((const sipTypeDef *)ctd, sipNew) < 0)
                     return -1;
             }
         }
@@ -728,7 +731,7 @@ int sip_api_simple_wrapper_init(sipSimpleWrapper *self, PyObject *args,
 
 #if 0
     /* See if we should call the equivalent of super().__init__(). */
-    if (sipTypeCallSuperInit(&self->ctd->ctd_base))
+    if (sipTypeCallSuperInit(&ctd->ctd_base))
     {
         PyObject *next;
 
@@ -793,10 +796,11 @@ int sip_api_simple_wrapper_init(sipSimpleWrapper *self, PyObject *args,
 /*
  * Configure a simple wrapper instance.
  */
+// TODO remove this.
 void sip_api_simple_wrapper_configure(sipSimpleWrapper *self, PyObject *dmod,
         const sipClassTypeDef *ctd)
 {
-    self->ctd = ctd;
+    //self->ctd = ctd;
     //self->dmod = Py_NewRef(dmod);
 }
 

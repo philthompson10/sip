@@ -150,7 +150,8 @@ static PyObject *meth_delete(PyObject *mod, PyObject *args)
 
     clear_wrapper(sms, sw);
 
-    sip_release(sw->data, (const sipTypeDef *)sw->ctd, sw->flags, NULL);
+    sip_release(sw->data, ((sipWrapperType *)Py_TYPE(sw))->wt_td, sw->flags,
+            NULL);
 
     Py_INCREF(Py_None);
     return Py_None;
