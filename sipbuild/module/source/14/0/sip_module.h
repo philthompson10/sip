@@ -126,11 +126,10 @@ typedef struct _sipSipModuleState {
 } sipSipModuleState;
 
 
-// TODO Review if the first 3 are needed.
+// TODO Review if the first 2 are needed.
 PyObject *sip_get_sip_module(PyTypeObject *defining_class);
 sipSipModuleState *sip_get_sip_module_state_from_any_type(PyTypeObject *type);
-sipSipModuleState *sip_get_sip_module_state_from_wrapper_type(
-        PyTypeObject *wt);
+sipSipModuleState *sip_get_sip_module_state_from_sip_type(PyTypeObject *type);
 int sip_sip_module_clear(sipSipModuleState *sms);
 void sip_sip_module_free(sipSipModuleState *sms);
 int sip_sip_module_init(sipSipModuleState *sms, PyObject *mod);

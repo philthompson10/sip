@@ -91,8 +91,9 @@ static sipFinalFunc find_finalisation(sipWrappedModuleState *wms,
  */
 static int SimpleWrapper_clear(sipSimpleWrapper *self)
 {
+    sipWrapperType *wt = (sipWrapperType *)Py_TYPE(self);
     sipWrappedModuleState *wms = (sipWrappedModuleState *)PyModule_GetState(
-            self->dmod);
+            wt->wt_dmod);
     sipSipModuleState *sms = wms->sip_module_state;
     int vret = 0;
 
@@ -108,7 +109,6 @@ static int SimpleWrapper_clear(sipSimpleWrapper *self)
         vret = clear(self->data);
 
     Py_CLEAR(self->dict);
-    Py_CLEAR(self->dmod);
     Py_CLEAR(self->extra_refs);
     Py_CLEAR(self->mixin_main);
     Py_CLEAR(self->user);
@@ -138,8 +138,9 @@ static void SimpleWrapper_dealloc(sipSimpleWrapper *self)
      * Remove the object from the map and call the C/C++ dtor if we own the
      * instance.
      */
+    sipWrapperType *wt = (sipWrapperType *)Py_TYPE(self);
     sipWrappedModuleState *wms = (sipWrappedModuleState *)PyModule_GetState(
-            self->dmod);
+            wt->wt_dmod);
     sipSipModuleState *sms = wms->sip_module_state;
 
 #if 0
@@ -235,7 +236,7 @@ static int SimpleWrapper_getbuffer(PyObject *self, Py_buffer *buf, int flags)
 static PyObject *SimpleWrapper_new(PyTypeObject *cls, PyObject *args,
         PyObject *kwds)
 {
-    sipSipModuleState *sms = sip_get_sip_module_state_from_wrapper_type(cls);
+    sipSipModuleState *sms = sip_get_sip_module_state_from_sip_type(cls);
     sipWrapperType *wt = (sipWrapperType *)cls;
     const sipTypeDef *td = wt->wt_td;
 
@@ -349,8 +350,9 @@ static void SimpleWrapper_releasebuffer(PyObject *self, Py_buffer *buf)
 static int SimpleWrapper_traverse(sipSimpleWrapper *self, visitproc visit,
         void *arg)
 {
+    sipWrapperType *wt = (sipWrapperType *)Py_TYPE(self);
     sipWrappedModuleState *wms = (sipWrappedModuleState *)PyModule_GetState(
-            self->dmod);
+            wt->wt_dmod);
     sipSipModuleState *sms = wms->sip_module_state;
 
     Py_VISIT(Py_TYPE(self));
@@ -367,7 +369,6 @@ static int SimpleWrapper_traverse(sipSimpleWrapper *self, visitproc visit,
     }
 
     Py_VISIT(self->dict);
-    Py_VISIT(self->dmod);
     Py_VISIT(self->extra_refs);
     Py_VISIT(self->mixin_main);
     Py_VISIT(self->user);
@@ -460,10 +461,9 @@ static int SimpleWrapper_set_dict(PyObject *self, PyObject *value,
 int sip_api_simple_wrapper_init(sipSimpleWrapper *self, PyObject *args,
         PyObject *kwd_args)
 {
-    assert(self->dmod != NULL);
-
+    sipWrapperType *wt = (sipWrapperType *)Py_TYPE(self);
     sipWrappedModuleState *wms = (sipWrappedModuleState *)PyModule_GetState(
-            self->dmod);
+            wt->wt_dmod);
     sipSipModuleState *sms = wms->sip_module_state;
 
     void *sipNew;
@@ -797,7 +797,7 @@ void sip_api_simple_wrapper_configure(sipSimpleWrapper *self, PyObject *dmod,
         const sipClassTypeDef *ctd)
 {
     self->ctd = ctd;
-    self->dmod = Py_NewRef(dmod);
+    //self->dmod = Py_NewRef(dmod);
 }
 
 

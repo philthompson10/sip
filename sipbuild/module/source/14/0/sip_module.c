@@ -359,9 +359,24 @@ sipSipModuleState *sip_get_sip_module_state_from_any_type(PyTypeObject *type)
 
 
 /*
- * Return the state for the sip module from a wrapper type.
+ * Return the state for the sip module from a type that was created by the sip
+ * module.
  */
-sipSipModuleState *sip_get_sip_module_state_from_wrapper_type(PyTypeObject *wt)
+sipSipModuleState *sip_get_sip_module_state_from_sip_type(PyTypeObject *type)
 {
-    return ((sipWrappedModuleState *)PyType_GetModuleState(wt))->sip_module_state;
+#if _SIP_MODULE_SHARED
+    PyObject *mod = PyType_GetModuleByDef(type, &module_def);
+
+    assert(mod != NULL);
+
+    return ((sipSipModuleState *)PyModule_GetState(mod);
+#else
+    extern PyModuleDef _SIP_MODULE_DEF;
+
+    PyObject *mod = PyType_GetModuleByDef(type, &_SIP_MODULE_DEF);
+
+    assert(mod != NULL);
+
+    return ((sipWrappedModuleState *)PyModule_GetState(mod))->sip_module_state;
+#endif
 }

@@ -51,6 +51,10 @@ struct _sipSimpleWrapper {
     PyObject_HEAD
 
     /* The type's immutable definition. */
+    // TODO This is effectively a duplicate of wt_td but (because we no longer
+    // use a backdoor) wt_td won't be set for Python sub-classes.  We keep it
+    // for the moment but it should be removed or held somewhere else for
+    // enums.
     const sipClassTypeDef *ctd;
 
     /* The data, ie. a pointer to the C/C++ object. */
@@ -59,8 +63,12 @@ struct _sipSimpleWrapper {
     /* The instance dictionary. */
     PyObject *dict;
 
-    /* A strong reference to the defining module. */
-    PyObject *dmod;
+    /*
+     * A strong reference to the defining module.  Note that a more obvious
+     * place to keep it would be in sipWrapperType but there are limitations
+     * on how it is initialised, specifically for Python sub-classes.
+     */
+    //PyObject *dmod;
 
     /* The optional dictionary of extra references using an int key. */
     PyObject *extra_refs;

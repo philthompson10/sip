@@ -426,8 +426,9 @@ static void clear_wrapper(sipSipModuleState *sms, sipSimpleWrapper *sw)
      */
     sipResetPyOwned(sw);
 
+    sipWrapperType *wt = (sipWrapperType *)Py_TYPE(sw);
     sipWrappedModuleState *wms = (sipWrappedModuleState *)PyModule_GetState(
-            sw->dmod);
+            wt->wt_dmod);
 
     sip_om_remove_object(wms, sw);
 }

@@ -151,7 +151,7 @@ static PyObject *VoidPtr_asarray(VoidPtr *v, PyObject *args, PyObject *kw)
         return NULL;
 
     return sip_array_from_bytes(
-            sip_get_sip_module_state_from_wrapper_type(Py_TYPE((PyObject *)v)),
+            sip_get_sip_module_state_from_sip_type(Py_TYPE((PyObject *)v)),
             v->voidptr, size, v->rw);
 }
 
@@ -317,7 +317,7 @@ static PyObject *VoidPtr_subscript(PyObject *self, PyObject *key)
         }
 
         return create_voidptr(
-                sip_get_sip_module_state_from_wrapper_type(Py_TYPE(self)),
+                sip_get_sip_module_state_from_sip_type(Py_TYPE(self)),
                 (char *)v->voidptr + start, slicelength, v->rw);
     }
 

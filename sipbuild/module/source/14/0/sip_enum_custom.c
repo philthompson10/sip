@@ -77,7 +77,7 @@ static int init_enum_module_types(sipSipModuleState *sms);
  */
 static PyObject *EnumType_alloc(PyTypeObject *self, Py_ssize_t nitems)
 {
-    sipSipModuleState *sms = sip_get_sip_module_state_from_wrapper_type(self);
+    sipSipModuleState *sms = sip_get_sip_module_state_from_sip_type(self);
     sipEnumTypeObject *py_type;
     sipPySlotDef *psd;
 
@@ -129,7 +129,7 @@ static void EnumType_dealloc(PyObject *self)
 static PyObject *EnumType_getattro(PyObject *self, PyObject *name)
 {
 #if 0
-    sipSipModuleState *sms = sip_get_sip_module_state_from_wrapper_type(
+    sipSipModuleState *sms = sip_get_sip_module_state_from_sip_type(
             Py_TYPE(self));
     PyObject *res;
     sipEnumTypeDef *etd;

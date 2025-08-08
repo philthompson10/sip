@@ -33,22 +33,24 @@ struct _sipWrapperType {
      */
     PyHeapTypeObject super;
 
-    /* Set if the type is a user implemented Python sub-class. */
-    // TODO Is this still needed.
-    unsigned wt_user_type : 1;
+    /* Set if autoconversion of the type is disabled. */
+    unsigned wt_autoconversion_disabled : 1;
 
     /* Set if the type's dictionary contains all lazy attributes. */
     // TODO Hopefully remove this.
     unsigned wt_dict_complete : 1;
 
-    /* Set if autoconversion of the type is disabled. */
-    unsigned wt_autoconversion_disabled : 1;
+    /* Set if the type is a user implemented Python sub-class. */
+    // TODO Is this still needed?
+    unsigned wt_user_type : 1;
 
     /* Unused and available for future use. */
     unsigned wt_unused : 29;
 
+    /* A string reference to the defining module. */
+    PyObject *wt_dmod;
+
     /* The wrapped type definition. */
-    // TODO Review if this is necessary if wt_type_id is present.
     const sipTypeDef *wt_td;
 
     /* The generated absolute type ID. */

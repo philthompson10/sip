@@ -443,7 +443,7 @@ static void sip_api_add_delayed_dtor(sipSimpleWrapper *sw)
     if ((ptr = sip_get_ptr_type_def(sw, &ctd)) == NULL)
         return;
 
-    sipSipModuleState *sms = sip_get_sip_module_state_from_wrapper_type(
+    sipSipModuleState *sms = sip_get_sip_module_state_from_sip_type(
             Py_TYPE((PyObject *)sw));
 
     /* Find the defining module. */
@@ -848,7 +848,7 @@ static PyTypeObject *create_container_type(sipWrappedModuleState *wms,
 
     /* Configure the type. */
     // TODO Are we going to keep wt_type_id?
-    // TODO Can we get rid of wt_td?
+    ((sipWrapperType *)py_type)->wt_dmod = Py_NewRef(wms->wrapped_module);
     ((sipWrapperType *)py_type)->wt_td = td;
 
 #if 0
@@ -2043,7 +2043,7 @@ PyTypeObject *sip_get_py_type_and_type_def(sipWrappedModuleState *wms,
  */
 static void *find_slot(PyObject *self, sipPySlotType st)
 {
-    sipSipModuleState *sms = sip_get_sip_module_state_from_wrapper_type(
+    sipSipModuleState *sms = sip_get_sip_module_state_from_sip_type(
             Py_TYPE(self));
     void *slot = NULL;
     PyTypeObject *py_type = Py_TYPE(self);
