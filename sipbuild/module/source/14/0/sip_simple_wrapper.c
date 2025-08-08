@@ -53,6 +53,8 @@ static PyMemberDef SimpleWrapper_members[] = {
 static int SimpleWrapper_clear(sipSimpleWrapper *self);
 static void SimpleWrapper_dealloc(sipSimpleWrapper *self);
 //static int SimpleWrapper_getbuffer(PyObject *self, Py_buffer *buf, int flags);
+static int SimpleWrapper_init(sipSimpleWrapper *self, PyObject *args,
+        PyObject *kwd_args);
 //static void SimpleWrapper_releasebuffer(PyObject *self, Py_buffer *buf);
 static int SimpleWrapper_traverse(sipSimpleWrapper *self, visitproc visit,
         void *arg);
@@ -63,7 +65,7 @@ static PyType_Slot SimpleWrapper_slots[] = {
     {Py_tp_clear, SimpleWrapper_clear},
     {Py_tp_dealloc, SimpleWrapper_dealloc},
     {Py_tp_getset, SimpleWrapper_getset},
-    {Py_tp_init, sip_api_simple_wrapper_init},
+    {Py_tp_init, SimpleWrapper_init},
     {Py_tp_members, SimpleWrapper_members},
     {Py_tp_traverse, SimpleWrapper_traverse},
     {0, NULL}
@@ -455,10 +457,9 @@ static int SimpleWrapper_set_dict(PyObject *self, PyObject *value,
 
 
 /*
- * Perform the part of the instance initialisation that deals with the
- * arguments.
+ * The simple wrapper init slot.
  */
-int sip_api_simple_wrapper_init(sipSimpleWrapper *self, PyObject *args,
+static int SimpleWrapper_init(sipSimpleWrapper *self, PyObject *args,
         PyObject *kwd_args)
 {
     sipWrapperType *wt = (sipWrapperType *)Py_TYPE(self);
@@ -790,18 +791,6 @@ int sip_api_simple_wrapper_init(sipSimpleWrapper *self, PyObject *args,
 #endif
 
     return 0;
-}
-
-
-/*
- * Configure a simple wrapper instance.
- */
-// TODO remove this.
-void sip_api_simple_wrapper_configure(sipSimpleWrapper *self, PyObject *dmod,
-        const sipClassTypeDef *ctd)
-{
-    //self->ctd = ctd;
-    //self->dmod = Py_NewRef(dmod);
 }
 
 

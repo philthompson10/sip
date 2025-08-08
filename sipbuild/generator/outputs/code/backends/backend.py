@@ -1187,8 +1187,6 @@ extern PyModuleDef sipWrappedModuleDef_{module_name};
 #define sipFindTypeID               sipAPI->api_find_type_id
 #define sipGetAddress               sipAPI->api_get_address
 #define sipIsOwnedByPython          sipAPI->api_is_owned_by_python
-#define sipSimpleWrapperConfigure   sipAPI->api_simple_wrapper_configure
-#define sipSimpleWrapperInit        sipAPI->api_simple_wrapper_init
 ''')
 
         # TODO These have been reviewed as part of the private v14 API.
@@ -1662,37 +1660,15 @@ static const sipStaticVariableDef sipStaticVariablesTable{suffix}[] = {{
         module_name = module.py_name
         klass_name = klass.iface_file.fq_cpp_name.as_word
 
-        # Generate the tp_init function.  This gets the defining module and
-        # calls the SIP API to perform the majority of the initialisation which
-        # will itself call the type's instance initialisation function, if
-        # necessary, to create the C/C++ instance.
-        sf.write('\n\n')
-
-        if not spec.c_bindings:
-            sf.write(
-f'''extern "C" {{static int sip_tp_init_{klass_name}(sipSimpleWrapper *, PyObject *, PyObject *);}}
-''')
-
-        sf.write(
-f'''static int sip_tp_init_{klass_name}(sipSimpleWrapper *sipSelf, PyObject *args, PyObject *kwds)
-{{
-''')
-
-        self.g_slot_support_vars(sf)
-
-        sf.write(
-f'''    sipSimpleWrapperConfigure(sipSelf, sipModule, &sipTypeDef_{module_name}_{klass_name});
-
-    return sipSimpleWrapperInit(sipSelf, args, kwds);
-}}
-''')
-
         # Generate the table of slots.
-        sf.write(
+        # TODO
+        has_slots = False
+
+        if has_slots:
+            sf.write(
 f'''
 
 static PyType_Slot sip_py_slots_{klass_name}[] = {{
-    {{Py_tp_init, (void *)sip_tp_init_{klass_name}}},
     {{0, NULL}}
 }};
 ''')
@@ -1723,7 +1699,9 @@ static PyType_Slot sip_py_slots_{klass_name}[] = {{
         #elif py_scope(klass.scope) is not None:
         #    cod_scope = type id of the class scope
 
-        fields.append('.ctd_container.cod_py_slots = sip_py_slots_' + klass_name)
+        if has_slots:
+            fields.append(
+                    '.ctd_container.cod_py_slots = sip_py_slots_' + klass_name)
 
         # TODO cod_methods (lazy methods so remove?) if not NULL
 

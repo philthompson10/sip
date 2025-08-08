@@ -261,8 +261,8 @@ int sip_api_wrapped_module_init(PyObject *wmod, const sipWrappedModuleDef *wmd,
  * Return a pointer to the defining wrapped module of a wrapper.  This has to
  * be a macro because we won't have access to the SIP API yet.  (That's
  * probably why we want the module in the first place.)  We could simply use
- * the reference held in the wrapper but that would mean the wrapper structure
- * is no longer opaque.
+ * the reference held in the wrapper type but that would mean the wrapper type
+ * structure is no longer opaque.
  */
 #define sipGetModule(sw, def)   PyType_GetModuleByDef(Py_TYPE(sw), (def))
 
@@ -1408,10 +1408,6 @@ struct _sipAPIDef {
     void (*api_wrapped_module_free)(sipWrappedModuleState *wms);
     int (*api_wrapped_module_traverse)(sipWrappedModuleState *wms,
             visitproc visit, void *arg);
-    void (*api_simple_wrapper_configure)(sipSimpleWrapper *self,
-            PyObject *dmod, const sipClassTypeDef *ctd);
-    int (*api_simple_wrapper_init)(sipSimpleWrapper *self, PyObject *args,
-            PyObject *kwd_args);
 };
 
 

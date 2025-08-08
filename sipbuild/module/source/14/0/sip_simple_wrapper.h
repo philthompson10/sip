@@ -73,11 +73,6 @@ struct _sipSimpleWrapper {
 };
 
 
-void sip_api_simple_wrapper_configure(sipSimpleWrapper *self, PyObject *dmod,
-        const sipClassTypeDef *ctd);
-int sip_api_simple_wrapper_init(sipSimpleWrapper *self, PyObject *args,
-        PyObject *kwd_args);
-
 int sip_simple_wrapper_init(PyObject *module, sipSipModuleState *sms);
 
 

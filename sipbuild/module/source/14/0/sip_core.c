@@ -269,8 +269,6 @@ const sipAPIDef sip_api = {
     sip_api_wrapped_module_clear,
     sip_api_wrapped_module_free,
     sip_api_wrapped_module_traverse,
-    sip_api_simple_wrapper_configure,
-    sip_api_simple_wrapper_init,
 };
 
 
