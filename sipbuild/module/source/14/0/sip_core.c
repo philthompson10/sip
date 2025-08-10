@@ -880,7 +880,10 @@ static PyTypeObject *create_container_type(sipWrappedModuleState *wms,
         scope = wms->wrapped_module;
     }
 
-    if (PyObject_SetAttrString(scope, cod->cod_name, py_type) < 0)
+    /* There is guaranteed to be a dot in the name. */
+    const char *name = strrchr(cod->cod_name, '.') + 1;
+
+    if (PyObject_SetAttrString(scope, name, py_type) < 0)
         goto rel_type;
 
     return (PyTypeObject *)py_type;

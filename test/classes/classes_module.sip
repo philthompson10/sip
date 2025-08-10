@@ -7,6 +7,10 @@
 %ModuleHeaderCode
 class Klass
 {
+public:
+    class Nested
+    {
+    };
 };
 
 class SimpleKlass
@@ -17,6 +21,10 @@ class SimpleKlass
 
 class Klass
 {
+public:
+    class Nested
+    {
+    };
 };
 
 class SimpleKlass /Supertype=classes_module.simplewrapper/

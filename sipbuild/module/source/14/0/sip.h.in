@@ -721,9 +721,10 @@ struct _sipTypeDef {
  */
 typedef struct _sipContainerDef {
     /*
-     * The Python name of the type, NULL if this is a namespace extender (in
-     * the context of a class) or doesn't require a namespace (in the context
-     * of a mapped type). */
+     * The fully qualified Python name of the type (ie. the tp_name field),
+     * NULL if this is a namespace extender (in the context of a class) or
+     * doesn't require a namespace (in the context of a mapped type).
+     */
     const char *cod_name;
 
     /*

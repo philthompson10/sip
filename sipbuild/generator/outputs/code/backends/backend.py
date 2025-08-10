@@ -1693,11 +1693,15 @@ static PyType_Slot sip_py_slots_{klass_name}[] = {{
             fields.append(
                     f'.ctd_container.cod_name = "{klass.iface_file.module.fq_py_name.name}.{klass.py_name.name}"')
 
-        # TODO
-        #if klass.real_class is not None:
-        #    cod_scope = type id of the real class
-        #elif py_scope(klass.scope) is not None:
-        #    cod_scope = type id of the class scope
+        if klass.real_class is not None:
+            cod_scope = self.get_type_ref(klass.real_class)
+        elif py_scope(klass.scope) is not None:
+            cod_scope = self.get_type_ref(klass.scope)
+        else:
+            cod_scope = None
+
+        if cod_scope is not None:
+            fields.append('.ctd_container.cod_scope = ' + cod_scope)
 
         if has_slots:
             fields.append(

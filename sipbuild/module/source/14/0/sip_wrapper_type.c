@@ -23,7 +23,7 @@
 //static PyObject *WrapperType_alloc(PyTypeObject *self, Py_ssize_t nitems);
 static int WrapperType_clear(sipWrapperType *self);
 static void WrapperType_dealloc(sipWrapperType *self);
-//static PyObject *WrapperType_getattro(PyObject *self, PyObject *name);
+static PyObject *WrapperType_getattro(sipWrapperType *self, PyObject *name);
 static int WrapperType_init(sipWrapperType *self, PyObject *args,
         PyObject *kwds);
 //static int WrapperType_setattro(PyObject *self, PyObject *name,
@@ -39,7 +39,7 @@ static PyType_Slot WrapperType_slots[] = {
     //{Py_tp_alloc, WrapperType_alloc},
     {Py_tp_clear, WrapperType_clear},
     {Py_tp_dealloc, WrapperType_dealloc},
-    //{Py_tp_getattro, WrapperType_getattro},
+    {Py_tp_getattro, WrapperType_getattro},
     {Py_tp_init, WrapperType_init},
     //{Py_tp_setattro, WrapperType_setattro},
     {Py_tp_traverse, WrapperType_traverse},
@@ -153,12 +153,12 @@ static void WrapperType_dealloc(sipWrapperType *self)
 }
 
 
-#if 0
 /*
  * The metatype getattro slot.
  */
-static PyObject *WrapperType_getattro(PyObject *self, PyObject *name)
+static PyObject *WrapperType_getattro(sipWrapperType *self, PyObject *name)
 {
+    // TODO
 #if 0
     sipSipModuleState *sms = sip_get_sip_module_state_from_sip_type(
             (PyTypeObject *)self);
@@ -169,7 +169,6 @@ static PyObject *WrapperType_getattro(PyObject *self, PyObject *name)
 
     return PyType_Type.tp_getattro(self, name);
 }
-#endif
 
 
 /*
