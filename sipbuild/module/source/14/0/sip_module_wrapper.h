@@ -23,6 +23,10 @@ extern "C" {
 #endif
 
 
+PyObject *sip_mod_con_getattro(sipWrappedModuleState *wms, PyObject *self,
+        PyObject *name, const sipUnboundAttributesDef *uad);
+int sip_mod_con_setattro(sipWrappedModuleState *wms, PyObject *self,
+        PyObject *name, PyObject *value, const sipUnboundAttributesDef *uad);
 int sip_module_wrapper_init(PyObject *module, sipSipModuleState *sms);
 
 

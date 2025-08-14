@@ -55,27 +55,52 @@ static int compare_static_variable(const void *key, const void *el,
 static int compare_type_nr(const void *key, const void *el,
         const void *context);
 static const sipStaticVariableDef *get_static_variable_def(
-        const sipWrappedModuleDef *wmd, const char *utf8_name);
+        const char *utf8_name, const sipUnboundAttributesDef *uad);
 static const size_t *get_wrapped_type_nr_p(const sipWrappedModuleDef *wmd,
-        const char *utf8_name);
+        const char *utf8_name, const sipUnboundAttributesDef *uad);
 static void raise_internal_error(const sipStaticVariableDef *svd);
 
 
 /*
- * The type getattro slot.
+ * The module getattro slot.
  */
 static PyObject *ModuleWrapper_getattro(PyObject *self, PyObject *name)
 {
     sipWrappedModuleState *wms = (sipWrappedModuleState *)PyModule_GetState(
             self);
+
+    return sip_mod_con_getattro(wms, self, name,
+            &wms->wrapped_module_def->attributes);
+}
+
+
+/*
+ * The module setattro slot.
+ */
+static int ModuleWrapper_setattro(PyObject *self, PyObject *name,
+        PyObject *value)
+{
+    sipWrappedModuleState *wms = (sipWrappedModuleState *)PyModule_GetState(
+            self);
+
+    return sip_mod_con_setattro(wms, self, name, value,
+            &wms->wrapped_module_def->attributes);
+}
+
+
+/*
+ * The getattro handler for modules and containers.
+ */
+PyObject *sip_mod_con_getattro(sipWrappedModuleState *wms, PyObject *self,
+        PyObject *name, const sipUnboundAttributesDef *uad)
+{
     const char *utf8_name = PyUnicode_AsUTF8(name);
 
     /*
      * The behaviour of wrapped variables is that of a data descriptor and they
      * take precedence over any attributes set by the user.
      */
-    const sipStaticVariableDef *svd = get_static_variable_def(
-            wms->wrapped_module_def, utf8_name);
+    const sipStaticVariableDef *svd = get_static_variable_def(utf8_name, uad);
 
     if (svd == NULL)
     {
@@ -91,7 +116,7 @@ static PyObject *ModuleWrapper_getattro(PyObject *self, PyObject *name)
 
         /* See if it is a wrapped type. */
         const size_t *type_nr_p = get_wrapped_type_nr_p(
-                wms->wrapped_module_def, utf8_name);
+                wms->wrapped_module_def, utf8_name, uad);
 
         if (type_nr_p == NULL)
             return NULL;
@@ -303,17 +328,14 @@ static PyObject *ModuleWrapper_getattro(PyObject *self, PyObject *name)
 
 
 /*
- * The type setattro slot.
+ * The setattro handler for modules and containers.
  */
-static int ModuleWrapper_setattro(PyObject *self, PyObject *name,
-        PyObject *value)
+int sip_mod_con_setattro(sipWrappedModuleState *wms, PyObject *self,
+        PyObject *name, PyObject *value, const sipUnboundAttributesDef *uad)
 {
-    sipWrappedModuleState *wms = (sipWrappedModuleState *)PyModule_GetState(
-            self);
     const char *utf8_name = PyUnicode_AsUTF8(name);
 
-    const sipStaticVariableDef *svd = get_static_variable_def(
-            wms->wrapped_module_def, utf8_name);
+    const sipStaticVariableDef *svd = get_static_variable_def(utf8_name, uad);
 
     if (svd == NULL)
         return Py_TYPE(self)->tp_base->tp_setattro(self, name, value);
@@ -873,12 +895,11 @@ static int compare_type_nr(const void *key, const void *el,
  * Return the static value definition for a name or NULL if there was none.
  */
 static const sipStaticVariableDef *get_static_variable_def(
-        const sipWrappedModuleDef *wmd, const char *utf8_name)
+        const char *utf8_name, const sipUnboundAttributesDef *uad)
 {
     return (const sipStaticVariableDef *)bsearch_s((const void *)utf8_name,
-            (const void *)wmd->attributes.static_variables,
-            wmd->attributes.nr_static_variables, sizeof (sipStaticVariableDef),
-            compare_static_variable, NULL);
+            (const void *)uad->static_variables, uad->nr_static_variables,
+            sizeof (sipStaticVariableDef), compare_static_variable, NULL);
 }
 
 
@@ -886,11 +907,11 @@ static const sipStaticVariableDef *get_static_variable_def(
  * Return the type number for a name or a negative value if there was none.
  */
 static const size_t *get_wrapped_type_nr_p(const sipWrappedModuleDef *wmd,
-        const char *utf8_name)
+        const char *utf8_name, const sipUnboundAttributesDef *uad)
 {
     return (const size_t *)bsearch_s((const void *)utf8_name,
-            (const void *)wmd->attributes.type_nrs, wmd->attributes.nr_types,
-            sizeof (size_t), compare_type_nr, (const void *)wmd);
+            (const void *)uad->type_nrs, uad->nr_types, sizeof (size_t),
+            compare_type_nr, (const void *)wmd);
 }
 
 
