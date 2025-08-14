@@ -363,12 +363,23 @@ typedef PyObject *(*sipStaticVariableGetterFunc)();
 typedef int (*sipStaticVariableSetterFunc)(PyObject *);
 
 typedef struct {
-    const char *name;                   /* The name of the value. */
-    sipTypeID type_id;                  /* The type of the value. */
-    int key;                            /* The key or SIP_SV_RO. */
-    void *value;                        /* The address of the value. */
-    sipStaticVariableGetterFunc getter; /* The optional getter. */
-    sipStaticVariableSetterFunc setter; /* The optional setter. */
+    /* The Python name of the variable. */
+    const char *name;
+
+    /* The type of the variable. */
+    sipTypeID type_id;
+
+    /* The key or SIP_SV_RO. */
+    int key;
+
+    /* The address of the variable. */
+    void *value;
+
+    /* The optional getter. */
+    sipStaticVariableGetterFunc getter;
+
+    /* The optional setter. */
+    sipStaticVariableSetterFunc setter;
 } sipStaticVariableDef;
 
 
@@ -695,6 +706,28 @@ typedef struct _sipVariableDef {
 
 
 /*
+ * The immutable definition of the unbound attributes of either a module or a
+ * type.
+ */
+typedef struct {
+    /* The number of static variables. */
+    size_t nr_static_variables;
+
+    /* The sorted table of static variables. */
+    const sipStaticVariableDef *const static_variables;
+
+    /* The number of types. */
+    size_t nr_types;
+
+    /*
+     * The table of type numbers.  A full type ID isn't required as they refer
+     * to local types.
+     */
+    const size_t *type_nrs;
+} sipUnboundAttributesDef;
+
+
+/*
  * The immutable definition of a type, either a C++ class (or C struct), a C++
  * namespace, a mapped type or a named (scoped or unscoped) enum.
  */
@@ -761,11 +794,9 @@ typedef struct _sipContainerDef {
     sipInstancesDef cod_instances;
 
     /* The number of static variables. */
-    // TODO May not need the count.
     int nr_static_variables;
 
     /* The sorted table of static variables. */
-    // TODO Only sorted for repeatable builds?
     const sipStaticVariableDef *const static_variables;
 } sipContainerDef;
 
@@ -1012,11 +1043,8 @@ struct _sipWrappedModuleDef {
     /* The sub-class convertors. */
     const sipSubClassConvertorDef *const convertors;
 
-    /* The number of static variables. */
-    int nr_static_variables;
-
-    /* The sorted table of static variables. */
-    const sipStaticVariableDef *const static_variables;
+    /* The attributes. */
+    sipUnboundAttributesDef attributes;
 
     /* The license. */
     const struct _sipLicenseDef *license;

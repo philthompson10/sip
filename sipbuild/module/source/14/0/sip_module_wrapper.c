@@ -12,7 +12,6 @@
 #include <Python.h>
 
 #include <stdbool.h>
-#include <stdlib.h>
 #include <string.h>
 
 #include "sip_module_wrapper.h"
@@ -48,11 +47,16 @@ static PyType_Spec ModuleWrapper_TypeSpec = {
 
 
 /* Forward declarations. */
-static int compare_static_variable(const void *key, const void *el);
-static int compare_type_def(const void *key, const void *el);
+static const void *bsearch_s(const void *key, const void *arr, size_t n,
+        size_t width, int (*cmp_fn)(const void *, const void *, const void *),
+        const void *context);
+static int compare_static_variable(const void *key, const void *el,
+        const void *context);
+static int compare_type_nr(const void *key, const void *el,
+        const void *context);
 static const sipStaticVariableDef *get_static_variable_def(
-        sipWrappedModuleState *wms, const char *utf8_name);
-static Py_ssize_t get_wrapped_type_nr(sipWrappedModuleState *wms,
+        const sipWrappedModuleDef *wmd, const char *utf8_name);
+static const size_t *get_wrapped_type_nr_p(const sipWrappedModuleDef *wmd,
         const char *utf8_name);
 static void raise_internal_error(const sipStaticVariableDef *svd);
 
@@ -67,17 +71,18 @@ static PyObject *ModuleWrapper_getattro(PyObject *self, PyObject *name)
     const char *utf8_name = PyUnicode_AsUTF8(name);
 
     /*
-     * The behaviour wrapped attributes is that of a data descriptor and take
-     * precedence over any attributes set by the user.
+     * The behaviour of wrapped variables is that of a data descriptor and they
+     * take precedence over any attributes set by the user.
      */
-    const sipStaticVariableDef *svd = get_static_variable_def(wms, utf8_name);
+    const sipStaticVariableDef *svd = get_static_variable_def(
+            wms->wrapped_module_def, utf8_name);
 
     if (svd == NULL)
     {
         /*
          * Revert to the super-class behaviour.  This will pick up any wrapped
          * types already created and any attributes set by the user (including
-         * replacements of wrapped types.
+         * replacements of wrapped types).
          */
         PyObject *attr = Py_TYPE(self)->tp_base->tp_getattro(self, name);
 
@@ -85,13 +90,15 @@ static PyObject *ModuleWrapper_getattro(PyObject *self, PyObject *name)
             return attr;
 
         /* See if it is a wrapped type. */
-        Py_ssize_t type_nr = get_wrapped_type_nr(wms, utf8_name);
-        if (type_nr < 0)
+        const size_t *type_nr_p = get_wrapped_type_nr_p(
+                wms->wrapped_module_def, utf8_name);
+
+        if (type_nr_p == NULL)
             return NULL;
 
         PyErr_Clear();
 
-        attr = (PyObject *)sip_get_local_py_type(wms, type_nr);
+        attr = (PyObject *)sip_get_local_py_type(wms, *type_nr_p);
         Py_XINCREF(attr);
 
         return attr;
@@ -304,7 +311,9 @@ static int ModuleWrapper_setattro(PyObject *self, PyObject *name,
     sipWrappedModuleState *wms = (sipWrappedModuleState *)PyModule_GetState(
             self);
     const char *utf8_name = PyUnicode_AsUTF8(name);
-    const sipStaticVariableDef *svd = get_static_variable_def(wms, utf8_name);
+
+    const sipStaticVariableDef *svd = get_static_variable_def(
+            wms->wrapped_module_def, utf8_name);
 
     if (svd == NULL)
         return Py_TYPE(self)->tp_base->tp_setattro(self, name, value);
@@ -790,21 +799,71 @@ int sip_module_wrapper_init(PyObject *module, sipSipModuleState *sms)
 
 
 /*
- * The bsearch() helper function for searching a static values table.
+ * An implementation of bsearch_s() as we can't rely on it being in the stdlib.
  */
-static int compare_static_variable(const void *key, const void *el)
+static const void *bsearch_s(const void *key, const void *arr, size_t n,
+        size_t width, int (*cmp_fn)(const void *, const void *, const void *),
+        const void *context)
 {
+    if (n == 0)
+        return NULL;
+
+    size_t low = 0;
+    size_t high = n - 1;
+
+    while (low <= high)
+    {
+        size_t mid = low + (high - low) / 2;
+        const void *el = arr + (width * mid);
+        int res = cmp_fn(key, el, context);
+
+        if (res == 0)
+            return el;
+
+        if (res > 0)
+        {
+            if (mid == SIZE_MAX)
+                break;
+
+            low = mid + 1;
+        }
+        else
+        {
+            if (mid == 0)
+                break;
+
+            high = mid - 1;
+        }
+    }
+
+    return NULL;
+}
+
+
+/*
+ * The bsearch_s() helper function for searching a static values table.
+ */
+static int compare_static_variable(const void *key, const void *el,
+        const void *context)
+{
+    (void)context;
+
     return strcmp((const char *)key, ((const sipStaticVariableDef *)el)->name);
 }
 
 
 /*
- * The bsearch() helper function for searching a type definitions table.
+ * The bsearch_s() helper function for searching a type numbers table.
  */
-static int compare_type_def(const void *key, const void *el)
+static int compare_type_nr(const void *key, const void *el,
+        const void *context)
 {
     const char *s1 = (const char *)key;
-    const char *s2 = (*(const sipTypeDef **)el)->td_cname;
+    size_t type_nr = *(const size_t *)el;
+    const sipWrappedModuleDef *wmd = (const sipWrappedModuleDef *)context;
+
+    const sipTypeDef *td = wmd->type_defs[type_nr];
+    const char *s2 = strrchr(((const sipClassTypeDef *)td)->ctd_container.cod_name, '.') + 1;
 
     return strcmp(s1, s2);
 }
@@ -814,36 +873,24 @@ static int compare_type_def(const void *key, const void *el)
  * Return the static value definition for a name or NULL if there was none.
  */
 static const sipStaticVariableDef *get_static_variable_def(
-        sipWrappedModuleState *wms, const char *utf8_name)
+        const sipWrappedModuleDef *wmd, const char *utf8_name)
 {
-    const sipWrappedModuleDef *wmd = wms->wrapped_module_def;
-
-    if (wmd->nr_static_variables == 0)
-        return NULL;
-
-    return (const sipStaticVariableDef *)bsearch((const void *)utf8_name,
-            (const void *)wmd->static_variables, wmd->nr_static_variables,
-            sizeof (sipStaticVariableDef), compare_static_variable);
+    return (const sipStaticVariableDef *)bsearch_s((const void *)utf8_name,
+            (const void *)wmd->attributes.static_variables,
+            wmd->attributes.nr_static_variables, sizeof (sipStaticVariableDef),
+            compare_static_variable, NULL);
 }
 
 
 /*
  * Return the type number for a name or a negative value if there was none.
  */
-static Py_ssize_t get_wrapped_type_nr(sipWrappedModuleState *wms,
+static const size_t *get_wrapped_type_nr_p(const sipWrappedModuleDef *wmd,
         const char *utf8_name)
 {
-    const sipWrappedModuleDef *wmd = wms->wrapped_module_def;
-
-    const sipTypeDef *const *td_p = (const sipTypeDef *const *)bsearch(
-                (const void *)utf8_name, (const void *)wmd->type_defs,
-                wmd->nr_type_defs, sizeof (const sipTypeDef *),
-                compare_type_def);
-
-    if (td_p == NULL)
-        return -1;
-
-    return td_p - wmd->type_defs;
+    return (const size_t *)bsearch_s((const void *)utf8_name,
+            (const void *)wmd->attributes.type_nrs, wmd->attributes.nr_types,
+            sizeof (size_t), compare_type_nr, (const void *)wmd);
 }
 
 

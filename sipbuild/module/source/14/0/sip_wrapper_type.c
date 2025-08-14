@@ -167,7 +167,7 @@ static PyObject *WrapperType_getattro(sipWrapperType *self, PyObject *name)
         return NULL;
 #endif
 
-    return PyType_Type.tp_getattro(self, name);
+    return PyType_Type.tp_getattro((PyObject *)self, name);
 }
 
 

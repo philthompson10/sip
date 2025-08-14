@@ -110,7 +110,7 @@ void *sip_get_final_address(sipSipModuleState *sms, const sipTypeDef *td,
 sipConvertFromFunc sip_get_from_convertor(PyTypeObject *py_type,
         const sipTypeDef *td);
 PyTypeObject *sip_get_local_py_type(sipWrappedModuleState *wms,
-        Py_ssize_t type_nr);
+        size_t type_nr);
 PyTypeObject *sip_get_py_type_and_type_def(sipWrappedModuleState *wms,
         sipTypeID type_id, const sipTypeDef **tdp);
 const sipTypeDef *sip_get_type_def(sipWrappedModuleState *wms,

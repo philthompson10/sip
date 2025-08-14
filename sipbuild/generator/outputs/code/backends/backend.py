@@ -736,8 +736,8 @@ static const sipWrappedModuleDef sipWrappedModule_{module_name} = {{
             sf.write('    .convertors = convertorsTable,\n')
 
         if static_variables_state != 0:
-            sf.write(f'    .nr_static_variables = {static_variables_state},\n')
-            sf.write('    .static_variables = sipStaticVariablesTable,\n')
+            sf.write(f'    .attributes.nr_static_variables = {static_variables_state},\n')
+            sf.write('    .attributes.static_variables = sipStaticVariablesTable,\n')
 
         if module.license is not None:
             sf.write('    .license = &module_license,\n')

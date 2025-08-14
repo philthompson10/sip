@@ -1988,8 +1988,7 @@ const sipTypeDef *sip_get_type_def(sipWrappedModuleState *wms,
  * Return a borrowed reference to the Python type object for a type number in
  * the current module, creating it if necessary.
  */
-PyTypeObject *sip_get_local_py_type(sipWrappedModuleState *wms,
-        Py_ssize_t type_nr)
+PyTypeObject *sip_get_local_py_type(sipWrappedModuleState *wms, size_t type_nr)
 {
     PyTypeObject *py_type = wms->py_types[type_nr];
     if (py_type != NULL)
