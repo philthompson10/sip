@@ -703,6 +703,8 @@ f'''
         module = spec.module
         module_name = module.py_name
 
+        nr_static_variables, nr_types = static_variables_state
+
         sf.write(
 f'''/* The wrapped module's immutable definition. */
 static const sipWrappedModuleDef sipWrappedModule_{module_name} = {{
@@ -714,6 +716,8 @@ static const sipWrappedModuleDef sipWrappedModule_{module_name} = {{
         if len(module.all_imports) != 0:
             sf.write('    .imports = importsTable,\n')
 
+        # TODO Exclude non-local types.  They are needed (ie. I think we need
+        # the iface file) but we don't generated definition structures.
         if len(module.needed_types) != 0:
             sf.write(f'    .nr_type_defs = {len(module.needed_types)},\n')
             sf.write(f'    .type_defs = sipTypeDefs_{module_name},\n')
@@ -735,9 +739,13 @@ static const sipWrappedModuleDef sipWrappedModule_{module_name} = {{
         if nr_subclass_convertors != 0:
             sf.write('    .convertors = convertorsTable,\n')
 
-        if static_variables_state != 0:
-            sf.write(f'    .attributes.nr_static_variables = {static_variables_state},\n')
-            sf.write('    .attributes.static_variables = sipStaticVariablesTable,\n')
+        if nr_static_variables != 0:
+            sf.write(f'    .attributes.nr_static_variables = {nr_static_variables},\n')
+            sf.write(f'    .attributes.static_variables = sipStaticVariables_{module_name},\n')
+
+        if nr_types != 0:
+            sf.write(f'    .attributes.nr_types = {nr_types},\n')
+            sf.write(f'    .attributes.type_nrs = sipTypeNrs_{module_name},\n')
 
         if module.license is not None:
             sf.write('    .license = &module_license,\n')
@@ -1344,12 +1352,21 @@ f'''    PyObject *sipModule = sipGetModule(sipSelf, &sipWrappedModuleDef_{self.s
 ''')
 
     def g_static_variables_table(self, sf, scope=None):
-        """ Generate the table of static variables for a scope and return the
-        length of the table.
+        """ Generate the tables of unbound attributes for a scope and return a
+        tuple of the length of each table.
         """
 
         c_bindings = self.spec.c_bindings
+        module = self.spec.module
 
+        if scope is None:
+            scope_type = 'module'
+            suffix = module.py_name
+        else:
+            scope_type = 'type'
+            suffix = scope.iface_file.fq_cpp_name.as_word
+
+        # Do the static variables.
         nr_static_variables = 0
 
         # Get the sorted list of variables.
@@ -1408,8 +1425,6 @@ f'''static int sipStaticVariableSetter_{v_ref}(PyObject *sipPy)
 }
 
 ''')
-
-        module = self.spec.module
 
         for variable in variables:
             v_type = variable.type
@@ -1598,17 +1613,10 @@ f'''static int sipStaticVariableSetter_{v_ref}(PyObject *sipPy)
                 continue
 
             if nr_static_variables == 0:
-                if scope is None:
-                    scope_type = 'module'
-                    suffix = ''
-                else:
-                    scope_type = 'type'
-                    suffix = '_' + scope.iface_file.fq_cpp_name.as_word
-
                 sf.write(
 f'''
 /* Define the static variables for the {scope_type}. */
-static const sipStaticVariableDef sipStaticVariablesTable{suffix}[] = {{
+static const sipStaticVariableDef sipStaticVariables_{suffix}[] = {{
 ''')
 
             name = variable.py_name
@@ -1635,7 +1643,33 @@ static const sipStaticVariableDef sipStaticVariablesTable{suffix}[] = {{
         if nr_static_variables != 0:
             sf.write('};\n')
 
-        return nr_static_variables
+        # Do the types.
+        # TODO Check this excludes non-local types.
+        nr_types = 0
+        type_nr = 0
+
+        for needed_type in module.needed_types:
+            if needed_type.type is ArgumentType.CLASS:
+                klass = needed_type.definition
+
+                if klass.external or klass.is_hidden_namespace:
+                    continue
+
+                if nr_types == 0:
+                    sf.write(f'\nstatic const size_t sipTypeNrs_{suffix}[] = {{')
+
+                else:
+                    sf.write(', ')
+
+                sf.write(str(type_nr))
+                nr_types += 1
+
+            type_nr += 1
+
+        if nr_types != 0:
+            sf.write('};\n')
+
+        return nr_static_variables, nr_types
 
     @staticmethod
     def g_try(sf, bindings, throw_args):
@@ -1880,6 +1914,7 @@ f'''
 {cls.get_types_table_prefix()}_{module_name}[] = {{
 ''')
 
+        # TODO Does this exclude types defined in another module?
         for needed_type in module.needed_types:
             if needed_type.type is ArgumentType.CLASS:
                 klass = needed_type.definition

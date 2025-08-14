@@ -493,6 +493,7 @@ static sipPySlotDef slots_{enum_name}[] = {{
     # rather than the unsorted list of all enums.
     needed_enums = []
 
+    # TODO ABI v14 only wants these for the local module.  Other ABIs as well?
     for needed_type in module.needed_types:
         if needed_type.type is not ArgumentType.ENUM:
             continue
