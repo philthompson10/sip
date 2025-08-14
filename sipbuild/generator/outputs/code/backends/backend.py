@@ -1646,13 +1646,12 @@ static const sipStaticVariableDef sipStaticVariables_{suffix}[] = {{
         # Do the types.
         # TODO Check this excludes non-local types.
         nr_types = 0
-        type_nr = 0
 
-        for needed_type in module.needed_types:
+        for type_nr, needed_type in enumerate(module.needed_types):
             if needed_type.type is ArgumentType.CLASS:
                 klass = needed_type.definition
 
-                if klass.external or klass.is_hidden_namespace:
+                if klass.scope is not scope or klass.external or klass.is_hidden_namespace:
                     continue
 
                 if nr_types == 0:
@@ -1663,8 +1662,6 @@ static const sipStaticVariableDef sipStaticVariables_{suffix}[] = {{
 
                 sf.write(str(type_nr))
                 nr_types += 1
-
-            type_nr += 1
 
         if nr_types != 0:
             sf.write('};\n')
@@ -1693,6 +1690,10 @@ static const sipStaticVariableDef sipStaticVariables_{suffix}[] = {{
         module = spec.module
         module_name = module.py_name
         klass_name = klass.iface_file.fq_cpp_name.as_word
+
+        # Generate the static variables table.
+        nr_static_variables, nr_types = self.g_static_variables_table(sf,
+                scope=klass)
 
         # Generate the table of slots.
         # TODO
@@ -1736,6 +1737,19 @@ static PyType_Slot sip_py_slots_{klass_name}[] = {{
 
         if cod_scope is not None:
             fields.append('.ctd_container.cod_scope = ' + cod_scope)
+
+        if nr_static_variables != 0:
+            fields.append(
+                    '.ctd_container.cod_attributes.nr_static_variables = ' + str(nr_static_variables))
+            fields.append(
+                    '.ctd_container.cod_attributes.static_variables = sipStaticVariables_' + klass_name)
+
+        if nr_types != 0:
+            fields.append(
+                    '.ctd_container.cod_attributes.nr_types = ' + str(nr_types))
+            fields.append(
+                    '.ctd_container.cod_attributes.type_nrs = sipTypeNrs_' + klass_name)
+
 
         if has_slots:
             fields.append(

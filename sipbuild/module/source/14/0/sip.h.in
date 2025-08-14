@@ -766,6 +766,9 @@ typedef struct _sipContainerDef {
      */
     sipTypeID cod_scope;
 
+    /* The attributes. */
+    sipUnboundAttributesDef cod_attributes;
+
     /* The table of Python slots. */
     const PyType_Slot *cod_py_slots;
 
