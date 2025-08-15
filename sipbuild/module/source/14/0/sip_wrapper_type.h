@@ -53,7 +53,7 @@ struct _sipWrapperType {
     /* Unused and available for future use. */
     unsigned wt_unused : 28;
 
-    /* A string reference to the defining module. */
+    /* A strong reference to the defining module. */
     PyObject *wt_dmod;
 
     /* The wrapped type definition. */

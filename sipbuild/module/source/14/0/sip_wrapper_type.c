@@ -16,6 +16,7 @@
 #include "sip_container.h"
 #include "sip_core.h"
 #include "sip_module.h"
+#include "sip_module_wrapper.h"
 #include "sip_simple_wrapper.h"
 
 
@@ -26,8 +27,8 @@ static void WrapperType_dealloc(sipWrapperType *self);
 static PyObject *WrapperType_getattro(sipWrapperType *self, PyObject *name);
 static int WrapperType_init(sipWrapperType *self, PyObject *args,
         PyObject *kwds);
-//static int WrapperType_setattro(PyObject *self, PyObject *name,
-//        PyObject *value);
+static int WrapperType_setattro(sipWrapperType *self, PyObject *name,
+        PyObject *value);
 static int WrapperType_traverse(sipWrapperType *self, visitproc visit,
         void *arg);
 
@@ -41,7 +42,7 @@ static PyType_Slot WrapperType_slots[] = {
     {Py_tp_dealloc, WrapperType_dealloc},
     {Py_tp_getattro, WrapperType_getattro},
     {Py_tp_init, WrapperType_init},
-    //{Py_tp_setattro, WrapperType_setattro},
+    {Py_tp_setattro, WrapperType_setattro},
     {Py_tp_traverse, WrapperType_traverse},
     {0, NULL}
 };
@@ -158,16 +159,12 @@ static void WrapperType_dealloc(sipWrapperType *self)
  */
 static PyObject *WrapperType_getattro(sipWrapperType *self, PyObject *name)
 {
-    // TODO
-#if 0
-    sipSipModuleState *sms = sip_get_sip_module_state_from_sip_type(
-            (PyTypeObject *)self);
+    sipWrappedModuleState *wms = (sipWrappedModuleState *)PyModule_GetState(
+            self->wt_dmod);
+    const sipClassTypeDef *ctd = (const sipClassTypeDef *)self->wt_td;
 
-    if (sip_container_add_lazy_attrs(wms, ((sipWrapperType *)self)->wt_td) < 0)
-        return NULL;
-#endif
-
-    return PyType_Type.tp_getattro((PyObject *)self, name);
+    return sip_mod_con_getattro(wms, (PyObject *)self, name,
+            &ctd->ctd_container.cod_attributes);
 }
 
 
@@ -233,24 +230,19 @@ static int WrapperType_init(sipWrapperType *self, PyObject *args,
 }
 
 
-#if 0
 /*
  * The metatype setattro slot.
  */
-static int WrapperType_setattro(PyObject *self, PyObject *name,
+static int WrapperType_setattro(sipWrapperType *self, PyObject *name,
         PyObject *value)
 {
-#if 0
-    sipSipModuleState *sms = sip_get_sip_module_state_from_sip_type(
-            (PyTypeObject *)self);
+    sipWrappedModuleState *wms = (sipWrappedModuleState *)PyModule_GetState(
+            self->wt_dmod);
+    const sipClassTypeDef *ctd = (const sipClassTypeDef *)self->wt_td;
 
-    if (sip_container_add_lazy_attrs(wms, ((sipWrapperType *)self)->wt_td) < 0)
-        return -1;
-#endif
-
-    return PyType_Type.tp_setattro(self, name, value);
+    return sip_mod_con_setattro(wms, (PyObject *)self, name, value,
+            &ctd->ctd_container.cod_attributes);
 }
-#endif
 
 
 /*

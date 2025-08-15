@@ -36,7 +36,7 @@ class ClassesTestCase(SIPTestCase):
                 self.c_mod.Klass.Nested)
 
         self.assertEqual(self.c_mod.Klass.Nested.__module__, 'classes_module')
-        self.assertEqual(self.c_mod.Klass.Nested.__name__, 'Klass')
+        self.assertEqual(self.c_mod.Klass.Nested.__name__, 'Nested')
         self.assertEqual(self.c_mod.Klass.Nested.__qualname__, 'Klass.Nested')
 
     def test_class_attributes(self):
