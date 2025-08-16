@@ -369,7 +369,7 @@ sipSipModuleState *sip_get_sip_module_state_from_sip_type(PyTypeObject *type)
 
     assert(mod != NULL);
 
-    return ((sipSipModuleState *)PyModule_GetState(mod);
+    return (sipSipModuleState *)PyModule_GetState(mod);
 #else
     extern PyModuleDef _SIP_MODULE_DEF;
 
