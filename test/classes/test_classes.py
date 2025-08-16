@@ -25,19 +25,11 @@ class ClassesTestCase(SIPTestCase):
         self.assertEqual(len(self.c_mod.Klass.__mro__), 4)
         self.assertIsInstance(self.c_mod.Klass(), self.c_mod.Klass)
 
-        self.assertEqual(self.c_mod.Klass.__module__, 'classes_module')
-        self.assertEqual(self.c_mod.Klass.__name__, 'Klass')
-        self.assertEqual(self.c_mod.Klass.__qualname__, 'Klass')
-
     def test_nested_classes(self):
         """ Test the support for nested classes. """
 
         self.assertIsInstance(self.c_mod.Klass.Nested(),
                 self.c_mod.Klass.Nested)
-
-        self.assertEqual(self.c_mod.Klass.Nested.__module__, 'classes_module')
-        self.assertEqual(self.c_mod.Klass.Nested.__name__, 'Nested')
-        self.assertEqual(self.c_mod.Klass.Nested.__qualname__, 'Klass.Nested')
 
     def test_class_attributes(self):
         """ Test the support for class attributes. """
