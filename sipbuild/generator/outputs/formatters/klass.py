@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: BSD-2-Clause
 
-# Copyright (c) 2024 Phil Thompson <phil@riverbankcomputing.com>
+# Copyright (c) 2025 Phil Thompson <phil@riverbankcomputing.com>
 
 
 from ...scoped_name import STRIP_NONE
@@ -12,10 +12,7 @@ from .template import fmt_template_as_cpp_type
 def fmt_class_as_rest_ref(klass):
     """ Return a fully qualified Python name as a reST reference. """
 
-    module_name = klass.iface_file.module.fq_py_name.name
-    klass_name = fmt_scoped_py_name(klass.scope, klass.py_name.name)
-
-    return f':sip:ref:`~{module_name}.{klass_name}`'
+    return f':sip:ref:`~{fmt_class_as_scoped_py_name(klass)}`'
 
 
 def fmt_class_as_scoped_name(spec, klass, scope=None, strip=STRIP_NONE,
@@ -35,6 +32,15 @@ def fmt_class_as_scoped_name(spec, klass, scope=None, strip=STRIP_NONE,
         return f'sip{scope.fq_cpp_name.as_word}::sip{klass.iface_file.fq_cpp_name.base_name}'
 
     return klass.iface_file.fq_cpp_name.cpp_stripped(strip)
+
+
+def fmt_class_as_scoped_py_name(klass):
+    """ Return a fully qualified Python name. """
+
+    module_name = klass.iface_file.module.fq_py_name.name
+    klass_name = fmt_scoped_py_name(klass.scope, klass.py_name.name)
+
+    return module_name + '.' + klass_name
 
 
 def fmt_class_as_type_hint(spec, klass, defined):

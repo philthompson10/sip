@@ -12,8 +12,9 @@ from ....specification import (AccessSpecifier, ArgumentType, ArrayArgument,
         WrappedEnum)
 
 from ...formatters import (fmt_argument_as_cpp_type, fmt_argument_as_name,
-        fmt_class_as_scoped_name, fmt_scoped_py_name,
-        fmt_signature_as_type_hint, fmt_value_list_as_cpp_expression)
+        fmt_class_as_scoped_name, fmt_class_as_scoped_py_name,
+        fmt_scoped_py_name, fmt_signature_as_type_hint,
+        fmt_value_list_as_cpp_expression)
 
 from ..utils import (arg_is_small_enum, callable_overloads,
         get_convert_to_type_code, get_normalised_cached_name,
@@ -1726,7 +1727,7 @@ static PyType_Slot sip_py_slots_{klass_name}[] = {{
 
         if klass.real_class is None:
             fields.append(
-                    f'.ctd_container.cod_name = "{klass.iface_file.module.fq_py_name.name}.{klass.py_name.name}"')
+                    f'.ctd_container.cod_name = "{fmt_class_as_scoped_py_name(klass)}"')
 
         if klass.real_class is not None:
             cod_scope = self.get_type_ref(klass.real_class)
@@ -2710,6 +2711,8 @@ f'''    if ({sip_init_func_ref}(sipModule, &sipWrappedModule_{module_name}, {sip
     def _g_module_free(self, sf):
         """ Generate the module free slot. """
 
+        # Note that this will be called if wrapped_module_exec() fails in any
+        # way, so we can't assume the sip API is available.
         sf.write(
 '''
 
@@ -2719,7 +2722,8 @@ static void wrapped_module_free(void *wmod_ptr)
     sipWrappedModuleState *wms = (sipWrappedModuleState *)PyModule_GetState(
             (PyObject *)wmod_ptr);
 
-    wms->sip_api->api_wrapped_module_free(wms);
+    if (wms->sip_api != NULL)
+        wms->sip_api->api_wrapped_module_free(wms);
 }
 ''')
 
