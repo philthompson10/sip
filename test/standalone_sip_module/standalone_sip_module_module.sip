@@ -1,4 +1,24 @@
-// The SIP implementation of the standalone_sip_module test module.
+// The SIP implementation of the ns.standalone_sip_module test module.
 
 
-%Module(name=standalone_sip_module_module)
+%Module(name=ns.standalone_sip_module_module)
+
+
+%ModuleHeaderCode
+class Klass
+{
+public:
+    class Nested
+    {
+    };
+};
+%End
+
+
+class Klass
+{
+public:
+    class Nested
+    {
+    };
+};
