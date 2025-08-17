@@ -159,6 +159,12 @@ static void WrapperType_dealloc(sipWrapperType *self)
  */
 static PyObject *WrapperType_getattro(sipWrapperType *self, PyObject *name)
 {
+    /*
+     * We might be dealing with the simplewrapper or wrapper types themselves.
+     */
+    if (self->wt_dmod == NULL)
+        return PyType_Type.tp_getattro((PyObject *)self, name);
+
     sipWrappedModuleState *wms = (sipWrappedModuleState *)PyModule_GetState(
             self->wt_dmod);
     const sipClassTypeDef *ctd = (const sipClassTypeDef *)self->wt_td;
@@ -236,6 +242,12 @@ static int WrapperType_init(sipWrapperType *self, PyObject *args,
 static int WrapperType_setattro(sipWrapperType *self, PyObject *name,
         PyObject *value)
 {
+    /*
+     * We might be dealing with the simplewrapper or wrapper types themselves.
+     */
+    if (self->wt_dmod == NULL)
+        return PyType_Type.tp_setattro((PyObject *)self, name, value);
+
     sipWrappedModuleState *wms = (sipWrappedModuleState *)PyModule_GetState(
             self->wt_dmod);
     const sipClassTypeDef *ctd = (const sipClassTypeDef *)self->wt_td;

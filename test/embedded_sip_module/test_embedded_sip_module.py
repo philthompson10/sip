@@ -39,3 +39,22 @@ class EmbeddedSipModuleTestCase(SIPTestCase):
                 'embedded_sip_module_module')
         self.assertEqual(self.w_mod.Klass.Nested.__name__, 'Nested')
         self.assertEqual(self.w_mod.Klass.Nested.__qualname__, 'Klass.Nested')
+
+    def test_sip_types(self):
+        """ Test the support for the sip types. """
+
+        self.assertEqual(self.w_mod.wrappertype.__module__,
+                'embedded_sip_module_module')
+        self.assertEqual(self.w_mod.wrappertype.__name__, 'wrappertype')
+        self.assertEqual(self.w_mod.wrappertype.__qualname__, 'wrappertype')
+
+        self.assertEqual(self.w_mod.wrapper.__module__,
+                'embedded_sip_module_module')
+        self.assertEqual(self.w_mod.wrapper.__name__, 'wrapper')
+        self.assertEqual(self.w_mod.wrapper.__qualname__, 'wrapper')
+
+        self.assertEqual(self.w_mod.simplewrapper.__module__,
+                'embedded_sip_module_module')
+        self.assertEqual(self.w_mod.simplewrapper.__name__, 'simplewrapper')
+        self.assertEqual(self.w_mod.simplewrapper.__qualname__,
+                'simplewrapper')

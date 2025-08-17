@@ -45,3 +45,19 @@ class StandaloneSipModuleTestCase(SIPTestCase):
                 'ns.standalone_sip_module_module')
         self.assertEqual(self.w_mod.Klass.Nested.__name__, 'Nested')
         self.assertEqual(self.w_mod.Klass.Nested.__qualname__, 'Klass.Nested')
+
+    def test_sip_types(self):
+        """ Test the support for the sip types. """
+
+        self.assertEqual(self.s_mod.wrappertype.__module__, 'ns.sip')
+        self.assertEqual(self.s_mod.wrappertype.__name__, 'wrappertype')
+        self.assertEqual(self.s_mod.wrappertype.__qualname__, 'wrappertype')
+
+        self.assertEqual(self.s_mod.wrapper.__module__, 'ns.sip')
+        self.assertEqual(self.s_mod.wrapper.__name__, 'wrapper')
+        self.assertEqual(self.s_mod.wrapper.__qualname__, 'wrapper')
+
+        self.assertEqual(self.s_mod.simplewrapper.__module__, 'ns.sip')
+        self.assertEqual(self.s_mod.simplewrapper.__name__, 'simplewrapper')
+        self.assertEqual(self.s_mod.simplewrapper.__qualname__,
+                'simplewrapper')
