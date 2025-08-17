@@ -848,23 +848,6 @@ static PyTypeObject *create_container_type(sipWrappedModuleState *wms,
     ((sipWrapperType *)py_type)->wt_dmod = Py_NewRef(wms->wrapped_module);
     ((sipWrapperType *)py_type)->wt_td = td;
 
-#if 0
-    /* Fix __qualname__ if there is a scope. */
-    if (scope_td != NULL)
-    {
-        PyHeapTypeObject *ht;
-        PyObject *qualname = sip_get_qualname(scope_td, name);
-
-        if (qualname == NULL)
-            goto rel_type;
-
-        ht = (PyHeapTypeObject *)py_type;
-
-        Py_CLEAR(ht->ht_qualname);
-        ht->ht_qualname = qualname;
-    }
-#endif
-
     /* Add the type to the scope. */
     PyObject *scope;
 
@@ -873,6 +856,49 @@ static PyTypeObject *create_container_type(sipWrappedModuleState *wms,
         scope = (PyObject *)sip_get_py_type(wms, cod->cod_scope);
 
         if (scope == NULL)
+            goto rel_type;
+
+        /*
+         * The fully qualified name (ie. including fully qualified module name
+         * and any scope names) is specified in tp_name.  The name (taken as a
+         * whole) seems mainly to be used for error messages.  It is also used
+         * to derive the default values of __module__, __qualname__ and
+         * __name__.  The way __name__ is derived means that it is always
+         * correct and so we don't need to worry about it.  __module__ seems to
+         * be set to the value of tp_name up to the last dot and __qualname__
+         * seems to be set to the value of tp_name after the last dor (ie. the
+         * same as __name__).  This is correct for top-level types but is wrong
+         * for nested types.  Therefore we need to fix __module__ and
+         * __qualname__ for types with a scope.
+         */
+        const char *mod_name = PyModule_GetDef(wms->wrapped_module)->m_name;
+        const char *qualname = cod->cod_name + strlen(mod_name) + 1;
+        PyObject *qualname_obj = PyUnicode_FromString(qualname);
+
+        PyObject *mod_name_obj = PyModule_GetNameObject(wms->wrapped_module);
+        PyObject *dunder_module = PyUnicode_InternFromString("__module__");
+        PyObject *dunder_qualname = PyUnicode_InternFromString("__qualname__");
+
+        if (qualname_obj == NULL || mod_name_obj == NULL || dunder_module == NULL || dunder_qualname == NULL)
+        {
+            Py_XDECREF(qualname_obj);
+            Py_XDECREF(mod_name_obj);
+            Py_XDECREF(dunder_module);
+            Py_XDECREF(dunder_qualname);
+
+            goto rel_type;
+        }
+
+        int module_rc = PyObject_SetAttr(py_type, dunder_module, mod_name_obj);
+        int qualname_rc = PyObject_SetAttr(py_type, dunder_qualname,
+                qualname_obj);
+
+        Py_DECREF(qualname_obj);
+        Py_DECREF(mod_name_obj);
+        Py_DECREF(dunder_module);
+        Py_DECREF(dunder_qualname);
+
+        if (module_rc < 0 || qualname_rc < 0)
             goto rel_type;
     }
     else
@@ -1854,7 +1880,7 @@ static sipTypeID sip_api_find_type_id(PyObject *wmod, const char *type)
         if (tdp != NULL)
         {
             /* Determine the type number. */
-            Py_ssize_t type_nr = tdp - md->type_defs;
+            sipTypeNr type_nr = tdp - md->type_defs;
 
             /* Return an absolute ID of a generated type. */
             // TODO Does it need to be absolute rather than just relative to
@@ -1988,7 +2014,8 @@ const sipTypeDef *sip_get_type_def(sipWrappedModuleState *wms,
  * Return a borrowed reference to the Python type object for a type number in
  * the current module, creating it if necessary.
  */
-PyTypeObject *sip_get_local_py_type(sipWrappedModuleState *wms, size_t type_nr)
+PyTypeObject *sip_get_local_py_type(sipWrappedModuleState *wms,
+        sipTypeNr type_nr)
 {
     PyTypeObject *py_type = wms->py_types[type_nr];
     if (py_type != NULL)

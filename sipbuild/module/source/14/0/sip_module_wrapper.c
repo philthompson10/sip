@@ -115,7 +115,7 @@ PyObject *sip_mod_con_getattro(sipWrappedModuleState *wms, PyObject *self,
             return attr;
 
         /* See if it is a wrapped type. */
-        const size_t *type_nr_p = get_wrapped_type_nr_p(
+        const sipTypeNr *type_nr_p = get_wrapped_type_nr_p(
                 wms->wrapped_module_def, utf8_name, uad);
 
         if (type_nr_p == NULL)
@@ -881,7 +881,7 @@ static int compare_type_nr(const void *key, const void *el,
         const void *context)
 {
     const char *s1 = (const char *)key;
-    size_t type_nr = *(const size_t *)el;
+    sipTypeNr type_nr = *(const sipTypeNr *)el;
     const sipWrappedModuleDef *wmd = (const sipWrappedModuleDef *)context;
 
     const sipTypeDef *td = wmd->type_defs[type_nr];
@@ -910,7 +910,7 @@ static const size_t *get_wrapped_type_nr_p(const sipWrappedModuleDef *wmd,
         const char *utf8_name, const sipUnboundAttributesDef *uad)
 {
     return (const size_t *)bsearch_s((const void *)utf8_name,
-            (const void *)uad->type_nrs, uad->nr_types, sizeof (size_t),
+            (const void *)uad->type_nrs, uad->nr_types, sizeof (sipTypeNr),
             compare_type_nr, (const void *)wmd);
 }
 

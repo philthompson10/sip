@@ -41,10 +41,7 @@ class StandaloneSipModuleTestCase(SIPTestCase):
     def test_nested_wrapped_types(self):
         """ Test the support for nested wrapped types. """
 
-        print()
-        print("!!! Klass.Nested.__module__:", self.w_mod.Klass.Nested.__module__)
-        print("!!! Klass.Nested.__name__:", self.w_mod.Klass.Nested.__name__)
-        print("!!! Klass.Nested.__qualname__:", self.w_mod.Klass.Nested.__qualname__)
-        #self.assertEqual(self.w_mod.Klass.Nested.__module__, 'ns.standalone_sip_module_module')
+        self.assertEqual(self.w_mod.Klass.Nested.__module__,
+                'ns.standalone_sip_module_module')
         self.assertEqual(self.w_mod.Klass.Nested.__name__, 'Nested')
-        #self.assertEqual(self.w_mod.Klass.Nested.__qualname__, 'Klass.Nested')
+        self.assertEqual(self.w_mod.Klass.Nested.__qualname__, 'Klass.Nested')

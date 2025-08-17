@@ -1656,7 +1656,7 @@ static const sipStaticVariableDef sipStaticVariables_{suffix}[] = {{
                     continue
 
                 if nr_types == 0:
-                    sf.write(f'\nstatic const size_t sipTypeNrs_{suffix}[] = {{')
+                    sf.write(f'\nstatic const sipTypeNr sipTypeNrs_{suffix}[] = {{')
 
                 else:
                     sf.write(', ')
