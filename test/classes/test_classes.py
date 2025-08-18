@@ -45,6 +45,13 @@ class ClassesTestCase(SIPTestCase):
         with self.assertRaises(AttributeError):
             self.c_mod.Klass.foo
 
+        self.assertEqual(self.c_mod.Klass.s_attr, 0)
+        self.c_mod.Klass.s_attr = 10
+        self.assertEqual(self.c_mod.Klass.s_attr, 10)
+
+        with self.assertRaises(AttributeError):
+            del self.c_mod.Klass.s_attr;
+
     def test_instance_attributes(self):
         """ Test the support for instance attributes. """
 

@@ -1371,7 +1371,7 @@ f'''    PyObject *sipModule = sipGetModule(sipSelf, &sipWrappedModuleDef_{self.s
         nr_static_variables = 0
 
         # Get the sorted list of variables.
-        variables = list(self.variables_in_scope(scope))
+        variables = list(self.variables_in_scope(scope, check_handler=False))
         variables.sort(key=lambda k: k.py_name.name)
 
         # Generate any getters and setters.
