@@ -395,6 +395,7 @@ static int add_lazy_container_attrs(sipWrappedModuleState *wms,
     }
 #endif
 
+#if 0
     /* Do the variables. */
     const sipVariableDef *vd;
 
@@ -410,6 +411,7 @@ static int add_lazy_container_attrs(sipWrappedModuleState *wms,
         if (sip_dict_set_and_discard(dict, vd->vd_name, descr) < 0)
             return -1;
     }
+#endif
 
     return 0;
 }

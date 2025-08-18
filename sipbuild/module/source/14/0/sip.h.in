@@ -355,13 +355,12 @@ typedef struct _sipEnumMemberDef {
 
 
 /*
- * The immutable definition of static variables (static in the sense of having
- * a fixed absolute address).
+ * The immutable definition of wrapped variables.
  */
-#define SIP_SV_RO           INT_MIN     /* The value is read only. */
+#define SIP_WV_RO           INT_MIN     /* The value is read only. */
 
-typedef PyObject *(*sipStaticVariableGetterFunc)();
-typedef int (*sipStaticVariableSetterFunc)(PyObject *);
+typedef PyObject *(*sipWrappedVariableGetterFunc)();
+typedef int (*sipWrappedVariableSetterFunc)(PyObject *);
 
 typedef struct {
     /* The Python name of the variable. */
@@ -377,11 +376,11 @@ typedef struct {
     void *value;
 
     /* The optional getter. */
-    sipStaticVariableGetterFunc getter;
+    sipWrappedVariableGetterFunc getter;
 
     /* The optional setter. */
-    sipStaticVariableSetterFunc setter;
-} sipStaticVariableDef;
+    sipWrappedVariableSetterFunc setter;
+} sipWrappedVariableDef;
 
 
 /*
@@ -707,15 +706,15 @@ typedef struct _sipVariableDef {
 
 
 /*
- * The immutable definition of the unbound attributes of either a module or a
+ * The immutable definition of the wrapped attributes of either a module or a
  * type.
  */
 typedef struct {
-    /* The number of static variables. */
-    size_t nr_static_variables;
+    /* The number of wrapped variables. */
+    size_t nr_wrapped_variables;
 
-    /* The sorted table of static variables. */
-    const sipStaticVariableDef *const static_variables;
+    /* The table of wrapped variables. */
+    const sipWrappedVariableDef *const wrapped_variables;
 
     /* The number of types. */
     sipTypeNr nr_types;
@@ -725,7 +724,7 @@ typedef struct {
      * to local types.
      */
     const sipTypeNr *type_nrs;
-} sipUnboundAttributesDef;
+} sipWrappedAttrsDef;
 
 
 /*
@@ -771,8 +770,8 @@ typedef struct _sipContainerDef {
     // type?
     sipTypeID cod_scope;
 
-    /* The attributes. */
-    sipUnboundAttributesDef cod_attributes;
+    /* The wrapped attributes. */
+    sipWrappedAttrsDef cod_attributes;
 
     /* The table of Python slots. */
     const PyType_Slot *cod_py_slots;
@@ -791,21 +790,9 @@ typedef struct _sipContainerDef {
     const sipEnumMemberDef *cod_enummembers;
 #endif
 
-    /* The number of variables. */
-    int cod_nrvariables;
-
-    /* The table of variables. */
-    const sipVariableDef *cod_variables;
-
     /* The static instances. */
     // TODO Remove this.
     sipInstancesDef cod_instances;
-
-    /* The number of static variables. */
-    int nr_static_variables;
-
-    /* The sorted table of static variables. */
-    const sipStaticVariableDef *const static_variables;
 } sipContainerDef;
 
 
@@ -1052,8 +1039,8 @@ struct _sipWrappedModuleDef {
     /* The sub-class convertors. */
     const sipSubClassConvertorDef *const convertors;
 
-    /* The attributes. */
-    sipUnboundAttributesDef attributes;
+    /* The wrapped attributes. */
+    sipWrappedAttrsDef attributes;
 
     /* The license. */
     const struct _sipLicenseDef *license;

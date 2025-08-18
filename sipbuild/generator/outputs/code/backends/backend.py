@@ -704,7 +704,7 @@ f'''
         module = spec.module
         module_name = module.py_name
 
-        nr_static_variables, nr_types = static_variables_state
+        nr_wrapped_variables, nr_types = static_variables_state
 
         sf.write(
 f'''/* The wrapped module's immutable definition. */
@@ -740,9 +740,9 @@ static const sipWrappedModuleDef sipWrappedModule_{module_name} = {{
         if nr_subclass_convertors != 0:
             sf.write('    .convertors = convertorsTable,\n')
 
-        if nr_static_variables != 0:
-            sf.write(f'    .attributes.nr_static_variables = {nr_static_variables},\n')
-            sf.write(f'    .attributes.static_variables = sipStaticVariables_{module_name},\n')
+        if nr_wrapped_variables != 0:
+            sf.write(f'    .attributes.nr_wrapped_variables = {nr_wrapped_variables},\n')
+            sf.write(f'    .attributes.wrapped_variables = sipWrappedVariables_{module_name},\n')
 
         if nr_types != 0:
             sf.write(f'    .attributes.nr_types = {nr_types},\n')
@@ -1367,8 +1367,8 @@ f'''    PyObject *sipModule = sipGetModule(sipSelf, &sipWrappedModuleDef_{self.s
             scope_type = 'type'
             suffix = scope.iface_file.fq_cpp_name.as_word
 
-        # Do the static variables.
-        nr_static_variables = 0
+        # Do the wrapped variables.
+        nr_wrapped_variables = 0
 
         # Get the sorted list of variables.
         variables = list(self.variables_in_scope(scope, check_handler=False))
@@ -1386,10 +1386,10 @@ f'''    PyObject *sipModule = sipGetModule(sipSelf, &sipWrappedModuleDef_{self.s
                 sf.write('\n')
 
                 if not c_bindings:
-                    sf.write(f'extern "C" {{static PyObject *sipStaticVariableGetter_{v_ref}();}}\n')
+                    sf.write(f'extern "C" {{static PyObject *sipWrappedVariableGetter_{v_ref}();}}\n')
 
                 sf.write(
-f'''static PyObject *sipStaticVariableGetter_{v_ref}()
+f'''static PyObject *sipWrappedVariableGetter_{v_ref}()
 {{
     PyObject *sipPy;
 
@@ -1409,10 +1409,10 @@ f'''static PyObject *sipStaticVariableGetter_{v_ref}()
                 sf.write('\n')
 
                 if not c_bindings:
-                    sf.write(f'extern "C" {{static int sipStaticVariableSetter_{v_ref}(PyObject *);}}\n')
+                    sf.write(f'extern "C" {{static int sipWrappedVariableSetter_{v_ref}(PyObject *);}}\n')
 
                 sf.write(
-f'''static int sipStaticVariableSetter_{v_ref}(PyObject *sipPy)
+f'''static int sipWrappedVariableSetter_{v_ref}(PyObject *sipPy)
 {{
     int sipErr = 0;
 
@@ -1613,18 +1613,18 @@ f'''static int sipStaticVariableSetter_{v_ref}(PyObject *sipPy)
             else:
                 continue
 
-            if nr_static_variables == 0:
+            if nr_wrapped_variables == 0:
                 sf.write(
 f'''
 /* Define the static variables for the {scope_type}. */
-static const sipStaticVariableDef sipStaticVariables_{suffix}[] = {{
+static const sipWrappedVariableDef sipWrappedVariables_{suffix}[] = {{
 ''')
 
             name = variable.py_name
             value = variable.fq_cpp_name.cpp_stripped(STRIP_GLOBAL)
 
             if not_settable or variable.no_setter:
-                key = 'SIP_SV_RO'
+                key = 'SIP_WV_RO'
             elif might_need_key:
                 key = module.next_key
                 module.next_key -= 1
@@ -1633,15 +1633,15 @@ static const sipStaticVariableDef sipStaticVariables_{suffix}[] = {{
 
             v_ref = variable.fq_cpp_name.as_word
             getter = self.optional_ptr(variable.get_code is not None,
-                    f'sipStaticVariableGetter_{v_ref}')
+                    f'sipWrappedVariableGetter_{v_ref}')
             setter = self.optional_ptr(variable.set_code is not None,
-                    f'sipStaticVariableSetter_{v_ref}')
+                    f'sipWrappedVariableSetter_{v_ref}')
 
             sf.write(f'    {{"{name}", {type_id}, {key}, (void *)&{value}, {getter}, {setter}}},\n')
 
-            nr_static_variables += 1
+            nr_wrapped_variables += 1
 
-        if nr_static_variables != 0:
+        if nr_wrapped_variables != 0:
             sf.write('};\n')
 
         # Do the types.
@@ -1667,7 +1667,7 @@ static const sipStaticVariableDef sipStaticVariables_{suffix}[] = {{
         if nr_types != 0:
             sf.write('};\n')
 
-        return nr_static_variables, nr_types
+        return nr_wrapped_variables, nr_types
 
     @staticmethod
     def g_try(sf, bindings, throw_args):
@@ -1693,7 +1693,7 @@ static const sipStaticVariableDef sipStaticVariables_{suffix}[] = {{
         klass_name = klass.iface_file.fq_cpp_name.as_word
 
         # Generate the static variables table.
-        nr_static_variables, nr_types = self.g_static_variables_table(sf,
+        nr_wrapped_variables, nr_types = self.g_static_variables_table(sf,
                 scope=klass)
 
         # Generate the table of slots.
@@ -1739,11 +1739,11 @@ static PyType_Slot sip_py_slots_{klass_name}[] = {{
         if cod_scope is not None:
             fields.append('.ctd_container.cod_scope = ' + cod_scope)
 
-        if nr_static_variables != 0:
+        if nr_wrapped_variables != 0:
             fields.append(
-                    '.ctd_container.cod_attributes.nr_static_variables = ' + str(nr_static_variables))
+                    '.ctd_container.cod_attributes.nr_wrapped_variables = ' + str(nr_wrapped_variables))
             fields.append(
-                    '.ctd_container.cod_attributes.static_variables = sipStaticVariables_' + klass_name)
+                    '.ctd_container.cod_attributes.wrapped_variables = sipWrappedVariables_' + klass_name)
 
         if nr_types != 0:
             fields.append(
@@ -1767,11 +1767,6 @@ static PyType_Slot sip_py_slots_{klass_name}[] = {{
         #if nrvariables > 0:
         #    cod_nrvariables
         #    cod_variables
-
-        # TODO
-        #if nr_static_variables > 0:
-        #    nr_static_variables
-        #    static_variables
 
         fields.append('.ctd_docstring = ' + docstring_ref)
 

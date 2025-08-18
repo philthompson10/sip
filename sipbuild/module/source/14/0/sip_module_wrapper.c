@@ -50,15 +50,15 @@ static PyType_Spec ModuleWrapper_TypeSpec = {
 static const void *bsearch_s(const void *key, const void *arr, size_t n,
         size_t width, int (*cmp_fn)(const void *, const void *, const void *),
         const void *context);
-static int compare_static_variable(const void *key, const void *el,
+static int compare_wrapped_variable(const void *key, const void *el,
         const void *context);
 static int compare_type_nr(const void *key, const void *el,
         const void *context);
-static const sipStaticVariableDef *get_static_variable_def(
-        const char *utf8_name, const sipUnboundAttributesDef *uad);
-static const size_t *get_wrapped_type_nr_p(const sipWrappedModuleDef *wmd,
-        const char *utf8_name, const sipUnboundAttributesDef *uad);
-static void raise_internal_error(const sipStaticVariableDef *svd);
+static const sipWrappedVariableDef *get_wrapped_variable_def(
+        const char *utf8_name, const sipWrappedAttrsDef *wad);
+static const sipTypeNr *get_wrapped_type_nr_p(const sipWrappedModuleDef *wmd,
+        const char *utf8_name, const sipWrappedAttrsDef *wad);
+static void raise_internal_error(const sipWrappedVariableDef *wvd);
 
 
 /*
@@ -92,7 +92,7 @@ static int ModuleWrapper_setattro(PyObject *self, PyObject *name,
  * The getattro handler for modules and containers.
  */
 PyObject *sip_mod_con_getattro(sipWrappedModuleState *wms, PyObject *self,
-        PyObject *name, const sipUnboundAttributesDef *uad)
+        PyObject *name, const sipWrappedAttrsDef *wad)
 {
     const char *utf8_name = PyUnicode_AsUTF8(name);
 
@@ -100,9 +100,9 @@ PyObject *sip_mod_con_getattro(sipWrappedModuleState *wms, PyObject *self,
      * The behaviour of wrapped variables is that of a data descriptor and they
      * take precedence over any attributes set by the user.
      */
-    const sipStaticVariableDef *svd = get_static_variable_def(utf8_name, uad);
+    const sipWrappedVariableDef *wvd = get_wrapped_variable_def(utf8_name, wad);
 
-    if (svd == NULL)
+    if (wvd == NULL)
     {
         /*
          * Revert to the super-class behaviour.  This will pick up any wrapped
@@ -116,7 +116,7 @@ PyObject *sip_mod_con_getattro(sipWrappedModuleState *wms, PyObject *self,
 
         /* See if it is a wrapped type. */
         const sipTypeNr *type_nr_p = get_wrapped_type_nr_p(
-                wms->wrapped_module_def, utf8_name, uad);
+                wms->wrapped_module_def, utf8_name, wad);
 
         if (type_nr_p == NULL)
             return NULL;
@@ -129,82 +129,82 @@ PyObject *sip_mod_con_getattro(sipWrappedModuleState *wms, PyObject *self,
         return attr;
     }
 
-    if (svd->getter != NULL)
-        return svd->getter();
+    if (wvd->getter != NULL)
+        return wvd->getter();
 
-    switch (svd->type_id)
+    switch (wvd->type_id)
     {
         case sipTypeID_byte:
-            return PyLong_FromLong(*(char *)(svd->value));
+            return PyLong_FromLong(*(char *)(wvd->value));
 
         case sipTypeID_sbyte:
-            return PyLong_FromLong(*(signed char *)(svd->value));
+            return PyLong_FromLong(*(signed char *)(wvd->value));
 
         case sipTypeID_ubyte:
-            return PyLong_FromUnsignedLong(*(unsigned char *)(svd->value));
+            return PyLong_FromUnsignedLong(*(unsigned char *)(wvd->value));
 
         case sipTypeID_short:
-            return PyLong_FromLong(*(short *)(svd->value));
+            return PyLong_FromLong(*(short *)(wvd->value));
 
         case sipTypeID_ushort:
-            return PyLong_FromUnsignedLong(*(unsigned short *)(svd->value));
+            return PyLong_FromUnsignedLong(*(unsigned short *)(wvd->value));
 
         case sipTypeID_int:
-            return PyLong_FromLong(*(int *)(svd->value));
+            return PyLong_FromLong(*(int *)(wvd->value));
 
         case sipTypeID_uint:
-            return PyLong_FromUnsignedLong(*(unsigned *)(svd->value));
+            return PyLong_FromUnsignedLong(*(unsigned *)(wvd->value));
 
         case sipTypeID_long:
-            return PyLong_FromLong(*(long *)(svd->value));
+            return PyLong_FromLong(*(long *)(wvd->value));
 
         case sipTypeID_ulong:
-            return PyLong_FromUnsignedLong(*(unsigned long *)(svd->value));
+            return PyLong_FromUnsignedLong(*(unsigned long *)(wvd->value));
 
         case sipTypeID_longlong:
-            return PyLong_FromLongLong(*(long long *)(svd->value));
+            return PyLong_FromLongLong(*(long long *)(wvd->value));
 
         case sipTypeID_ulonglong:
             return PyLong_FromUnsignedLongLong(
-                    *(unsigned long long *)(svd->value));
+                    *(unsigned long long *)(wvd->value));
 
         case sipTypeID_Py_hash_t:
-            return PyLong_FromLong(*(Py_hash_t *)(svd->value));
+            return PyLong_FromLong(*(Py_hash_t *)(wvd->value));
 
         case sipTypeID_Py_ssize_t:
-            return PyLong_FromSsize_t(*(Py_ssize_t *)(svd->value));
+            return PyLong_FromSsize_t(*(Py_ssize_t *)(wvd->value));
 
         case sipTypeID_size_t:
-            return PyLong_FromSize_t(*(size_t *)(svd->value));
+            return PyLong_FromSize_t(*(size_t *)(wvd->value));
 
         case sipTypeID_float:
-            return PyFloat_FromDouble(*(float *)(svd->value));
+            return PyFloat_FromDouble(*(float *)(wvd->value));
 
         case sipTypeID_double:
-            return PyFloat_FromDouble(*(double *)(svd->value));
+            return PyFloat_FromDouble(*(double *)(wvd->value));
 
         case sipTypeID_char:
         case sipTypeID_schar:
         case sipTypeID_uchar:
-            return PyBytes_FromStringAndSize((char *)svd->value, 1);
+            return PyBytes_FromStringAndSize((char *)wvd->value, 1);
 
         case sipTypeID_char_ascii:
-            return PyUnicode_DecodeASCII((char *)svd->value, 1, SIP_NULLPTR);
+            return PyUnicode_DecodeASCII((char *)wvd->value, 1, SIP_NULLPTR);
 
         case sipTypeID_char_latin1:
-            return PyUnicode_DecodeLatin1((char *)svd->value, 1, SIP_NULLPTR);
+            return PyUnicode_DecodeLatin1((char *)wvd->value, 1, SIP_NULLPTR);
 
         case sipTypeID_char_utf8:
-            return PyUnicode_DecodeUTF8((char *)svd->value, 1, SIP_NULLPTR);
+            return PyUnicode_DecodeUTF8((char *)wvd->value, 1, SIP_NULLPTR);
 
         case sipTypeID_wchar:
-            return PyUnicode_FromWideChar((wchar_t *)svd->value, 1);
+            return PyUnicode_FromWideChar((wchar_t *)wvd->value, 1);
 
         case sipTypeID_str:
         case sipTypeID_sstr:
         case sipTypeID_ustr:
         {
-            const char *c_value = *(char **)svd->value;
+            const char *c_value = *(char **)wvd->value;
 
             if (c_value == SIP_NULLPTR)
             {
@@ -217,7 +217,7 @@ PyObject *sip_mod_con_getattro(sipWrappedModuleState *wms, PyObject *self,
 
         case sipTypeID_str_ascii:
         {
-            const char *c_value = *(char **)svd->value;
+            const char *c_value = *(char **)wvd->value;
 
             if (c_value == SIP_NULLPTR)
             {
@@ -231,7 +231,7 @@ PyObject *sip_mod_con_getattro(sipWrappedModuleState *wms, PyObject *self,
 
         case sipTypeID_str_latin1:
         {
-            const char *c_value = *(char **)svd->value;
+            const char *c_value = *(char **)wvd->value;
 
             if (c_value == SIP_NULLPTR)
             {
@@ -245,7 +245,7 @@ PyObject *sip_mod_con_getattro(sipWrappedModuleState *wms, PyObject *self,
 
         case sipTypeID_str_utf8:
         {
-            const char *c_value = *(char **)svd->value;
+            const char *c_value = *(char **)wvd->value;
 
             if (c_value == SIP_NULLPTR)
             {
@@ -258,7 +258,7 @@ PyObject *sip_mod_con_getattro(sipWrappedModuleState *wms, PyObject *self,
 
         case sipTypeID_wstr:
         {
-            const wchar_t *c_value = *(wchar_t **)svd->value;
+            const wchar_t *c_value = *(wchar_t **)wvd->value;
 
             if (c_value == SIP_NULLPTR)
             {
@@ -271,15 +271,15 @@ PyObject *sip_mod_con_getattro(sipWrappedModuleState *wms, PyObject *self,
         }
 
         case sipTypeID_bool:
-            return PyBool_FromLong(*(_Bool *)(svd->value));
+            return PyBool_FromLong(*(_Bool *)(wvd->value));
 
         case sipTypeID_voidptr:
             return sip_convert_from_void_ptr(wms->sip_module_state,
-                    *(void **)(svd->value));
+                    *(void **)(wvd->value));
 
         case sipTypeID_voidptr_const:
             return sip_convert_from_const_void_ptr(wms->sip_module_state,
-                    *(const void **)(svd->value));
+                    *(const void **)(wvd->value));
 
         case sipTypeID_pyobject:
         case sipTypeID_pytuple:
@@ -294,7 +294,7 @@ PyObject *sip_mod_con_getattro(sipWrappedModuleState *wms, PyObject *self,
              * Note that this is the historical behaviour and is probably
              * inconsistent with what the parsers do.
              */
-            PyObject *c_value = *(PyObject **)svd->value;
+            PyObject *c_value = *(PyObject **)wvd->value;
 
             if (c_value == NULL)
                 c_value = Py_None;
@@ -316,13 +316,13 @@ PyObject *sip_mod_con_getattro(sipWrappedModuleState *wms, PyObject *self,
              * specifying additional type information (eg. the size of fixed
              * arrays)?
              */
-            return PyCapsule_New(*(void **)svd->value, NULL, NULL);
+            return PyCapsule_New(*(void **)wvd->value, NULL, NULL);
 
         default:
             break;
     }
 
-    raise_internal_error(svd);
+    raise_internal_error(wvd);
     return NULL;
 }
 
@@ -331,33 +331,33 @@ PyObject *sip_mod_con_getattro(sipWrappedModuleState *wms, PyObject *self,
  * The setattro handler for modules and containers.
  */
 int sip_mod_con_setattro(sipWrappedModuleState *wms, PyObject *self,
-        PyObject *name, PyObject *value, const sipUnboundAttributesDef *uad)
+        PyObject *name, PyObject *value, const sipWrappedAttrsDef *wad)
 {
     const char *utf8_name = PyUnicode_AsUTF8(name);
 
-    const sipStaticVariableDef *svd = get_static_variable_def(utf8_name, uad);
+    const sipWrappedVariableDef *wvd = get_wrapped_variable_def(utf8_name, wad);
 
-    if (svd == NULL)
+    if (wvd == NULL)
         return Py_TYPE(self)->tp_base->tp_setattro(self, name, value);
 
     if (value == NULL)
     {
         PyErr_Format(PyExc_AttributeError, "'%s' cannot be deleted",
-                svd->name);
+                wvd->name);
         return -1;
     }
 
-    if (svd->setter != NULL)
-        return svd->setter(value);
+    if (wvd->setter != NULL)
+        return wvd->setter(value);
 
-    if (svd->key == SIP_SV_RO)
+    if (wvd->key == SIP_WV_RO)
     {
         PyErr_Format(PyExc_ValueError,
-                "'%s' is a constant and cannot be modified", svd->name);
+                "'%s' is a constant and cannot be modified", wvd->name);
         return -1;
     }
 
-    switch (svd->type_id)
+    switch (wvd->type_id)
     {
         case sipTypeID_byte:
         {
@@ -366,7 +366,7 @@ int sip_mod_con_setattro(sipWrappedModuleState *wms, PyObject *self,
             if (PyErr_Occurred())
                 return -1;
 
-            *(char *)(svd->value) = c_value;
+            *(char *)(wvd->value) = c_value;
 
             return 0;
         }
@@ -378,7 +378,7 @@ int sip_mod_con_setattro(sipWrappedModuleState *wms, PyObject *self,
             if (PyErr_Occurred())
                 return -1;
 
-            *(signed char *)(svd->value) = c_value;
+            *(signed char *)(wvd->value) = c_value;
 
             return 0;
         }
@@ -390,7 +390,7 @@ int sip_mod_con_setattro(sipWrappedModuleState *wms, PyObject *self,
             if (PyErr_Occurred())
                 return -1;
 
-            *(unsigned char *)(svd->value) = c_value;
+            *(unsigned char *)(wvd->value) = c_value;
 
             return 0;
         }
@@ -402,7 +402,7 @@ int sip_mod_con_setattro(sipWrappedModuleState *wms, PyObject *self,
             if (PyErr_Occurred())
                 return -1;
 
-            *(short *)(svd->value) = c_value;
+            *(short *)(wvd->value) = c_value;
 
             return 0;
         }
@@ -414,7 +414,7 @@ int sip_mod_con_setattro(sipWrappedModuleState *wms, PyObject *self,
             if (PyErr_Occurred())
                 return -1;
 
-            *(unsigned short *)(svd->value) = c_value;
+            *(unsigned short *)(wvd->value) = c_value;
 
             return 0;
         }
@@ -426,7 +426,7 @@ int sip_mod_con_setattro(sipWrappedModuleState *wms, PyObject *self,
             if (PyErr_Occurred())
                 return -1;
 
-            *(int *)(svd->value) = c_value;
+            *(int *)(wvd->value) = c_value;
 
             return 0;
         }
@@ -438,7 +438,7 @@ int sip_mod_con_setattro(sipWrappedModuleState *wms, PyObject *self,
             if (PyErr_Occurred())
                 return -1;
 
-            *(unsigned *)(svd->value) = c_value;
+            *(unsigned *)(wvd->value) = c_value;
 
             return 0;
         }
@@ -450,7 +450,7 @@ int sip_mod_con_setattro(sipWrappedModuleState *wms, PyObject *self,
             if (PyErr_Occurred())
                 return -1;
 
-            *(long *)(svd->value) = c_value;
+            *(long *)(wvd->value) = c_value;
 
             return 0;
         }
@@ -462,7 +462,7 @@ int sip_mod_con_setattro(sipWrappedModuleState *wms, PyObject *self,
             if (PyErr_Occurred())
                 return -1;
 
-            *(unsigned long *)(svd->value) = c_value;
+            *(unsigned long *)(wvd->value) = c_value;
 
             return 0;
         }
@@ -474,7 +474,7 @@ int sip_mod_con_setattro(sipWrappedModuleState *wms, PyObject *self,
             if (PyErr_Occurred())
                 return -1;
 
-            *(long long *)(svd->value) = c_value;
+            *(long long *)(wvd->value) = c_value;
 
             return 0;
         }
@@ -487,7 +487,7 @@ int sip_mod_con_setattro(sipWrappedModuleState *wms, PyObject *self,
             if (PyErr_Occurred())
                 return -1;
 
-            *(unsigned long long *)(svd->value) = c_value;
+            *(unsigned long long *)(wvd->value) = c_value;
 
             return 0;
         }
@@ -500,7 +500,7 @@ int sip_mod_con_setattro(sipWrappedModuleState *wms, PyObject *self,
             if (PyErr_Occurred())
                 return -1;
 
-            *(Py_hash_t *)(svd->value) = c_value;
+            *(Py_hash_t *)(wvd->value) = c_value;
 
             return 0;
         }
@@ -512,7 +512,7 @@ int sip_mod_con_setattro(sipWrappedModuleState *wms, PyObject *self,
             if (PyErr_Occurred())
                 return -1;
 
-            *(Py_ssize_t *)(svd->value) = c_value;
+            *(Py_ssize_t *)(wvd->value) = c_value;
 
             return 0;
         }
@@ -524,7 +524,7 @@ int sip_mod_con_setattro(sipWrappedModuleState *wms, PyObject *self,
             if (PyErr_Occurred())
                 return -1;
 
-            *(size_t *)(svd->value) = c_value;
+            *(size_t *)(wvd->value) = c_value;
 
             return 0;
         }
@@ -536,7 +536,7 @@ int sip_mod_con_setattro(sipWrappedModuleState *wms, PyObject *self,
             if (PyErr_Occurred())
                 return -1;
 
-            *(float *)(svd->value) = c_value;
+            *(float *)(wvd->value) = c_value;
 
             return 0;
         }
@@ -548,7 +548,7 @@ int sip_mod_con_setattro(sipWrappedModuleState *wms, PyObject *self,
             if (PyErr_Occurred())
                 return -1;
 
-            *(double *)(svd->value) = c_value;
+            *(double *)(wvd->value) = c_value;
 
             return 0;
         }
@@ -560,7 +560,7 @@ int sip_mod_con_setattro(sipWrappedModuleState *wms, PyObject *self,
             if (PyErr_Occurred())
                 return -1;
 
-            *(char *)(svd->value) = c_value;
+            *(char *)(wvd->value) = c_value;
 
             return 0;
         }
@@ -572,7 +572,7 @@ int sip_mod_con_setattro(sipWrappedModuleState *wms, PyObject *self,
             if (PyErr_Occurred())
                 return -1;
 
-            *(char *)(svd->value) = c_value;
+            *(char *)(wvd->value) = c_value;
 
             return 0;
         }
@@ -584,7 +584,7 @@ int sip_mod_con_setattro(sipWrappedModuleState *wms, PyObject *self,
             if (PyErr_Occurred())
                 return -1;
 
-            *(char *)(svd->value) = c_value;
+            *(char *)(wvd->value) = c_value;
 
             return 0;
         }
@@ -596,7 +596,7 @@ int sip_mod_con_setattro(sipWrappedModuleState *wms, PyObject *self,
             if (PyErr_Occurred())
                 return -1;
 
-            *(char *)(svd->value) = c_value;
+            *(char *)(wvd->value) = c_value;
 
             return 0;
         }
@@ -608,7 +608,7 @@ int sip_mod_con_setattro(sipWrappedModuleState *wms, PyObject *self,
             if (PyErr_Occurred())
                 return -1;
 
-            *(signed char *)(svd->value) = c_value;
+            *(signed char *)(wvd->value) = c_value;
 
             return 0;
         }
@@ -621,7 +621,7 @@ int sip_mod_con_setattro(sipWrappedModuleState *wms, PyObject *self,
             if (PyErr_Occurred())
                 return -1;
 
-            *(unsigned char *)(svd->value) = c_value;
+            *(unsigned char *)(wvd->value) = c_value;
 
             return 0;
         }
@@ -633,7 +633,7 @@ int sip_mod_con_setattro(sipWrappedModuleState *wms, PyObject *self,
             if (PyErr_Occurred())
                 return -1;
 
-            *(wchar_t *)(svd->value) = c_value;
+            *(wchar_t *)(wvd->value) = c_value;
 
             return 0;
         }
@@ -645,10 +645,10 @@ int sip_mod_con_setattro(sipWrappedModuleState *wms, PyObject *self,
             if (PyErr_Occurred())
                 return -1;
 
-            if (sip_keep_reference(wms, NULL, svd->key, value) < 0)
+            if (sip_keep_reference(wms, NULL, wvd->key, value) < 0)
                 return -1;
 
-            *(const char **)(svd->value) = c_value;
+            *(const char **)(wvd->value) = c_value;
 
             return 0;
         }
@@ -660,10 +660,10 @@ int sip_mod_con_setattro(sipWrappedModuleState *wms, PyObject *self,
             if (PyErr_Occurred())
                 return -1;
 
-            if (sip_keep_reference(wms, NULL, svd->key, value) < 0)
+            if (sip_keep_reference(wms, NULL, wvd->key, value) < 0)
                 return -1;
 
-            *(const char **)(svd->value) = c_value;
+            *(const char **)(wvd->value) = c_value;
 
             return 0;
         }
@@ -675,10 +675,10 @@ int sip_mod_con_setattro(sipWrappedModuleState *wms, PyObject *self,
             if (PyErr_Occurred())
                 return -1;
 
-            if (sip_keep_reference(wms, NULL, svd->key, value) < 0)
+            if (sip_keep_reference(wms, NULL, wvd->key, value) < 0)
                 return -1;
 
-            *(const char **)(svd->value) = c_value;
+            *(const char **)(wvd->value) = c_value;
 
             return 0;
         }
@@ -690,10 +690,10 @@ int sip_mod_con_setattro(sipWrappedModuleState *wms, PyObject *self,
             if (PyErr_Occurred())
                 return -1;
 
-            if (sip_keep_reference(wms, NULL, svd->key, value) < 0)
+            if (sip_keep_reference(wms, NULL, wvd->key, value) < 0)
                 return -1;
 
-            *(const char **)(svd->value) = c_value;
+            *(const char **)(wvd->value) = c_value;
 
             return 0;
         }
@@ -705,10 +705,10 @@ int sip_mod_con_setattro(sipWrappedModuleState *wms, PyObject *self,
             if (PyErr_Occurred())
                 return -1;
 
-            if (sip_keep_reference(wms, NULL, svd->key, value) < 0)
+            if (sip_keep_reference(wms, NULL, wvd->key, value) < 0)
                 return -1;
 
-            *(const signed char **)(svd->value) = c_value;
+            *(const signed char **)(wvd->value) = c_value;
 
             return 0;
         }
@@ -720,10 +720,10 @@ int sip_mod_con_setattro(sipWrappedModuleState *wms, PyObject *self,
             if (PyErr_Occurred())
                 return -1;
 
-            if (sip_keep_reference(wms, NULL, svd->key, value) < 0)
+            if (sip_keep_reference(wms, NULL, wvd->key, value) < 0)
                 return -1;
 
-            *(const unsigned char **)(svd->value) = c_value;
+            *(const unsigned char **)(wvd->value) = c_value;
 
             return 0;
         }
@@ -735,10 +735,10 @@ int sip_mod_con_setattro(sipWrappedModuleState *wms, PyObject *self,
             if (PyErr_Occurred())
                 return -1;
 
-            if (sip_keep_reference(wms, NULL, svd->key, value) < 0)
+            if (sip_keep_reference(wms, NULL, wvd->key, value) < 0)
                 return -1;
 
-            *(wchar_t **)(svd->value) = c_value;
+            *(wchar_t **)(wvd->value) = c_value;
 
             return 0;
         }
@@ -750,7 +750,7 @@ int sip_mod_con_setattro(sipWrappedModuleState *wms, PyObject *self,
             if (PyErr_Occurred())
                 return -1;
 
-            *(_Bool *)(svd->value) = c_value;
+            *(_Bool *)(wvd->value) = c_value;
 
             return 0;
         }
@@ -763,7 +763,7 @@ int sip_mod_con_setattro(sipWrappedModuleState *wms, PyObject *self,
             if (PyErr_Occurred())
                 return -1;
 
-            *(void **)(svd->value) = c_value;
+            *(void **)(wvd->value) = c_value;
 
             return 0;
         }
@@ -783,8 +783,8 @@ int sip_mod_con_setattro(sipWrappedModuleState *wms, PyObject *self,
              */
             Py_INCREF(value);
 
-            Py_XDECREF(*(PyObject **)svd->value);
-            *(PyObject **)svd->value = value;
+            Py_XDECREF(*(PyObject **)wvd->value);
+            *(PyObject **)wvd->value = value;
 
             return 0;
         }
@@ -797,7 +797,7 @@ int sip_mod_con_setattro(sipWrappedModuleState *wms, PyObject *self,
             break;
     }
 
-    raise_internal_error(svd);
+    raise_internal_error(wvd);
     return -1;
 }
 
@@ -865,12 +865,12 @@ static const void *bsearch_s(const void *key, const void *arr, size_t n,
 /*
  * The bsearch_s() helper function for searching a static values table.
  */
-static int compare_static_variable(const void *key, const void *el,
+static int compare_wrapped_variable(const void *key, const void *el,
         const void *context)
 {
     (void)context;
 
-    return strcmp((const char *)key, ((const sipStaticVariableDef *)el)->name);
+    return strcmp((const char *)key, ((const sipWrappedVariableDef *)el)->name);
 }
 
 
@@ -894,23 +894,23 @@ static int compare_type_nr(const void *key, const void *el,
 /*
  * Return the static value definition for a name or NULL if there was none.
  */
-static const sipStaticVariableDef *get_static_variable_def(
-        const char *utf8_name, const sipUnboundAttributesDef *uad)
+static const sipWrappedVariableDef *get_wrapped_variable_def(
+        const char *utf8_name, const sipWrappedAttrsDef *wad)
 {
-    return (const sipStaticVariableDef *)bsearch_s((const void *)utf8_name,
-            (const void *)uad->static_variables, uad->nr_static_variables,
-            sizeof (sipStaticVariableDef), compare_static_variable, NULL);
+    return (const sipWrappedVariableDef *)bsearch_s((const void *)utf8_name,
+            (const void *)wad->wrapped_variables, wad->nr_wrapped_variables,
+            sizeof (sipWrappedVariableDef), compare_wrapped_variable, NULL);
 }
 
 
 /*
  * Return the type number for a name or a negative value if there was none.
  */
-static const size_t *get_wrapped_type_nr_p(const sipWrappedModuleDef *wmd,
-        const char *utf8_name, const sipUnboundAttributesDef *uad)
+static const sipTypeNr *get_wrapped_type_nr_p(const sipWrappedModuleDef *wmd,
+        const char *utf8_name, const sipWrappedAttrsDef *wad)
 {
-    return (const size_t *)bsearch_s((const void *)utf8_name,
-            (const void *)uad->type_nrs, uad->nr_types, sizeof (sipTypeNr),
+    return (const sipTypeNr *)bsearch_s((const void *)utf8_name,
+            (const void *)wad->type_nrs, wad->nr_types, sizeof (sipTypeNr),
             compare_type_nr, (const void *)wmd);
 }
 
@@ -918,8 +918,8 @@ static const size_t *get_wrapped_type_nr_p(const sipWrappedModuleDef *wmd,
 /*
  * Raise an exception relating to an invalid type ID.
  */
-static void raise_internal_error(const sipStaticVariableDef *svd)
+static void raise_internal_error(const sipWrappedVariableDef *wvd)
 {
     PyErr_Format(PyExc_SystemError, "'%s': unsupported type ID: 0x%04x",
-            svd->name, svd->type_id);
+            wvd->name, wvd->type_id);
 }
