@@ -331,7 +331,7 @@ class ModuleAttrsTestCase(SIPTestCase):
 
         self.ma.pyobject_attr = obj
         self.assertIs(self.ma.pyobject_attr, obj)
-        self.assertEqual(getrefcount(self.ma.pyobject_attr), obj_refcount + 1)
+        self.assertEqual(getrefcount(obj), obj_refcount + 1)
 
     def test_del_attrs(self):
         """ Test the support for deleting module attributes. """
