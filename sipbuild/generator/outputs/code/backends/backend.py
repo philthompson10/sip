@@ -704,7 +704,7 @@ f'''
         module = spec.module
         module_name = module.py_name
 
-        nr_wrapped_variables, nr_types = static_variables_state
+        nr_static_variables, nr_types = static_variables_state
 
         sf.write(
 f'''/* The wrapped module's immutable definition. */
@@ -740,9 +740,9 @@ static const sipWrappedModuleDef sipWrappedModule_{module_name} = {{
         if nr_subclass_convertors != 0:
             sf.write('    .convertors = convertorsTable,\n')
 
-        if nr_wrapped_variables != 0:
-            sf.write(f'    .attributes.nr_wrapped_variables = {nr_wrapped_variables},\n')
-            sf.write(f'    .attributes.wrapped_variables = sipWrappedVariables_{module_name},\n')
+        if nr_static_variables != 0:
+            sf.write(f'    .attributes.nr_static_variables = {nr_static_variables},\n')
+            sf.write(f'    .attributes.static_variables = sipWrappedStaticVariables_{module_name},\n')
 
         if nr_types != 0:
             sf.write(f'    .attributes.nr_types = {nr_types},\n')
@@ -1353,299 +1353,18 @@ f'''    PyObject *sipModule = sipGetModule(sipSelf, &sipWrappedModuleDef_{self.s
 ''')
 
     def g_static_variables_table(self, sf, scope=None):
-        """ Generate the tables of unbound attributes for a scope and return a
-        tuple of the length of each table.
+        """ Generate the tables of static variables and types for a scope and
+        return a 2-tuple of the length of each table.
         """
 
-        c_bindings = self.spec.c_bindings
-        module = self.spec.module
-
-        if scope is None:
-            scope_type = 'module'
-            suffix = module.py_name
-        else:
-            scope_type = 'type'
-            suffix = scope.iface_file.fq_cpp_name.as_word
-
-        # Do the wrapped variables.
-        nr_wrapped_variables = 0
-
-        # Get the sorted list of variables.
-        variables = list(self.variables_in_scope(scope, check_handler=False))
-        variables.sort(key=lambda k: k.py_name.name)
-
-        # Generate any getters and setters.
-        for variable in variables:
-            v_ref = variable.fq_cpp_name.as_word
-
-            if variable.get_code is not None:
-                # TODO Support sipPyType when scope is not None.
-                # TODO Review the need to cache class instances (see legacy
-                # variable handlers).  Or is that now in the sip module
-                # wrapper?
-                sf.write('\n')
-
-                if not c_bindings:
-                    sf.write(f'extern "C" {{static PyObject *sipWrappedVariableGetter_{v_ref}();}}\n')
-
-                sf.write(
-f'''static PyObject *sipWrappedVariableGetter_{v_ref}()
-{{
-    PyObject *sipPy;
-
-''')
-
-                sf.write_code(variable.get_code)
-
-                sf.write(
-'''
-    return sipPy;
-}
-
-''')
-
-            if variable.set_code is not None:
-                # TODO Support sipPyType when scope is not None.
-                sf.write('\n')
-
-                if not c_bindings:
-                    sf.write(f'extern "C" {{static int sipWrappedVariableSetter_{v_ref}(PyObject *);}}\n')
-
-                sf.write(
-f'''static int sipWrappedVariableSetter_{v_ref}(PyObject *sipPy)
-{{
-    int sipErr = 0;
-
-''')
-
-                sf.write_code(variable.set_code)
-
-                sf.write(
-'''
-    return sipErr ? -1 : 0;
-}
-
-''')
-
-        for variable in variables:
-            v_type = variable.type
-
-            # Generally const variables cannot be set.  However for string
-            # pointers the reverse is true as a const pointer can be replaced
-            # by another, but we can't allow a the contents of a non-const
-            # string/array to be modified by C/C++ because they are immutable
-            # in Python.
-            not_settable = False
-            might_need_key = False
-
-            # TODO Unnamed enums, custom enums, Python enums and classes/mapped
-            # types.
-            if v_type.type is ArgumentType.CLASS or (v_type.type is ArgumentType.ENUM and v_type.definition.fq_cpp_name is not None):
-                pass
-
-            elif v_type.type is ArgumentType.BYTE:
-                type_id = 'sipTypeID_byte'
-                not_settable = v_type.is_const
-
-            elif v_type.type is ArgumentType.SBYTE:
-                type_id = 'sipTypeID_sbyte'
-                not_settable = v_type.is_const
-
-            elif v_type.type is ArgumentType.UBYTE:
-                type_id = 'sipTypeID_ubyte'
-                not_settable = v_type.is_const
-
-            elif v_type.type is ArgumentType.SHORT:
-                type_id = 'sipTypeID_short'
-                not_settable = v_type.is_const
-
-            elif v_type.type is ArgumentType.USHORT:
-                type_id = 'sipTypeID_ushort'
-                not_settable = v_type.is_const
-
-            elif v_type.type in (ArgumentType.INT, ArgumentType.CINT):
-                type_id = 'sipTypeID_int'
-                not_settable = v_type.is_const
-
-            elif v_type.type is ArgumentType.UINT:
-                type_id = 'sipTypeID_uint'
-                not_settable = v_type.is_const
-
-            elif v_type.type is ArgumentType.LONG:
-                type_id = 'sipTypeID_long'
-                not_settable = v_type.is_const
-
-            elif v_type.type is ArgumentType.ULONG:
-                type_id = 'sipTypeID_ulong'
-                not_settable = v_type.is_const
-
-            elif v_type.type is ArgumentType.LONGLONG:
-                type_id = 'sipTypeID_longlong'
-                not_settable = v_type.is_const
-
-            elif v_type.type is ArgumentType.ULONGLONG:
-                type_id = 'sipTypeID_ulonglong'
-                not_settable = v_type.is_const
-
-            elif v_type.type is ArgumentType.HASH:
-                type_id = 'sipTypeID_Py_hash_t'
-                not_settable = v_type.is_const
-
-            elif v_type.type is ArgumentType.SSIZE:
-                type_id = 'sipTypeID_Py_ssize_t'
-                not_settable = v_type.is_const
-
-            elif v_type.type is ArgumentType.SIZE:
-                type_id = 'sipTypeID_size_t'
-                not_settable = v_type.is_const
-
-            elif v_type.type in (ArgumentType.FLOAT, ArgumentType.CFLOAT):
-                type_id = 'sipTypeID_float'
-                not_settable = v_type.is_const
-
-            elif v_type.type in (ArgumentType.DOUBLE, ArgumentType.CDOUBLE):
-                type_id = 'sipTypeID_double'
-                not_settable = v_type.is_const
-
-            elif v_type.type is ArgumentType.STRING:
-                if len(v_type.derefs) == 0:
-                    type_id = 'sipTypeID_char'
-                    not_settable = v_type.is_const
-                else:
-                    type_id = 'sipTypeID_str'
-                    not_settable = not v_type.is_const
-                    might_need_key = True
-
-            elif v_type.type is ArgumentType.ASCII_STRING:
-                if len(v_type.derefs) == 0:
-                    type_id = 'sipTypeID_char_ascii'
-                    not_settable = v_type.is_const
-                else:
-                    type_id = 'sipTypeID_str_ascii'
-                    not_settable = not v_type.is_const
-                    might_need_key = True
-
-            elif v_type.type is ArgumentType.LATIN1_STRING:
-                if len(v_type.derefs) == 0:
-                    type_id = 'sipTypeID_char_latin1'
-                    not_settable = v_type.is_const
-                else:
-                    type_id = 'sipTypeID_str_latin1'
-                    not_settable = not v_type.is_const
-                    might_need_key = True
-
-            elif v_type.type is ArgumentType.UTF8_STRING:
-                if len(v_type.derefs) == 0:
-                    type_id = 'sipTypeID_char_utf8'
-                    not_settable = v_type.is_const
-                else:
-                    type_id = 'sipTypeID_str_utf8'
-                    not_settable = not v_type.is_const
-                    might_need_key = True
-
-            elif v_type.type is ArgumentType.SSTRING:
-                if len(v_type.derefs) == 0:
-                    type_id = 'sipTypeID_schar'
-                    not_settable = v_type.is_const
-                else:
-                    type_id = 'sipTypeID_sstr'
-                    not_settable = not v_type.is_const
-                    might_need_key = True
-
-            elif v_type.type is ArgumentType.USTRING:
-                if len(v_type.derefs) == 0:
-                    type_id = 'sipTypeID_uchar'
-                    not_settable = v_type.is_const
-                else:
-                    type_id = 'sipTypeID_ustr'
-                    not_settable = not v_type.is_const
-                    might_need_key = True
-
-            elif v_type.type is ArgumentType.WSTRING:
-                if len(v_type.derefs) == 0:
-                    type_id = 'sipTypeID_wchar'
-                    not_settable = v_type.is_const
-                else:
-                    # Note that wchar_t strings/arrays are mutable.
-                    type_id = 'sipTypeID_wstr'
-                    might_need_key = True
-
-            elif v_type.type in (ArgumentType.BOOL, ArgumentType.CBOOL):
-                type_id = 'sipTypeID_bool'
-                not_settable = v_type.is_const
-
-            elif v_type.type is ArgumentType.VOID:
-                # This is the only type that we need to make a distinction
-                # between const and non-const (because if affects the behaviour
-                # of a corresponding voidptr instance).  Using a flag
-                # (potentially applicable to all types) would smell better but
-                # we don't have anywhere to store it.  (SIP_SV_RO is a special
-                # value rather than a flag).
-                type_id = 'sipTypeID_voidptr_const' if v_type.is_const else 'sipTypeID_voidptr'
-
-            elif v_type.type is ArgumentType.PYOBJECT:
-                type_id = 'sipTypeID_pyobject'
-
-            elif v_type.type is ArgumentType.PYTUPLE:
-                type_id = 'sipTypeID_pytuple'
-
-            elif v_type.type is ArgumentType.PYLIST:
-                type_id = 'sipTypeID_pylist'
-
-            elif v_type.type is ArgumentType.PYDICT:
-                type_id = 'sipTypeID_pydict'
-
-            elif v_type.type is ArgumentType.PYCALLABLE:
-                type_id = 'sipTypeID_pycallable'
-
-            elif v_type.type is ArgumentType.PYSLICE:
-                type_id = 'sipTypeID_pyslice'
-
-            elif v_type.type is ArgumentType.PYTYPE:
-                type_id = 'sipTypeID_pytype'
-
-            elif v_type.type is ArgumentType.PYBUFFER:
-                type_id = 'sipTypeID_pybuffer'
-
-            elif v_type.type is ArgumentType.CAPSULE:
-                type_id = 'sipTypeID_pycapsule'
-
-            else:
-                continue
-
-            if nr_wrapped_variables == 0:
-                sf.write(
-f'''
-/* Define the static variables for the {scope_type}. */
-static const sipWrappedVariableDef sipWrappedVariables_{suffix}[] = {{
-''')
-
-            name = variable.py_name
-            value = variable.fq_cpp_name.cpp_stripped(STRIP_GLOBAL)
-
-            if not_settable or variable.no_setter:
-                key = 'SIP_WV_RO'
-            elif might_need_key:
-                key = module.next_key
-                module.next_key -= 1
-            else:
-                key = '0'
-
-            v_ref = variable.fq_cpp_name.as_word
-            getter = self.optional_ptr(variable.get_code is not None,
-                    f'sipWrappedVariableGetter_{v_ref}')
-            setter = self.optional_ptr(variable.set_code is not None,
-                    f'sipWrappedVariableSetter_{v_ref}')
-
-            sf.write(f'    {{"{name}", {type_id}, {key}, (void *)&{value}, {getter}, {setter}}},\n')
-
-            nr_wrapped_variables += 1
-
-        if nr_wrapped_variables != 0:
-            sf.write('};\n')
+        # Do the variables.
+        nr_variables = self._g_variables_table(sf, scope, for_static=True)
 
         # Do the types.
         # TODO Check this excludes non-local types.
+        module = self.spec.module
+        suffix = module.py_name if scope is None else scope.iface_file.fq_cpp_name.as_word
+
         nr_types = 0
 
         for type_nr, needed_type in enumerate(module.needed_types):
@@ -1657,7 +1376,6 @@ static const sipWrappedVariableDef sipWrappedVariables_{suffix}[] = {{
 
                 if nr_types == 0:
                     sf.write(f'\nstatic const sipTypeNr sipTypeNrs_{suffix}[] = {{')
-
                 else:
                     sf.write(', ')
 
@@ -1667,7 +1385,7 @@ static const sipWrappedVariableDef sipWrappedVariables_{suffix}[] = {{
         if nr_types != 0:
             sf.write('};\n')
 
-        return nr_wrapped_variables, nr_types
+        return nr_variables, nr_types
 
     @staticmethod
     def g_try(sf, bindings, throw_args):
@@ -1693,7 +1411,7 @@ static const sipWrappedVariableDef sipWrappedVariables_{suffix}[] = {{
         klass_name = klass.iface_file.fq_cpp_name.as_word
 
         # Generate the static variables table.
-        nr_wrapped_variables, nr_types = self.g_static_variables_table(sf,
+        nr_static_variables, nr_types = self.g_static_variables_table(sf,
                 scope=klass)
 
         # Generate the table of slots.
@@ -1739,11 +1457,11 @@ static PyType_Slot sip_py_slots_{klass_name}[] = {{
         if cod_scope is not None:
             fields.append('.ctd_container.cod_scope = ' + cod_scope)
 
-        if nr_wrapped_variables != 0:
+        if nr_static_variables != 0:
             fields.append(
-                    '.ctd_container.cod_attributes.nr_wrapped_variables = ' + str(nr_wrapped_variables))
+                    '.ctd_container.cod_attributes.nr_static_variables = ' + str(nr_static_variables))
             fields.append(
-                    '.ctd_container.cod_attributes.wrapped_variables = sipWrappedVariables_' + klass_name)
+                    '.ctd_container.cod_attributes.static_variables = sipWrappedStaticVariables_' + klass_name)
 
         if nr_types != 0:
             fields.append(
@@ -3028,6 +2746,310 @@ static const pyqt{pyqt_version}QtSignal signals_{klass.iface_file.fq_cpp_name.as
             sf.write('    {SIP_NULLPTR, SIP_NULLPTR, SIP_NULLPTR, SIP_NULLPTR}\n};\n')
 
         return is_signals
+
+    def _g_variables_table(self, sf, scope, *, for_static):
+        """ Generate the table of either static or instance variables for a
+        scope and return the length of the table.
+        """
+
+        c_bindings = self.spec.c_bindings
+        module = self.spec.module
+
+        if scope is None:
+            scope_type = 'module'
+            suffix = module.py_name
+        else:
+            scope_type = 'type'
+            suffix = scope.iface_file.fq_cpp_name.as_word
+
+        nr_variables = 0
+
+        # Get the sorted list of variables.
+        variables = list(self.variables_in_scope(scope, check_handler=False))
+        variables.sort(key=lambda k: k.py_name.name)
+
+        # Generate any getters and setters.
+        for variable in variables:
+            if not (variable.is_static and for_static):
+                continue
+
+            v_ref = variable.fq_cpp_name.as_word
+
+            if variable.get_code is not None:
+                # TODO Support sipPyType when scope is not None.
+                # TODO Review the need to cache class instances (see legacy
+                # variable handlers).  Or is that now in the sip module
+                # wrapper?
+                sf.write('\n')
+
+                if not c_bindings:
+                    sf.write(f'extern "C" {{static PyObject *sipWrappedVariableGetter_{v_ref}();}}\n')
+
+                sf.write(
+f'''static PyObject *sipWrappedVariableGetter_{v_ref}()
+{{
+    PyObject *sipPy;
+
+''')
+
+                sf.write_code(variable.get_code)
+
+                sf.write(
+'''
+    return sipPy;
+}
+
+''')
+
+            if variable.set_code is not None:
+                # TODO Support sipPyType when scope is not None.
+                sf.write('\n')
+
+                if not c_bindings:
+                    sf.write(f'extern "C" {{static int sipWrappedVariableSetter_{v_ref}(PyObject *);}}\n')
+
+                sf.write(
+f'''static int sipWrappedVariableSetter_{v_ref}(PyObject *sipPy)
+{{
+    int sipErr = 0;
+
+''')
+
+                sf.write_code(variable.set_code)
+
+                sf.write(
+'''
+    return sipErr ? -1 : 0;
+}
+
+''')
+
+        for variable in variables:
+            v_type = variable.type
+
+            # Generally const variables cannot be set.  However for string
+            # pointers the reverse is true as a const pointer can be replaced
+            # by another, but we can't allow a the contents of a non-const
+            # string/array to be modified by C/C++ because they are immutable
+            # in Python.
+            not_settable = False
+            might_need_key = False
+
+            # TODO Unnamed enums, custom enums, Python enums and classes/mapped
+            # types.
+            if v_type.type is ArgumentType.CLASS or (v_type.type is ArgumentType.ENUM and v_type.definition.fq_cpp_name is not None):
+                pass
+
+            elif v_type.type is ArgumentType.BYTE:
+                type_id = 'sipTypeID_byte'
+                not_settable = v_type.is_const
+
+            elif v_type.type is ArgumentType.SBYTE:
+                type_id = 'sipTypeID_sbyte'
+                not_settable = v_type.is_const
+
+            elif v_type.type is ArgumentType.UBYTE:
+                type_id = 'sipTypeID_ubyte'
+                not_settable = v_type.is_const
+
+            elif v_type.type is ArgumentType.SHORT:
+                type_id = 'sipTypeID_short'
+                not_settable = v_type.is_const
+
+            elif v_type.type is ArgumentType.USHORT:
+                type_id = 'sipTypeID_ushort'
+                not_settable = v_type.is_const
+
+            elif v_type.type in (ArgumentType.INT, ArgumentType.CINT):
+                type_id = 'sipTypeID_int'
+                not_settable = v_type.is_const
+
+            elif v_type.type is ArgumentType.UINT:
+                type_id = 'sipTypeID_uint'
+                not_settable = v_type.is_const
+
+            elif v_type.type is ArgumentType.LONG:
+                type_id = 'sipTypeID_long'
+                not_settable = v_type.is_const
+
+            elif v_type.type is ArgumentType.ULONG:
+                type_id = 'sipTypeID_ulong'
+                not_settable = v_type.is_const
+
+            elif v_type.type is ArgumentType.LONGLONG:
+                type_id = 'sipTypeID_longlong'
+                not_settable = v_type.is_const
+
+            elif v_type.type is ArgumentType.ULONGLONG:
+                type_id = 'sipTypeID_ulonglong'
+                not_settable = v_type.is_const
+
+            elif v_type.type is ArgumentType.HASH:
+                type_id = 'sipTypeID_Py_hash_t'
+                not_settable = v_type.is_const
+
+            elif v_type.type is ArgumentType.SSIZE:
+                type_id = 'sipTypeID_Py_ssize_t'
+                not_settable = v_type.is_const
+
+            elif v_type.type is ArgumentType.SIZE:
+                type_id = 'sipTypeID_size_t'
+                not_settable = v_type.is_const
+
+            elif v_type.type in (ArgumentType.FLOAT, ArgumentType.CFLOAT):
+                type_id = 'sipTypeID_float'
+                not_settable = v_type.is_const
+
+            elif v_type.type in (ArgumentType.DOUBLE, ArgumentType.CDOUBLE):
+                type_id = 'sipTypeID_double'
+                not_settable = v_type.is_const
+
+            elif v_type.type is ArgumentType.STRING:
+                if len(v_type.derefs) == 0:
+                    type_id = 'sipTypeID_char'
+                    not_settable = v_type.is_const
+                else:
+                    type_id = 'sipTypeID_str'
+                    not_settable = not v_type.is_const
+                    might_need_key = True
+
+            elif v_type.type is ArgumentType.ASCII_STRING:
+                if len(v_type.derefs) == 0:
+                    type_id = 'sipTypeID_char_ascii'
+                    not_settable = v_type.is_const
+                else:
+                    type_id = 'sipTypeID_str_ascii'
+                    not_settable = not v_type.is_const
+                    might_need_key = True
+
+            elif v_type.type is ArgumentType.LATIN1_STRING:
+                if len(v_type.derefs) == 0:
+                    type_id = 'sipTypeID_char_latin1'
+                    not_settable = v_type.is_const
+                else:
+                    type_id = 'sipTypeID_str_latin1'
+                    not_settable = not v_type.is_const
+                    might_need_key = True
+
+            elif v_type.type is ArgumentType.UTF8_STRING:
+                if len(v_type.derefs) == 0:
+                    type_id = 'sipTypeID_char_utf8'
+                    not_settable = v_type.is_const
+                else:
+                    type_id = 'sipTypeID_str_utf8'
+                    not_settable = not v_type.is_const
+                    might_need_key = True
+
+            elif v_type.type is ArgumentType.SSTRING:
+                if len(v_type.derefs) == 0:
+                    type_id = 'sipTypeID_schar'
+                    not_settable = v_type.is_const
+                else:
+                    type_id = 'sipTypeID_sstr'
+                    not_settable = not v_type.is_const
+                    might_need_key = True
+
+            elif v_type.type is ArgumentType.USTRING:
+                if len(v_type.derefs) == 0:
+                    type_id = 'sipTypeID_uchar'
+                    not_settable = v_type.is_const
+                else:
+                    type_id = 'sipTypeID_ustr'
+                    not_settable = not v_type.is_const
+                    might_need_key = True
+
+            elif v_type.type is ArgumentType.WSTRING:
+                if len(v_type.derefs) == 0:
+                    type_id = 'sipTypeID_wchar'
+                    not_settable = v_type.is_const
+                else:
+                    # Note that wchar_t strings/arrays are mutable.
+                    type_id = 'sipTypeID_wstr'
+                    might_need_key = True
+
+            elif v_type.type in (ArgumentType.BOOL, ArgumentType.CBOOL):
+                type_id = 'sipTypeID_bool'
+                not_settable = v_type.is_const
+
+            elif v_type.type is ArgumentType.VOID:
+                # This is the only type that we need to make a distinction
+                # between const and non-const (because if affects the behaviour
+                # of a corresponding voidptr instance).  Using a flag
+                # (potentially applicable to all types) would smell better but
+                # we don't have anywhere to store it.  (SIP_WV_RO is a special
+                # value rather than a flag).
+                type_id = 'sipTypeID_voidptr_const' if v_type.is_const else 'sipTypeID_voidptr'
+
+            elif v_type.type is ArgumentType.PYOBJECT:
+                type_id = 'sipTypeID_pyobject'
+
+            elif v_type.type is ArgumentType.PYTUPLE:
+                type_id = 'sipTypeID_pytuple'
+
+            elif v_type.type is ArgumentType.PYLIST:
+                type_id = 'sipTypeID_pylist'
+
+            elif v_type.type is ArgumentType.PYDICT:
+                type_id = 'sipTypeID_pydict'
+
+            elif v_type.type is ArgumentType.PYCALLABLE:
+                type_id = 'sipTypeID_pycallable'
+
+            elif v_type.type is ArgumentType.PYSLICE:
+                type_id = 'sipTypeID_pyslice'
+
+            elif v_type.type is ArgumentType.PYTYPE:
+                type_id = 'sipTypeID_pytype'
+
+            elif v_type.type is ArgumentType.PYBUFFER:
+                type_id = 'sipTypeID_pybuffer'
+
+            elif v_type.type is ArgumentType.CAPSULE:
+                type_id = 'sipTypeID_pycapsule'
+
+            else:
+                continue
+
+            if nr_variables == 0:
+                v_type = 'Static' if variable.is_static else 'Instance'
+
+                sf.write(
+f'''
+/* Define the {v_type.lower()} variables for the {scope_type}. */
+static const sipWrappedVariableDef sipWrapped{v_type}Variables_{suffix}[] = {{
+''')
+
+            name = variable.py_name
+
+            if not_settable or variable.no_setter:
+                key = 'SIP_WV_RO'
+            elif might_need_key:
+                key = module.next_key
+                module.next_key -= 1
+            else:
+                key = '0'
+
+            if variable.is_static:
+                # TODO Why STRIP_GLOBAL here in particular?
+                cpp_name = variable.fq_cpp_name.cpp_stripped(STRIP_GLOBAL)
+                addr = f'(void *)&{cpp_name}'
+            else:
+                addr = 'SIP_NULLPTR'
+
+            v_ref = variable.fq_cpp_name.as_word
+            getter = self.optional_ptr(variable.get_code is not None,
+                    f'sipWrappedVariableGetter_{v_ref}')
+            setter = self.optional_ptr(variable.set_code is not None,
+                    f'sipWrappedVariableSetter_{v_ref}')
+
+            sf.write(f'    {{"{name}", {type_id}, {key}, {addr}, {getter}, {setter}}},\n')
+
+            nr_variables += 1
+
+        if nr_variables != 0:
+            sf.write('};\n')
+
+        return nr_variables
 
 
 def _get_function_table(members):

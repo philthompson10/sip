@@ -366,14 +366,14 @@ typedef struct {
     /* The Python name of the variable. */
     const char *name;
 
-    /* The type of the variable. */
+    /* The type of the variable's value. */
     sipTypeID type_id;
 
-    /* The key or SIP_SV_RO. */
+    /* The key or SIP_wV_RO. */
     int key;
 
-    /* The address of the variable. */
-    void *value;
+    /* The address of the variable if the variable is unbound. */
+    void *address;
 
     /* The optional getter. */
     sipWrappedVariableGetterFunc getter;
@@ -710,11 +710,11 @@ typedef struct _sipVariableDef {
  * type.
  */
 typedef struct {
-    /* The number of wrapped variables. */
-    size_t nr_wrapped_variables;
+    /* The number of static variables. */
+    size_t nr_static_variables;
 
-    /* The table of wrapped variables. */
-    const sipWrappedVariableDef *const wrapped_variables;
+    /* The table of static variables. */
+    const sipWrappedVariableDef *const static_variables;
 
     /* The number of types. */
     sipTypeNr nr_types;
