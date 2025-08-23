@@ -1987,6 +1987,7 @@ static sipWrappedModuleState *get_defining_wrapped_module_state(
     // Add support for dynamic IDs where the module number is the index into
     // the list of all modules held in the sip module state.  Dynamic IDs can
     // only be created by sip_api_find_type_id().
+    // Check for non-generated types.
     if (type_id == sipTypeID_Invalid)
         return NULL;
 
@@ -2060,21 +2061,6 @@ PyTypeObject *sip_get_py_type(sipWrappedModuleState *wms, sipTypeID type_id)
         return NULL;
 
     return sip_get_local_py_type(wms, sipTypeIDTypeNr(type_id));
-}
-
-
-/*
- * Return the Python type object and the type definition (via a pointer) for a
- * type ID.
- */
-// TODO Is this needed?
-PyTypeObject *sip_get_py_type_and_type_def(sipWrappedModuleState *wms,
-        sipTypeID type_id, const sipTypeDef **tdp)
-{
-    *tdp = NULL;
-
-    // TODO
-    return NULL;
 }
 
 
@@ -2291,9 +2277,8 @@ static int sip_api_init_mixin(PyObject *wmod, PyObject *self, PyObject *args,
             wmod);
 
     /* If we are not a mixin to another wrapped class then behave as normal. */
-    const sipTypeDef *td;
-    PyTypeObject *mixin_wt = sip_get_py_type_and_type_def(wms, mixin_type_id,
-            &td);
+    PyTypeObject *mixin_wt = sip_get_py_type(wms, mixin_type_id);
+    const sipTypeDef *td = ((sipWrapperType *)mixin_wt)->wt_td;
 
     assert(sipTypeIsClass(td));
 

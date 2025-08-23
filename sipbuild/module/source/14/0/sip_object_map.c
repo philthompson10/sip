@@ -110,7 +110,7 @@ static sipHashEntry *find_hash_entry(sipObjectMap *om, void *key)
  * NULL if it wasn't found.
  */
 sipSimpleWrapper *sip_om_find_object(sipObjectMap *om, void *key,
-        PyTypeObject *py_type, const sipTypeDef *td)
+        PyTypeObject *py_type)
 {
     sipHashEntry *he = find_hash_entry(om, key);
     sipSimpleWrapper *sw;

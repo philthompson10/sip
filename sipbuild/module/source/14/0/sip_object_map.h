@@ -50,7 +50,7 @@ typedef struct
 void sip_om_add_object(sipWrappedModuleState *wms, sipSimpleWrapper *val);
 void sip_om_finalise(sipObjectMap *om);
 sipSimpleWrapper *sip_om_find_object(sipObjectMap *om, void *key,
-        PyTypeObject *py_type, const sipTypeDef *td);
+        PyTypeObject *py_type);
 void sip_om_init(sipObjectMap *om);
 int sip_om_remove_object(sipWrappedModuleState *wms, sipSimpleWrapper *val);
 void sip_om_visit_wrappers(sipObjectMap *om, sipWrapperVisitorFunc visitor,

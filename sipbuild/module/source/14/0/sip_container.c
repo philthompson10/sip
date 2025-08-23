@@ -140,11 +140,9 @@ int sip_container_add_lazy_attrs(sipWrappedModuleState *wms,
             {
                 type_id = *supers++;
 
-                const sipTypeDef *sup_td;
-                PyTypeObject *sup_py_type = sip_get_py_type_and_type_def(wms,
-                        type_id, &sup_td);
+                PyTypeObject *sup_py_type = sip_get_py_type(wms, type_id);
 
-                if (sip_container_add_lazy_attrs(wms, sup_py_type, sup_td) < 0)
+                if (sip_container_add_lazy_attrs(wms, sup_py_type, ((sipWrapperType *)sup_py_type)->wt_td) < 0)
                     return -1;
             }
             while (!sipTypeIDIsSentinel(type_id));
@@ -162,8 +160,8 @@ int sip_container_add_type_instance(sipWrappedModuleState *wms, PyObject *dict,
         const char *name, void *cppPtr, sipTypeID type_id, int initflags)
 {
     sipSipModuleState *sms = wms->sip_module_state;
-    const sipTypeDef *td;
-    PyTypeObject *py_type = sip_get_py_type_and_type_def(wms, type_id, &td);
+    PyTypeObject *py_type = sip_get_py_type(wms, type_id);
+    const sipTypeDef *td = ((sipWrapperType *)py_type)->wt_td;
     PyObject *obj;
 
     if (sipTypeIsEnum(td))

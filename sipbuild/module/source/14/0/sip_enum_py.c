@@ -23,6 +23,7 @@
 #include "sip_core.h"
 #include "sip_int_convertors.h"
 #include "sip_module.h"
+#include "sip_wrapper_type.h"
 
 
 #define IS_UNSIGNED_ENUM(etd)   ((etd)->etd_base_type == SIP_ENUM_UINT_ENUM || (etd)->etd_base_type == SIP_ENUM_INT_FLAG || (etd)->etd_base_type == SIP_ENUM_FLAG)
@@ -421,9 +422,9 @@ static PyTypeObject *get_enum_type(sipWrappedModuleState *wms,
     /* Make sure the enum object has been created. */
     if (py_type == NULL)
     {
-        const sipTypeDef *scope_td;
-        PyTypeObject *scope_py_type = sip_get_py_type_and_type_def(wms,
-                sip_type_scope(wms, type_id), &scope_td);
+        PyTypeObject *scope_py_type = sip_get_py_type(wms,
+                sip_type_scope(wms, type_id));
+        const sipTypeDef *scope_td = ((sipWrapperType *)scope_py_type)->wt_td;
 
         if (sip_container_add_lazy_attrs(wms, scope_py_type, scope_td) < 0)
             return NULL;

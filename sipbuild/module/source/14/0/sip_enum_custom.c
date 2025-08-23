@@ -22,6 +22,7 @@
 #include "sip_core.h"
 #include "sip_int_convertors.h"
 #include "sip_module.h"
+#include "sip_wrapper_type.h"
 
 
 /* Forward declarations of slots. */
@@ -392,8 +393,9 @@ PyObject *sip_enum_unpickle_custom_enum(PyObject *mod, PyObject *args)
 static int convert_to_enum(sipWrappedModuleState *wms, PyObject *obj,
         sipTypeID type_id, int allow_int)
 {
-    const sipTypeDef *td;
-    PyTypeObject *py_type = sip_get_py_type_and_type_def(wms, type_id, &td);
+    PyTypeObject *py_type = sip_get_py_type(wms, type_id);
+    // TODO We can't cast to sipWrapperType.  We probably don't really need td.
+    const sipTypeDef *td = ((sipWrapperType *)py_type)->wt_td;
 
     assert(sipTypeIsEnum(td) || sipTypeIsScopedEnum(td));
 

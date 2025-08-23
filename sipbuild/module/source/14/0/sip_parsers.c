@@ -106,7 +106,7 @@ static void failure_dtor(PyObject *capsule);
 static PyObject *get_kwd_arg(PyObject *const *args, Py_ssize_t nr_args,
         PyObject *kwd_names, Py_ssize_t nr_kwd_names, const char *name);
 static PyObject *get_pyobject(sipSipModuleState *sms, void *cppPtr,
-        PyTypeObject *py_type, const sipTypeDef *td);
+        PyTypeObject *py_type);
 static int get_self_from_args(PyTypeObject *py_type, PyObject *const *args,
         Py_ssize_t nr_args, Py_ssize_t arg_nr, PyObject **self_p);
 static void handle_failed_int_conversion(sipParseFailure *pf, PyObject *arg);
@@ -505,10 +505,9 @@ PyObject *sip_api_get_pyobject(PyObject *wmod, void *cppPtr,
 {
     sipWrappedModuleState *wms = (sipWrappedModuleState *)PyModule_GetState(
             wmod);
-    const sipTypeDef *td;
-    PyTypeObject *py_type = sip_get_py_type_and_type_def(wms, type_id, &td);
+    PyTypeObject *py_type = sip_get_py_type(wms, type_id);
 
-    return get_pyobject(wms->sip_module_state, cppPtr, py_type, td);
+    return get_pyobject(wms->sip_module_state, cppPtr, py_type);
 }
 
 
@@ -827,9 +826,10 @@ void sip_release(void *addr, const sipTypeDef *td, int state, void *user_state)
 PyObject *sip_convert_from_type(sipWrappedModuleState *wms, void *cpp,
         sipTypeID type_id, PyObject *transferObj)
 {
-    const sipTypeDef *td;
-    PyTypeObject *py_type = sip_get_py_type_and_type_def(wms, type_id, &td);
+    PyTypeObject *py_type = sip_get_py_type(wms, type_id);
+    const sipTypeDef *td = ((sipWrapperType *)py_type)->wt_td;
 
+    // TODO The assert is pointless as we have aleady cast to sipWrapperType.
     assert(sipTypeIsClass(td) || sipTypeIsMapped(td));
 
     /* Handle None. */
@@ -862,7 +862,7 @@ PyObject *sip_convert_from_type(sipWrappedModuleState *wms, void *cpp,
      */
     PyObject *py;
 
-    if ((py = get_pyobject(sms, cpp, py_type, td)) == NULL && sipTypeHasSCC(td))
+    if ((py = get_pyobject(sms, cpp, py_type)) == NULL && sipTypeHasSCC(td))
     {
         void *orig_cpp = cpp;
         const sipTypeDef *orig_td = td;
@@ -875,7 +875,7 @@ PyObject *sip_convert_from_type(sipWrappedModuleState *wms, void *cpp,
          * again using the modified values.
          */
         if (cpp != orig_cpp || td != orig_td)
-            py = get_pyobject(sms, cpp, py_type, td);
+            py = get_pyobject(sms, cpp, py_type);
     }
 
     if (py != NULL)
@@ -1506,9 +1506,10 @@ static int can_convert_from_sequence(sipWrappedModuleState *wms, PyObject *seq,
 static int can_convert_to_type(sipWrappedModuleState *wms, PyObject *pyObj,
         sipTypeID type_id, int flags)
 {
-    const sipTypeDef *td;
-    PyTypeObject *py_type = sip_get_py_type_and_type_def(wms, type_id, &td);
+    PyTypeObject *py_type = sip_get_py_type(wms, type_id);
+    const sipTypeDef *td = ((sipWrapperType *)py_type)->wt_td;
 
+    // TODO The assert is pointless.
     assert(td == NULL || sipTypeIsClass(td) || sipTypeIsMapped(td));
 
     int ok;
@@ -1598,8 +1599,8 @@ static PyObject *convert_from_new_type(sipWrappedModuleState *wms, void *cpp,
         return Py_None;
     }
 
-    const sipTypeDef *td;
-    PyTypeObject *py_type = sip_get_py_type_and_type_def(wms, type_id, &td);
+    PyTypeObject *py_type = sip_get_py_type(wms, type_id);
+    const sipTypeDef *td = ((sipWrapperType *)py_type)->wt_td;
     sipSipModuleState *sms = wms->sip_module_state;
 
     if ((cpp = sip_get_final_address(sms, td, cpp)) == NULL)
@@ -1779,11 +1780,9 @@ static int convert_subclass_pass(sipSipModuleState *sms,
 
                 if ((wmod = (*scc->scc_convertor)(&ptr, &sub_id)) != NULL)
                 {
-                    sipWrappedModuleState *wms = (sipWrappedModuleState *)PyModule_GetState(
-                        wmod);
-                    const sipTypeDef *sub_td;
-                    PyTypeObject *sub_type = sip_get_py_type_and_type_def(wms,
-                            sub_id, &sub_td);
+                    sipWrappedModuleState *wms = (sipWrappedModuleState *)PyModule_GetState(wmod);
+                    PyTypeObject *sub_type = sip_get_py_type(wms, sub_id);
+                    const sipTypeDef *sub_td = ((sipWrapperType *)sub_type)->wt_td;
 
                     /*
                      * We are only interested in types that are not
@@ -2059,10 +2058,9 @@ static PyObject *get_kwd_arg(PyObject *const *args, Py_ssize_t nr_args,
  * Implement the conversion of a C/C++ pointer to the object that wraps it.
  */
 static PyObject *get_pyobject(sipSipModuleState *sms, void *cppPtr,
-        PyTypeObject *py_type, const sipTypeDef *td)
+        PyTypeObject *py_type)
 {
-    return (PyObject *)sip_om_find_object(&sms->object_map, cppPtr, py_type,
-            td);
+    return (PyObject *)sip_om_find_object(&sms->object_map, cppPtr, py_type);
 }
 
 
