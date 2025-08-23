@@ -742,7 +742,7 @@ static const sipWrappedModuleDef sipWrappedModule_{module_name} = {{
 
         if nr_static_variables != 0:
             sf.write(f'    .attributes.nr_static_variables = {nr_static_variables},\n')
-            sf.write(f'    .attributes.static_variables = sipWrappedStaticVariables_{module_name},\n')
+            sf.write(f'    .attributes.static_variables = sipWrappedModuleVariables_{module_name},\n')
 
         if nr_types != 0:
             sf.write(f'    .attributes.nr_types = {nr_types},\n')
@@ -2768,11 +2768,8 @@ static const pyqt{pyqt_version}QtSignal signals_{klass.iface_file.fq_cpp_name.as
         variables = list(self.variables_in_scope(scope, check_handler=False))
         variables.sort(key=lambda k: k.py_name.name)
 
-        # Generate any getters and setters.
+        # Generate any %GetCode and %SetCode wrappers.
         for variable in variables:
-            if not (variable.is_static and for_static):
-                continue
-
             v_ref = variable.fq_cpp_name.as_word
 
             if variable.get_code is not None:
@@ -2783,10 +2780,10 @@ static const pyqt{pyqt_version}QtSignal signals_{klass.iface_file.fq_cpp_name.as
                 sf.write('\n')
 
                 if not c_bindings:
-                    sf.write(f'extern "C" {{static PyObject *sipWrappedVariableGetter_{v_ref}();}}\n')
+                    sf.write(f'extern "C" {{static PyObject *sipWrappedVariableGetCode_{v_ref}();}}\n')
 
                 sf.write(
-f'''static PyObject *sipWrappedVariableGetter_{v_ref}()
+f'''static PyObject *sipWrappedVariableGetCode_{v_ref}()
 {{
     PyObject *sipPy;
 
@@ -2806,10 +2803,10 @@ f'''static PyObject *sipWrappedVariableGetter_{v_ref}()
                 sf.write('\n')
 
                 if not c_bindings:
-                    sf.write(f'extern "C" {{static int sipWrappedVariableSetter_{v_ref}(PyObject *);}}\n')
+                    sf.write(f'extern "C" {{static int sipWrappedVariableSetCode_{v_ref}(PyObject *);}}\n')
 
                 sf.write(
-f'''static int sipWrappedVariableSetter_{v_ref}(PyObject *sipPy)
+f'''static int sipWrappedVariableSetCode_{v_ref}(PyObject *sipPy)
 {{
     int sipErr = 0;
 
@@ -3011,7 +3008,12 @@ f'''static int sipWrappedVariableSetter_{v_ref}(PyObject *sipPy)
                 continue
 
             if nr_variables == 0:
-                v_type = 'Static' if variable.is_static else 'Instance'
+                if scope is None:
+                    v_type = 'Module'
+                elif variable.is_static:
+                    v_type = 'Static'
+                else:
+                    v_type = 'Instance'
 
                 sf.write(
 f'''
@@ -3029,7 +3031,7 @@ static const sipWrappedVariableDef sipWrapped{v_type}Variables_{suffix}[] = {{
             else:
                 key = '0'
 
-            if variable.is_static:
+            if scope is None or variable.is_static:
                 # TODO Why STRIP_GLOBAL here in particular?
                 cpp_name = variable.fq_cpp_name.cpp_stripped(STRIP_GLOBAL)
                 addr = f'(void *)&{cpp_name}'
@@ -3038,9 +3040,9 @@ static const sipWrappedVariableDef sipWrapped{v_type}Variables_{suffix}[] = {{
 
             v_ref = variable.fq_cpp_name.as_word
             getter = self.optional_ptr(variable.get_code is not None,
-                    f'sipWrappedVariableGetter_{v_ref}')
+                    f'sipWrappedVariableGetCode_{v_ref}')
             setter = self.optional_ptr(variable.set_code is not None,
-                    f'sipWrappedVariableSetter_{v_ref}')
+                    f'sipWrappedVariableSetCode_{v_ref}')
 
             sf.write(f'    {{"{name}", {type_id}, {key}, {addr}, {getter}, {setter}}},\n')
 

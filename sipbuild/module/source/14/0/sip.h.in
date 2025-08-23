@@ -359,8 +359,8 @@ typedef struct _sipEnumMemberDef {
  */
 #define SIP_WV_RO           INT_MIN     /* The value is read only. */
 
-typedef PyObject *(*sipWrappedVariableGetterFunc)();
-typedef int (*sipWrappedVariableSetterFunc)(PyObject *);
+typedef PyObject *(*sipWrappedVariableGetCodeFunc)();
+typedef int (*sipWrappedVariableSetCodeFunc)(PyObject *);
 
 typedef struct {
     /* The Python name of the variable. */
@@ -375,11 +375,11 @@ typedef struct {
     /* The address of the variable if the variable is unbound. */
     void *address;
 
-    /* The optional getter. */
-    sipWrappedVariableGetterFunc getter;
+    /* The optional %GetCode wrapper. */
+    sipWrappedVariableGetCodeFunc get_code;
 
-    /* The optional setter. */
-    sipWrappedVariableSetterFunc setter;
+    /* The optional %SetCode wrapper. */
+    sipWrappedVariableSetCodeFunc set_code;
 } sipWrappedVariableDef;
 
 

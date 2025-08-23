@@ -129,8 +129,8 @@ PyObject *sip_mod_con_getattro(sipWrappedModuleState *wms, PyObject *self,
         return attr;
     }
 
-    if (wvd->getter != NULL)
-        return wvd->getter();
+    if (wvd->get_code != NULL)
+        return wvd->get_code();
 
     // TODO Pass the address as an argument (static vars will pass
     // wvd->address).
@@ -351,8 +351,8 @@ int sip_mod_con_setattro(sipWrappedModuleState *wms, PyObject *self,
         return -1;
     }
 
-    if (wvd->setter != NULL)
-        return wvd->setter(value);
+    if (wvd->set_code != NULL)
+        return wvd->set_code(value);
 
     if (wvd->key == SIP_WV_RO)
     {
