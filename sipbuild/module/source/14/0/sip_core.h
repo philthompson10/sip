@@ -91,8 +91,8 @@ void *sip_api_malloc(size_t nbytes);
 void sip_add_to_parent(sipWrapper *self, sipWrapper *owner);
 void sip_add_type_slots(PyHeapTypeObject *heap_to, const sipPySlotDef *slots);
 int sip_append_py_object_to_list(PyObject **listp, PyObject *object);
-void *sip_cast_cpp_ptr(void *ptr, PyTypeObject *src_type,
-        const sipTypeDef *dst_type);
+void *sip_cast_cpp_ptr(void *ptr, sipWrapperType *src_type,
+        sipWrapperType *target_type);
 int sip_check_pointer(void *ptr, sipSimpleWrapper *sw);
 PyTypeObject *sip_create_mapped_type(sipSipModuleState *sms,
         const sipWrappedModuleDef *wmd, const sipMappedTypeDef *mtd,
@@ -103,8 +103,7 @@ void sip_fix_slots(PyTypeObject *py_type, sipPySlotDef *psd);
 const sipContainerDef *sip_get_container(const sipTypeDef *td);
 void *sip_get_complex_cpp_ptr(sipWrappedModuleState *wms, sipSimpleWrapper *w,
         sipTypeID type_id);
-void *sip_get_cpp_ptr(sipWrappedModuleState *wms, sipSimpleWrapper *sw,
-        sipTypeID type_id);
+void *sip_get_cpp_ptr(sipSimpleWrapper *sw, sipWrapperType *target_type);
 void *sip_get_final_address(sipSipModuleState *sms, const sipTypeDef *td,
         void *cpp);
 sipConvertFromFunc sip_get_from_convertor(PyTypeObject *py_type,

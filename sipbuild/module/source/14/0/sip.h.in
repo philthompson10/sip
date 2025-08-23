@@ -1394,7 +1394,6 @@ struct _sipAPIDef {
     void (*api_bad_class)(const char *classname);
     void *(*api_get_cpp_ptr)(PyObject *wmod, sipSimpleWrapper *w,
             sipTypeID type_id);
-    void *(*api_get_complex_cpp_ptr)(PyObject *wmod, sipSimpleWrapper *w);
     PyObject *(*api_is_py_method)(PyObject *wmod, sip_gilstate_t *gil,
             char *pymc, sipSimpleWrapper **sipSelfp, const char *cname,
             const char *mname);

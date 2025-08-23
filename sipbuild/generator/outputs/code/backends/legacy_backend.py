@@ -276,7 +276,6 @@ f'''
 #define sipGetAddress               sipAPI_{module_name}->api_get_address
 #define sipGetMixinAddress          sipAPI_{module_name}->api_get_mixin_address
 #define sipGetCppPtr                sipAPI_{module_name}->api_get_cpp_ptr
-#define sipGetComplexCppPtr         sipAPI_{module_name}->api_get_complex_cpp_ptr
 #define sipCallHook                 sipAPI_{module_name}->api_call_hook
 #define sipEndThread                sipAPI_{module_name}->api_end_thread
 #define sipRaiseUnknownException    sipAPI_{module_name}->api_raise_unknown_exception

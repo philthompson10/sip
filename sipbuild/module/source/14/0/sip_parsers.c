@@ -1758,9 +1758,7 @@ static int convert_subclass_pass(sipSipModuleState *sms,
 
         while (scc->scc_convertor != NULL)
         {
-            const sipTypeDef *base_td;
-            PyTypeObject *base_type = sip_get_py_type_and_type_def(ms,
-                    scc->scc_base, &base_td);
+            PyTypeObject *base_type = sip_get_py_type(ms, scc->scc_base);
 
             /*
              * The base type is the "root" class that may have a number of
@@ -1773,7 +1771,9 @@ static int convert_subclass_pass(sipSipModuleState *sms,
              */
             if (PyType_IsSubtype(py_type, base_type))
             {
-                void *ptr = sip_cast_cpp_ptr(*cppPtr_p, py_type, base_td);
+                void *ptr = sip_cast_cpp_ptr(*cppPtr_p,
+                        (sipWrapperType *)py_type,
+                        (sipWrapperType *)base_type);
                 PyObject *wmod;
                 sipTypeID sub_id;
 
@@ -1900,7 +1900,11 @@ static void *convert_to_type_us(sipWrappedModuleState *wms, PyObject *pyObj,
 
                 if (cto == NULL || (flags & SIP_NO_CONVERTORS) != 0)
                 {
-                    if ((cpp = sip_get_cpp_ptr(wms, (sipSimpleWrapper *)pyObj, type_id)) == NULL)
+                    PyTypeObject *target_type = sip_get_py_type(wms, type_id);
+                    cpp = sip_get_cpp_ptr((sipSimpleWrapper *)pyObj,
+                            (sipWrapperType *)target_type);
+
+                    if (cpp == NULL)
                     {
                         *iserrp = TRUE;
                     }
@@ -3481,7 +3485,11 @@ static int parse_pass_2(sipWrappedModuleState *wms, PyObject *self,
             sipTypeID type_id = va_arg(va, sipTypeID);
             void **p = va_arg(va, void **);
 
-            if ((*p = sip_get_cpp_ptr(wms, (sipSimpleWrapper *)self, type_id)) == NULL)
+            PyTypeObject *target_type = sip_get_py_type(wms, type_id);
+            *p = sip_get_cpp_ptr((sipSimpleWrapper *)self,
+                    (sipWrapperType *)target_type);
+
+            if (*p == NULL)
                 return FALSE;
 
             break;

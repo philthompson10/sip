@@ -1238,7 +1238,6 @@ f'''#define sipMalloc                   sipAPI->api_malloc
 #define sipGetPyObject              sipAPI->api_get_pyobject
 #define sipGetMixinAddress          sipAPI->api_get_mixin_address
 #define sipGetCppPtr                sipAPI->api_get_cpp_ptr
-#define sipGetComplexCppPtr         sipAPI->api_get_complex_cpp_ptr
 #define sipCallHook                 sipAPI->api_call_hook
 #define sipEndThread                sipAPI->api_end_thread
 #define sipRaiseUnknownException    sipAPI->api_raise_unknown_exception

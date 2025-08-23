@@ -28,14 +28,11 @@
 typedef struct {
     PyObject_HEAD
 
-    /* The getter/setter definition. */
-    const sipVariableDef *vd;
+    /* The wrapped variable definition. */
+    const sipWrappedVariableDef *wvd;
 
-    /* The containing wrapper type definition. */
-    const sipTypeDef *td;
-
-    /* The generated container name.  This is only used for error messages. */
-    const char *cod_name;
+    /* The wrapped type containing the variable. */
+    sipWrapperType *type;
 
     /* The mixin name, if any. */
     PyObject *mixin_name;
@@ -82,23 +79,22 @@ static PyType_Spec VariableDescr_TypeSpec = {
 
 /* Forward declarations. */
 static VariableDescr *alloc_variable_descr(sipSipModuleState *sms);
-static int get_instance_address(VariableDescr *vd, PyObject *obj,
+static int get_instance_address(VariableDescr *descr, PyObject *obj,
         void **addrp);
 
 
 /*
  * Return a new method descriptor for the given getter/setter.
  */
-PyObject *sipVariableDescr_New(sipSipModuleState *sms,
-        const sipVariableDef *vd, const sipTypeDef *td, const char *cod_name)
+PyObject *sipVariableDescr_New(sipSipModuleState *sms, sipWrapperType *type,
+        const sipWrappedVariableDef *wvd)
 {
     VariableDescr *descr = alloc_variable_descr(sms);
 
     if (descr != NULL)
     {
-        descr->vd = vd;
-        descr->td = td;
-        descr->cod_name = cod_name;
+        descr->wvd = wvd;
+        descr->type = Py_NewRef(type);
         descr->mixin_name = NULL;
     }
 
@@ -117,12 +113,9 @@ PyObject *sipVariableDescr_Copy(sipSipModuleState *sms, PyObject *orig,
 
     if (descr != NULL)
     {
-        descr->vd = orig_descr->vd;
-        descr->td = orig_descr->td;
-        descr->cod_name = orig_descr->cod_name;
-        descr->mixin_name = mixin_name;
-
-        Py_INCREF(mixin_name);
+        descr->wvd = orig_descr->wvd;
+        descr->type = Py_NewRef(orig_descr->type);
+        descr->mixin_name = Py_NewRef(mixin_name);
     }
 
     return (PyObject *)descr;
@@ -140,7 +133,7 @@ static PyObject *VariableDescr_descr_get(VariableDescr *self, PyObject *obj,
     if (get_instance_address(self, obj, &addr) < 0)
         return NULL;
 
-    return ((sipVariableGetterFunc)self->vd->vd_getter)(addr, obj, type);
+    return self->wvd->getter(addr, obj, type);
 }
 
 
@@ -153,19 +146,17 @@ static int VariableDescr_descr_set(VariableDescr *self, PyObject *obj,
     void *addr;
 
     /* Check that the value isn't const. */
-    if (self->vd->vd_setter == NULL)
+    if (self->wvd->setter == NULL)
     {
-        PyErr_Format(PyExc_AttributeError,
-                "'%s' object attribute '%s' is read-only", self->cod_name,
-                self->vd->vd_name);
-
+        PyErr_Format(PyExc_AttributeError, "%s.%s is read-only",
+                ((PyTypeObject*)self->type)->tp_name, self->wvd->name);
         return -1;
     }
 
     if (get_instance_address(self, obj, &addr) < 0)
         return -1;
 
-    return ((sipVariableSetterFunc)self->vd->vd_setter)(addr, value, obj);
+    return self->wvd->setter(addr, value, obj);
 }
 
 
@@ -176,6 +167,7 @@ static int VariableDescr_traverse(VariableDescr *self, visitproc visit,
         void *arg)
 {
     Py_VISIT(Py_TYPE(self));
+    Py_VISIT(self->type);
     Py_VISIT(self->mixin_name);
 
     return 0;
@@ -187,6 +179,7 @@ static int VariableDescr_traverse(VariableDescr *self, visitproc visit,
  */
 static int VariableDescr_clear(VariableDescr *self)
 {
+    Py_CLEAR(self->type);
     Py_CLEAR(self->mixin_name);
 
     return 0;
@@ -236,22 +229,22 @@ static VariableDescr *alloc_variable_descr(sipSipModuleState *sms)
 static int get_instance_address(VariableDescr *descr, PyObject *obj,
         void **addrp)
 {
-#if 0
     void *addr;
 
-    if (descr->vd->vd_type == ClassVariable)
+#if 0
+    if (descr->wvd->descr_type == ClassVariable)
     {
         addr = NULL;
     }
     else
+#endif
     {
         /* Check that access was via an instance. */
         if (obj == NULL || obj == Py_None)
         {
             PyErr_Format(PyExc_AttributeError,
-                    "'%s' object attribute '%s' is an instance attribute",
-                    descr->cod_name, descr->vd->vd_name);
-
+                    "%s.%s is an instance attribute",
+                    ((PyTypeObject *)descr->type)->tp_name, descr->wvd->name);
             return -1;
         }
 
@@ -259,14 +252,11 @@ static int get_instance_address(VariableDescr *descr, PyObject *obj,
             obj = PyObject_GetAttr(obj, descr->mixin_name);
 
         /* Get the C++ instance. */
-        if ((addr = sip_api_get_cpp_ptr((sipSimpleWrapper *)obj, descr->td)) == NULL)
+        if ((addr = sip_get_cpp_ptr((sipSimpleWrapper *)obj, descr->type)) == NULL)
             return -1;
     }
 
     *addrp = addr;
 
     return 0;
-#else
-    return -1;
-#endif
 }

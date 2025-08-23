@@ -23,8 +23,8 @@ extern "C" {
 #endif
 
 
-PyObject *sipVariableDescr_New(sipSipModuleState *sms,
-        const sipVariableDef *vd, const sipTypeDef *td, const char *cod_name);
+PyObject *sipVariableDescr_New(sipSipModuleState *sms, sipWrapperType *type,
+        const sipWrappedVariableDef *wvd);
 PyObject *sipVariableDescr_Copy(sipSipModuleState *sms, PyObject *orig,
         PyObject *mixin_name);
 int sip_variable_descr_init(PyObject *module, sipSipModuleState *sms);

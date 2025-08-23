@@ -51,7 +51,6 @@ static void sip_api_transfer_to(PyObject *wmod, PyObject *self,
         PyObject *owner);
 static void sip_api_abstract_method(const char *classname, const char *method);
 static void sip_api_bad_class(const char *classname);
-static void *sip_api_get_complex_cpp_ptr(PyObject *wmod, sipSimpleWrapper *sw);
 static PyObject *sip_api_is_py_method(PyObject *wmod, sip_gilstate_t *gil,
         char *pymc, sipSimpleWrapper **sipSelfp, const char *cname,
         const char *mname);
@@ -236,7 +235,6 @@ const sipAPIDef sip_api = {
     sip_api_abstract_method,
     sip_api_bad_class,
     sip_api_get_cpp_ptr,
-    sip_api_get_complex_cpp_ptr,
     sip_api_is_py_method,
     sip_api_call_hook,
     sip_api_end_thread,
@@ -840,9 +838,11 @@ static PyTypeObject *create_container_type(sipWrappedModuleState *wms,
         goto ret_error;
 
     /* Configure the type. */
-    // TODO Are we going to keep wt_type_id?
+    sipSipModuleState *sms = wms->sip_module_state;
+
+    // TODO Are we going to keep wt_type_id?  Should it be wt_type_nr?
     ((sipWrapperType *)py_type)->wt_is_wrapper = PyType_IsSubtype(
-            (PyTypeObject *)py_type, wms->sip_module_state->wrapper_type);
+            (PyTypeObject *)py_type, sms->wrapper_type);
     ((sipWrapperType *)py_type)->wt_dmod = Py_NewRef(wms->wrapped_module);
     ((sipWrapperType *)py_type)->wt_td = td;
 
@@ -866,8 +866,8 @@ static PyTypeObject *create_container_type(sipWrappedModuleState *wms,
                 descr = create_property(vd);
             else
 #endif
-                descr = sipVariableDescr_New(wms->sip_module_state, wvd, td,
-                        cod->cod_name);
+                descr = sipVariableDescr_New(sms, (sipWrapperType *)py_type,
+                        wvd);
 
             if (sip_dict_set_and_discard(type_dict, wvd->name, descr) < 0)
                 goto rel_type;
@@ -1670,22 +1670,6 @@ void *sip_api_get_address(sipSimpleWrapper *w)
 
 
 /*
- * Get the C/C++ pointer for a complex object.  Note that not casting the C++
- * pointer is a bug.  However this would only ever be called by PyQt3 signal
- * emitter code and PyQt doesn't contain anything that multiply inherits from
- * QObject.
- */
-// TODO Either add the casting type ID or remove the call from the API.
-static void *sip_api_get_complex_cpp_ptr(PyObject *wmod, sipSimpleWrapper *sw)
-{
-    sipWrappedModuleState *wms = (sipWrappedModuleState *)PyModule_GetState(
-            wmod);
-
-    return sip_get_complex_cpp_ptr(wms, sw, 0);
-}
-
-
-/*
  * Get the C/C++ pointer for a complex object and optionally cast it to the
  * required type.
  */
@@ -1700,7 +1684,9 @@ void *sip_get_complex_cpp_ptr(sipWrappedModuleState *wms, sipSimpleWrapper *sw,
         return NULL;
     }
 
-    return sip_get_cpp_ptr(wms, sw, type_id);
+    PyTypeObject *py_type = sip_get_py_type(wms, type_id);
+
+    return sip_get_cpp_ptr(sw, (sipWrapperType *)py_type);
 }
 
 
@@ -1714,7 +1700,9 @@ void *sip_api_get_cpp_ptr(PyObject *wmod, sipSimpleWrapper *sw,
     sipWrappedModuleState *wms = (sipWrappedModuleState *)PyModule_GetState(
             wmod);
 
-    return sip_get_cpp_ptr(wms, sw, type_id);
+    PyTypeObject *py_type = sip_get_py_type(wms, type_id);
+
+    return sip_get_cpp_ptr(sw, (sipWrapperType *)py_type);
 }
 
 
@@ -1722,29 +1710,25 @@ void *sip_api_get_cpp_ptr(PyObject *wmod, sipSimpleWrapper *sw,
  * Implement the getting of the C/C++ pointer from a wrapper and optionally
  * cast it to the required type.
  */
-void *sip_get_cpp_ptr(sipWrappedModuleState *wms, sipSimpleWrapper *sw,
-        sipTypeID type_id)
+void *sip_get_cpp_ptr(sipSimpleWrapper *sw, sipWrapperType *target_type)
 {
     void *ptr = sip_api_get_address(sw);
 
     if (sip_check_pointer(ptr, sw) < 0)
         return NULL;
 
-    if (type_id != sipTypeID_Invalid)
+    if (target_type != NULL)
     {
-        const sipTypeDef *td;
-        PyTypeObject *py_type = sip_get_py_type_and_type_def(wms, type_id,
-                &td);
-
-        if (PyObject_TypeCheck((PyObject *)sw, py_type))
-            ptr = sip_cast_cpp_ptr(ptr, Py_TYPE(sw), td);
+        if (PyObject_TypeCheck((PyObject *)sw, (PyTypeObject *)target_type))
+            ptr = sip_cast_cpp_ptr(ptr, (sipWrapperType *)Py_TYPE(sw),
+                    target_type);
         else
             ptr = NULL;
 
         if (ptr == NULL)
             PyErr_Format(PyExc_TypeError, "could not convert '%s' to '%s'",
                     Py_TYPE(sw)->tp_name,
-                    ((const sipClassTypeDef *)td)->ctd_container.cod_name);
+                    ((PyTypeObject *)target_type)->tp_name);
     }
 
     return ptr;
@@ -1754,14 +1738,14 @@ void *sip_get_cpp_ptr(sipWrappedModuleState *wms, sipSimpleWrapper *sw,
 /*
  * Cast a C/C++ pointer from a source type to a destination type.
  */
-void *sip_cast_cpp_ptr(void *ptr, PyTypeObject *src_type,
-        const sipTypeDef *dst_type)
+void *sip_cast_cpp_ptr(void *ptr, sipWrapperType *src_type,
+        sipWrapperType *target_type)
 {
-    sipCastFunc cast = ((const sipClassTypeDef *)((sipWrapperType *)src_type)->wt_td)->ctd_cast;
+    sipCastFunc cast = ((const sipClassTypeDef *)src_type->wt_td)->ctd_cast;
 
     /* C structures and base classes don't have cast functions. */
     if (cast != NULL)
-        ptr = (*cast)(ptr, dst_type);
+        ptr = (*cast)(ptr, target_type->wt_td);
 
     return ptr;
 }
