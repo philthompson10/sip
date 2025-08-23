@@ -307,12 +307,10 @@ static int ssizeobjargproc_slot(PyObject *self, Py_ssize_t arg1,
  */
 int sip_dict_set_and_discard(PyObject *dict, const char *name, PyObject *obj)
 {
-    int rc;
-
     if (obj == NULL)
         return -1;
 
-    rc = PyDict_SetItemString(dict, name, obj);
+    int rc = PyDict_SetItemString(dict, name, obj);
 
     Py_DECREF(obj);
 
@@ -848,6 +846,34 @@ static PyTypeObject *create_container_type(sipWrappedModuleState *wms,
     ((sipWrapperType *)py_type)->wt_dmod = Py_NewRef(wms->wrapped_module);
     ((sipWrapperType *)py_type)->wt_td = td;
 
+    /*
+     * The dict is created by the PyType_Ready() call in
+     * PyType_FromMetaclass().
+     */
+    PyObject *type_dict = ((PyTypeObject *)py_type)->tp_dict;
+
+    /* Add the descriptors for the instance variables. */
+    if (cod->cod_instance_variables != NULL)
+    {
+        const sipWrappedVariableDef *wvd;
+
+        for (wvd = cod->cod_instance_variables; wvd->name != NULL; wvd++)
+        {
+            PyObject *descr;
+
+#if 0
+            if (vd->vd_type == PropertyVariable)
+                descr = create_property(vd);
+            else
+#endif
+                descr = sipVariableDescr_New(wms->sip_module_state, wvd, td,
+                        cod->cod_name);
+
+            if (sip_dict_set_and_discard(type_dict, wvd->name, descr) < 0)
+                goto rel_type;
+        }
+    }
+
     /* Add the type to the scope. */
     PyObject *scope;
 
@@ -866,7 +892,7 @@ static PyTypeObject *create_container_type(sipWrappedModuleState *wms,
          * __name__.  The way __name__ is derived means that it is always
          * correct and so we don't need to worry about it.  __module__ seems to
          * be set to the value of tp_name up to the last dot and __qualname__
-         * seems to be set to the value of tp_name after the last dor (ie. the
+         * seems to be set to the value of tp_name after the last dot (ie. the
          * same as __name__).  This is correct for top-level types but is wrong
          * for nested types.  Therefore we need to fix __module__ and
          * __qualname__ for types with a scope.

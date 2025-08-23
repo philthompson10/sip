@@ -1358,7 +1358,7 @@ f'''    PyObject *sipModule = sipGetModule(sipSelf, &sipWrappedModuleDef_{self.s
         """
 
         # Do the variables.
-        nr_variables = self._g_variables_table(sf, scope, for_static=True)
+        nr_variables = self._g_variables_table(sf, scope, for_unbound=True)
 
         # Do the types.
         # TODO Check this excludes non-local types.
@@ -1414,6 +1414,10 @@ f'''    PyObject *sipModule = sipGetModule(sipSelf, &sipWrappedModuleDef_{self.s
         nr_static_variables, nr_types = self.g_static_variables_table(sf,
                 scope=klass)
 
+        # Generate the instance variables table.
+        nr_instance_variables = self._g_variables_table(sf, scope=klass,
+                for_unbound=False)
+
         # Generate the table of slots.
         # TODO
         has_slots = False
@@ -1457,6 +1461,10 @@ static PyType_Slot sip_py_slots_{klass_name}[] = {{
         if cod_scope is not None:
             fields.append('.ctd_container.cod_scope = ' + cod_scope)
 
+        if nr_instance_variables != 0:
+            fields.append(
+                    '.ctd_container.cod_instance_variables = sipWrappedInstanceVariables_' + klass_name)
+
         if nr_static_variables != 0:
             fields.append(
                     '.ctd_container.cod_attributes.nr_static_variables = ' + str(nr_static_variables))
@@ -1480,11 +1488,6 @@ static PyType_Slot sip_py_slots_{klass_name}[] = {{
         #if self.custom_enums_supported() and nrenummembers > 0:
         #    cod_nrenummembers
         #    cod_enummembers
-
-        # TODO
-        #if nrvariables > 0:
-        #    cod_nrvariables
-        #    cod_variables
 
         fields.append('.ctd_docstring = ' + docstring_ref)
 
@@ -2747,82 +2750,30 @@ static const pyqt{pyqt_version}QtSignal signals_{klass.iface_file.fq_cpp_name.as
 
         return is_signals
 
-    def _g_variables_table(self, sf, scope, *, for_static):
-        """ Generate the table of either static or instance variables for a
-        scope and return the length of the table.
+    def _g_variables_table(self, sf, scope, *, for_unbound):
+        """ Generate the table of either bound or unbound variables for a scope
+        and return the length of the table.
         """
 
         c_bindings = self.spec.c_bindings
         module = self.spec.module
 
-        if scope is None:
-            scope_type = 'module'
-            suffix = module.py_name
-        else:
-            scope_type = 'type'
-            suffix = scope.iface_file.fq_cpp_name.as_word
-
-        nr_variables = 0
-
         # Get the sorted list of variables.
         variables = list(self.variables_in_scope(scope, check_handler=False))
         variables.sort(key=lambda k: k.py_name.name)
 
-        # Generate any %GetCode and %SetCode wrappers.
-        for variable in variables:
-            v_ref = variable.fq_cpp_name.as_word
-
-            if variable.get_code is not None:
-                # TODO Support sipPyType when scope is not None.
-                # TODO Review the need to cache class instances (see legacy
-                # variable handlers).  Or is that now in the sip module
-                # wrapper?
-                sf.write('\n')
-
-                if not c_bindings:
-                    sf.write(f'extern "C" {{static PyObject *sipWrappedVariableGetCode_{v_ref}();}}\n')
-
-                sf.write(
-f'''static PyObject *sipWrappedVariableGetCode_{v_ref}()
-{{
-    PyObject *sipPy;
-
-''')
-
-                sf.write_code(variable.get_code)
-
-                sf.write(
-'''
-    return sipPy;
-}
-
-''')
-
-            if variable.set_code is not None:
-                # TODO Support sipPyType when scope is not None.
-                sf.write('\n')
-
-                if not c_bindings:
-                    sf.write(f'extern "C" {{static int sipWrappedVariableSetCode_{v_ref}(PyObject *);}}\n')
-
-                sf.write(
-f'''static int sipWrappedVariableSetCode_{v_ref}(PyObject *sipPy)
-{{
-    int sipErr = 0;
-
-''')
-
-                sf.write_code(variable.set_code)
-
-                sf.write(
-'''
-    return sipErr ? -1 : 0;
-}
-
-''')
+        table = []
 
         for variable in variables:
+            # Check we are handling this sort of variable.
+            if scope is None or variable.is_static:
+                if not for_unbound:
+                    continue
+            elif for_unbound:
+                continue
+
             v_type = variable.type
+            v_ref = variable.fq_cpp_name.as_word
 
             # Generally const variables cannot be set.  However for string
             # pointers the reverse is true as a const pointer can be replaced
@@ -3007,48 +2958,142 @@ f'''static int sipWrappedVariableSetCode_{v_ref}(PyObject *sipPy)
             else:
                 continue
 
-            if nr_variables == 0:
-                if scope is None:
-                    v_type = 'Module'
-                elif variable.is_static:
-                    v_type = 'Static'
-                else:
-                    v_type = 'Instance'
+            v_ref = variable.fq_cpp_name.as_word
+            read_only = not_settable or variable.no_setter
 
-                sf.write(
-f'''
-/* Define the {v_type.lower()} variables for the {scope_type}. */
-static const sipWrappedVariableDef sipWrapped{v_type}Variables_{suffix}[] = {{
-''')
+            fields = []
 
-            name = variable.py_name
+            fields.append(f'.name = "{variable.py_name.name}"')
+            fields.append('.type_id = ' + type_id)
 
-            if not_settable or variable.no_setter:
-                key = 'SIP_WV_RO'
+            if read_only:
+                fields.append('.key = SIP_WV_RO')
             elif might_need_key:
-                key = module.next_key
+                fields.append('.key = ' + str(module.next_key))
                 module.next_key -= 1
-            else:
-                key = '0'
 
             if scope is None or variable.is_static:
                 # TODO Why STRIP_GLOBAL here in particular?
                 cpp_name = variable.fq_cpp_name.cpp_stripped(STRIP_GLOBAL)
-                addr = f'(void *)&{cpp_name}'
+                fields.append('.address = (void *)&' + cpp_name)
             else:
-                addr = 'SIP_NULLPTR'
+                fields.append('.getter = sipWrappedVariableGetter_' + v_ref)
 
-            v_ref = variable.fq_cpp_name.as_word
-            getter = self.optional_ptr(variable.get_code is not None,
-                    f'sipWrappedVariableGetCode_{v_ref}')
-            setter = self.optional_ptr(variable.set_code is not None,
-                    f'sipWrappedVariableSetCode_{v_ref}')
+                if not read_only:
+                    fields.append(
+                            '.setter = sipWrappedVariableSetter_' + v_ref)
 
-            sf.write(f'    {{"{name}", {type_id}, {key}, {addr}, {getter}, {setter}}},\n')
+            if variable.get_code is not None:
+                fields.append('.get_code = sipWrappedVariableGetCode_' + v_ref)
 
-            nr_variables += 1
+            if variable.set_code is not None:
+                fields.append('.set_code = sipWrappedVariableSetCode_' + v_ref)
+
+            table.append(fields)
+
+            # Generate any %GetCode wrapper.
+            if variable.get_code is not None:
+                # TODO Support sipPyType when scope is not None.
+                # TODO Review the need to cache class instances (see legacy
+                # variable handlers).  Or is that now in the sip module
+                # wrapper?
+                sf.write('\n')
+
+                if not c_bindings:
+                    sf.write(f'extern "C" {{static PyObject *sipWrappedVariableGetCode_{v_ref}();}}\n')
+
+                sf.write(
+f'''static PyObject *sipWrappedVariableGetCode_{v_ref}()
+{{
+    PyObject *sipPy;
+
+''')
+
+                sf.write_code(variable.get_code)
+
+                sf.write(
+'''
+    return sipPy;
+}
+
+''')
+
+            # Generate any %SetCode wrapper.
+            if variable.set_code is not None:
+                # TODO Support sipPyType when scope is not None.
+                sf.write('\n')
+
+                if not c_bindings:
+                    sf.write(f'extern "C" {{static int sipWrappedVariableSetCode_{v_ref}(PyObject *);}}\n')
+
+                sf.write(
+f'''static int sipWrappedVariableSetCode_{v_ref}(PyObject *sipPy)
+{{
+    int sipErr = 0;
+
+''')
+
+                sf.write_code(variable.set_code)
+
+                sf.write(
+'''
+    return sipErr ? -1 : 0;
+}
+
+''')
+
+            # See if we need a descriptor getter and setter.
+            if scope is None or variable.is_static:
+                continue
+
+            sf.write('\n\n')
+
+            if not c_bindings:
+                sf.write(f'extern "C" {{static PyObject *sipWrappedVariableGetter_{v_ref}(void *, PyObject *, PyObject *);}}\n')
+
+            sf.write(
+f'''static PyObject *sipWrappedVariableGetter_{v_ref}(void *sipCppV, PyObject *, PyObject *)
+{{
+}}
+''')
+
+            if not read_only:
+                sf.write('\n\n')
+
+                if not c_bindings:
+                    sf.write(f'extern "C" {{static int sipWrappedVariableSetter_{v_ref}(void *, PyObject *, PyObject *);}}\n')
+
+                sf.write(
+f'''static int sipWrappedVariableSetter_{v_ref}(void *sipCppV, PyObject *, PyObject *)
+{{
+}}
+''')
+
+        nr_variables = len(table)
 
         if nr_variables != 0:
+            if scope is None:
+                scope_type = 'module'
+                table_type = 'Module'
+                suffix = module.py_name
+            else:
+                scope_type = 'type'
+                table_type = 'Static' if for_unbound else 'Instance'
+                suffix = scope.iface_file.fq_cpp_name.as_word
+
+            sf.write(
+f'''
+/* Define the {table_type.lower()} variables for the {scope_type}. */
+static const sipWrappedVariableDef sipWrapped{table_type}Variables_{suffix}[] = {{
+''')
+
+            for fields in table:
+                line = ', '.join(fields)
+                sf.write(f'    {{{line}}},\n')
+
+            if not for_unbound:
+                sf.write('    {}\n')
+
             sf.write('};\n')
 
         return nr_variables

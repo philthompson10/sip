@@ -12,7 +12,10 @@ public:
     {
     };
 
+    Klass() : attr(0) {}
+
     static int s_attr;
+    int attr;
 };
 
 class SimpleKlass
@@ -33,7 +36,10 @@ public:
     {
     };
 
+    Klass();
+
     static int s_attr;
+    int attr;
 };
 
 class SimpleKlass /Supertype=classes_module.simplewrapper/

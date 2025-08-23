@@ -359,6 +359,9 @@ typedef struct _sipEnumMemberDef {
  */
 #define SIP_WV_RO           INT_MIN     /* The value is read only. */
 
+typedef PyObject *(*sipWrappedVariableGetFunc)(void *, PyObject *, PyObject *);
+typedef int (*sipWrappedVariableSetFunc)(void *, PyObject *, PyObject *);
+
 typedef PyObject *(*sipWrappedVariableGetCodeFunc)();
 typedef int (*sipWrappedVariableSetCodeFunc)(PyObject *);
 
@@ -369,11 +372,17 @@ typedef struct {
     /* The type of the variable's value. */
     sipTypeID type_id;
 
-    /* The key or SIP_wV_RO. */
+    /* The key or SIP_WV_RO. */
     int key;
 
     /* The address of the variable if the variable is unbound. */
     void *address;
+
+    /* The getter if the variable is bound. */
+    sipWrappedVariableGetFunc getter;
+
+    /* The optional setter if the variable is bound. */
+    sipWrappedVariableSetFunc setter;
 
     /* The optional %GetCode wrapper. */
     sipWrappedVariableGetCodeFunc get_code;
@@ -770,7 +779,10 @@ typedef struct _sipContainerDef {
     // type?
     sipTypeID cod_scope;
 
-    /* The wrapped attributes. */
+    /* The table of instance variables (with a terminating sentinal). */
+    const sipWrappedVariableDef *const cod_instance_variables;
+
+    /* The unbound wrapped attributes. */
     sipWrappedAttrsDef cod_attributes;
 
     /* The table of Python slots. */
@@ -789,10 +801,6 @@ typedef struct _sipContainerDef {
     /* The table of lazy enum members. */
     const sipEnumMemberDef *cod_enummembers;
 #endif
-
-    /* The static instances. */
-    // TODO Remove this.
-    sipInstancesDef cod_instances;
 } sipContainerDef;
 
 
