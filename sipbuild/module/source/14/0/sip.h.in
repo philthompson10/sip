@@ -700,7 +700,7 @@ typedef struct _sipVariableDef {
     /* The property deleter. */
     const PyMethodDef *vd_deleter;
 
-    /* The docstring. */
+    /* The docstring.  This is only used for properties. */
     const char *vd_docstring;
 } sipVariableDef;
 

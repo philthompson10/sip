@@ -34,7 +34,7 @@ typedef struct {
     /* The containing wrapper type definition. */
     const sipTypeDef *td;
 
-    /* The generated container name. */
+    /* The generated container name.  This is only used for error messages. */
     const char *cod_name;
 
     /* The mixin name, if any. */
@@ -43,13 +43,13 @@ typedef struct {
 
 
 /* Forward declarations of slots. */
-static int VariableDescr_clear(PyObject *self);
-static void VariableDescr_dealloc(PyObject *self);
-static PyObject *VariableDescr_descr_get(PyObject *self, PyObject *obj,
+static int VariableDescr_clear(VariableDescr *self);
+static void VariableDescr_dealloc(VariableDescr *self);
+static PyObject *VariableDescr_descr_get(VariableDescr *self, PyObject *obj,
         PyObject *type);
-static int VariableDescr_descr_set(PyObject *self, PyObject *obj,
+static int VariableDescr_descr_set(VariableDescr *self, PyObject *obj,
         PyObject *value);
-static int VariableDescr_traverse(PyObject *self, visitproc visit,
+static int VariableDescr_traverse(VariableDescr *self, visitproc visit,
         void *arg);
 
 
@@ -132,54 +132,51 @@ PyObject *sipVariableDescr_Copy(sipSipModuleState *sms, PyObject *orig,
 /*
  * The descriptor's descriptor get slot.
  */
-static PyObject *VariableDescr_descr_get(PyObject *self, PyObject *obj,
+static PyObject *VariableDescr_descr_get(VariableDescr *self, PyObject *obj,
         PyObject *type)
 {
-    VariableDescr *descr = (VariableDescr *)self;
     void *addr;
 
-    if (get_instance_address(descr, obj, &addr) < 0)
+    if (get_instance_address(self, obj, &addr) < 0)
         return NULL;
 
-    return ((sipVariableGetterFunc)descr->vd->vd_getter)(addr, obj, type);
+    return ((sipVariableGetterFunc)self->vd->vd_getter)(addr, obj, type);
 }
 
 
 /*
  * The descriptor's descriptor set slot.
  */
-static int VariableDescr_descr_set(PyObject *self, PyObject *obj,
+static int VariableDescr_descr_set(VariableDescr *self, PyObject *obj,
         PyObject *value)
 {
-    VariableDescr *descr = (VariableDescr *)self;
     void *addr;
 
     /* Check that the value isn't const. */
-    if (descr->vd->vd_setter == NULL)
+    if (self->vd->vd_setter == NULL)
     {
         PyErr_Format(PyExc_AttributeError,
-                "'%s' object attribute '%s' is read-only", descr->cod_name,
-                descr->vd->vd_name);
+                "'%s' object attribute '%s' is read-only", self->cod_name,
+                self->vd->vd_name);
 
         return -1;
     }
 
-    if (get_instance_address(descr, obj, &addr) < 0)
+    if (get_instance_address(self, obj, &addr) < 0)
         return -1;
 
-    return ((sipVariableSetterFunc)descr->vd->vd_setter)(addr, value, obj);
+    return ((sipVariableSetterFunc)self->vd->vd_setter)(addr, value, obj);
 }
 
 
 /*
  * The descriptor's traverse slot.
  */
-static int VariableDescr_traverse(PyObject *self, visitproc visit, void *arg)
+static int VariableDescr_traverse(VariableDescr *self, visitproc visit,
+        void *arg)
 {
-    VariableDescr *descr = (VariableDescr *)self;
-
     Py_VISIT(Py_TYPE(self));
-    Py_VISIT(descr->mixin_name);
+    Py_VISIT(self->mixin_name);
 
     return 0;
 }
@@ -188,11 +185,9 @@ static int VariableDescr_traverse(PyObject *self, visitproc visit, void *arg)
 /*
  * The descriptor's clear slot.
  */
-static int VariableDescr_clear(PyObject *self)
+static int VariableDescr_clear(VariableDescr *self)
 {
-    VariableDescr *descr = (VariableDescr *)self;
-
-    Py_CLEAR(descr->mixin_name);
+    Py_CLEAR(self->mixin_name);
 
     return 0;
 }
@@ -201,9 +196,9 @@ static int VariableDescr_clear(PyObject *self)
 /*
  * The descriptor's dealloc slot.
  */
-static void VariableDescr_dealloc(PyObject *self)
+static void VariableDescr_dealloc(VariableDescr *self)
 {
-    PyObject_GC_UnTrack(self);
+    PyObject_GC_UnTrack((PyObject *)self);
     VariableDescr_clear(self);
     PyTypeObject *type = Py_TYPE(self);
     type->tp_free(self);
