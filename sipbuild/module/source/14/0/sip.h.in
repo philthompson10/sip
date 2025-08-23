@@ -300,6 +300,7 @@ typedef int (*sipPySubclassCreatedEventHandler)(const sipTypeDef *td,
  */
 typedef uint32_t sipTypeID;
 typedef uint16_t sipTypeNr;
+typedef uint8_t sipModuleNr;
 
 
 /*
@@ -1469,63 +1470,99 @@ struct _sipAPIDef {
 
 
 /*
- * Useful macros, not part of the public API.
+ * Useful macros (exposed by the ABI but not part of the public API).
  */
+
+/*
+ * A type ID is a 32 bit value.  The value (unless it is an absolute type ID)
+ * is interpreted in the context of the module from which it is used.  For
+ * example a class A.K (ie. class K defined in module A) with have different
+ * type IDs when referenced from module A and module B.  However the symbolic
+ * name of these different type IDs will be the same.
+ *
+ * The most significant 3 bits of the value specify the general type, either a
+ * type that has an immutable type definition (eg. a class) or a POD type.
+ * type.
+ *
+ * The next 2 bits are currently unused.
+ *
+ * The next 3 bits are flags common to all type IDs.
+ *
+ * If the type is a POD type then the remaining 24 bits specify the particular
+ * type (although only 10 bits are currently used).
+ *
+ * For other types the next 8 bits specify the number (in the context of the
+ * module from which the value is used) of the module that contains the
+ * immutable type definition.  The final 16 bits specify the number of the
+ * type definition (in the context of the module that contains it).
+ *
+ * The values of certain fields are designed so that 0 is an invalid type ID.
+ */
+
+/* The general type part of a type ID. */
+#define SIP_TYPE_ID_TYPE_MASK           0xe0000000
+#define SIP_TYPE_ID_TYPE_POD            0x00000000      /* This must be 0. */
+#define SIP_TYPE_ID_TYPE_CLASS          0x20000000
+#define SIP_TYPE_ID_TYPE_MAPPED         0x40000000
+#define SIP_TYPE_ID_TYPE_ENUM_PY        0x60000000
+#define SIP_TYPE_ID_TYPE_ENUM_CUSTOM    0x80000000
 
 /* The flags part of a type ID. */
 #define SIP_TYPE_ID_SENTINEL            0x01000000
-#define SIP_TYPE_ID_GENERATED           0x02000000
-#define SIP_TYPE_ID_ABSOLUTE            0x04000000
-#define SIP_TYPE_ID_EXTERNAL            0x08000000
-#define SIP_TYPE_ID_CURRENT_MODULE      0x10000000
+#define SIP_TYPE_ID_ABSOLUTE            0x02000000
+#define SIP_TYPE_ID_EXTERNAL            0x04000000
+
+/* The unused parts of a type ID. */
+#define SIP_TYPE_ID_UNUSED_1            0x08000000
+#define SIP_TYPE_ID_UNUSED_2            0x01000000
 
 
 /* The invalid type ID.  It must be 0. */
 #define sipTypeID_Invalid       0
 
-/* The type IDs of POD types. */
-#define sipTypeID_byte          0x0001
-#define sipTypeID_sbyte         0x0002
-#define sipTypeID_ubyte         0x0003
-#define sipTypeID_short         0x0004
-#define sipTypeID_ushort        0x0005
-#define sipTypeID_int           0x0006
-#define sipTypeID_uint          0x0007
-#define sipTypeID_long          0x0008
-#define sipTypeID_ulong         0x0009
-#define sipTypeID_longlong      0x000a
-#define sipTypeID_ulonglong     0x000b
-#define sipTypeID_Py_hash_t     0x000c
-#define sipTypeID_Py_ssize_t    0x000d
-#define sipTypeID_size_t        0x000e
-#define sipTypeID_float         0x000f
-#define sipTypeID_double        0x0010
-#define sipTypeID_char          0x0011
-#define sipTypeID_char_ascii    0x0111
-#define sipTypeID_char_latin1   0x0211
-#define sipTypeID_char_utf8     0x0311
-#define sipTypeID_schar         0x0012
-#define sipTypeID_uchar         0x0013
-#define sipTypeID_wchar         0x0014
-#define sipTypeID_str           0x0015
-#define sipTypeID_str_ascii     0x0115
-#define sipTypeID_str_latin1    0x0215
-#define sipTypeID_str_utf8      0x0315
-#define sipTypeID_sstr          0x0016
-#define sipTypeID_ustr          0x0017
-#define sipTypeID_wstr          0x0018
-#define sipTypeID_bool          0x0019
-#define sipTypeID_voidptr       0x001a
-#define sipTypeID_voidptr_const 0x001b
-#define sipTypeID_pyobject      0x001c
-#define sipTypeID_pytuple       0x001d
-#define sipTypeID_pylist        0x001e
-#define sipTypeID_pydict        0x001f
-#define sipTypeID_pycallable    0x0020
-#define sipTypeID_pyslice       0x0021
-#define sipTypeID_pytype        0x0022
-#define sipTypeID_pybuffer      0x0023
-#define sipTypeID_pycapsule     0x0024
+/* The type IDs of POD types.  These must start from 1. */
+#define sipTypeID_byte          0x000001
+#define sipTypeID_sbyte         0x000002
+#define sipTypeID_ubyte         0x000003
+#define sipTypeID_short         0x000004
+#define sipTypeID_ushort        0x000005
+#define sipTypeID_int           0x000006
+#define sipTypeID_uint          0x000007
+#define sipTypeID_long          0x000008
+#define sipTypeID_ulong         0x000009
+#define sipTypeID_longlong      0x00000a
+#define sipTypeID_ulonglong     0x00000b
+#define sipTypeID_Py_hash_t     0x00000c
+#define sipTypeID_Py_ssize_t    0x00000d
+#define sipTypeID_size_t        0x00000e
+#define sipTypeID_float         0x00000f
+#define sipTypeID_double        0x000010
+#define sipTypeID_char          0x000011
+#define sipTypeID_char_ascii    0x000111
+#define sipTypeID_char_latin1   0x000211
+#define sipTypeID_char_utf8     0x000311
+#define sipTypeID_schar         0x000012
+#define sipTypeID_uchar         0x000013
+#define sipTypeID_wchar         0x000014
+#define sipTypeID_str           0x000015
+#define sipTypeID_str_ascii     0x000115
+#define sipTypeID_str_latin1    0x000215
+#define sipTypeID_str_utf8      0x000315
+#define sipTypeID_sstr          0x000016
+#define sipTypeID_ustr          0x000017
+#define sipTypeID_wstr          0x000018
+#define sipTypeID_bool          0x000019
+#define sipTypeID_voidptr       0x00001a
+#define sipTypeID_voidptr_const 0x00001b
+#define sipTypeID_pyobject      0x00001c
+#define sipTypeID_pytuple       0x00001d
+#define sipTypeID_pylist        0x00001e
+#define sipTypeID_pydict        0x00001f
+#define sipTypeID_pycallable    0x000020
+#define sipTypeID_pyslice       0x000021
+#define sipTypeID_pytype        0x000022
+#define sipTypeID_pybuffer      0x000023
+#define sipTypeID_pycapsule     0x000024
 
 
 #define SIP_TYPE_TYPE_MASK  0x0007  /* The type type mask. */
