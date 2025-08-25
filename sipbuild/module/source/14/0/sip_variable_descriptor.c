@@ -14,6 +14,8 @@
 #include "sip_variable_descriptor.h"
 
 #include "sip_module.h"
+#include "sip_module_wrapper.h"
+#include "sip_wrapper_type.h"
 
 
 /******************************************************************************
@@ -32,6 +34,8 @@ typedef struct {
     const sipWrappedVariableDef *wvd;
 
     /* The wrapped type containing the variable. */
+    // TODO If this is a type ID (or a type number) then we should be able to
+    // use these descriptors in enums and mapped types.
     sipWrapperType *type;
 
     /* The mixin name, if any. */
@@ -79,8 +83,6 @@ static PyType_Spec VariableDescr_TypeSpec = {
 
 /* Forward declarations. */
 static VariableDescr *alloc_variable_descr(sipSipModuleState *sms);
-static int get_instance_address(VariableDescr *descr, PyObject *obj,
-        void **addrp);
 
 
 /*
@@ -128,12 +130,10 @@ PyObject *sipVariableDescr_Copy(sipSipModuleState *sms, PyObject *orig,
 static PyObject *VariableDescr_descr_get(VariableDescr *self, PyObject *obj,
         PyObject *type)
 {
-    void *addr;
+    sipWrappedModuleState *wms = (sipWrappedModuleState *)PyModule_GetState(
+        self->type->wt_dmod);
 
-    if (get_instance_address(self, obj, &addr) < 0)
-        return NULL;
-
-    return self->wvd->getter(addr, obj, type);
+    return sip_variable_get(wms, obj, self->wvd, self->type, self->mixin_name);
 }
 
 
@@ -143,20 +143,11 @@ static PyObject *VariableDescr_descr_get(VariableDescr *self, PyObject *obj,
 static int VariableDescr_descr_set(VariableDescr *self, PyObject *obj,
         PyObject *value)
 {
-    void *addr;
+    sipWrappedModuleState *wms = (sipWrappedModuleState *)PyModule_GetState(
+        self->type->wt_dmod);
 
-    /* Check that the value isn't const. */
-    if (self->wvd->setter == NULL)
-    {
-        PyErr_Format(PyExc_AttributeError, "%s.%s is read-only",
-                ((PyTypeObject*)self->type)->tp_name, self->wvd->name);
-        return -1;
-    }
-
-    if (get_instance_address(self, obj, &addr) < 0)
-        return -1;
-
-    return self->wvd->setter(addr, value, obj);
+    return sip_variable_set(wms, obj, value, self->wvd, self->type,
+            self->mixin_name);
 }
 
 
@@ -220,43 +211,4 @@ int sip_variable_descr_init(PyObject *module, sipSipModuleState *sms)
 static VariableDescr *alloc_variable_descr(sipSipModuleState *sms)
 {
     return (VariableDescr *)PyType_GenericAlloc(sms->variable_descr_type, 0);
-}
-
-
-/*
- * Return the C/C++ address of any instance.
- */
-static int get_instance_address(VariableDescr *descr, PyObject *obj,
-        void **addrp)
-{
-    void *addr;
-
-#if 0
-    if (descr->wvd->descr_type == ClassVariable)
-    {
-        addr = NULL;
-    }
-    else
-#endif
-    {
-        /* Check that access was via an instance. */
-        if (obj == NULL || obj == Py_None)
-        {
-            PyErr_Format(PyExc_AttributeError,
-                    "%s.%s is an instance attribute",
-                    ((PyTypeObject *)descr->type)->tp_name, descr->wvd->name);
-            return -1;
-        }
-
-        if (descr->mixin_name != NULL)
-            obj = PyObject_GetAttr(obj, descr->mixin_name);
-
-        /* Get the C++ instance. */
-        if ((addr = sip_get_cpp_ptr((sipSimpleWrapper *)obj, descr->type)) == NULL)
-            return -1;
-    }
-
-    *addrp = addr;
-
-    return 0;
 }

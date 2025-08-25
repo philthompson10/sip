@@ -68,6 +68,16 @@ class ClassesTestCase(SIPTestCase):
         with self.assertRaises(AttributeError):
             klass.foo
 
+        self.assertEqual(klass.attr, 0)
+        klass.attr = 10
+        self.assertEqual(klass.attr, 10)
+
+        with self.assertRaises(AttributeError):
+            del klass.attr;
+
+        with self.assertRaises(AttributeError):
+            self.c_mod.Klass.attr
+
     def test_py_subclass(self):
         """ Test the support for Python sub-classes. """
 

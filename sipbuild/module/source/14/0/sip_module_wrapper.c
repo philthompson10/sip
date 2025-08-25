@@ -56,6 +56,8 @@ static int compare_type_nr(const void *key, const void *el,
         const void *context);
 static const sipWrappedVariableDef *get_static_variable_def(
         const char *utf8_name, const sipWrappedAttrsDef *wad);
+static void *get_variable_address(const sipWrappedVariableDef *wvd,
+        sipWrapperType *type, PyObject *instance, PyObject *mixin_name);
 static const sipTypeNr *get_wrapped_type_nr_p(const sipWrappedModuleDef *wmd,
         const char *utf8_name, const sipWrappedAttrsDef *wad);
 static void raise_internal_error(const sipWrappedVariableDef *wvd);
@@ -102,39 +104,41 @@ PyObject *sip_mod_con_getattro(sipWrappedModuleState *wms, PyObject *self,
      */
     const sipWrappedVariableDef *wvd = get_static_variable_def(utf8_name, wad);
 
-    if (wvd == NULL)
-    {
-        /*
-         * Revert to the super-class behaviour.  This will pick up any wrapped
-         * types already created and any attributes set by the user (including
-         * replacements of wrapped types).
-         */
-        PyObject *attr = Py_TYPE(self)->tp_base->tp_getattro(self, name);
+    if (wvd != NULL)
+        return sip_variable_get(wms, self, wvd, NULL, NULL);
 
-        if (attr != NULL)
-            return attr;
-
-        /* See if it is a wrapped type. */
-        const sipTypeNr *type_nr_p = get_wrapped_type_nr_p(
-                wms->wrapped_module_def, utf8_name, wad);
-
-        if (type_nr_p == NULL)
-            return NULL;
-
-        PyErr_Clear();
-
-        attr = (PyObject *)sip_get_local_py_type(wms, *type_nr_p);
-        Py_XINCREF(attr);
-
+    /*
+     * Revert to the super-class behaviour.  This will pick up any wrapped
+     * types already created and any attributes set by the user (including
+     * replacements of wrapped types).
+     */
+    PyObject *attr = Py_TYPE(self)->tp_base->tp_getattro(self, name);
+    if (attr != NULL)
         return attr;
-    }
 
+    /* See if it is a wrapped type. */
+    const sipTypeNr *type_nr_p = get_wrapped_type_nr_p(wms->wrapped_module_def,
+            utf8_name, wad);
+    if (type_nr_p == NULL)
+        return NULL;
+
+    PyErr_Clear();
+
+    return Py_XNewRef((PyObject *)sip_get_local_py_type(wms, *type_nr_p));
+}
+
+
+/*
+ * Get the value of a variable.
+ */
+PyObject *sip_variable_get(sipWrappedModuleState *wms, PyObject *instance,
+        const sipWrappedVariableDef *wvd, sipWrapperType *type,
+        PyObject *mixin_name)
+{
     if (wvd->get_code != NULL)
         return wvd->get_code();
 
-    // TODO Pass the address as an argument (static vars will pass
-    // wvd->address).
-    void *addr = wvd->address;
+    void *addr = get_variable_address(wvd, type, instance, mixin_name);
 
     switch (wvd->type_id)
     {
@@ -341,9 +345,20 @@ int sip_mod_con_setattro(sipWrappedModuleState *wms, PyObject *self,
 
     const sipWrappedVariableDef *wvd = get_static_variable_def(utf8_name, wad);
 
-    if (wvd == NULL)
-        return Py_TYPE(self)->tp_base->tp_setattro(self, name, value);
+    if (wvd != NULL)
+        return sip_variable_set(wms, self, value, wvd, NULL, NULL);
 
+    return Py_TYPE(self)->tp_base->tp_setattro(self, name, value);
+}
+
+
+/*
+ * Set the value of a variable.
+ */
+int sip_variable_set(sipWrappedModuleState *wms, PyObject *instance,
+        PyObject *value, const sipWrappedVariableDef *wvd,
+        sipWrapperType *type, PyObject *mixin_name)
+{
     if (value == NULL)
     {
         PyErr_Format(PyExc_AttributeError, "'%s' cannot be deleted",
@@ -361,9 +376,7 @@ int sip_mod_con_setattro(sipWrappedModuleState *wms, PyObject *self,
         return -1;
     }
 
-    // TODO Pass the address as an argument (static vars will pass
-    // wvd->address).
-    void *addr = wvd->address;
+    void *addr = get_variable_address(wvd, type, instance, mixin_name);
 
     switch (wvd->type_id)
     {
@@ -908,6 +921,41 @@ static const sipWrappedVariableDef *get_static_variable_def(
     return (const sipWrappedVariableDef *)bsearch_s((const void *)utf8_name,
             (const void *)wad->static_variables, wad->nr_static_variables,
             sizeof (sipWrappedVariableDef), compare_static_variable, NULL);
+}
+
+
+/*
+ * Return the C/C++ address of a variable.
+ */
+static void *get_variable_address(const sipWrappedVariableDef *wvd,
+        sipWrapperType *type, PyObject *instance, PyObject *mixin_name)
+{
+    if (wvd->address_getter != NULL)
+    {
+        assert(type != NULL);
+
+        /* Check that access was via an instance. */
+        if (instance == NULL || instance == Py_None)
+        {
+            PyErr_Format(PyExc_AttributeError,
+                    "%s.%s is an instance attribute",
+                    ((PyTypeObject *)type)->tp_name, wvd->name);
+            return NULL;
+        }
+
+        if (mixin_name != NULL)
+            instance = PyObject_GetAttr(instance, mixin_name);
+
+        /* Get the C++ instance. */
+        void *instance_addr = sip_get_cpp_ptr((sipSimpleWrapper *)instance,
+                type);
+        if (instance_addr == NULL)
+            return NULL;
+
+        return wvd->address_getter(instance_addr);
+    }
+
+    return wvd->address;
 }
 
 

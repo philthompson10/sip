@@ -333,8 +333,7 @@ typedef void *(*sipCopyFunc)(const void *, Py_ssize_t);
 typedef void (*sipReleaseFunc)(void *, int);
 typedef void (*sipReleaseUSFunc)(void *, int, void *);
 typedef PyObject *(*sipPickleFunc)(void *);
-typedef PyObject *(*sipVariableGetterFunc)(void *, PyObject *, PyObject *);
-typedef int (*sipVariableSetterFunc)(void *, PyObject *, PyObject *);
+typedef void *(*sipVariableAddrGetterFunc)(void *);
 typedef void (*sipWrapperVisitorFunc)(sipSimpleWrapper *, void *);
 
 
@@ -360,8 +359,7 @@ typedef struct _sipEnumMemberDef {
  */
 #define SIP_WV_RO           INT_MIN     /* The value is read only. */
 
-typedef PyObject *(*sipWrappedVariableGetFunc)(void *, PyObject *, PyObject *);
-typedef int (*sipWrappedVariableSetFunc)(void *, PyObject *, PyObject *);
+typedef void *(*sipWrappedVariableAddrGetFunc)(void *);
 
 typedef PyObject *(*sipWrappedVariableGetCodeFunc)();
 typedef int (*sipWrappedVariableSetCodeFunc)(PyObject *);
@@ -379,11 +377,8 @@ typedef struct {
     /* The address of the variable if the variable is unbound. */
     void *address;
 
-    /* The getter if the variable is bound. */
-    sipWrappedVariableGetFunc getter;
-
-    /* The optional setter if the variable is bound. */
-    sipWrappedVariableSetFunc setter;
+    /* The address getter if the variable is bound. */
+    sipWrappedVariableAddrGetFunc address_getter;
 
     /* The optional %GetCode wrapper. */
     sipWrappedVariableGetCodeFunc get_code;

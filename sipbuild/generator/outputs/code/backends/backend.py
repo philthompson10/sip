@@ -2957,7 +2957,6 @@ static const pyqt{pyqt_version}QtSignal signals_{klass.iface_file.fq_cpp_name.as
             else:
                 continue
 
-            v_ref = variable.fq_cpp_name.as_word
             read_only = not_settable or variable.no_setter
 
             fields = []
@@ -2976,11 +2975,7 @@ static const pyqt{pyqt_version}QtSignal signals_{klass.iface_file.fq_cpp_name.as
                 cpp_name = variable.fq_cpp_name.cpp_stripped(STRIP_GLOBAL)
                 fields.append('.address = (void *)&' + cpp_name)
             else:
-                fields.append('.getter = sipWrappedVariableGetter_' + v_ref)
-
-                if not read_only:
-                    fields.append(
-                            '.setter = sipWrappedVariableSetter_' + v_ref)
+                fields.append('.address_getter = sipWrappedVariableAddrGetter_' + v_ref)
 
             if variable.get_code is not None:
                 fields.append('.get_code = sipWrappedVariableGetCode_' + v_ref)
@@ -3041,30 +3036,26 @@ f'''static int sipWrappedVariableSetCode_{v_ref}(PyObject *sipPy)
 
 ''')
 
-            # See if we need a descriptor getter and setter.
+            # See if we need a descriptor address getter.
             if scope is None or variable.is_static:
                 continue
 
             sf.write('\n\n')
 
+            # TODO Why STRIP_GLOBAL here in particular?
+            scope_name = scope.iface_file.fq_cpp_name.cpp_stripped(
+                    STRIP_GLOBAL)
+
             if not c_bindings:
-                sf.write(f'extern "C" {{static PyObject *sipWrappedVariableGetter_{v_ref}(void *, PyObject *, PyObject *);}}\n')
+                sf.write(f'extern "C" {{static void *sipWrappedVariableAddrGetter_{v_ref}(void *);}}\n')
+                cast_value = f'reinterpret_cast<{scope_name} *>(sipCppV)'
+            else:
+                cast_value = f'({scope_name} *)sipCppV'
 
             sf.write(
-f'''static PyObject *sipWrappedVariableGetter_{v_ref}(void *sipCppV, PyObject *, PyObject *)
+f'''static void *sipWrappedVariableAddrGetter_{v_ref}(void *sipCppV)
 {{
-}}
-''')
-
-            if not read_only:
-                sf.write('\n\n')
-
-                if not c_bindings:
-                    sf.write(f'extern "C" {{static int sipWrappedVariableSetter_{v_ref}(void *, PyObject *, PyObject *);}}\n')
-
-                sf.write(
-f'''static int sipWrappedVariableSetter_{v_ref}(void *sipCppV, PyObject *, PyObject *)
-{{
+    return &{cast_value}->{variable.py_name.name};
 }}
 ''')
 
