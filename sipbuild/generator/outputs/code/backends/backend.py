@@ -1761,7 +1761,7 @@ f'''
     def get_class_ref_value(self, klass):
         """ Return the value of a class's reference. """
 
-        return f'SIP_TYPE_ID_GENERATED|SIP_TYPE_ID_CURRENT_MODULE|{klass.iface_file.type_nr}'
+        return f'SIP_TYPE_ID_TYPE_CLASS|SIP_TYPE_ID_CURRENT_MODULE|{klass.iface_file.type_nr}'
 
     def get_enum_class_scope(self, enum):
         """ Return the scope of an unscoped enum as a string. """

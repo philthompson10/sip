@@ -94,7 +94,7 @@ PyObject *sipVariableDescr_New(sipSipModuleState *sms, sipWrapperType *type,
     if (descr != NULL)
     {
         descr->wvd = wvd;
-        descr->type = Py_NewRef(type);
+        descr->type = (sipWrapperType *)Py_NewRef(type);
         descr->mixin_name = NULL;
     }
 
@@ -114,7 +114,7 @@ PyObject *sipVariableDescr_Copy(sipSipModuleState *sms, PyObject *orig,
     if (descr != NULL)
     {
         descr->wvd = orig_descr->wvd;
-        descr->type = Py_NewRef(orig_descr->type);
+        descr->type = (sipWrapperType *)Py_NewRef(orig_descr->type);
         descr->mixin_name = Py_NewRef(mixin_name);
     }
 

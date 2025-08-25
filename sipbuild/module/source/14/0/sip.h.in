@@ -1478,7 +1478,9 @@ struct _sipAPIDef {
  * is interpreted in the context of the module from which it is used.  For
  * example a class A.K (ie. class K defined in module A) with have different
  * type IDs when referenced from module A and module B.  However the symbolic
- * name of these different type IDs will be the same.
+ * name of these different type IDs will be the same.  Absolute type IDs are
+ * created dynamically by sipFindTypeID() and their values do not need a module
+ * context to be interpreted.
  *
  * The most significant 3 bits of the value specify the general type, either a
  * type that has an immutable type definition (eg. a class) or a POD type.
@@ -1515,6 +1517,9 @@ struct _sipAPIDef {
 /* The unused parts of a type ID. */
 #define SIP_TYPE_ID_UNUSED_1            0x08000000
 #define SIP_TYPE_ID_UNUSED_2            0x01000000
+
+/* The number of the current module. */
+#define SIP_TYPE_ID_CURRENT_MODULE      0x00ff0000
 
 
 /* The invalid type ID.  It must be 0. */

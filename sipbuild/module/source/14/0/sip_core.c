@@ -1880,8 +1880,9 @@ static sipTypeID sip_api_find_type_id(PyObject *wmod, const char *type)
 
     for (i = 0; i < PyList_GET_SIZE(module_list); i++)
     {
-        const sipWrappedModuleDef *md = ((sipWrappedModuleState *)PyModule_GetState(PyList_GET_ITEM(module_list, i)))->wrapped_module_def;
-
+        PyObject *mod = PyList_GET_ITEM(module_list, i);
+        const sipWrappedModuleState *ms = (sipWrappedModuleState *)PyModule_GetState(mod);
+        const sipWrappedModuleDef *md = ms->wrapped_module_def;
         const sipTypeDef *const *tdp = (const sipTypeDef *const *)bsearch(
                 (const void *)type, (const void *)md->type_defs,
                 md->nr_type_defs, sizeof (const sipTypeDef *),
@@ -1890,12 +1891,18 @@ static sipTypeID sip_api_find_type_id(PyObject *wmod, const char *type)
         if (tdp != NULL)
         {
             /* Determine the type number. */
-            sipTypeNr type_nr = tdp - md->type_defs;
+            sipTypeID type_nr = tdp - md->type_defs;
 
-            /* Return an absolute ID of a generated type. */
-            // TODO Does it need to be absolute rather than just relative to
-            // the given module?
-            return SIP_TYPE_ID_GENERATED | SIP_TYPE_ID_ABSOLUTE | (i << 16) | type_nr;
+            /* Determine the type of the type. */
+            // TODO
+            sipTypeID type_type = SIP_TYPE_ID_TYPE_CLASS;
+
+            /*
+             * Return an absolute ID of a generated type.  Absolute types mean
+             * that a type that whis module known nothing about can still be
+             * referenced.
+             */
+            return type_type | SIP_TYPE_ID_ABSOLUTE | (i << 16) | type_nr;
         }
     }
 

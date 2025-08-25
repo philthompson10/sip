@@ -122,12 +122,7 @@ static PyObject *Array_item(PyObject *self, Py_ssize_t idx)
 
     data = element(array, idx);
 
-    if (sipTypeIDIsGeneratedType(array->type_id))
-    {
-        py_item = sip_convert_from_type(array->wms, data, array->type_id,
-                NULL);
-    }
-    else
+    if (sipTypeIDIsPOD(array->type_id))
     {
         // TODO Consider using a POD type ID rather than 'format'.
         switch (*array->format)
@@ -167,6 +162,11 @@ static PyObject *Array_item(PyObject *self, Py_ssize_t idx)
         default:
             py_item = NULL;
         }
+    }
+    else
+    {
+        py_item = sip_convert_from_type(array->wms, data, array->type_id,
+                NULL);
     }
 
     return py_item;
@@ -270,7 +270,11 @@ static int Array_ass_subscript(PyObject *self, PyObject *key, PyObject *value)
         return -1;
     }
 
-    if (sipTypeIDIsGeneratedType(array->type_id))
+    if (sipTypeIDIsPOD(array->type_id))
+    {
+        memmove(element(array, start), value_data, len * array->stride);
+    }
+    else
     {
         const sipTypeDef *td = sip_get_type_def(array->wms, array->type_id,
                 NULL);
@@ -292,10 +296,6 @@ static int Array_ass_subscript(PyObject *self, PyObject *key, PyObject *value)
             assign(array->data, start + i, value_data);
             value_data = (char *)value_data + array->stride;
         }
-    }
-    else
-    {
-        memmove(element(array, start), value_data, len * array->stride);
     }
 
     return 0;
@@ -403,16 +403,16 @@ static void Array_dealloc(PyObject *self)
 
     if (array->flags & SIP_OWNS_MEMORY)
     {
-        if (sipTypeIDIsGeneratedType(array->type_id))
+        if (sipTypeIDIsPOD(array->type_id))
+        {
+            PyMem_Free(array->data);
+        }
+        else
         {
             const sipTypeDef *td = sip_get_type_def(array->wms,
                     array->type_id, NULL);
 
             ((const sipClassTypeDef *)td)->ctd_array_delete(array->data);
-        }
-        else
-        {
-            PyMem_Free(array->data);
         }
     }
 
@@ -591,14 +591,7 @@ static void *get_value(Array *array, PyObject *value)
 
     void *data;
 
-    if (sipTypeIDIsGeneratedType(array->type_id))
-    {
-        int iserr = FALSE;
-
-        data = sip_force_convert_to_type_us(array->wms, value, array->type_id,
-                NULL, SIP_NOT_NONE|SIP_NO_CONVERTORS, NULL, NULL, &iserr);
-    }
-    else
+    if (sipTypeIDIsPOD(array->type_id))
     {
         PyErr_Clear();
 
@@ -651,6 +644,13 @@ static void *get_value(Array *array, PyObject *value)
         if (PyErr_Occurred())
             data = NULL;
     }
+    else
+    {
+        int iserr = FALSE;
+
+        data = sip_force_convert_to_type_us(array->wms, value, array->type_id,
+                NULL, SIP_NOT_NONE|SIP_NO_CONVERTORS, NULL, NULL, &iserr);
+    }
 
     return data;
 }
@@ -668,19 +668,19 @@ static void *get_slice(Array *array, PyObject *value, Py_ssize_t len)
 
     if (PyObject_IsInstance(value, (PyObject *)Py_TYPE((PyObject *)array)))
     {
-        if (sipTypeIDIsGeneratedType(array->type_id))
+        if (sipTypeIDIsPOD(array->type_id))
         {
-            if (sipTypeIDIsGeneratedType(other->type_id))
+            if (sipTypeIDIsPOD(other->type_id))
             {
-                if (sip_get_type_def(array->wms, array->type_id, NULL) == sip_get_type_def(other->wms, other->type_id, NULL))
+                if (strcmp(array->format, other->format) == 0)
                 {
                     bad_type = FALSE;
                 }
             }
         }
-        else if (!sipTypeIDIsGeneratedType(other->type_id))
+        else if (!sipTypeIDIsPOD(other->type_id))
         {
-            if (strcmp(array->format, other->format) == 0)
+            if (sip_get_type_def(array->wms, array->type_id, NULL) == sip_get_type_def(other->wms, other->type_id, NULL))
             {
                 bad_type = FALSE;
             }
@@ -722,11 +722,7 @@ static const char *get_type_name(Array *array)
 {
     const char *type_name;
 
-    if (sipTypeIDIsGeneratedType(array->type_id))
-    {
-        type_name = sip_get_type_def(array->wms, array->type_id, NULL)->td_cname;
-    }
-    else
+    if (sipTypeIDIsPOD(array->type_id))
     {
         switch (*array->format)
         {
@@ -765,6 +761,10 @@ static const char *get_type_name(Array *array)
         default:
             type_name = "";
         }
+    }
+    else
+    {
+        type_name = sip_get_type_def(array->wms, array->type_id, NULL)->td_cname;
     }
 
     return type_name;

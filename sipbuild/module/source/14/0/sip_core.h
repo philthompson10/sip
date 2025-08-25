@@ -36,7 +36,6 @@ extern "C" {
 /* Macros to access the parts of a valid type ID. */
 #define sipTypeIDTypeNr(id)             ((sipTypeNr)(id))
 #define sipTypeIDModuleNr(id)           ((sipModuleNr)((id) >> 16))
-#define sipTypeIDCurrentModuleNr        0xff
 #define sipTypeIDIsSentinel(id)         ((id) & SIP_TYPE_ID_SENTINEL)
 #define sipTypeIDIsAbsolute(id)         ((id) & SIP_TYPE_ID_ABSOLUTE)
 #define sipTypeIDIsExternal(id)         ((id) & SIP_TYPE_ID_EXTERNAL)
@@ -45,6 +44,7 @@ extern "C" {
 #define sipTypeIDIsMappedType(id)       (((id) & SIP_TYPE_ID_TYPE_MASK) == SIP_TYPE_ID_TYPE_MAPPED)
 #define sipTypeIDIsEnumPy(id)           (((id) & SIP_TYPE_ID_TYPE_MASK) == SIP_TYPE_ID_TYPE_ENUM_PY)
 #define sipTypeIDIsEnumCustom(id)       (((id) & SIP_TYPE_ID_TYPE_MASK) == SIP_TYPE_ID_TYPE_ENUM_CUSTOM)
+#define sipTypeIDIsCurrentModule(id)    (((id) & SIP_TYPE_ID_CURRENT_MODULE) == SIP_TYPE_ID_CURRENT_MODULE)
 
 /*
  * An entry in the linked list of event handlers.
