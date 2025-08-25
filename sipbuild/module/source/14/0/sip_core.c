@@ -2280,14 +2280,14 @@ static void *sip_api_get_mixin_address(sipSimpleWrapper *w,
 static int sip_api_init_mixin(PyObject *wmod, PyObject *self, PyObject *args,
         PyObject *kwds, sipTypeID mixin_type_id)
 {
+    assert(sipTypeIDIsClass(mixin_type_id));
+
     sipWrappedModuleState *wms = (sipWrappedModuleState *)PyModule_GetState(
             wmod);
 
     /* If we are not a mixin to another wrapped class then behave as normal. */
     PyTypeObject *mixin_wt = sip_get_py_type(wms, mixin_type_id);
     const sipTypeDef *td = ((sipWrapperType *)mixin_wt)->wt_td;
-
-    assert(sipTypeIsClass(td));
 
     if (PyType_IsSubtype(Py_TYPE(self), mixin_wt))
         return sip_super_init(self, args, kwds,
@@ -3544,11 +3544,11 @@ static void sip_api_print_object(PyObject *o)
 static int sip_api_register_event_handler(PyObject *wmod, sipEventType type,
         sipTypeID type_id, void *handler)
 {
+    assert(sipTypeIDIsClass(type_id) || sipTypeIDIsMapped(type_id));
+
     sipWrappedModuleState *wms = (sipWrappedModuleState *)PyModule_GetState(
             wmod);
     const sipTypeDef *td = sip_get_type_def(wms, type_id, NULL);
-
-    assert(sipTypeIsClass(td) || sipTypeIsMapped(td));
 
     sipEventHandler *eh = sip_api_malloc(sizeof (sipEventHandler));
     if (eh == NULL)

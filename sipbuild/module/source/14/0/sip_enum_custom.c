@@ -393,11 +393,11 @@ PyObject *sip_enum_unpickle_custom_enum(PyObject *mod, PyObject *args)
 static int convert_to_enum(sipWrappedModuleState *wms, PyObject *obj,
         sipTypeID type_id, int allow_int)
 {
+    assert(sipTypeIDIsEnumCustom(type_id) || sipTypeIDIsEnumPy(type_id));
+
     PyTypeObject *py_type = sip_get_py_type(wms, type_id);
     // TODO We can't cast to sipWrapperType.  We probably don't really need td.
     const sipTypeDef *td = ((sipWrapperType *)py_type)->wt_td;
-
-    assert(sipTypeIsEnum(td) || sipTypeIsScopedEnum(td));
 
     int val;
 

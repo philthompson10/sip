@@ -46,9 +46,9 @@ static PyObject *missing_int_enum(PyObject *cls, PyObject *value);
 PyObject *sip_enum_convert_from_enum(sipWrappedModuleState *wms, int member,
         sipTypeID type_id)
 {
-    const sipTypeDef *td = sip_get_type_def(wms, type_id, NULL);
+    assert(sipTypeIDIsEnumPy(type_id));
 
-    assert(sipTypeIsEnum(td));
+    const sipTypeDef *td = sip_get_type_def(wms, type_id, NULL);
 
     PyTypeObject *et = get_enum_type(wms, type_id);
 
@@ -64,9 +64,9 @@ PyObject *sip_enum_convert_from_enum(sipWrappedModuleState *wms, int member,
 int sip_enum_convert_to_enum(sipWrappedModuleState *wms, PyObject *obj,
         sipTypeID type_id)
 {
-    const sipTypeDef *td = sip_get_type_def(wms, type_id, NULL);
+    assert(sipTypeIDIsEnumPy(type_id));
 
-    assert(sipTypeIsEnum(td));
+    const sipTypeDef *td = sip_get_type_def(wms, type_id, NULL);
 
     /* Make sure the enum object has been created. */
     PyTypeObject *py_type = get_enum_type(wms, type_id);

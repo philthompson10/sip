@@ -826,11 +826,10 @@ void sip_release(void *addr, const sipTypeDef *td, int state, void *user_state)
 PyObject *sip_convert_from_type(sipWrappedModuleState *wms, void *cpp,
         sipTypeID type_id, PyObject *transferObj)
 {
+    assert(sipTypeIDIsClass(type_id) || sipTypeIDIsMapped(type_id));
+
     PyTypeObject *py_type = sip_get_py_type(wms, type_id);
     const sipTypeDef *td = ((sipWrapperType *)py_type)->wt_td;
-
-    // TODO The assert is pointless as we have aleady cast to sipWrapperType.
-    assert(sipTypeIsClass(td) || sipTypeIsMapped(td));
 
     /* Handle None. */
     if (cpp == NULL)
@@ -1503,14 +1502,15 @@ static int can_convert_from_sequence(sipWrappedModuleState *wms, PyObject *seq,
 /*
  * Implement the check to see if a Python object can be converted to a type.
  */
+// TODO Check this is called with an invalid type_id if an /External/ type.
 static int can_convert_to_type(sipWrappedModuleState *wms, PyObject *pyObj,
         sipTypeID type_id, int flags)
 {
+    assert(type_id == sipTypeIDInvalid || sipTypeIDIsClass(type_id) || sipTypeIDIsMapped(type_id));
+
+    // TODO Handle /External/ types.
     PyTypeObject *py_type = sip_get_py_type(wms, type_id);
     const sipTypeDef *td = ((sipWrapperType *)py_type)->wt_td;
-
-    // TODO The assert is pointless.
-    assert(td == NULL || sipTypeIsClass(td) || sipTypeIsMapped(td));
 
     int ok;
 
@@ -1874,9 +1874,9 @@ static void *convert_to_type_us(sipWrappedModuleState *wms, PyObject *pyObj,
         sipTypeID type_id, PyObject *transferObj, int flags, int *statep,
         void **user_statep, int *iserrp)
 {
-    const sipTypeDef *td = sip_get_type_def(wms, type_id, NULL);
+    assert(sipTypeIDIsClass(type_id) || sipTypeIDIsMapped(type_id));
 
-    assert(sipTypeIsClass(td) || sipTypeIsMapped(td));
+    const sipTypeDef *td = sip_get_type_def(wms, type_id, NULL);
 
     void *cpp = NULL;
     int state = 0;
