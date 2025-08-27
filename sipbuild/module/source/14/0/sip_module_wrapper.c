@@ -139,6 +139,8 @@ PyObject *sip_variable_get(sipWrappedModuleState *wms, PyObject *instance,
         return wvd->get_code();
 
     void *addr = get_variable_address(wvd, type, instance, mixin_name);
+    if (addr == NULL)
+        return NULL;
 
     switch (wvd->type_id)
     {
@@ -377,6 +379,8 @@ int sip_variable_set(sipWrappedModuleState *wms, PyObject *instance,
     }
 
     void *addr = get_variable_address(wvd, type, instance, mixin_name);
+    if (addr == NULL)
+        return -1;
 
     switch (wvd->type_id)
     {
