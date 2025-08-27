@@ -19,8 +19,7 @@
 
 
 /******************************************************************************
- * We don't use the similar Python descriptor because it doesn't support static
- * variables.
+ * We don't use the similar Python descriptor because of the mixin support.
  *****************************************************************************/
 
 
@@ -39,6 +38,8 @@ typedef struct {
     sipWrapperType *type;
 
     /* The mixin name, if any. */
+    // TODO Review the mixin support, specifically for static class variables.
+    // TODO Should this be a type ID that is part of sipWrappedVariableDef?
     PyObject *mixin_name;
 } VariableDescr;
 

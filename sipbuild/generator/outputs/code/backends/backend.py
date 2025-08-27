@@ -2973,9 +2973,11 @@ static const pyqt{pyqt_version}QtSignal signals_{klass.iface_file.fq_cpp_name.as
             if scope is None or variable.is_static:
                 # TODO Why STRIP_GLOBAL here in particular?
                 cpp_name = variable.fq_cpp_name.cpp_stripped(STRIP_GLOBAL)
-                fields.append('.address = (void *)&' + cpp_name)
+                address = '&' + cpp_name
             else:
-                fields.append('.address_getter = sipWrappedVariableAddrGetter_' + v_ref)
+                address = 'sipWrappedVariableAddrGetter_' + v_ref
+
+            fields.append('.address = (void *)' + address)
 
             if variable.get_code is not None:
                 fields.append('.get_code = sipWrappedVariableGetCode_' + v_ref)

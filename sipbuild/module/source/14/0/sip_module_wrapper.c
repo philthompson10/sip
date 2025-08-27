@@ -57,7 +57,8 @@ static int compare_type_nr(const void *key, const void *el,
 static const sipWrappedVariableDef *get_static_variable_def(
         const char *utf8_name, const sipWrappedAttrsDef *wad);
 static void *get_variable_address(const sipWrappedVariableDef *wvd,
-        sipWrapperType *type, PyObject *instance, PyObject *mixin_name);
+        sipWrapperType *binding_type, PyObject *instance,
+        PyObject *mixin_name);
 static const sipTypeNr *get_wrapped_type_nr_p(const sipWrappedModuleDef *wmd,
         const char *utf8_name, const sipWrappedAttrsDef *wad);
 static void raise_internal_error(const sipWrappedVariableDef *wvd);
@@ -132,13 +133,13 @@ PyObject *sip_mod_con_getattro(sipWrappedModuleState *wms, PyObject *self,
  * Get the value of a variable.
  */
 PyObject *sip_variable_get(sipWrappedModuleState *wms, PyObject *instance,
-        const sipWrappedVariableDef *wvd, sipWrapperType *type,
+        const sipWrappedVariableDef *wvd, sipWrapperType *binding_type,
         PyObject *mixin_name)
 {
     if (wvd->get_code != NULL)
         return wvd->get_code();
 
-    void *addr = get_variable_address(wvd, type, instance, mixin_name);
+    void *addr = get_variable_address(wvd, binding_type, instance, mixin_name);
     if (addr == NULL)
         return NULL;
 
@@ -345,6 +346,13 @@ int sip_mod_con_setattro(sipWrappedModuleState *wms, PyObject *self,
 {
     const char *utf8_name = PyUnicode_AsUTF8(name);
 
+    /*
+     * Note that we can't use a real descriptor for class (ie. static)
+     * variables because while the type object will look for a data descriptor
+     * in the type's dictionary going a get it doesn't when doing a set.
+     * Instead it just overwrites the descriptor.
+     */
+
     const sipWrappedVariableDef *wvd = get_static_variable_def(utf8_name, wad);
 
     if (wvd != NULL)
@@ -359,7 +367,7 @@ int sip_mod_con_setattro(sipWrappedModuleState *wms, PyObject *self,
  */
 int sip_variable_set(sipWrappedModuleState *wms, PyObject *instance,
         PyObject *value, const sipWrappedVariableDef *wvd,
-        sipWrapperType *type, PyObject *mixin_name)
+        sipWrapperType *binding_type, PyObject *mixin_name)
 {
     if (value == NULL)
     {
@@ -378,7 +386,7 @@ int sip_variable_set(sipWrappedModuleState *wms, PyObject *instance,
         return -1;
     }
 
-    void *addr = get_variable_address(wvd, type, instance, mixin_name);
+    void *addr = get_variable_address(wvd, binding_type, instance, mixin_name);
     if (addr == NULL)
         return -1;
 
@@ -932,34 +940,30 @@ static const sipWrappedVariableDef *get_static_variable_def(
  * Return the C/C++ address of a variable.
  */
 static void *get_variable_address(const sipWrappedVariableDef *wvd,
-        sipWrapperType *type, PyObject *instance, PyObject *mixin_name)
+        sipWrapperType *binding_type, PyObject *instance, PyObject *mixin_name)
 {
-    if (wvd->address_getter != NULL)
+    if (binding_type == NULL)
+        return wvd->address;
+
+
+    /* Check that access was via an instance. */
+    if (instance == NULL || instance == Py_None)
     {
-        assert(type != NULL);
-
-        /* Check that access was via an instance. */
-        if (instance == NULL || instance == Py_None)
-        {
-            PyErr_Format(PyExc_AttributeError,
-                    "%s.%s is an instance attribute",
-                    ((PyTypeObject *)type)->tp_name, wvd->name);
-            return NULL;
-        }
-
-        if (mixin_name != NULL)
-            instance = PyObject_GetAttr(instance, mixin_name);
-
-        /* Get the C++ instance. */
-        void *instance_addr = sip_get_cpp_ptr((sipSimpleWrapper *)instance,
-                type);
-        if (instance_addr == NULL)
-            return NULL;
-
-        return wvd->address_getter(instance_addr);
+        PyErr_Format(PyExc_AttributeError, "%s.%s is an instance attribute",
+                ((PyTypeObject *)binding_type)->tp_name, wvd->name);
+        return NULL;
     }
 
-    return wvd->address;
+    if (mixin_name != NULL)
+        instance = PyObject_GetAttr(instance, mixin_name);
+
+    /* Get the C++ instance. */
+    void *instance_addr = sip_get_cpp_ptr((sipSimpleWrapper *)instance,
+            binding_type);
+    if (instance_addr == NULL)
+        return NULL;
+
+    return ((sipWrappedVariableAddrGetFunc)wvd->address)(instance_addr);
 }
 
 

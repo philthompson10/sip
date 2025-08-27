@@ -29,11 +29,11 @@ int sip_mod_con_setattro(sipWrappedModuleState *wms, PyObject *self,
         PyObject *name, PyObject *value, const sipWrappedAttrsDef *wad);
 int sip_module_wrapper_init(PyObject *module, sipSipModuleState *sms);
 PyObject *sip_variable_get(sipWrappedModuleState *wms, PyObject *instance,
-        const sipWrappedVariableDef *wvd, sipWrapperType *type,
+        const sipWrappedVariableDef *wvd, sipWrapperType *binding_type,
         PyObject *mixin_name);
 int sip_variable_set(sipWrappedModuleState *wms, PyObject *instance,
         PyObject *value, const sipWrappedVariableDef *wvd,
-        sipWrapperType *type, PyObject *mixin_name);
+        sipWrapperType *binding_type, PyObject *mixin_name);
 
 
 #ifdef __cplusplus

@@ -374,11 +374,11 @@ typedef struct {
     /* The key or SIP_WV_RO. */
     int key;
 
-    /* The address of the variable if the variable is unbound. */
+    /*
+     * The address of the variable if the variable is unbound or the address
+     * getter if the variable is bound.
+     */
     void *address;
-
-    /* The address getter if the variable is bound. */
-    sipWrappedVariableAddrGetFunc address_getter;
 
     /* The optional %GetCode wrapper. */
     sipWrappedVariableGetCodeFunc get_code;
