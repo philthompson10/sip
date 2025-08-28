@@ -1,7 +1,7 @@
-// The SIP implementation of the callables test module.
+// The SIP implementation of the module callables test module.
 
 
-%Module(name=callables_module)
+%Module(name=module_callables_module)
 
 
 %ModuleHeaderCode

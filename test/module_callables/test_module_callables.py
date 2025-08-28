@@ -15,7 +15,7 @@ class CallablesTestCase(SIPTestCase):
 
         super().setUpClass()
 
-        import callables_module as c_mod
+        import module_callables_module as c_mod
 
         cls.c_mod = c_mod
 
