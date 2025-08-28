@@ -994,7 +994,7 @@ static sipEnumMemberDef enummembers_{scope.iface_file.fq_cpp_name.as_word}[] = {
         """ Generate the variables needed by a method. """
 
         # TODO
-        pass
+        self.g_function_support_vars(sf)
 
     def g_module_definition(self, sf, has_module_functions=False):
         """ Generate the module definition structure. """

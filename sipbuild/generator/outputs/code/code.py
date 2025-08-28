@@ -3729,6 +3729,8 @@ def _member_function(backend, sf, bindings, klass, member, original_klass):
         sf.write(f'    sipTrace(SIP_TRACE_METHODS, "meth_{klass_name}_{member_py_name}()\\n");\n\n')
 
     if not member.no_arg_parser:
+        backend.g_method_support_vars(sf)
+
         if need_args:
             sf.write('    PyObject *sipParseErr = SIP_NULLPTR;\n')
 

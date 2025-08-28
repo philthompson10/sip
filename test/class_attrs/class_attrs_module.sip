@@ -1,7 +1,7 @@
-// The SIP implementation of the classes_module test module.
+// The SIP implementation of the class_attrs_module test module.
 
 
-%Module(name=classes_module)
+%Module(name=class_attrs_module)
 
 
 %ModuleHeaderCode
@@ -15,7 +15,10 @@ public:
     Klass() : attr(0) {}
 
     static int s_attr;
+    static int get_s_attr() {return Klass::s_attr;}
+
     int attr;
+    int get_attr() {return this->attr;}
 };
 
 class SimpleKlass
@@ -39,9 +42,12 @@ public:
     Klass();
 
     static int s_attr;
+    static int get_s_attr();
+
     int attr;
+    int get_attr();
 };
 
-class SimpleKlass /Supertype=classes_module.simplewrapper/
+class SimpleKlass /Supertype=class_attrs_module.simplewrapper/
 {
 };

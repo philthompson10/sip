@@ -38,12 +38,12 @@ typedef struct {
 
 
 /* Forward declarations of slots. */
-static int MethodDescr_clear(PyObject *self);
-static void MethodDescr_dealloc(PyObject *self);
-static PyObject *MethodDescr_descr_get(PyObject *self, PyObject *obj,
+static int MethodDescr_clear(MethodDescr *self);
+static void MethodDescr_dealloc(MethodDescr *self);
+static PyObject *MethodDescr_descr_get(MethodDescr *self, PyObject *obj,
         PyObject *type);
-static PyObject *MethodDescr_repr(PyObject *self);
-static int MethodDescr_traverse(PyObject *self, visitproc visit, void *arg);
+static PyObject *MethodDescr_repr(MethodDescr *self);
+static int MethodDescr_traverse(MethodDescr *self, visitproc visit, void *arg);
 
 
 /*
@@ -106,9 +106,7 @@ PyObject *sipMethodDescr_Copy(sipSipModuleState *sms, PyObject *orig,
     if (descr != NULL)
     {
         descr->pmd = orig_descr->pmd;
-        descr->mixin_name = mixin_name;
-
-        Py_INCREF(mixin_name);
+        descr->mixin_name = Py_XNewRef(mixin_name);
     }
 
     return (PyObject *)descr;
@@ -118,21 +116,19 @@ PyObject *sipMethodDescr_Copy(sipSipModuleState *sms, PyObject *orig,
 /*
  * The descriptor's descriptor get slot.
  */
-static PyObject *MethodDescr_descr_get(PyObject *self, PyObject *obj,
+static PyObject *MethodDescr_descr_get(MethodDescr *self, PyObject *obj,
         PyObject *type)
 {
-    MethodDescr *descr = (MethodDescr *)self;
-    PyObject *bind, *func;
+    PyObject *bind;
 
     if (obj == NULL)
     {
         /* The argument parser must work out that 'self' is the type object. */
-        bind = type;
-        Py_INCREF(bind);
+        bind = Py_NewRef(type);
     }
-    else if (descr->mixin_name != NULL)
+    else if (self->mixin_name != NULL)
     {
-        bind = PyObject_GetAttr(obj, descr->mixin_name);
+        bind = PyObject_GetAttr(obj, self->mixin_name);
     }
     else
     {
@@ -140,11 +136,10 @@ static PyObject *MethodDescr_descr_get(PyObject *self, PyObject *obj,
          * The argument parser must work out that 'self' is the instance
          * object.
          */
-        bind = obj;
-        Py_INCREF(bind);
+        bind = Py_NewRef(obj);
     }
 
-    func = PyCFunction_New((PyMethodDef *)descr->pmd, bind);
+    PyObject *func = PyCFunction_New((PyMethodDef *)self->pmd, bind);
     Py_DECREF(bind);
 
     return func;
@@ -155,23 +150,19 @@ static PyObject *MethodDescr_descr_get(PyObject *self, PyObject *obj,
  * The descriptor's repr slot.  This is for the benefit of cProfile which seems
  * to determine attribute names differently to the rest of Python.
  */
-static PyObject *MethodDescr_repr(PyObject *self)
+static PyObject *MethodDescr_repr(MethodDescr *self)
 {
-    MethodDescr *descr = (MethodDescr *)self;
-
-    return PyUnicode_FromFormat("<built-in method %s>", descr->pmd->ml_name);
+    return PyUnicode_FromFormat("<built-in method %s>", self->pmd->ml_name);
 }
 
 
 /*
  * The descriptor's traverse slot.
  */
-static int MethodDescr_traverse(PyObject *self, visitproc visit, void *arg)
+static int MethodDescr_traverse(MethodDescr *self, visitproc visit, void *arg)
 {
-    MethodDescr *descr = (MethodDescr *)self;
-
     Py_VISIT(Py_TYPE(self));
-    Py_VISIT(descr->mixin_name);
+    Py_VISIT(self->mixin_name);
 
     return 0;
 }
@@ -180,11 +171,9 @@ static int MethodDescr_traverse(PyObject *self, visitproc visit, void *arg)
 /*
  * The descriptor's clear slot.
  */
-static int MethodDescr_clear(PyObject *self)
+static int MethodDescr_clear(MethodDescr *self)
 {
-    MethodDescr *descr = (MethodDescr *)self;
-
-    Py_CLEAR(descr->mixin_name);
+    Py_CLEAR(self->mixin_name);
 
     return 0;
 }
@@ -193,9 +182,9 @@ static int MethodDescr_clear(PyObject *self)
 /*
  * The descriptor's dealloc slot.
  */
-static void MethodDescr_dealloc(PyObject *self)
+static void MethodDescr_dealloc(MethodDescr *self)
 {
-    PyObject_GC_UnTrack(self);
+    PyObject_GC_UnTrack((PyObject *)self);
     MethodDescr_clear(self);
     PyTypeObject *type = Py_TYPE(self);
     type->tp_free(self);

@@ -1,4 +1,4 @@
-// The SIP implementation of the module callables test module.
+// The SIP implementation of the module_callables_module test module.
 
 
 %Module(name=module_callables_module)

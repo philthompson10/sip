@@ -38,8 +38,6 @@ typedef struct {
     sipWrapperType *type;
 
     /* The mixin name, if any. */
-    // TODO Review the mixin support, specifically for static class variables.
-    // TODO Should this be a type ID that is part of sipWrappedVariableDef?
     PyObject *mixin_name;
 } VariableDescr;
 
@@ -118,7 +116,7 @@ PyObject *sipVariableDescr_Copy(sipSipModuleState *sms, PyObject *orig,
     {
         descr->wvd = orig_descr->wvd;
         descr->type = (sipWrapperType *)Py_NewRef(orig_descr->type);
-        descr->mixin_name = Py_NewRef(mixin_name);
+        descr->mixin_name = Py_XNewRef(mixin_name);
     }
 
     return (PyObject *)descr;

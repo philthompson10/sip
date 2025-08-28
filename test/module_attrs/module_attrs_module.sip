@@ -1,4 +1,4 @@
-// The SIP implementation of the module_attrs test module.
+// The SIP implementation of the module_attrs_module test module.
 
 
 %Module(name=module_attrs_module)
@@ -64,6 +64,9 @@ int int_attr_setter = 10;
 
 // %SetCode that raises an exception.
 int int_attr_bad_setter = 10;
+
+// Utility to confirm an attribute has changed.
+int get_int_attr() {return int_attr;}
 %End
 
 
@@ -137,3 +140,6 @@ int int_attr_bad_setter {
     sipErr = 1;
 %End
 };
+
+// Utility to confirm an attribute has changed.
+int get_int_attr();

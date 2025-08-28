@@ -78,6 +78,9 @@ class ModuleAttrsTestCase(SIPTestCase):
         self.ma.int_attr = 20
         self.assertEqual(self.ma.int_attr, 20)
 
+        # Check the C++ value has changed and not the module dict.
+        self.assertEqual(self.ma.get_int_attr(), 20)
+
     def test_attrs_uint(self):
         """ Test the support for unsigned int attributes. """
 

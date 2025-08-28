@@ -7,7 +7,7 @@ from utils import SIPTestCase
 
 
 class ClassesTestCase(SIPTestCase):
-    """ Test the support for classes. """
+    """ Test the support for class attributes. """
 
     @classmethod
     def setUpClass(cls):
@@ -15,7 +15,7 @@ class ClassesTestCase(SIPTestCase):
 
         super().setUpClass()
 
-        import classes_module as c_mod
+        import class_attrs_module as c_mod
 
         cls.c_mod = c_mod
 
