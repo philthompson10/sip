@@ -1037,7 +1037,7 @@ PyModuleDef sipWrappedModuleDef_{module.py_name} = {{
             sf.write(f'    .m_doc = doc_mod_{module.py_name},\n')
 
         if has_module_functions:
-            sf.write('    .m_methods = sip_methods,\n')
+            sf.write(f'    .m_methods = sip_methods_{module.py_name},\n')
 
         sf.write('};\n')
 
@@ -1061,19 +1061,19 @@ PyDoc_STRVAR(doc_mod_{module.py_name}, "{self.docstring_text(module.docstring)}"
         module = spec.module
 
         has_module_functions = self._g_module_function_table_entries(sf,
-                bindings, module.global_functions)
+                bindings, module, module.global_functions)
 
         # Generate the module functions for any hidden namespaces.
         for klass in spec.classes:
             if klass.iface_file.module is module and klass.is_hidden_namespace:
                 has_module_functions = self._g_module_function_table_entries(
-                        sf, bindings, klass.members,
+                        sf, bindings, module, klass.members,
                         has_module_functions=has_module_functions)
 
         if has_module_functions:
             sf.write(
-'''        {SIP_NULLPTR, SIP_NULLPTR, 0, SIP_NULLPTR}
-    };
+'''    {}
+};
 
 ''')
 
@@ -2442,7 +2442,7 @@ static void wrapped_module_free(void *wmod_ptr)
 }
 ''')
 
-    def _g_module_function_table_entries(self, sf, bindings, members,
+    def _g_module_function_table_entries(self, sf, bindings, module, members,
             has_module_functions=False):
         """ Generate the entries in a table of PyMethodDef for module
         functions.
@@ -2451,12 +2451,12 @@ static void wrapped_module_free(void *wmod_ptr)
         for member in members:
             if member.py_slot is None:
                 if not has_module_functions:
-                    sf.write('    static PyMethodDef sip_methods[] = {\n')
+                    sf.write(f'\n\nstatic PyMethodDef sip_methods_{module.py_name}[] = {{\n')
                     has_module_functions = True
 
                 py_name = member.py_name.name
 
-                sf.write(f'        {{"{py_name}", SIP_MLMETH_CAST(func_{py_name}), METH_FASTCALL')
+                sf.write(f'    {{"{py_name}", SIP_MLMETH_CAST(func_{py_name}), METH_FASTCALL')
 
                 if member.no_arg_parser or member.allow_keyword_args:
                     sf.write('|METH_KEYWORDS')
