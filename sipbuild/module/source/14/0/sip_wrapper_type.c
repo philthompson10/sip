@@ -13,7 +13,6 @@
 
 #include "sip_wrapper_type.h"
 
-#include "sip_container.h"
 #include "sip_core.h"
 #include "sip_module.h"
 #include "sip_module_wrapper.h"

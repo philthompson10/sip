@@ -19,7 +19,6 @@
 
 #include "sip_enum.h"
 
-#include "sip_container.h"
 #include "sip_core.h"
 #include "sip_int_convertors.h"
 #include "sip_module.h"
@@ -419,6 +418,7 @@ static PyTypeObject *get_enum_type(sipWrappedModuleState *wms,
 {
     PyTypeObject *py_type = sip_get_py_type(wms, type_id);
 
+#if 0
     /* Make sure the enum object has been created. */
     if (py_type == NULL)
     {
@@ -433,6 +433,7 @@ static PyTypeObject *get_enum_type(sipWrappedModuleState *wms,
 
         assert(py_type != NULL);
     }
+#endif
 
     return py_type;
 }

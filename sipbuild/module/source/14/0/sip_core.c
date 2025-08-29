@@ -21,7 +21,6 @@
 #include "sip_core.h"
 
 #include "sip_array.h"
-#include "sip_container.h"
 #include "sip_enum.h"
 #include "sip_int_convertors.h"
 #include "sip_method_descriptor.h"
@@ -1651,12 +1650,43 @@ static int sip_api_add_type_instance(PyObject *wmod, PyObject *dict,
 {
     sipWrappedModuleState *wms = (sipWrappedModuleState *)PyModule_GetState(
             wmod);
+    sipSipModuleState *sms = wms->sip_module_state;
 
-    if (PyObject_TypeCheck(dict, wms->sip_module_state->wrapper_type_type))
+    if (PyObject_TypeCheck(dict, sms->wrapper_type_type))
         dict = ((PyTypeObject *)dict)->tp_dict;
 
-    return sip_container_add_type_instance(wms, dict, name, cppPtr, type_id,
-            0);
+    PyObject *obj;
+
+    if (sipTypeIDIsEnumCustom(type_id) || sipTypeIDIsEnumPy(type_id))
+    {
+        obj = sip_enum_convert_from_enum(wms, *(int *)cppPtr, type_id);
+    }
+    else
+    {
+        PyTypeObject *py_type = sip_get_py_type(wms, type_id);
+        const sipTypeDef *td = ((sipWrapperType *)py_type)->wt_td;
+
+        if ((cppPtr = sip_get_final_address(sms, td, cppPtr)) == NULL)
+            return -1;
+
+        sipConvertFromFunc cfrom = sip_get_from_convertor(py_type, td);
+
+        if (cfrom != NULL)
+        {
+            obj = cfrom(cppPtr, NULL);
+        }
+        else if (sipTypeIsMapped(td))
+        {
+            sip_raise_no_convert_from(td);
+            return -1;
+        }
+        else
+        {
+            obj = sip_wrap_simple_instance(sms, cppPtr, py_type, NULL, 0);
+        }
+    }
+
+    return sip_dict_set_and_discard(dict, name, obj);
 }
 
 

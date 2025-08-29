@@ -19,7 +19,6 @@
 #include "sip_parsers.h"
 
 #include "sip_array.h"
-#include "sip_container.h"
 #include "sip_core.h"
 #include "sip_enum.h"
 #include "sip_int_convertors.h"
@@ -994,15 +993,11 @@ PyObject *sip_is_py_method(sipWrappedModuleState *wms, sip_gilstate_t *gil,
     /*
      * We don't use PyObject_GetAttr() because that might find the generated
      * C function before a reimplementation defined in a mixin (ie. later in
-     * the MRO).  However that means we must explicitly check that the class
-     * hierarchy is fully initialised.
+     * the MRO).
      */
-    if (sip_container_add_lazy_attrs(wms, cls, ((sipWrapperType *)cls)->wt_td) < 0)
-    {
-        Py_DECREF(mname_obj);
-        goto release_gil;
-    }
-
+    // TODO Isn't that a bug in the user code in that they have specified the
+    // bases in the wrong order?  Or do we need the wrappertype to be first in
+    // the MRO?
     if (sipSelf->dict != NULL)
     {
         /* Check the instance dictionary in case it has been monkey patched. */

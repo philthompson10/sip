@@ -15,7 +15,6 @@
 
 #include "sip_simple_wrapper.h"
 
-#include "sip_container.h"
 #include "sip_core.h"
 #include "sip_module.h"
 #include "sip_object_map.h"
@@ -96,7 +95,6 @@ static int SimpleWrapper_clear(sipSimpleWrapper *self)
     sipWrapperType *wt = (sipWrapperType *)Py_TYPE(self);
     sipWrappedModuleState *wms = (sipWrappedModuleState *)PyModule_GetState(
             wt->wt_dmod);
-    sipSipModuleState *sms = wms->sip_module_state;
     int vret = 0;
 
     /*
@@ -355,7 +353,6 @@ static int SimpleWrapper_traverse(sipSimpleWrapper *self, visitproc visit,
     sipWrapperType *wt = (sipWrapperType *)Py_TYPE(self);
     sipWrappedModuleState *wms = (sipWrappedModuleState *)PyModule_GetState(
             wt->wt_dmod);
-    sipSipModuleState *sms = wms->sip_module_state;
 
     Py_VISIT(Py_TYPE(self));
 
