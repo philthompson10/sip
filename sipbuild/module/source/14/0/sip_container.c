@@ -36,8 +36,10 @@ static int add_lazy_container_attrs(sipWrappedModuleState *wms,
 static int add_long_instances(PyObject *dict, const sipLongInstanceDef *li);
 static int add_long_long_instances(PyObject *dict,
         const sipLongLongInstanceDef *lli);
+#if 0
 static int add_method(sipSipModuleState *sms, PyObject *dict,
         const PyMethodDef *pmd);
+#endif
 static int add_string_instances(PyObject *dict,
         const sipStringInstanceDef *si);
 static int add_type_instances(sipWrappedModuleState *wms, PyObject *dict,
@@ -456,6 +458,7 @@ static int add_long_long_instances(PyObject *dict,
 }
 
 
+#if 0
 /*
  * Add a method to a dictionary.
  */
@@ -466,6 +469,7 @@ static int add_method(sipSipModuleState *sms, PyObject *dict,
 
     return sip_dict_set_and_discard(dict, pmd->ml_name, descr);
 }
+#endif
 
 
 /*

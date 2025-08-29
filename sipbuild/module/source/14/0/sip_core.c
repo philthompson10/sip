@@ -881,7 +881,8 @@ static PyTypeObject *create_container_type(sipWrappedModuleState *wms,
 
         for (pmd = cod->cod_methods; pmd->ml_name != NULL; pmd++)
         {
-            PyObject *descr = sipMethodDescr_New(sms, pmd);
+            PyObject *descr = sipMethodDescr_New(sms, pmd,
+                    (sipWrapperType *)py_type);
 
             if (sip_dict_set_and_discard(type_dict, pmd->ml_name, descr) < 0)
                 goto rel_type;

@@ -41,7 +41,8 @@ class Backend:
 
         return LegacyBackend(spec)
 
-    def g_arg_parser(self, sf, scope, py_signature, ctor=None, overload=None):
+    def g_arg_parser(self, sf, scope, py_signature, ctor=None, is_method=False,
+            overload=None):
         """ Generate the argument variables for a member
         function/constructor/operator.
         """
@@ -184,6 +185,7 @@ class Backend:
 
             if spec.target_abi >= (14, 0):
                 args.append('sipNrArgs')
+                args.append('sipKwds' if is_method else 'SIP_NULLPTR')
 
         # Generate the format string.
         format_s = '"'
@@ -1122,11 +1124,6 @@ PyMODINIT_FUNC PyInit_{module_name}({arg_type})
             py_name = member.py_name
             cached_py_name = self.cached_name_ref(py_name)
 
-            if member.no_arg_parser or member.allow_keyword_args:
-                flags = '|METH_KEYWORDS'
-            else:
-                flags = ''
-
             if has_method_docstring(bindings, member, scope.overloads):
                 docstring = f'doc_{scope_name}_{py_name.name}'
             else:
@@ -1141,7 +1138,7 @@ static PyMethodDef sipMethods_{scope_name}[] = {{
 
                 no_intro = False
 
-            sf.write(f'    {{{cached_py_name}, SIP_MLMETH_CAST(meth_{scope_name}_{py_name.name}), METH_METHOD|METH_FASTCALL{flags}, {docstring}}},\n')
+            sf.write(f'    {{{cached_py_name}, SIP_MLMETH_CAST(meth_{scope_name}_{py_name.name}), METH_METHOD|METH_FASTCALL|METH_KEYWORDS, {docstring}}},\n')
 
         if not no_intro:
             sf.write('    {}\n};\n')

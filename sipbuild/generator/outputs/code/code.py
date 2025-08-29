@@ -3712,7 +3712,7 @@ def _member_function(backend, sf, bindings, klass, member, original_klass):
     else:
         has_auto_docstring = False
 
-    if member.no_arg_parser or member.allow_keyword_args:
+    if spec.target_abi >= (14, 0) or member.no_arg_parser or member.allow_keyword_args:
         kw_fw_decl = ', PyObject *'
         kw_decl = ', PyObject *sipKwds'
     else:
@@ -3777,7 +3777,7 @@ def _member_function(backend, sf, bindings, klass, member, original_klass):
             sf.write_code(overload.method_code)
             break
 
-        _function_body(backend, sf, bindings, klass, overload,
+        _function_body(backend, sf, bindings, klass, overload, is_method=True,
                 original_klass=original_klass)
 
     if not member.no_arg_parser:
@@ -3796,8 +3796,8 @@ f'''
     sf.write('}\n')
 
 
-def _function_body(backend, sf, bindings, scope, overload, original_klass=None,
-        dereferenced=True):
+def _function_body(backend, sf, bindings, scope, overload, is_method=False,
+        original_klass=None, dereferenced=True):
     """ Generate the function calls for a particular overload. """
 
     spec = backend.spec
@@ -3833,9 +3833,11 @@ def _function_body(backend, sf, bindings, scope, overload, original_klass=None,
 
             py_signature_adjusted = True
 
-        backend.g_arg_parser(sf, scope, py_signature, overload=overload)
+        backend.g_arg_parser(sf, scope, py_signature, is_method=is_method,
+                overload=overload)
     elif not is_int_arg_slot(overload.common.py_slot) and not is_zero_arg_slot(overload.common.py_slot):
-        backend.g_arg_parser(sf, scope, py_signature, overload=overload)
+        backend.g_arg_parser(sf, scope, py_signature, is_method=is_method,
+                overload=overload)
 
     _function_call(backend, sf, bindings, scope, overload, dereferenced,
             original_scope)

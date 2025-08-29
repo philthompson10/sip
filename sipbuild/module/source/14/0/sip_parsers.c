@@ -212,7 +212,7 @@ void sip_api_bad_catcher_result(PyObject *method)
         !PyFunction_Check(PyMethod_GET_FUNCTION(method)) ||
         PyMethod_GET_SELF(method) == NULL)
     {
-        PyErr_Format(PyExc_TypeError,
+        PyErr_SetString(PyExc_TypeError,
                 "invalid argument to sipBadCatcherResult()");
         return;
     }
@@ -660,14 +660,15 @@ void sip_api_no_method(PyObject *parse_err, const char *scope,
  * Parse the arguments to a C/C++ function without any side effects.
  */
 int sip_api_parse_args(PyObject *wmod, PyObject **parse_err_p,
-        PyObject *const *args, Py_ssize_t nr_args, const char *fmt, ...)
+        PyObject *const *args, Py_ssize_t nr_args, PyObject *kwd_names,
+        const char *fmt, ...)
 {
     int ok;
     va_list va;
 
     va_start(va, fmt);
-    ok = parse_kwd_args(wmod, parse_err_p, args, nr_args, NULL, NULL, NULL,
-            fmt, va);
+    ok = parse_kwd_args(wmod, parse_err_p, args, nr_args, kwd_names, NULL,
+            NULL, fmt, va);
     va_end(va);
 
     return ok;
@@ -2142,6 +2143,8 @@ static int parse_kwd_args(PyObject *wmod, PyObject **parse_err_p,
     /* Get the number of keyword names given. */
     Py_ssize_t nr_kwd_names;
 
+    // TODO Check that kwd_names != NULL && kwd_list == NULL raises an
+    // appropriate error.
     if (kwd_names != NULL)
     {
         assert(PyTuple_Check(kwd_names));

@@ -63,7 +63,8 @@ void sip_api_no_function(PyObject *parse_err, const char *func,
 void sip_api_no_method(PyObject *parse_err, const char *scope,
         const char *method, const char *doc);
 int sip_api_parse_args(PyObject *wmod, PyObject **parse_err_p,
-        PyObject *const *args, Py_ssize_t nr_args, const char *fmt, ...);
+        PyObject *const *args, Py_ssize_t nr_args, PyObject *kwd_names,
+        const char *fmt, ...);
 int sip_api_parse_kwd_args(PyObject *wmod, PyObject **parse_err_p,
         PyObject *const *args, Py_ssize_t nr_args, PyObject *kwd_names,
         const char **kwd_list, PyObject **unused, const char *fmt, ...);
