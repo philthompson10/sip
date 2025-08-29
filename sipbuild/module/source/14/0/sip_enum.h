@@ -30,9 +30,11 @@ int sip_api_is_enum_flag(PyObject *wmod, PyObject *obj);
 
 /* These are internal. */
 #if defined(SIP_CONFIGURATION_PyEnums)
+#if 0
 PyTypeObject *sip_enum_create_py_enum(sipWrappedModuleState *wms,
         const sipEnumTypeDef *etd, const sipIntInstanceDef **next_int_p,
         PyObject *dict);
+#endif
 #endif
 
 #if defined(SIP_CONFIGURATION_CustomEnums)

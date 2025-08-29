@@ -29,9 +29,11 @@
 
 
 /* Forward references. */
+#if 0
 static PyObject *create_enum_object(sipWrappedModuleState *wms,
         const sipEnumTypeDef *etd, const sipIntInstanceDef **next_int_p,
         PyObject *name);
+#endif
 static PyTypeObject *get_enum_type(sipWrappedModuleState *wms,
         sipTypeID type_id);
 static PyObject *missing(PyObject *cls, PyObject *value, int int_enum);
@@ -133,6 +135,7 @@ int sip_enum_convert_to_constrained_enum(sipWrappedModuleState *wms,
  * Create an enum object and add it to a dictionary.  Return a new reference to
  * the enum object or NULL (and an exception set) if there was an error.
  */
+#if 0
 PyTypeObject *sip_enum_create_py_enum(sipWrappedModuleState *wms,
         const sipEnumTypeDef *etd, const sipIntInstanceDef **next_int_p,
         PyObject *dict)
@@ -163,6 +166,7 @@ PyTypeObject *sip_enum_create_py_enum(sipWrappedModuleState *wms,
 
     return (PyTypeObject *)enum_obj;
 }
+#endif
 
 
 /*
@@ -230,6 +234,7 @@ int sip_enum_is_enum(sipSipModuleState *sms, PyObject *obj)
 /*
  * Create an enum object.
  */
+#if 0
 static PyObject *create_enum_object(sipWrappedModuleState *wms,
         const sipEnumTypeDef *etd, const sipIntInstanceDef **next_int_p,
         PyObject *name)
@@ -408,6 +413,7 @@ rel_members:
 ret_err:
     return NULL;
 }
+#endif
 
 
 /*
