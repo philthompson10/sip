@@ -874,6 +874,20 @@ static PyTypeObject *create_container_type(sipWrappedModuleState *wms,
         }
     }
 
+    /* Add the descriptors for the methods. */
+    if (cod->cod_methods != NULL)
+    {
+        const PyMethodDef *pmd;
+
+        for (pmd = cod->cod_methods; pmd->ml_name != NULL; pmd++)
+        {
+            PyObject *descr = sipMethodDescr_New(sms, pmd);
+
+            if (sip_dict_set_and_discard(type_dict, pmd->ml_name, descr) < 0)
+                goto rel_type;
+        }
+    }
+
     /* Add the type to the scope. */
     PyObject *scope;
 

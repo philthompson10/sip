@@ -1016,14 +1016,16 @@ def _ordinary_function(backend, sf, bindings, member, scope=None):
 
     if py_scope is None:
         if not spec.c_bindings:
-            sf.write(f'extern "C" {{static PyObject *func_{member_name}({backend.py_method_args(is_impl=False, is_method=False)}{kw_fw_decl});}}\n')
+            sf.write(f'extern "C" {{static PyObject *func_{member_name}({backend.py_method_args(is_impl=False, self_is_type=False)}{kw_fw_decl});}}\n')
 
-        sf.write(f'static PyObject *func_{member_name}({backend.py_method_args(is_impl=True, is_method=False)}{kw_decl})\n')
+        sf.write(f'static PyObject *func_{member_name}({backend.py_method_args(is_impl=True, self_is_type=False)}{kw_decl})\n')
     else:
+        # TODO It's not clear what this scenario represents and whether
+        # 'sip_is_type' is set appropriately.
         if not spec.c_bindings:
-            sf.write(f'extern "C" {{static PyObject *meth_{member_name}({backend.py_method_args(is_impl=False, is_method=True)}{kw_fw_decl});}}\n')
+            sf.write(f'extern "C" {{static PyObject *meth_{member_name}({backend.py_method_args(is_impl=False, self_is_type=True)}{kw_fw_decl});}}\n')
 
-        sf.write(f'static PyObject *meth_{member_name}({backend.py_method_args(is_impl=True, is_method=True)}{kw_decl})\n')
+        sf.write(f'static PyObject *meth_{member_name}({backend.py_method_args(is_impl=True, self_is_type=True)}{kw_decl})\n')
 
     sf.write('{\n')
 
@@ -3711,19 +3713,15 @@ def _member_function(backend, sf, bindings, klass, member, original_klass):
         has_auto_docstring = False
 
     if member.no_arg_parser or member.allow_keyword_args:
-        arg3_type = ', PyObject *'
-        arg3_decl = ', PyObject *sipKwds'
+        kw_fw_decl = ', PyObject *'
+        kw_decl = ', PyObject *sipKwds'
     else:
-        arg3_type = ''
-        arg3_decl = ''
-
-    sip_self = 'sipSelf' if need_self else ''
-    sip_args = 'sipArgs' if need_args else ''
+        kw_fw_decl = kw_decl = ''
 
     if not spec.c_bindings:
-        sf.write(f'extern "C" {{static PyObject *meth_{klass_name}_{member_py_name}(PyObject *, PyObject *{arg3_type});}}\n')
+        sf.write(f'extern "C" {{static PyObject *meth_{klass_name}_{member_py_name}({backend.py_method_args(is_impl=False, self_is_type=True)}{kw_fw_decl});}}\n')
 
-    sf.write(f'static PyObject *meth_{klass_name}_{member_py_name}(PyObject *{sip_self}, PyObject *{sip_args}{arg3_decl})\n{{\n')
+    sf.write(f'static PyObject *meth_{klass_name}_{member_py_name}({backend.py_method_args(is_impl=True, self_is_type=True, need_self=need_self, need_args=need_args)}{kw_decl})\n{{\n')
 
     if bindings.tracing:
         sf.write(f'    sipTrace(SIP_TRACE_METHODS, "meth_{klass_name}_{member_py_name}()\\n");\n\n')

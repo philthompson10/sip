@@ -237,6 +237,53 @@ f'''    static PyModuleDef sip_module_def = {{
     }};
 ''')
 
+    def g_py_method_table(self, sf, bindings, members, scope):
+        """ Generate a Python method table for a class or mapped type and
+        return the number of entries.
+        """
+
+        scope_name = scope.iface_file.fq_cpp_name.as_word
+
+        no_intro = True
+
+        for member_nr, member in enumerate(members):
+            # Save the index in the table.
+            member.member_nr = member_nr
+
+            py_name = member.py_name
+            cached_py_name = self.cached_name_ref(py_name)
+            comma = '' if member is members[-1] else ','
+
+            if member.no_arg_parser or member.allow_keyword_args:
+                cast = 'SIP_MLMETH_CAST('
+                cast_suffix = ')'
+                flags = '|METH_KEYWORDS'
+            else:
+                cast = ''
+                cast_suffix = ''
+                flags = ''
+
+            if has_method_docstring(bindings, member, scope.overloads):
+                docstring = f'doc_{scope_name}_{py_name.name}'
+            else:
+                docstring = 'SIP_NULLPTR'
+
+            if no_intro:
+                sf.write(
+f'''
+
+static PyMethodDef methods_{scope_name}[] = {{
+''')
+
+                no_intro = False
+
+            sf.write(f'    {{{cached_py_name}, {cast}meth_{scope_name}_{py_name.name}{cast_suffix}, METH_VARARGS{flags}, {docstring}}}{comma}\n')
+
+        if not no_intro:
+            sf.write('};\n')
+
+        return len(members)
+
     def g_sip_api(self, sf, module_name):
         """ Generate the SIP API as seen by generated code. """
 
@@ -905,12 +952,16 @@ f'''static void *init_type_{klass_name}(sipSimpleWrapper *{sip_self}, PyObject *
         return self.spec.target_abi[0] == 13
 
     @staticmethod
-    def py_method_args(*, is_impl, is_method):
+    def py_method_args(*, is_impl, self_is_type, need_self=True,
+            need_args=True):
         """ Return the part of a Python method signature that are ABI
         dependent.
         """
 
-        return 'PyObject *sipSelf, PyObject *sipArgs' if is_impl else 'PyObject *, PyObject *'
+        self_name = 'sipSelf' if need_self else ''
+        args_name = 'sipArgs' if need_args else ''
+
+        return f'PyObject *{self_name}, PyObject *{args_name}' if is_impl else 'PyObject *, PyObject *'
 
     def _abi_version_check(self, min_12, min_13):
         """ Return True if the ABI version meets minimum version requirements.

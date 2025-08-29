@@ -49,6 +49,9 @@ class ClassesTestCase(SIPTestCase):
         self.c_mod.Klass.s_attr = 10
         self.assertEqual(self.c_mod.Klass.s_attr, 10)
 
+        # Check the C++ value has changed and not the type dict.
+        self.assertEqual(self.c_mod.Klass.get_s_attr(), 10)
+
         with self.assertRaises(AttributeError):
             del self.c_mod.Klass.s_attr;
 
@@ -71,6 +74,9 @@ class ClassesTestCase(SIPTestCase):
         self.assertEqual(klass.attr, 0)
         klass.attr = 10
         self.assertEqual(klass.attr, 10)
+
+        # Check the C++ value has changed and not the instance dict.
+        self.assertEqual(klass.get_attr(), 10)
 
         with self.assertRaises(AttributeError):
             del klass.attr;

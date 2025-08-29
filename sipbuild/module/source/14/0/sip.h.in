@@ -775,7 +775,7 @@ typedef struct _sipContainerDef {
     // type?
     sipTypeID cod_scope;
 
-    /* The table of instance variables (with a terminating sentinal). */
+    /* The table of instance variables. */
     const sipWrappedVariableDef *const cod_instance_variables;
 
     /* The unbound wrapped attributes. */
@@ -784,10 +784,7 @@ typedef struct _sipContainerDef {
     /* The table of Python slots. */
     const PyType_Slot *cod_py_slots;
 
-    /* The number of lazy methods. */
-    int cod_nrmethods;
-
-    /* The table of lazy methods. */
+    /* The table of methods. */
     const PyMethodDef *cod_methods;
 
 #if defined(SIP_CONFIGURATION_CustomEnums)

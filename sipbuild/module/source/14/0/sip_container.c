@@ -316,6 +316,7 @@ static int add_lazy_container_attrs(sipWrappedModuleState *wms,
     PyObject *dict = ((PyTypeObject *)wt)->tp_dict;
     int i;
 
+#if 0
     /* Do the methods. */
     const PyMethodDef *pmd;
 
@@ -328,6 +329,7 @@ static int add_lazy_container_attrs(sipWrappedModuleState *wms,
                 return -1;
         }
     }
+#endif
 
 #if defined(SIP_CONFIGURATION_PyEnums)
 #if 0

@@ -684,7 +684,7 @@ f'''
         else:
             members = _get_method_table(klass)
 
-        return self._g_py_method_table(sf, bindings, members, klass)
+        return self.g_py_method_table(sf, bindings, members, klass)
 
     def g_create_wrapped_module(self, sf, bindings,
         # TODO These will probably be generated here at some point.
@@ -932,7 +932,7 @@ static sipEnumMemberDef enummembers_{scope.iface_file.fq_cpp_name.as_word}[] = {
 
         members = _get_function_table(mapped_type.members)
 
-        return self._g_py_method_table(sf, bindings, members, mapped_type)
+        return self.g_py_method_table(sf, bindings, members, mapped_type)
 
     def g_method_docstring(self, sf, bindings, member, overloads,
             is_method=False):
@@ -993,7 +993,7 @@ static sipEnumMemberDef enummembers_{scope.iface_file.fq_cpp_name.as_word}[] = {
     def g_method_support_vars(self, sf):
         """ Generate the variables needed by a method. """
 
-        # TODO
+        sf.write('    PyObject *sipModule = PyType_GetModule(sipDefType);\n')
         self.g_function_support_vars(sf)
 
     def g_module_definition(self, sf, has_module_functions=False):
@@ -1105,6 +1105,48 @@ PyMODINIT_FUNC PyInit_{module_name}({arg_type})
 #endif
 {{
 ''')
+
+    def g_py_method_table(self, sf, bindings, members, scope):
+        """ Generate a Python method table for a class or mapped type and
+        return the number of entries.
+        """
+
+        scope_name = scope.iface_file.fq_cpp_name.as_word
+
+        no_intro = True
+
+        for member_nr, member in enumerate(members):
+            # Save the index in the table.
+            member.member_nr = member_nr
+
+            py_name = member.py_name
+            cached_py_name = self.cached_name_ref(py_name)
+
+            if member.no_arg_parser or member.allow_keyword_args:
+                flags = '|METH_KEYWORDS'
+            else:
+                flags = ''
+
+            if has_method_docstring(bindings, member, scope.overloads):
+                docstring = f'doc_{scope_name}_{py_name.name}'
+            else:
+                docstring = 'SIP_NULLPTR'
+
+            if no_intro:
+                sf.write(
+f'''
+
+static PyMethodDef sipMethods_{scope_name}[] = {{
+''')
+
+                no_intro = False
+
+            sf.write(f'    {{{cached_py_name}, SIP_MLMETH_CAST(meth_{scope_name}_{py_name.name}), METH_METHOD|METH_FASTCALL{flags}, {docstring}}},\n')
+
+        if not no_intro:
+            sf.write('    {}\n};\n')
+
+        return len(members)
 
     def g_pyqt_class_plugin(self, sf, bindings, klass):
         """ Generate any extended class definition data for PyQt.  Return True
@@ -1409,6 +1451,9 @@ f'''    PyObject *sipModule = sipGetModule(sipSelf, &sipWrappedModuleDef_{self.s
         module_name = module.py_name
         klass_name = klass.iface_file.fq_cpp_name.as_word
 
+        # Generate the methods table.
+        nr_methods = self.g_class_method_table(sf, bindings, klass)
+
         # Generate the static variables table.
         nr_static_variables, nr_types = self.g_static_variables_table(sf,
                 scope=klass)
@@ -1459,6 +1504,10 @@ static PyType_Slot sip_py_slots_{klass_name}[] = {{
 
         if cod_scope is not None:
             fields.append('.ctd_container.cod_scope = ' + cod_scope)
+
+        if nr_methods != 0:
+            fields.append(
+                    '.ctd_container.cod_methods = sipMethods_' + klass_name)
 
         if nr_instance_variables != 0:
             fields.append(
@@ -1904,29 +1953,30 @@ f'''
         return SipModuleConfiguration.PyEnums in self.spec.sip_module_configuration
 
     @staticmethod
-    def py_method_args(*, is_impl, is_method):
+    def py_method_args(*, is_impl, self_is_type, need_self=True,
+            need_args=True):
         """ Return the part of a Python method signature that are ABI
         dependent.
         """
 
         args = 'PyObject *'
 
-        if is_method:
+        if is_impl:
+            if self_is_type:
+                args += 'sipSelf, PyTypeObject *sipDefType'
+            else:
+                args += 'sipModule'
+        elif self_is_type:
             args += ', PyTypeObject *'
-
-            if is_impl:
-                args += 'sipDefClass'
-        else:
-            args += 'sipModule'
 
         args += ', PyObject *const *'
 
-        if is_impl:
+        if is_impl and need_args:
             args += 'sipArgs'
 
         args += ', Py_ssize_t'
 
-        if is_impl:
+        if is_impl and need_args:
             args += ' sipNrArgs'
 
         return args
@@ -2492,53 +2542,6 @@ static int wrapped_module_traverse(PyObject *wmod, visitproc visit, void *arg)
         signature = fmt_signature_as_type_hint(self.spec,
                 overload.py_signature, need_self=need_self)
         sf.write(overload.common.py_name.name + signature)
-
-    def _g_py_method_table(self, sf, bindings, members, scope):
-        """ Generate a Python method table for a class or mapped type and
-        return the number of entries.
-        """
-
-        scope_name = scope.iface_file.fq_cpp_name.as_word
-
-        no_intro = True
-
-        for member_nr, member in enumerate(members):
-            # Save the index in the table.
-            member.member_nr = member_nr
-
-            py_name = member.py_name
-            cached_py_name = self.cached_name_ref(py_name)
-            comma = '' if member is members[-1] else ','
-
-            if member.no_arg_parser or member.allow_keyword_args:
-                cast = 'SIP_MLMETH_CAST('
-                cast_suffix = ')'
-                flags = '|METH_KEYWORDS'
-            else:
-                cast = ''
-                cast_suffix = ''
-                flags = ''
-
-            if has_method_docstring(bindings, member, scope.overloads):
-                docstring = f'doc_{scope_name}_{py_name.name}'
-            else:
-                docstring = 'SIP_NULLPTR'
-
-            if no_intro:
-                sf.write(
-f'''
-
-static PyMethodDef methods_{scope_name}[] = {{
-''')
-
-                no_intro = False
-
-            sf.write(f'    {{{cached_py_name}, {cast}meth_{scope_name}_{py_name.name}{cast_suffix}, METH_VARARGS{flags}, {docstring}}}{comma}\n')
-
-        if not no_intro:
-            sf.write('};\n')
-
-        return len(members)
 
     def _g_pyqt_emitters(self, sf, klass):
         """ Generate the PyQt emitters for a class. """
