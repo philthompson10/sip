@@ -69,6 +69,18 @@ def get_slot_name(slot_type):
     return slot_type.name.lower() + '_slot'
 
 
+def get_type_from_void(spec, type_name, variable_name, tight=False):
+    """ Return a cast from a void * variable to a pointer type. """
+
+    if spec.c_bindings:
+        if tight:
+            return f'(({type_name} *){variable_name})'
+
+        return f'({type_name} *){variable_name}'
+
+    return f'reinterpret_cast<{type_name} *>({variable_name})'
+
+
 def get_user_state_suffix(spec, type):
     """ Return the suffix for functions that have a variant that supports a
     user state.

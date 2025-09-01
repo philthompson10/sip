@@ -18,8 +18,8 @@ from ...formatters import (fmt_argument_as_cpp_type, fmt_argument_as_name,
 
 from ..utils import (arg_is_small_enum, callable_overloads,
         get_convert_to_type_code, get_normalised_cached_name,
-        has_method_docstring, is_used_in_code, need_error_flag, py_scope,
-        release_gil, skip_overload)
+        get_type_from_void, has_method_docstring, is_used_in_code,
+        need_error_flag, py_scope, release_gil, skip_overload)
 
 
 class Backend:
@@ -526,10 +526,7 @@ class Backend:
                     no_derefs=True)
 
             if need_cast:
-                if spec.c_bindings:
-                    sf.write(f'({arg_cpp_type_name} *){arg_name}')
-                else:
-                    sf.write(f'reinterpret_cast<{arg_cpp_type_name} *>({arg_name})')
+                sf.write(get_type_from_void(spec, arg_cpp_type_name, arg_name))
             else:
                 sf.write(prefix + indirection)
 
@@ -2754,8 +2751,9 @@ static const pyqt{pyqt_version}QtSignal signals_{klass.iface_file.fq_cpp_name.as
         and return the length of the table.
         """
 
-        c_bindings = self.spec.c_bindings
-        module = self.spec.module
+        spec = self.spec
+        c_bindings = spec.c_bindings
+        module = spec.module
 
         # Get the sorted list of variables.
         variables = list(self.variables_in_scope(scope, check_handler=False))
@@ -3047,17 +3045,15 @@ f'''static int sipWrappedVariableSetCode_{v_ref}(PyObject *sipPy)
             # TODO Why STRIP_GLOBAL here in particular?
             scope_name = scope.iface_file.fq_cpp_name.cpp_stripped(
                     STRIP_GLOBAL)
+            cast = get_type_from_void(spec, scope_name, 'sipCppV')
 
             if not c_bindings:
                 sf.write(f'extern "C" {{static void *sipWrappedVariableAddrGetter_{v_ref}(void *);}}\n')
-                cast_value = f'reinterpret_cast<{scope_name} *>(sipCppV)'
-            else:
-                cast_value = f'({scope_name} *)sipCppV'
 
             sf.write(
 f'''static void *sipWrappedVariableAddrGetter_{v_ref}(void *sipCppV)
 {{
-    return &{cast_value}->{variable.py_name.name};
+    return &{cast}->{variable.py_name.name};
 }}
 ''')
 

@@ -29,9 +29,9 @@ from ..formatters import (fmt_argument_as_cpp_type, fmt_argument_as_name,
 from .backends import Backend
 from .utils import (arg_is_small_enum, callable_overloads,
         get_convert_to_type_code, get_encoded_type, get_normalised_cached_name,
-        get_slot_name, get_user_state_suffix, has_method_docstring,
-        is_used_in_code, need_error_flag, py_scope, release_gil, skip_overload,
-        type_needs_user_state)
+        get_slot_name, get_type_from_void, get_user_state_suffix,
+        has_method_docstring, is_used_in_code, need_error_flag, py_scope,
+        release_gil, skip_overload, type_needs_user_state)
 
 
 def output_code(spec, bindings, project, buildable):
@@ -1187,17 +1187,20 @@ def _mapped_type_cpp(backend, sf, bindings, mapped_type):
         if not mapped_type.no_assignment_operator:
             sf.write('\n\n')
 
+            src_cast = get_type_from_void(spec, mapped_type_type, 'sipSrc',
+                    tight=True)
+            dst_cast = get_type_from_void(spec, mapped_type_type, 'sipDst',
+                    tight=True)
+
             if not spec.c_bindings:
                 sf.write(f'extern "C" {{static void assign_{mapped_type_name}(void *, Py_ssize_t, void *);}}\n')
 
-            sf.write(f'static void assign_{mapped_type_name}(void *sipDst, Py_ssize_t sipDstIdx, void *sipSrc)\n{{\n')
-
-            if spec.c_bindings:
-                sf.write(f'    (({mapped_type_type} *)sipDst)[sipDstIdx] = *(({mapped_type_type} *)sipSrc);\n')
-            else:
-                sf.write(f'    reinterpret_cast<{mapped_type_type} *>(sipDst)[sipDstIdx] = *reinterpret_cast<{mapped_type_type} *>(sipSrc);\n')
-
-            sf.write('}\n')
+            sf.write(
+f'''static void assign_{mapped_type_name}(void *sipDst, Py_ssize_t sipDstIdx, void *sipSrc)
+{{
+    {dst_cast}[sipDstIdx] = *{src_cast};
+}}
+''')
 
         # Generate the array allocation helper.
         if not mapped_type.no_default_ctor:
@@ -1484,12 +1487,7 @@ def _convert_to_definitions(sf, spec, scope):
     if sip_cpp_ptr != '':
         type_s = fmt_argument_as_cpp_type(spec, scope_type, plain=True,
                 no_derefs=True)
-
-        if spec.c_bindings:
-            cast_value = f'({type_s} **)sipCppPtrV'
-        else:
-            cast_value = f'reinterpret_cast<{type_s} **>(sipCppPtrV)'
-
+        cast_value = get_type_from_void(spec, type_s, 'sipCppPtrV');
         sf.write(f'    {type_s} **sipCppPtr = {cast_value};\n\n')
 
     sf.write_code(convert_to_type_code)
@@ -2055,17 +2053,18 @@ f'''static int mixin_{as_word}(PyObject *sipSelf, PyObject *sipArgs, PyObject *s
 
         sf.write('\n\n')
 
+        src_cast = get_type_from_void(spec, scope_s, 'sipSrc', tight=True)
+        dst_cast = get_type_from_void(spec, scope_s, 'sipDst', tight=True)
+
         if not spec.c_bindings:
             sf.write(f'extern "C" {{static void assign_{as_word}(void *, Py_ssize_t, void *);}}\n')
 
-        sf.write(f'static void assign_{as_word}(void *sipDst, Py_ssize_t sipDstIdx, void *sipSrc)\n{{\n')
-
-        if spec.c_bindings:
-            sf.write(f'    (({scope_s} *)sipDst)[sipDstIdx] = *(({scope_s} *)sipSrc);\n')
-        else:
-            sf.write(f'    reinterpret_cast<{scope_s} *>(sipDst)[sipDstIdx] = *reinterpret_cast<{scope_s} *>(sipSrc);\n')
-
-        sf.write('}\n')
+        sf.write(
+f'''static void assign_{as_word}(void *sipDst, Py_ssize_t sipDstIdx, void *sipSrc)
+{{
+    {dst_cast}[sipDstIdx] = *{src_cast};
+}}
+''')
 
         # The copy helper.
         sf.write('\n\n')
@@ -4939,11 +4938,9 @@ def _class_from_void(backend, klass):
     """
 
     klass_type = backend.scoped_class_name(klass)
+    cast = get_type_from_void(backend.spec, klass_type, 'sipCppV')
 
-    if backend.spec.c_bindings:
-        return f'{klass_type} *sipCpp = ({klass_type} *)sipCppV'
-
-    return f'{klass_type} *sipCpp = reinterpret_cast<{klass_type} *>(sipCppV)'
+    return f'{klass_type} *sipCpp = {cast}'
 
 
 def _mapped_type_from_void(spec, mapped_type_type):
@@ -4951,10 +4948,9 @@ def _mapped_type_from_void(spec, mapped_type_type):
     variable.
     """
 
-    if spec.c_bindings:
-        return f'{mapped_type_type} *sipCpp = ({mapped_type_type} *)sipCppV'
+    cast = get_type_from_void(spec, mapped_type_type, 'sipCppV')
 
-    return f'{mapped_type_type} *sipCpp = reinterpret_cast<{mapped_type_type} *>(sipCppV)'
+    return f'{mapped_type_type} *sipCpp = {cast}'
 
 
 def _get_encoding(type):
