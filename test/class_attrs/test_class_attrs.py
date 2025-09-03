@@ -6,7 +6,7 @@
 from utils import SIPTestCase
 
 
-class ClassesTestCase(SIPTestCase):
+class ClassAttrsTestCase(SIPTestCase):
     """ Test the support for class attributes. """
 
     @classmethod

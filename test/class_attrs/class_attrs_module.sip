@@ -15,10 +15,10 @@ public:
     Klass() : attr(0) {}
 
     static int s_attr;
-    static int get_s_attr() {return Klass::s_attr;}
+    static int get_s_attr() {return s_attr;}
 
     int attr;
-    int get_attr() {return this->attr;}
+    int get_attr() {return attr;}
 };
 
 class SimpleKlass
