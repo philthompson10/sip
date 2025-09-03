@@ -1577,6 +1577,8 @@ def _py_slot(backend, sf, bindings, member, scope=None):
 
     sf.write(f'{slot_decl}{member.py_name.name}({arg_str})\n{{\n')
 
+    backend.g_slot_support_vars(sf)
+
     if member.py_slot is PySlot.CALL and member.no_arg_parser:
         for overload in overloads:
             if overload.common is member:
@@ -1597,8 +1599,10 @@ f'''    if (!PyObject_TypeCheck(sipSelf, sipTypeAsPyTypeObject(sip{prefix}_{fq_c
 
             if isinstance(scope, WrappedClass):
                 cpp_name = backend.scoped_class_name(scope)
+                sip_module = 'sipModule, ' if spec.target_abi >= (14, 0) else ''
+
                 sf.write(
-f'''    {cpp_name} *sipCpp = reinterpret_cast<{cpp_name} *>(sipGetCppPtr((sipSimpleWrapper *)sipSelf, {type_ref}));
+f'''    {cpp_name} *sipCpp = reinterpret_cast<{cpp_name} *>(sipGetCppPtr({sip_module}(sipSimpleWrapper *)sipSelf, {type_ref}));
 
     if (!sipCpp)
 ''')
