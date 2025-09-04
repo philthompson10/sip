@@ -53,3 +53,5 @@ class ClassCallablesTestCase(SIPTestCase):
 
         klass.set_attr_int(10)
         self.assertIs(klass == other, False)
+
+        self.assertIs(klass == 100, False)

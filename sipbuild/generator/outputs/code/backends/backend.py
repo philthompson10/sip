@@ -1471,7 +1471,6 @@ static PyType_Slot sip_py_slots_{klass_name}[] = {{
 
             self._g_py_slot_table_entry(sf, klass_name, member)
 
-        # TODO Generate the rich comparision dispatcher.
         if has_rich_compare_slots:
             sf.write(f'    {{Py_tp_richcompare, (void *)slot_{klass_name}___richcompare__}},\n')
 
@@ -1543,8 +1542,6 @@ static PyType_Slot sip_py_slots_{klass_name}[] = {{
         if has_slots:
             fields.append(
                     '.ctd_container.cod_py_slots = sip_py_slots_' + klass_name)
-
-        # TODO cod_methods (lazy methods so remove?) if not NULL
 
         # TODO
         #if self.custom_enums_supported() and nrenummembers > 0:
