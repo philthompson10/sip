@@ -5,7 +5,7 @@
 
 from .....sip_module_configuration import SipModuleConfiguration
 
-from ....python_slots import is_number_slot
+from ....python_slots import is_number_slot, is_rich_compare_slot
 from ....scoped_name import STRIP_GLOBAL
 from ....specification import (AccessSpecifier, ArgumentType, ArrayArgument,
         IfaceFileType, KwArgs, MappedType, PySlot, Transfer, WrappedClass,
@@ -1445,6 +1445,37 @@ f'''    PyObject *sipModule = sipGetModule(sipSelf, &sipWrappedModuleDef_{self.s
         module_name = module.py_name
         klass_name = klass.iface_file.fq_cpp_name.as_word
 
+        # Generate the slots table.
+        has_slots = False
+        has_rich_compare_slots = False
+
+        for member in klass.members:
+            if member.py_slot is None:
+                continue
+
+            if not has_slots:
+                sf.write(
+f'''
+
+/* Define this type's Python slots. */
+static PyType_Slot sip_py_slots_{klass_name}[] = {{
+''')
+
+                has_slots = True
+
+            if is_rich_compare_slot(member.py_slot):
+                has_rich_compare_slots = True
+                continue
+
+            self._g_py_slot_table_entry(sf, klass_name, member)
+
+        # TODO Generate the rich comparision dispatcher.
+        if has_rich_compare_slots:
+            sf.write(f'    {{Py_tp_richcompare, (void *)slot_{klass_name}___richcompare__}},\n')
+
+        if has_slots:
+            sf.write('    {}\n};\n')
+
         # Generate the methods table.
         nr_methods = self.g_class_method_table(sf, bindings, klass)
 
@@ -1455,19 +1486,6 @@ f'''    PyObject *sipModule = sipGetModule(sipSelf, &sipWrappedModuleDef_{self.s
         # Generate the instance variables table.
         nr_instance_variables = self._g_variables_table(sf, scope=klass,
                 for_unbound=False)
-
-        # Generate the table of slots.
-        # TODO
-        has_slots = False
-
-        if has_slots:
-            sf.write(
-f'''
-
-static PyType_Slot sip_py_slots_{klass_name}[] = {{
-    {{0, NULL}}
-}};
-''')
 
         # Generate the docstring.
         docstring_ref = self.g_class_docstring(sf, bindings, klass)
@@ -2745,6 +2763,80 @@ static const pyqt{pyqt_version}QtSignal signals_{klass.iface_file.fq_cpp_name.as
             sf.write('    {SIP_NULLPTR, SIP_NULLPTR, SIP_NULLPTR, SIP_NULLPTR}\n};\n')
 
         return is_signals
+
+    # The mapping of slots to Python slot IDs.
+    _SLOT_ID_MAP = {
+        PySlot.STR: 'Py_tp_str',
+        PySlot.INT: 'Py_nb_int',
+        PySlot.FLOAT: 'Py_nb_float',
+        PySlot.LEN: ('Py_mp_length', 'Py_sq_length'),
+        PySlot.CONTAINS: 'Py_sq_contains',
+        PySlot.ADD: 'Py_nb_add',
+        PySlot.CONCAT: 'Py_sq_concat',
+        PySlot.SUB: 'Py_nb_subtract',
+        PySlot.MUL: 'Py_nb_multiply',
+        PySlot.REPEAT: 'Py_sq_repeat',
+        PySlot.MOD: 'Py_nb_remainder',
+        PySlot.FLOORDIV: 'Py_nb_floor_divide',
+        PySlot.TRUEDIV: 'Py_nb_true_divide',
+        PySlot.AND: 'Py_nb_and',
+        PySlot.OR: 'Py_nb_or',
+        PySlot.XOR: 'Py_nb_xor',
+        PySlot.LSHIFT: 'Py_nb_lshift',
+        PySlot.RSHIFT: 'Py_nb_rshift',
+        PySlot.IADD: 'Py_nb_inplace_add',
+        PySlot.ICONCAT: 'Py_sq_inplace_concat',
+        PySlot.ISUB: 'Py_nb_inplace_subtract',
+        PySlot.IMUL: 'Py_nb_inplace_multiply',
+        PySlot.IREPEAT: 'Py_sq_inplace_repeat',
+        PySlot.IMOD: 'Py_nb_inplace_remainder',
+        PySlot.IFLOORDIV: 'Py_nb_inplace_floor_divide',
+        PySlot.ITRUEDIV: 'Py_nb_inplace_true_divide',
+        PySlot.IAND: 'Py_nb_inplace_and',
+        PySlot.IOR: 'Py_nb_inplace_or',
+        PySlot.IXOR: 'Py_nb_inplace_xor',
+        PySlot.ILSHIFT: 'Py_nb_inplace_lshift',
+        PySlot.IRSHIFT: 'Py_nb_inplace_rshift',
+        PySlot.INVERT: 'Py_nb_invert',
+        # TODO Is the generated handler correct? (v13 seems to use a wrapper.)
+        PySlot.CALL: 'Py_tp_call',
+        # TODO Is the generated handler correct? (v13 seems to use a wrapper
+        # for Py_sq_item.)
+        PySlot.GETITEM: ('Py_mp_subscript', 'Py_sq_item'),
+        # TODO Is the generated handler correct? (v13 seems to use a wrapper
+        # for both.)
+        PySlot.SETITEM: ('Py_mp_ass_subscript', 'Py_sq_ass_item'),
+        # TODO Is the generated handler correct? (v13 seems to use a wrapper
+        # for both.)
+        PySlot.DELITEM: ('Py_mp_ass_subscript', 'Py_sq_ass_item'),
+        PySlot.BOOL: 'Py_nb_bool',
+        PySlot.NEG: 'Py_nb_negative',
+        PySlot.REPR: 'Py_tp_repr',
+        PySlot.HASH: 'Py_tp_hash',
+        PySlot.POS: 'Py_nb_positive',
+        PySlot.ABS: 'Py_nb_absolute',
+        PySlot.INDEX: 'Py_nb_index',
+        PySlot.ITER: 'Py_tp_iter',
+        PySlot.NEXT: 'Py_tp_iternext',
+        PySlot.SETATTR: 'Py_tp_setattro',
+        PySlot.MATMUL: 'Py_nb_matrix_multiply',
+        PySlot.IMATMUL: 'Py_nb_inplace_matrix_multiply',
+        PySlot.AWAIT: 'Py_am_await',
+        PySlot.AITER: 'Py_am_aiter',
+        PySlot.ANEXT: 'Py_am_anext',
+    }
+
+    @classmethod
+    def _g_py_slot_table_entry(cls, sf, scope_name, member):
+        """ Generate an entry in the Python slot table for a scope. """
+
+        slot_ids = cls._SLOT_ID_MAP[member.py_slot]
+
+        if isinstance(slot_ids, str):
+            slot_ids = (slot_ids, )
+
+        for slot_id in slot_ids:
+            sf.write(f'    {{{slot_id}, (void *)slot_{scope_name}_{member.py_name}}},\n')
 
     def _g_variables_table(self, sf, scope, *, for_unbound):
         """ Generate the table of either bound or unbound variables for a scope

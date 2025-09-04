@@ -487,7 +487,7 @@ class PySlot(Enum):
     # tp_iter_next
     NEXT = auto()
 
-    # tp_setattr
+    # tp_setattro
     SETATTR = auto()
 
     # Internal to the parser (implemented as tp_setattr)
