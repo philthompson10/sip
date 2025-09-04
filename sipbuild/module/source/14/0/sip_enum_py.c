@@ -394,9 +394,6 @@ static PyObject *create_enum_object(sipWrappedModuleState *wms,
         }
     }
 
-    if (etd->etd_pyslots != NULL)
-        sip_add_type_slots((PyHeapTypeObject *)enum_obj, etd->etd_pyslots);
-
     return enum_obj;
 
     /* Unwind on errors. */

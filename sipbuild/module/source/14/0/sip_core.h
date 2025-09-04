@@ -92,7 +92,6 @@ void *sip_api_malloc(size_t nbytes);
  * These are not part of the SIP API but are used within the SIP module.
  */
 void sip_add_to_parent(sipWrapper *self, sipWrapper *owner);
-void sip_add_type_slots(PyHeapTypeObject *heap_to, const sipPySlotDef *slots);
 int sip_append_py_object_to_list(PyObject **listp, PyObject *object);
 void *sip_cast_cpp_ptr(void *ptr, sipWrapperType *src_type,
         sipWrapperType *target_type);

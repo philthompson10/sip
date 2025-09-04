@@ -80,7 +80,6 @@ static PyObject *EnumType_alloc(PyTypeObject *self, Py_ssize_t nitems)
 {
     sipSipModuleState *sms = sip_get_sip_module_state_from_sip_type(self);
     sipEnumTypeObject *py_type;
-    sipPySlotDef *psd;
 
     // TODO Review if this is necessary with the current TP_FLAGS.
     if (sms->current_enum_backdoor == NULL)
@@ -100,13 +99,6 @@ static PyObject *EnumType_alloc(PyTypeObject *self, Py_ssize_t nitems)
      * structure.  Strictly speaking this doesn't need to be done here.
      */
     py_type->type = sms->current_enum_backdoor;
-
-    /*
-     * Initialise any slots.  This must be done here, after the type is
-     * allocated but before PyType_Ready() is called.
-     */
-    if ((psd = ((sipEnumTypeDef *)sms->current_enum_backdoor)->etd_pyslots) != NULL)
-        sip_add_type_slots(&py_type->super, psd);
 
     return (PyObject *)py_type;
 }

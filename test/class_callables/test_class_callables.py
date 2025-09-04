@@ -42,3 +42,14 @@ class ClassCallablesTestCase(SIPTestCase):
 
         klass.set_attr_int(10)
         self.assertEqual(-klass, -10)
+
+    def test_slot_eq(self):
+        """ Test the support for the __eq__ slot. """
+
+        klass = self.m.Klass()
+        other = self.m.Klass()
+
+        self.assertIs(klass == other, True)
+
+        klass.set_attr_int(10)
+        self.assertIs(klass == other, False)

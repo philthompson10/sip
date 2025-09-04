@@ -1659,6 +1659,11 @@ f'''
 ''')
 
                 if is_number_slot(member.py_slot) or is_rich_compare_slot(member.py_slot):
+                    if spec.target_abi >= (14, 0):
+                        extend_context = 'sipModule'
+                    else:
+                        extend_context = f'&sipModuleAPI_{spec.module.py_name}'
+
                     # We can only extend class slots. */
                     if not isinstance(scope, WrappedClass):
                         sf.write(
@@ -1671,12 +1676,12 @@ f'''
                     elif is_number_slot(member.py_slot):
                         sf.write(
 f'''
-    return sipPySlotExtend(&sipModuleAPI_{spec.module.py_name}, {get_slot_name(member.py_slot)}, SIP_NULLPTR, sipArg0, sipArg1);
+    return sipPySlotExtend({extend_context}, {get_slot_name(member.py_slot)}, SIP_NULLPTR, sipArg0, sipArg1);
 ''')
                     else:
                         sf.write(
 f'''
-    return sipPySlotExtend(&sipModuleAPI_{spec.module.py_name}, {get_slot_name(member.py_slot)}, {backend.get_type_ref(scope)}, sipSelf, sipArg);
+    return sipPySlotExtend({extend_context}, {get_slot_name(member.py_slot)}, {backend.get_type_ref(scope)}, sipSelf, sipArg);
 ''')
                 elif is_inplace_number_slot(member.py_slot):
                     sf.write(
@@ -1725,11 +1730,39 @@ def _class_functions(backend, sf, bindings, klass, py_debug):
                     visible_member.member, visible_member.scope)
 
     # The slot functions.
+    rich_comparison_members = []
+
     for member in klass.members:
         if klass.iface_file.type is IfaceFileType.NAMESPACE:
             _ordinary_function(backend, sf, bindings, member, scope=klass)
         elif member.py_slot is not None:
             _py_slot(backend, sf, bindings, member, scope=klass)
+
+            if is_rich_compare_slot(member.py_slot):
+                rich_comparison_members.append(member)
+
+    # Generate a rich comparision dispatcher if required.
+    if spec.target_abi >= (14, 0) and rich_comparison_members:
+        sf.write(
+f'''
+
+extern "C" {{static PyObject *slot_{as_word}___richcompare__(PyObject *, PyObject *, int);}}
+static PyObject *slot_{as_word}___richcompare__(PyObject *self, PyObject *arg, int op)
+{{
+    switch (op)
+    {{
+''')
+
+        for rc_member in rich_comparison_members:
+            sf.write(f'    case Py_{rc_member.py_slot.name}: return slot_{as_word}_{rc_member.py_name}(self, arg);\n')
+
+        sf.write(
+f'''    }}
+
+    Py_INCREF(Py_NotImplemented);
+    return Py_NotImplemented;
+}}
+''')
 
     # The cast function.
     if len(klass.superclasses) != 0:

@@ -62,7 +62,7 @@ static int sip_api_add_type_instance(PyObject *wmod, PyObject *dict,
 static void sip_api_bad_operator_arg(PyObject *self, PyObject *arg,
         sipPySlotType st);
 static PyObject *sip_api_pyslot_extend(PyObject *wmod, sipPySlotType st,
-        const sipTypeDef *td, PyObject *arg0, PyObject *arg1);
+        sipTypeID type_id, PyObject *arg0, PyObject *arg1);
 static void sip_api_add_delayed_dtor(sipSimpleWrapper *w);
 static int sip_api_export_symbol(PyObject *wmod, const char *name, void *sym);
 static void *sip_api_import_symbol(PyObject *wmod, const char *name);
@@ -279,14 +279,9 @@ static PyTypeObject *create_container_type(sipWrappedModuleState *wms,
         PyTypeObject *metatype);
 static PyTypeObject *find_registered_py_type(sipSipModuleState *sms,
         const char *name);
-static void *find_slot(PyObject *self, sipPySlotType st);
-static void *find_slot_in_class(const sipClassTypeDef *psd, sipPySlotType st);
-static void *find_slot_in_slot_list(const sipPySlotDef *psd, sipPySlotType st);
 static sipWrappedModuleState *get_defining_wrapped_module_state(
         sipWrappedModuleState *wms, sipTypeID type_id);
 static PyObject *import_module_attr(const char *module, const char *attr);
-static int objobjargproc_slot(PyObject *self, PyObject *arg1, PyObject *arg2,
-        sipPySlotType st);
 #if 0
 static PyObject *pickle_type(PyObject *self, PyTypeObject *defining_class,
         PyObject *const *args, Py_ssize_t nargs, PyObject *kwd_args);
@@ -294,8 +289,6 @@ static PyObject *pickle_type(PyObject *self, PyTypeObject *defining_class,
 #if 0
 static int set_reduce(PyTypeObject *type, PyMethodDef *pickler);
 #endif
-static int ssizeobjargproc_slot(PyObject *self, Py_ssize_t arg1,
-        PyObject *arg2, sipPySlotType st);
 
 
 /*
@@ -545,7 +538,7 @@ void sip_api_free(void *mem)
  * extender function that can handle the arguments.
  */
 static PyObject *sip_api_pyslot_extend(PyObject *wmod, sipPySlotType st,
-        const sipTypeDef *td, PyObject *arg0, PyObject *arg1)
+        sipTypeID type_id, PyObject *arg0, PyObject *arg1)
 {
     sipWrappedModuleState *wms = (sipWrappedModuleState *)PyModule_GetState(
             wmod);
@@ -572,22 +565,27 @@ static PyObject *sip_api_pyslot_extend(PyObject *wmod, sipPySlotType st,
         /* Go through each extender. */
         for (; ex->pse_func != NULL; ++ex)
         {
-            PyObject *res;
-
             /* Skip if not the right slot type. */
             if (ex->pse_type != st)
                 continue;
 
             /* Check against the type if one was given. */
+            // TODO
+#if 0
             if (td != NULL && td != sip_get_type_def(wms, ex->pse_class, NULL))
                 continue;
+#else
+            (void)type_id;
+#endif
 
             PyErr_Clear();
 
-            res = ((binaryfunc)ex->pse_func)(arg0, arg1);
+            PyObject *res = ((binaryfunc)ex->pse_func)(arg0, arg1);
 
             if (res != Py_NotImplemented)
                 return res;
+
+            Py_DECREF(res);
         }
     }
 
@@ -2117,186 +2115,6 @@ PyTypeObject *sip_get_py_type(sipWrappedModuleState *wms, sipTypeID type_id)
 
 
 /*
- * Find a particular slot function for a type.
- */
-static void *find_slot(PyObject *self, sipPySlotType st)
-{
-    sipSipModuleState *sms = sip_get_sip_module_state_from_sip_type(
-            Py_TYPE(self));
-    void *slot = NULL;
-    PyTypeObject *py_type = Py_TYPE(self);
-
-    /* See if it is a wrapper. */
-    if (PyObject_TypeCheck((PyObject *)py_type, sms->wrapper_type_type))
-    {
-        const sipClassTypeDef *ctd;
-
-        ctd = (sipClassTypeDef *)((sipWrapperType *)(py_type))->wt_td;
-
-        slot = find_slot_in_class(ctd, st);
-    }
-#if defined(SIP_CONFIGURATION_CustomEnums)
-    else
-    {
-        sipEnumTypeDef *etd;
-
-        /* If it is not a wrapper then it must be an enum. */
-        assert(PyObject_TypeCheck((PyObject *)py_type, &sipEnumType_Type));
-
-        etd = (sipEnumTypeDef *)((sipEnumTypeObject *)(py_type))->type;
-
-        assert(etd->etd_pyslots != NULL);
-
-        slot = find_slot_in_slot_list(etd->etd_pyslots, st);
-    }
-#endif
-
-    return slot;
-}
-
-
-/*
- * Find a particular slot function in a class hierarchy.
- */
-static void *find_slot_in_class(const sipClassTypeDef *ctd, sipPySlotType st)
-{
-#if 0
-    void *slot;
-
-    if (ctd->ctd_pyslots != NULL)
-        slot = find_slot_in_slot_list(ctd->ctd_pyslots, st);
-    else
-        slot = NULL;
-
-    if (slot == NULL)
-    {
-        /* Search any super-types. */
-        const sipTypeID *supers;
-
-        if ((supers = ctd->ctd_supers) != NULL)
-        {
-            sipTypeID type_id;
-
-            do
-            {
-                type_id = *supers++;
-
-                const sipClassTypeDef *sup_ctd = sip_get_generated_class_type_def(
-                        type_id, ctd);
-
-                slot = find_slot_in_class(sup_ctd, st);
-            }
-            while (slot == NULL && !sipTypeIDIsSentinel(type_id));
-        }
-    }
-
-    return slot;
-#else
-    return NULL;
-#endif
-}
-
-
-/*
- * Find a particular slot function in a particular type.
- */
-static void *find_slot_in_slot_list(const sipPySlotDef *psd, sipPySlotType st)
-{
-    while (psd->psd_func != NULL)
-    {
-        if (psd->psd_type == st)
-            return psd->psd_func;
-
-        ++psd;
-    }
-
-    return NULL;
-}
-
-
-/*
- * Handle an objobjargproc slot.
- */
-static int objobjargproc_slot(PyObject *self, PyObject *arg1, PyObject *arg2,
-        sipPySlotType st)
-{
-    int (*f)(PyObject *, PyObject *);
-    int res;
-
-    f = (int (*)(PyObject *, PyObject *))find_slot(self, st);
-
-    if (f != NULL)
-    {
-        PyObject *args;
-
-        /*
-         * Slot handlers require a single PyObject *.  The second argument is
-         * optional.
-         */
-        if (arg2 == NULL)
-        {
-            args = arg1;
-            Py_INCREF(args);
-        }
-        else if ((args = PyTuple_Pack(2, arg1, arg2)) == NULL)
-        {
-            return -1;
-        }
-
-        res = f(self, args);
-        Py_DECREF(args);
-    }
-    else
-    {
-        PyErr_SetNone(PyExc_NotImplementedError);
-        res = -1;
-    }
-
-    return res;
-}
-
-
-/*
- * Handle an ssizeobjargproc slot.
- */
-static int ssizeobjargproc_slot(PyObject *self, Py_ssize_t arg1,
-        PyObject *arg2, sipPySlotType st)
-{
-    int (*f)(PyObject *, PyObject *);
-    int res;
-
-    f = (int (*)(PyObject *, PyObject *))find_slot(self, st);
-
-    if (f != NULL)
-    {
-        PyObject *args;
-
-        /*
-         * Slot handlers require a single PyObject *.  The second argument is
-         * optional.
-         */
-        if (arg2 == NULL)
-            args = PyLong_FromSsize_t(arg1);
-        else
-            args = Py_BuildValue("(nO)", arg1, arg2);
-
-        if (args == NULL)
-            return -1;
-
-        res = f(self, args);
-        Py_DECREF(args);
-    }
-    else
-    {
-        PyErr_SetNone(PyExc_NotImplementedError);
-        res = -1;
-    }
-
-    return res;
-}
-
-
-/*
  * Get the C++ address of a mixin.
  */
 static void *sip_api_get_mixin_address(sipSimpleWrapper *w,
@@ -2512,365 +2330,6 @@ int sip_super_init(PyObject *self, PyObject *args, PyObject *kwds,
     Py_XDECREF(init_res);
 
     return (init_res != NULL) ? 0 : -1;
-}
-
-
-/*
- * The type call slot.
- */
-static PyObject *slot_call(PyObject *self, PyObject *args, PyObject *kw)
-{
-    PyObject *(*f)(PyObject *, PyObject *, PyObject *);
-
-    f = (PyObject *(*)(PyObject *, PyObject *, PyObject *))find_slot(self, call_slot);
-
-    assert(f != NULL);
-
-    return f(self, args, kw);
-}
-
-
-/*
- * The sequence type item slot.
- */
-static PyObject *slot_sq_item(PyObject *self, Py_ssize_t n)
-{
-    PyObject *(*f)(PyObject *,PyObject *);
-    PyObject *arg, *res;
-
-    if ((arg = PyLong_FromSsize_t(n)) == NULL)
-        return NULL;
-
-    f = (PyObject *(*)(PyObject *,PyObject *))find_slot(self, getitem_slot);
-
-    assert(f != NULL);
-
-    res = f(self,arg);
-
-    Py_DECREF(arg);
-
-    return res;
-}
-
-
-/*
- * The mapping type assign subscript slot.
- */
-static int slot_mp_ass_subscript(PyObject *self, PyObject *key,
-        PyObject *value)
-{
-    return objobjargproc_slot(self, key, value,
-            (value != NULL ? setitem_slot : delitem_slot));
-}
-
-
-/*
- * The sequence type assign item slot.
- */
-static int slot_sq_ass_item(PyObject *self, Py_ssize_t i, PyObject *o)
-{
-    return ssizeobjargproc_slot(self, i, o,
-            (o != NULL ? setitem_slot : delitem_slot));
-}
-
-
-/*
- * The type rich compare slot.
- */
-static PyObject *slot_richcompare(PyObject *self, PyObject *arg, int op)
-{
-    PyObject *(*f)(PyObject *,PyObject *);
-    sipPySlotType st;
-
-    /* Convert the operation to a slot type. */
-    switch (op)
-    {
-    case Py_LT:
-        st = lt_slot;
-        break;
-
-    case Py_LE:
-        st = le_slot;
-        break;
-
-    case Py_EQ:
-        st = eq_slot;
-        break;
-
-    case Py_NE:
-        st = ne_slot;
-        break;
-
-    case Py_GT:
-        st = gt_slot;
-        break;
-
-    case Py_GE:
-        st = ge_slot;
-        break;
-
-    default:
-        /* Suppress a compiler warning. */
-        st = -1;
-    }
-
-    /* It might not exist if not all the above have been implemented. */
-    if ((f = (PyObject *(*)(PyObject *,PyObject *))find_slot(self, st)) == NULL)
-    {
-        Py_INCREF(Py_NotImplemented);
-        return Py_NotImplemented;
-    }
-
-    return f(self, arg);
-}
-
-
-/*
- * Add the slot handler for each slot present in the type.
- */
-void sip_add_type_slots(PyHeapTypeObject *heap_to, const sipPySlotDef *slots)
-{
-    PyTypeObject *to;
-    PyNumberMethods *nb;
-    PySequenceMethods *sq;
-    PyMappingMethods *mp;
-    PyAsyncMethods *am;
-    void *f;
-
-    to = &heap_to->ht_type;
-    nb = &heap_to->as_number;
-    sq = &heap_to->as_sequence;
-    mp = &heap_to->as_mapping;
-    am = &heap_to->as_async;
-
-    while ((f = slots->psd_func) != NULL)
-        switch (slots++->psd_type)
-        {
-        case str_slot:
-            to->tp_str = (reprfunc)f;
-            break;
-
-        case int_slot:
-            nb->nb_int = (unaryfunc)f;
-            break;
-
-        case float_slot:
-            nb->nb_float = (unaryfunc)f;
-            break;
-
-        case len_slot:
-            mp->mp_length = (lenfunc)f;
-            sq->sq_length = (lenfunc)f;
-            break;
-
-        case contains_slot:
-            sq->sq_contains = (objobjproc)f;
-            break;
-
-        case add_slot:
-            nb->nb_add = (binaryfunc)f;
-            break;
-
-        case concat_slot:
-            sq->sq_concat = (binaryfunc)f;
-            break;
-
-        case sub_slot:
-            nb->nb_subtract = (binaryfunc)f;
-            break;
-
-        case mul_slot:
-            nb->nb_multiply = (binaryfunc)f;
-            break;
-
-        case repeat_slot:
-            sq->sq_repeat = (ssizeargfunc)f;
-            break;
-
-        case div_slot:
-            nb->nb_true_divide = (binaryfunc)f;
-            break;
-
-        case mod_slot:
-            nb->nb_remainder = (binaryfunc)f;
-            break;
-
-        case floordiv_slot:
-            nb->nb_floor_divide = (binaryfunc)f;
-            break;
-
-        case truediv_slot:
-            nb->nb_true_divide = (binaryfunc)f;
-            break;
-
-        case and_slot:
-            nb->nb_and = (binaryfunc)f;
-            break;
-
-        case or_slot:
-            nb->nb_or = (binaryfunc)f;
-            break;
-
-        case xor_slot:
-            nb->nb_xor = (binaryfunc)f;
-            break;
-
-        case lshift_slot:
-            nb->nb_lshift = (binaryfunc)f;
-            break;
-
-        case rshift_slot:
-            nb->nb_rshift = (binaryfunc)f;
-            break;
-
-        case iadd_slot:
-            nb->nb_inplace_add = (binaryfunc)f;
-            break;
-
-        case iconcat_slot:
-            sq->sq_inplace_concat = (binaryfunc)f;
-            break;
-
-        case isub_slot:
-            nb->nb_inplace_subtract = (binaryfunc)f;
-            break;
-
-        case imul_slot:
-            nb->nb_inplace_multiply = (binaryfunc)f;
-            break;
-
-        case irepeat_slot:
-            sq->sq_inplace_repeat = (ssizeargfunc)f;
-            break;
-
-        case idiv_slot:
-            nb->nb_inplace_true_divide = (binaryfunc)f;
-            break;
-
-        case imod_slot:
-            nb->nb_inplace_remainder = (binaryfunc)f;
-            break;
-
-        case ifloordiv_slot:
-            nb->nb_inplace_floor_divide = (binaryfunc)f;
-            break;
-
-        case itruediv_slot:
-            nb->nb_inplace_true_divide = (binaryfunc)f;
-            break;
-
-        case iand_slot:
-            nb->nb_inplace_and = (binaryfunc)f;
-            break;
-
-        case ior_slot:
-            nb->nb_inplace_or = (binaryfunc)f;
-            break;
-
-        case ixor_slot:
-            nb->nb_inplace_xor = (binaryfunc)f;
-            break;
-
-        case ilshift_slot:
-            nb->nb_inplace_lshift = (binaryfunc)f;
-            break;
-
-        case irshift_slot:
-            nb->nb_inplace_rshift = (binaryfunc)f;
-            break;
-
-        case invert_slot:
-            nb->nb_invert = (unaryfunc)f;
-            break;
-
-        case call_slot:
-            to->tp_call = slot_call;
-            break;
-
-        case getitem_slot:
-            mp->mp_subscript = (binaryfunc)f;
-            sq->sq_item = slot_sq_item;
-            break;
-
-        case setitem_slot:
-        case delitem_slot:
-            mp->mp_ass_subscript = slot_mp_ass_subscript;
-            sq->sq_ass_item = slot_sq_ass_item;
-            break;
-
-        case lt_slot:
-        case le_slot:
-        case eq_slot:
-        case ne_slot:
-        case gt_slot:
-        case ge_slot:
-            to->tp_richcompare = slot_richcompare;
-            break;
-
-        case bool_slot:
-            nb->nb_bool = (inquiry)f;
-            break;
-
-        case neg_slot:
-            nb->nb_negative = (unaryfunc)f;
-            break;
-
-        case repr_slot:
-            to->tp_repr = (reprfunc)f;
-            break;
-
-        case hash_slot:
-            to->tp_hash = (hashfunc)f;
-            break;
-
-        case pos_slot:
-            nb->nb_positive = (unaryfunc)f;
-            break;
-
-        case abs_slot:
-            nb->nb_absolute = (unaryfunc)f;
-            break;
-
-        case index_slot:
-            nb->nb_index = (unaryfunc)f;
-            break;
-
-        case iter_slot:
-            to->tp_iter = (getiterfunc)f;
-            break;
-
-        case next_slot:
-            to->tp_iternext = (iternextfunc)f;
-            break;
-
-        case setattr_slot:
-            to->tp_setattro = (setattrofunc)f;
-            break;
-
-        case matmul_slot:
-            nb->nb_matrix_multiply = (binaryfunc)f;
-            break;
-
-        case imatmul_slot:
-            nb->nb_inplace_matrix_multiply = (binaryfunc)f;
-            break;
-
-        case await_slot:
-            am->am_await = (unaryfunc)f;
-            break;
-
-        case aiter_slot:
-            am->am_aiter = (unaryfunc)f;
-            break;
-
-        case anext_slot:
-            am->am_anext = (unaryfunc)f;
-            break;
-
-        /* Suppress a compiler warning. */
-        default:
-            ;
-        }
 }
 
 

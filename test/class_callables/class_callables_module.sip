@@ -17,6 +17,7 @@ public:
     void set_attr_int(int value) {attr_int = value;}
 
     int operator-() {return -attr_int;}
+    bool operator==(const Klass &other) {return attr_int == other.attr_int;}
 
 private:
     static int s_attr_int;
@@ -42,4 +43,5 @@ public:
     void set_attr_int(int value);
 
     int operator-();
+    bool operator==(const Klass &other);
 };

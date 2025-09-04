@@ -5,7 +5,8 @@
 
 from .....sip_module_configuration import SipModuleConfiguration
 
-from ....python_slots import is_number_slot, is_rich_compare_slot
+from ....python_slots import (is_multi_arg_slot, is_number_slot,
+        is_rich_compare_slot)
 from ....scoped_name import STRIP_GLOBAL
 from ....specification import (AccessSpecifier, ArgumentType, ArrayArgument,
         IfaceFileType, KwArgs, MappedType, PySlot, Transfer, WrappedClass,
@@ -171,27 +172,28 @@ class Backend:
             args.append('sipUnused' if ctor is not None else 'SIP_NULLPTR')
 
         else:
-            # ABI v14 doesn't require the single-argument optimisation.
-            if spec.target_abi >= (14, 0):
-                single_arg = False
-            else:
-                single_arg = not (overload is None or overload.common.py_slot is None or is_multi_arg_slot(overload.common.py_slot))
-
-            plural = '' if single_arg else 's'
+            single_arg = not (overload is None or overload.common.py_slot is None or is_multi_arg_slot(overload.common.py_slot))
 
             parser_function = 'sipParseArgs'
             args.append('&sipParseErr')
-            args.append('sipArg' + plural)
 
             if spec.target_abi >= (14, 0):
-                args.append('sipNrArgs')
+                if single_arg:
+                    args.append('&sipArg')
+                    args.append('1')
+                else:
+                    args.append('sipArgs')
+                    args.append('sipNrArgs')
+
                 args.append('sipKwds' if is_method else 'SIP_NULLPTR')
+            else:
+                args.append('sipArg' + '' if single_arg else 's')
 
         # Generate the format string.
         format_s = '"'
         optional_args = False
 
-        if single_arg:
+        if single_arg and spec.target_abi < (14, 0):
             format_s += '1'
 
         if ctor_needs_self:

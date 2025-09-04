@@ -1211,7 +1211,7 @@ struct _sipAPIDef {
     void (*api_bad_operator_arg)(PyObject *self, PyObject *arg,
             sipPySlotType st);
     PyObject *(*api_pyslot_extend)(PyObject *wmod, sipPySlotType st,
-            const sipTypeDef *type, PyObject *arg0, PyObject *arg1);
+            sipTypeID type_id, PyObject *arg0, PyObject *arg1);
     void (*api_add_delayed_dtor)(sipSimpleWrapper *w);
     char (*api_bytes_as_char)(PyObject *obj);
     const char *(*api_bytes_as_char_array)(PyObject *obj, Py_ssize_t *asize_p);

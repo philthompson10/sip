@@ -111,10 +111,6 @@ Try and get rid of the back door.
             if (ctd->ctd_releasebuffer != NULL)
                 bp->bf_releasebuffer = (releasebufferproc)sipSimpleWrapper_releasebuffer;
 
-            /* Add the slots for this type. */
-            if (ctd->ctd_pyslots != NULL)
-                sip_add_type_slots(heap_to, ctd->ctd_pyslots);
-
             /* Patch any mixin initialiser. */
             if (ctd->ctd_init_mixin != NULL)
                 ((PyTypeObject *)o)->tp_init = ctd->ctd_init_mixin;
