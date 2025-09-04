@@ -34,3 +34,11 @@ class ClassCallablesTestCase(SIPTestCase):
         self.assertEqual(klass.get_attr_int(), 0)
         klass.set_attr_int(10)
         self.assertEqual(klass.get_attr_int(), 10)
+
+    def test_slot_neg(self):
+        """ Test the support for the __neg__ slot. """
+
+        klass = self.m.Klass()
+
+        klass.set_attr_int(10)
+        self.assertEqual(-klass, -10)

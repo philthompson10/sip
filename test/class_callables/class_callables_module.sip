@@ -27,11 +27,6 @@ private:
 
 %ModuleCode
 int Klass::s_attr_int = 0;
-
-int operator+(const Klass &k1, const Klass &k2)
-{
-    return k1.get_attr_int() + k2.get_attr_int();
-}
 %End
 
 
