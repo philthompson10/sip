@@ -457,7 +457,7 @@ static int SimpleWrapper_set_dict(PyObject *self, PyObject *value,
  * The simple wrapper init slot.
  */
 static int SimpleWrapper_init(sipSimpleWrapper *self, PyObject *args,
-        PyObject *kwd_args)
+        PyObject *kwargs)
 {
     sipWrapperType *wt = (sipWrapperType *)Py_TYPE(self);
     sipWrappedModuleState *wms = (sipWrappedModuleState *)PyModule_GetState(
@@ -490,85 +490,27 @@ static int SimpleWrapper_init(sipSimpleWrapper *self, PyObject *args,
         /* Call the C++ ctor. */
         owner = NULL;
 
-        /*
-         * Convert the traditional arguments to vectorcall style.  This steals
-         * its approach from the Python internals.
-         */
-        assert(PyTuple_Check(args));
-        Py_ssize_t nr_pos_args = (args == NULL ? 0 : PyTuple_GET_SIZE(args));
-
-        assert(PyDict_Check(kwargs));
-        Py_ssize_t nr_kwd_args = (kwd_args == NULL ? 0 : PyDict_GET_SIZE(kwd_args));
-
-        /* Minimise the memory allocations for most cases. */
+        /* Convert the traditional arguments to vectorcall style. */
 #define SMALL_ARGV 8
-
         PyObject *small_argv[SMALL_ARGV];
-        PyObject **argv;
-        Py_ssize_t nr_args = nr_pos_args + nr_kwd_args;
+        Py_ssize_t argv_len = SMALL_ARGV;
 
-        if (nr_args <= SMALL_ARGV)
-        {
-            argv = small_argv;
-        }
-        else
-        {
-            argv = sip_api_malloc(nr_args * sizeof (PyObject *));
+        PyObject **argv, *kw_names;
+        Py_ssize_t nr_pos_args;
 
-            if (argv == NULL)
-                return -1;
-        }
-
-        Py_ssize_t i = 0;
-
-        for (i = 0; i < nr_pos_args; i++)
-            argv[i] = Py_NewRef(PyTuple_GET_ITEM(args, i));
-
-        PyObject *kw_names;
-        unsigned long names_are_strings = Py_TPFLAGS_UNICODE_SUBCLASS;
-
-        if (nr_kwd_args == 0)
-        {
-            kw_names = NULL;
-        }
-        else
-        {
-            if ((kw_names = PyTuple_New(nr_kwd_args)) == NULL)
-                return -1;
-
-            Py_ssize_t pos = 0;
-            PyObject *key, *value;
-            i = 0;
-
-            while (PyDict_Next(kwd_args, &pos, &key, &value))
-            {
-                names_are_strings &= Py_TYPE(key)->tp_flags;
-                PyTuple_SET_ITEM(kw_names, i, Py_NewRef(key));
-                argv[nr_pos_args + i] = Py_NewRef(value);
-                i++;
-            }
-        }
-
-        if (names_are_strings)
-            sipNew = ctd->ctd_init(self, argv, nr_pos_args, kw_names,
-#if 0
-                    unused_p, (PyObject **)&owner, &parseErr);
-#else
-                    NULL, (PyObject **)&owner, &parseErr);
-#endif
-        else
-            PyErr_SetString(PyExc_TypeError, "keywords must be strings");
-
-        Py_XDECREF(kw_names);
-
-        for (i = 0; i < nr_args; i++)
-            Py_DECREF(argv[i]);
-
-        if (argv != small_argv)
-            sip_api_free(argv);
-
-        if (!names_are_strings)
+        if (sip_vectorcall_create(args, kwargs, small_argv, &argv_len, &argv, &nr_pos_args, &kw_names) < 0)
             return -1;
+
+#if 0
+        // TODO Handle unused_p.
+        sipNew = ctd->ctd_init(self, argv, nr_pos_args, kw_names, unused_p,
+                (PyObject **)&owner, &parseErr);
+#else
+        sipNew = ctd->ctd_init(self, argv, nr_pos_args, kw_names, NULL,
+                (PyObject **)&owner, &parseErr);
+#endif
+
+        sip_vectorcall_dispose(small_argv, argv, argv_len, kw_names);
 
         if (sipNew != NULL)
         {

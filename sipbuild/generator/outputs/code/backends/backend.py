@@ -160,12 +160,18 @@ class Backend:
                 if is_ka_list:
                     sf.write('        };\n\n')
 
-            parser_function = 'sipParseKwdArgs'
             args.append('sipParseErr' if ctor is not None else '&sipParseErr')
             args.append('sipArgs')
 
             if spec.target_abi >= (14, 0):
-                args.append('sipNrArgs')
+                if overload is not None and overload.common.py_slot is PySlot.CALL:
+                    # The call slot has a traditional signature.
+                    parser_function = 'sipParseKwdArgs'
+                else:
+                    parser_function = 'sipParseVectorcallKwdArgs'
+                    args.append('sipNrArgs')
+            else:
+                parser_function = 'sipParseKwdArgs'
 
             args.append('sipKwds')
             args.append('sipKwdList' if is_ka_list else 'SIP_NULLPTR')
@@ -174,19 +180,25 @@ class Backend:
         else:
             single_arg = not (overload is None or overload.common.py_slot is None or is_multi_arg_slot(overload.common.py_slot))
 
-            parser_function = 'sipParseArgs'
             args.append('&sipParseErr')
 
             if spec.target_abi >= (14, 0):
-                if single_arg:
-                    args.append('&sipArg')
-                    args.append('1')
-                else:
+                if overload is not None and overload.common.py_slot is PySlot.CALL:
+                    # The call slot has a traditional signature.
+                    parser_function = 'sipParseArgs'
                     args.append('sipArgs')
-                    args.append('sipNrArgs')
+                else:
+                    parser_function = 'sipParseVectorcallArgs'
+                    if single_arg:
+                        args.append('&sipArg')
+                        args.append('1')
+                    else:
+                        args.append('sipArgs')
+                        args.append('sipNrArgs')
 
-                args.append('sipKwds' if is_method else 'SIP_NULLPTR')
+                    args.append('sipKwds' if is_method else 'SIP_NULLPTR')
             else:
+                parser_function = 'sipParseArgs'
                 args.append('sipArg' + '' if single_arg else 's')
 
         # Generate the format string.
@@ -1242,6 +1254,8 @@ f'''#define sipNoFunction               sipAPI->api_no_function
 #define sipNoMethod                 sipAPI->api_no_method
 #define sipParseArgs                sipAPI->api_parse_args
 #define sipParseKwdArgs             sipAPI->api_parse_kwd_args
+#define sipParseVectorcallArgs      sipAPI->api_parse_vectorcall_args
+#define sipParseVectorcallKwdArgs   sipAPI->api_parse_vectorcall_kwd_args
 #define sipParsePair                sipAPI->api_parse_pair
 ''')
 
@@ -2797,7 +2811,6 @@ static const pyqt{pyqt_version}QtSignal signals_{klass.iface_file.fq_cpp_name.as
         PySlot.ILSHIFT: 'Py_nb_inplace_lshift',
         PySlot.IRSHIFT: 'Py_nb_inplace_rshift',
         PySlot.INVERT: 'Py_nb_invert',
-        # TODO Is the generated handler correct? (v13 seems to use a wrapper.)
         PySlot.CALL: 'Py_tp_call',
         # TODO Is the generated handler correct? (v13 seems to use a wrapper
         # for Py_sq_item.)

@@ -18,6 +18,7 @@ public:
 
     int operator-() {return -attr_int;}
     bool operator==(const Klass &other) {return attr_int == other.attr_int;}
+    int operator()(int multiplier) {return attr_int * multiplier;}
 
 private:
     static int s_attr_int;
@@ -44,4 +45,6 @@ public:
 
     int operator-();
     bool operator==(const Klass &other);
+
+    int operator()(int multiplier);
 };

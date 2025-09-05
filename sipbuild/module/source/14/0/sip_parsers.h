@@ -62,10 +62,15 @@ void sip_api_no_function(PyObject *parse_err, const char *func,
         const char *doc);
 void sip_api_no_method(PyObject *parse_err, const char *scope,
         const char *method, const char *doc);
-int sip_api_parse_args(PyObject *wmod, PyObject **parse_err_p,
-        PyObject *const *args, Py_ssize_t nr_args, PyObject *kwd_names,
+int sip_api_parse_args(PyObject *wmod, PyObject **parse_err_p, PyObject *args,
         const char *fmt, ...);
 int sip_api_parse_kwd_args(PyObject *wmod, PyObject **parse_err_p,
+        PyObject *args, PyObject *kwargs, const char **kwd_list,
+        const char *fmt, ...);
+int sip_api_parse_vectorcall_args(PyObject *wmod, PyObject **parse_err_p,
+        PyObject *const *args, Py_ssize_t nr_args, PyObject *kwd_names,
+        const char *fmt, ...);
+int sip_api_parse_vectorcall_kwd_args(PyObject *wmod, PyObject **parse_err_p,
         PyObject *const *args, Py_ssize_t nr_args, PyObject *kwd_names,
         const char **kwd_list, PyObject **unused, const char *fmt, ...);
 int sip_api_parse_pair(PyObject *wmod, PyObject **parse_err_p, PyObject *arg_0,
@@ -88,6 +93,11 @@ PyObject *sip_is_py_method(sipWrappedModuleState *wms, sip_gilstate_t *gil,
         const char *mname);
 void sip_release(void *addr, const sipTypeDef *td, int state,
         void *user_state);
+int sip_vectorcall_create(PyObject *args, PyObject *kwargs,
+        PyObject **small_argv, Py_ssize_t *argv_len_p, PyObject ***argv_p,
+        Py_ssize_t *nr_pos_args_p, PyObject **kw_names_p);
+void sip_vectorcall_dispose(PyObject **small_argv, PyObject **argv,
+        Py_ssize_t argv_len, PyObject *kw_names);
 
 
 #ifdef __cplusplus

@@ -656,9 +656,73 @@ void sip_api_no_method(PyObject *parse_err, const char *scope,
 
 
 /*
- * Parse the arguments to a C/C++ function without any side effects.
+ * Parse the traditional arguments to a C/C++ function without any side
+ * effects.
  */
-int sip_api_parse_args(PyObject *wmod, PyObject **parse_err_p,
+#define SMALL_ARGV 8
+int sip_api_parse_args(PyObject *wmod, PyObject **parse_err_p, PyObject *args,
+        const char *fmt, ...)
+{
+    /* Convert the traditional arguments to vectorcall style. */
+    PyObject *small_argv[SMALL_ARGV];
+    Py_ssize_t argv_len = SMALL_ARGV;
+
+    PyObject **argv;
+    Py_ssize_t nr_pos_args;
+
+    if (sip_vectorcall_create(args, NULL, small_argv, &argv_len, &argv, &nr_pos_args, NULL) < 0)
+        return 0;
+
+    int ok;
+    va_list va;
+
+    va_start(va, fmt);
+    ok = parse_kwd_args(wmod, parse_err_p, argv, nr_pos_args, NULL, NULL,
+            NULL, fmt, va);
+    va_end(va);
+
+    sip_vectorcall_dispose(small_argv, argv, argv_len, NULL);
+
+    return ok;
+}
+
+
+/*
+ * Parse the positional and/or keyword traditional arguments to a C/C++
+ * function without any side effects.
+ */
+int sip_api_parse_kwd_args(PyObject *wmod, PyObject **parse_err_p,
+        PyObject *args, PyObject *kwargs, const char **kwd_list,
+        const char *fmt, ...)
+{
+    /* Convert the traditional arguments to vectorcall style. */
+    PyObject *small_argv[SMALL_ARGV];
+    Py_ssize_t argv_len = SMALL_ARGV;
+
+    PyObject **argv, *kwd_names;
+    Py_ssize_t nr_pos_args;
+
+    if (sip_vectorcall_create(args, kwargs, small_argv, &argv_len, &argv, &nr_pos_args, &kwd_names) < 0)
+        return 0;
+
+    int ok;
+    va_list va;
+
+    va_start(va, fmt);
+    ok = parse_kwd_args(wmod, parse_err_p, argv, argv_len, kwd_names, kwd_list,
+            NULL, fmt, va);
+    va_end(va);
+
+    sip_vectorcall_dispose(small_argv, argv, argv_len, kwd_names);
+
+    return ok;
+}
+
+
+/*
+ * Parse the vectorcall arguments to a C/C++ function without any side effects.
+ */
+int sip_api_parse_vectorcall_args(PyObject *wmod, PyObject **parse_err_p,
         PyObject *const *args, Py_ssize_t nr_args, PyObject *kwd_names,
         const char *fmt, ...)
 {
@@ -675,10 +739,10 @@ int sip_api_parse_args(PyObject *wmod, PyObject **parse_err_p,
 
 
 /*
- * Parse the positional and/or keyword arguments to a C/C++ function without
- * any side effects.
+ * Parse the positional and/or keyword vectorcall arguments to a C/C++ function
+ * without any side effects.
  */
-int sip_api_parse_kwd_args(PyObject *wmod, PyObject **parse_err_p,
+int sip_api_parse_vectorcall_kwd_args(PyObject *wmod, PyObject **parse_err_p,
         PyObject *const *args, Py_ssize_t nr_args, PyObject *kwd_names,
         const char **kwd_list, PyObject **unused, const char *fmt, ...)
 {
@@ -1093,6 +1157,109 @@ PyObject *sip_is_py_method(sipWrappedModuleState *wms, sip_gilstate_t *gil,
 release_gil:
     PyGILState_Release(*gil);
     return NULL;
+}
+
+
+/*
+ * Convert traditional arguments to vectorcall style.  This steals its approach
+ * from the Python internals.
+ */
+int sip_vectorcall_create(PyObject *args, PyObject *kwargs,
+        PyObject **small_argv, Py_ssize_t *argv_len_p, PyObject ***argv_p,
+        Py_ssize_t *nr_pos_args_p, PyObject **kw_names_p)
+{
+    Py_ssize_t nr_pos_args = (args == NULL ? 0 : PyTuple_Size(args));
+    if (nr_pos_args < 0)
+        return -1;
+
+    Py_ssize_t nr_kwd_args = (kwargs == NULL ? 0 : PyDict_Size(kwargs));
+    if (nr_kwd_args < 0)
+        return -1;
+
+    /* Minimise the memory allocations for most cases. */
+    PyObject **argv;
+    Py_ssize_t argv_len = nr_pos_args + nr_kwd_args;
+
+    if (argv_len <= *argv_len_p)
+    {
+        argv = small_argv;
+    }
+    else
+    {
+        argv = sip_api_malloc(argv_len * sizeof (PyObject *));
+        if (argv == NULL)
+            return -1;
+    }
+
+    *argv_len_p = argv_len;
+
+    Py_ssize_t i = 0;
+
+    for (i = 0; i < nr_pos_args; i++)
+        argv[i] = Py_NewRef(PyTuple_GET_ITEM(args, i));
+
+    PyObject *kw_names;
+    unsigned long names_are_strings = Py_TPFLAGS_UNICODE_SUBCLASS;
+
+    if (nr_kwd_args == 0)
+    {
+        kw_names = NULL;
+    }
+    else
+    {
+        if ((kw_names = PyTuple_New(nr_kwd_args)) == NULL)
+        {
+            sip_vectorcall_dispose(small_argv, argv, nr_pos_args, NULL);
+            return -1;
+        }
+
+        Py_ssize_t pos = 0;
+        PyObject *key, *value;
+        i = 0;
+
+        while (PyDict_Next(kwargs, &pos, &key, &value))
+        {
+            names_are_strings &= Py_TYPE(key)->tp_flags;
+            PyTuple_SET_ITEM(kw_names, i, Py_NewRef(key));
+            argv[nr_pos_args + i] = Py_NewRef(value);
+            i++;
+        }
+    }
+
+    if (names_are_strings)
+    {
+        *argv_p = argv;
+        *nr_pos_args_p = nr_pos_args;
+
+        if (kw_names_p != NULL)
+            *kw_names_p = kw_names;
+
+        return 0;
+    }
+
+    PyErr_SetString(PyExc_TypeError, "keywords must be strings");
+
+    sip_vectorcall_dispose(small_argv, argv, argv_len, kw_names);
+
+    return -1;
+}
+
+
+/*
+ * Dispose of the resources allocated by sip_vectorcall_create().
+ */
+void sip_vectorcall_dispose(PyObject **small_argv, PyObject **argv,
+        Py_ssize_t argv_len, PyObject *kw_names)
+{
+    Py_ssize_t i;
+
+    for (i = 0; i < argv_len; i++)
+        Py_DECREF(argv[i]);
+
+    if (argv != small_argv)
+        sip_api_free(argv);
+
+    Py_XDECREF(kw_names);
 }
 
 

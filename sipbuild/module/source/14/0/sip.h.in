@@ -532,6 +532,7 @@ typedef enum {
  * The different Python slot types.  New slots must be added to the end,
  * otherwise the major version of the internal ABI must be changed.
  */
+// TODO Remove this.
 typedef enum {
     str_slot,           /* __str__ */
     int_slot,           /* __int__ */
@@ -598,6 +599,7 @@ typedef enum {
 /*
  * The immutable definition of a Python slot function.
  */
+// TODO Remove this.
 typedef struct _sipPySlotDef {
     /* The function. */
     void *psd_func;
@@ -615,6 +617,7 @@ typedef struct _sipPySlotExtenderDef {
     const void *pse_func;
 
     /* The type. */
+    // TODO Change this to an int containing Python slot numbers.
     sipPySlotType pse_type;
 
     /* The encoded class. */
@@ -1183,11 +1186,17 @@ struct _sipAPIDef {
      * The following are not part of the public API.
      */
     int (*api_parse_args)(PyObject *wmod, PyObject **parse_err_p,
+            PyObject *args, const char *fmt, ...);
+    int (*api_parse_kwd_args)(PyObject *wmod, PyObject **parse_err_p,
+            PyObject *args, PyObject *kwargs, const char **kwd_list,
+            const char *fmt, ...);
+    int (*api_parse_vectorcall_args)(PyObject *wmod, PyObject **parse_err_p,
             PyObject *const *args, Py_ssize_t nr_args, PyObject *kwd_names,
             const char *fmt, ...);
-    int (*api_parse_kwd_args)(PyObject *wmod, PyObject **parse_err_p,
-            PyObject *const *args, Py_ssize_t nr_args, PyObject *kwd_names,
-            const char **kwd_list, PyObject **unused, const char *fmt, ...);
+    int (*api_parse_vectorcall_kwd_args)(PyObject *wmod,
+            PyObject **parse_err_p, PyObject *const *args, Py_ssize_t nr_args,
+            PyObject *kwd_names, const char **kwd_list, PyObject **unused,
+            const char *fmt, ...);
     int (*api_parse_pair)(PyObject *wmod, PyObject **parse_err_p,
             PyObject *arg_0, PyObject *arg_1, const char *fmt, ...);
     void (*api_no_function)(PyObject *parse_err, const char *func,

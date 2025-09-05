@@ -228,6 +228,8 @@ const sipAPIDef sip_api = {
      */
     sip_api_parse_args,
     sip_api_parse_kwd_args,
+    sip_api_parse_vectorcall_args,
+    sip_api_parse_vectorcall_kwd_args,
     sip_api_parse_pair,
     sip_api_no_function,
     sip_api_no_method,
