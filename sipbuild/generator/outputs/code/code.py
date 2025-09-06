@@ -1730,6 +1730,7 @@ def _class_functions(backend, sf, bindings, klass, py_debug):
                     visible_member.member, visible_member.scope)
 
     # The slot functions.
+    has_getitem_slot = has_setitem_slot = has_delitem_slot = False
     rich_comparison_members = []
 
     for member in klass.members:
@@ -1738,9 +1739,22 @@ def _class_functions(backend, sf, bindings, klass, py_debug):
         elif member.py_slot is not None:
             _py_slot(backend, sf, bindings, member, scope=klass)
 
-            if spec.target_abi >= (14, 0):
-                if member.py_slot is PySlot.GETITEM:
-                    sf.write(
+            if member.py_slot is PySlot.GETITEM:
+                has_getitem_slot = True
+
+            if member.py_slot is PySlot.SETITEM:
+                has_setitem_slot = True
+
+            if member.py_slot is PySlot.DELITEM:
+                has_delitem_slot = True
+
+            if is_rich_compare_slot(member.py_slot):
+                rich_comparison_members.append(member)
+
+    if spec.target_abi >= (14, 0):
+        # Generate item dispatchers if required.
+        if has_getitem_slot:
+            sf.write(
 f'''
 
 extern "C" {{static PyObject *slot_{as_word}___sq_item__(PyObject *, Py_ssize_t);}}
@@ -1757,12 +1771,109 @@ static PyObject *slot_{as_word}___sq_item__(PyObject *self, Py_ssize_t n)
 }}
 ''')
 
-            if is_rich_compare_slot(member.py_slot):
-                rich_comparison_members.append(member)
+        if has_setitem_slot or has_delitem_slot:
+            sf.write(
+f'''
 
-    # Generate a rich comparision dispatcher if required.
-    if spec.target_abi >= (14, 0) and rich_comparison_members:
-        sf.write(
+extern "C" {{static int slot_{as_word}___mp_ass_subscript__(PyObject *, PyObject *, PyObject *);}}
+static int slot_{as_word}___mp_ass_subscript__(PyObject *self, PyObject *key, PyObject *value)
+{{
+    if (value != NULL)
+    {{
+''')
+
+            if has_setitem_slot:
+                # TODO Refactor to use a vectorcall 2 element array.
+                sf.write(
+f'''        PyObject *args = PyTuple_Pack(2, key, value);
+        if (args == NULL)
+            return -1;
+
+        int res = slot_{as_word}___setitem__(self, args);
+        Py_DECREF(args);
+
+        return res;
+''')
+            else:
+                sf.write(
+'''        PyErr_SetNone(PyExc_NotImplementedError);
+        return -1;
+''')
+
+            sf.write('    }\n\n');
+
+            if has_delitem_slot:
+                sf.write(
+f'''    return slot_{as_word}___delitem__(self, key);
+''')
+            else:
+                sf.write(
+'''    PyErr_SetNone(PyExc_NotImplementedError);
+    return -1;
+''')
+
+            sf.write('}\n');
+
+            sf.write(
+f'''
+
+extern "C" {{static int slot_{as_word}___sq_ass_item__(PyObject *, Py_ssize_t, PyObject *);}}
+static int slot_{as_word}___sq_ass_item__(PyObject *self, Py_ssize_t index, PyObject *value)
+{{
+    PyObject *key = PyLong_FromSsize_t(index);
+    if (key == NULL)
+        return -1;
+
+    int res;
+
+    if (value != NULL)
+    {{
+''')
+
+            if has_setitem_slot:
+                # TODO Refactor to use a vectorcall 2 element array.
+                sf.write(
+f'''        PyObject *args = PyTuple_Pack(2, key, value);
+        if (args != NULL)
+        {{
+            res = slot_{as_word}___setitem__(self, args);
+            Py_DECREF(args);
+        }}
+        else
+        {{
+            res = -1;
+        }}
+''')
+            else:
+                sf.write(
+'''        PyErr_SetNone(PyExc_NotImplementedError);
+        res = -1;
+''')
+
+            sf.write('    }\n    else\n    {\n');
+
+            if has_delitem_slot:
+                sf.write(
+f'''        res = slot_{as_word}___delitem__(self, key);
+''')
+            else:
+                sf.write(
+'''        PyErr_SetNone(PyExc_NotImplementedError);
+        res = -1;
+''')
+
+            sf.write(
+'''    }
+
+    Py_DECREF(key);
+
+    return res;
+}
+''');
+
+        # Generate a rich comparision dispatcher if required.
+        if rich_comparison_members:
+            sf.write(
 f'''
 
 extern "C" {{static PyObject *slot_{as_word}___richcompare__(PyObject *, PyObject *, int);}}
@@ -1772,14 +1883,13 @@ static PyObject *slot_{as_word}___richcompare__(PyObject *self, PyObject *arg, i
     {{
 ''')
 
-        for rc_member in rich_comparison_members:
-            sf.write(f'    case Py_{rc_member.py_slot.name}: return slot_{as_word}_{rc_member.py_name}(self, arg);\n')
+            for rc_member in rich_comparison_members:
+                sf.write(f'    case Py_{rc_member.py_slot.name}: return slot_{as_word}_{rc_member.py_name}(self, arg);\n')
 
-        sf.write(
+            sf.write(
 f'''    }}
 
-    Py_INCREF(Py_NotImplemented);
-    return Py_NotImplemented;
+    return Py_NewRef(Py_NotImplemented);
 }}
 ''')
 

@@ -183,8 +183,8 @@ class Backend:
             args.append('&sipParseErr')
 
             if spec.target_abi >= (14, 0):
-                if overload is not None and overload.common.py_slot is PySlot.CALL:
-                    # The call slot has a traditional signature.
+                if overload is not None and overload.common.py_slot in (PySlot.CALL, PySlot.SETITEM):
+                    # These slots have a traditional signature.
                     parser_function = 'sipParseArgs'
                     args.append('sipArgs')
                 else:
@@ -1463,6 +1463,7 @@ f'''    PyObject *sipModule = sipGetModule(sipSelf, &sipWrappedModuleDef_{self.s
 
         # Generate the slots table.
         has_slots = False
+        has_setdelitem_slots = False
         has_rich_compare_slots = False
 
         for member in klass.members:
@@ -1479,6 +1480,10 @@ static PyType_Slot sip_py_slots_{klass_name}[] = {{
 
                 has_slots = True
 
+            if member.py_slot in (PySlot.SETITEM, PySlot.DELITEM):
+                has_setdelitem_slots = True
+                continue
+
             if is_rich_compare_slot(member.py_slot):
                 has_rich_compare_slots = True
                 continue
@@ -1487,6 +1492,10 @@ static PyType_Slot sip_py_slots_{klass_name}[] = {{
                 sf.write(f'    {{Py_sq_item, (void *)slot_{klass_name}___sq_item__}},\n')
 
             self._g_py_slot_table_entry(sf, klass_name, member)
+
+        if has_setdelitem_slots:
+            sf.write(f'    {{Py_mp_ass_subscript, (void *)slot_{klass_name}___mp_ass_subscript__}},\n')
+            sf.write(f'    {{Py_sq_ass_item, (void *)slot_{klass_name}___sq_ass_item__}},\n')
 
         if has_rich_compare_slots:
             sf.write(f'    {{Py_tp_richcompare, (void *)slot_{klass_name}___richcompare__}},\n')
@@ -2785,7 +2794,7 @@ static const pyqt{pyqt_version}QtSignal signals_{klass.iface_file.fq_cpp_name.as
         PySlot.STR: 'Py_tp_str',
         PySlot.INT: 'Py_nb_int',
         PySlot.FLOAT: 'Py_nb_float',
-        PySlot.LEN: ('Py_mp_length', 'Py_sq_length'),
+        PySlot.LEN: 'Py_mp_length',
         PySlot.CONTAINS: 'Py_sq_contains',
         PySlot.ADD: 'Py_nb_add',
         PySlot.CONCAT: 'Py_sq_concat',
@@ -2816,12 +2825,6 @@ static const pyqt{pyqt_version}QtSignal signals_{klass.iface_file.fq_cpp_name.as
         PySlot.INVERT: 'Py_nb_invert',
         PySlot.CALL: 'Py_tp_call',
         PySlot.GETITEM: 'Py_mp_subscript',
-        # TODO Is the generated handler correct? (v13 seems to use a wrapper
-        # for both.)
-        PySlot.SETITEM: ('Py_mp_ass_subscript', 'Py_sq_ass_item'),
-        # TODO Is the generated handler correct? (v13 seems to use a wrapper
-        # for both.)
-        PySlot.DELITEM: ('Py_mp_ass_subscript', 'Py_sq_ass_item'),
         PySlot.BOOL: 'Py_nb_bool',
         PySlot.NEG: 'Py_nb_negative',
         PySlot.REPR: 'Py_tp_repr',
@@ -2843,13 +2846,16 @@ static const pyqt{pyqt_version}QtSignal signals_{klass.iface_file.fq_cpp_name.as
     def _g_py_slot_table_entry(cls, sf, scope_name, member):
         """ Generate an entry in the Python slot table for a scope. """
 
-        slot_ids = cls._SLOT_ID_MAP[member.py_slot]
+        # setitem, delitem and the rich comparison slots are handled elsewhere.
 
-        if isinstance(slot_ids, str):
-            slot_ids = (slot_ids, )
+        py_slot = member.py_slot
+        py_name = member.py_name
 
-        for slot_id in slot_ids:
-            sf.write(f'    {{{slot_id}, (void *)slot_{scope_name}_{member.py_name}}},\n')
+        slot_id = cls._SLOT_ID_MAP[py_slot]
+        sf.write(f'    {{{slot_id}, (void *)slot_{scope_name}_{py_name}}},\n')
+
+        if py_slot is PySlot.LEN:
+            sf.write(f'    {{Py_sq_length, (void *)slot_{scope_name}_{py_name}}},\n')
 
     def _g_variables_table(self, sf, scope, *, for_unbound):
         """ Generate the table of either bound or unbound variables for a scope

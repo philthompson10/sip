@@ -43,6 +43,19 @@ class ClassCallablesTestCase(SIPTestCase):
         klass.set_attr_int(33)
         self.assertEqual(klass(2), 66)
 
+    def test_slot_delitem(self):
+        """ Test the support for the __delitem__ slot. """
+
+        klass = self.m.Klass()
+
+        original_count = klass.count()
+        self.assertEqual(klass[2], 2)
+
+        del klass[2]
+
+        self.assertEqual(klass.count(), original_count - 1)
+        self.assertEqual(klass[2], 3)
+
     def test_slot_eq(self):
         """ Test the support for the __eq__ slot. """
 
@@ -83,3 +96,18 @@ class ClassCallablesTestCase(SIPTestCase):
 
         klass.set_attr_int(10)
         self.assertEqual(-klass, -10)
+
+    def test_slot_setitem(self):
+        """ Test the support for the __setitem__ slot. """
+
+        klass = self.m.Klass()
+
+        self.assertEqual(klass[2], 2)
+        klass[2] = 20
+        self.assertEqual(klass[2], 20)
+
+        with self.assertRaises(IndexError):
+            klass[-1] = 0
+
+        with self.assertRaises(IndexError):
+            klass[klass.count()] = 0
