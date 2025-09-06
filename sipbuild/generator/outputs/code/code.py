@@ -1738,6 +1738,25 @@ def _class_functions(backend, sf, bindings, klass, py_debug):
         elif member.py_slot is not None:
             _py_slot(backend, sf, bindings, member, scope=klass)
 
+            if spec.target_abi >= (14, 0):
+                if member.py_slot is PySlot.GETITEM:
+                    sf.write(
+f'''
+
+extern "C" {{static PyObject *slot_{as_word}___sq_item__(PyObject *, Py_ssize_t);}}
+static PyObject *slot_{as_word}___sq_item__(PyObject *self, Py_ssize_t n)
+{{
+    PyObject *arg = PyLong_FromSsize_t(n);
+    if (arg == NULL)
+        return NULL;
+
+    PyObject *res = slot_{as_word}___getitem__(self, arg);
+    Py_DECREF(arg);
+
+    return res;
+}}
+''')
+
             if is_rich_compare_slot(member.py_slot):
                 rich_comparison_members.append(member)
 

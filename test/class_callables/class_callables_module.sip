@@ -20,6 +20,9 @@ public:
     bool operator==(const Klass &other) {return attr_int == other.attr_int;}
     int operator()(int multiplier) {return attr_int * multiplier;}
 
+    int count() const {return 5;}
+    int operator[](int idx) const {return idx;}
+
 private:
     static int s_attr_int;
     int attr_int;
@@ -45,6 +48,8 @@ public:
 
     int operator-();
     bool operator==(const Klass &other);
-
     int operator()(int multiplier);
+
+    int count() const /__len__/;
+    int operator[](int idx) const;
 };

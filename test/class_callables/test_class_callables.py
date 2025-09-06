@@ -56,6 +56,26 @@ class ClassCallablesTestCase(SIPTestCase):
 
         self.assertIs(klass == 100, False)
 
+    def test_slot_getitem(self):
+        """ Test the support for the __getitem__ slot. """
+
+        klass = self.m.Klass()
+
+        self.assertEqual(klass[2], 2)
+
+        with self.assertRaises(IndexError):
+            klass[-1]
+
+        with self.assertRaises(IndexError):
+            klass[klass.count()]
+
+    def test_slot_len(self):
+        """ Test the support for the __len__ slot. """
+
+        klass = self.m.Klass()
+
+        self.assertEqual(klass.count(), len(klass))
+
     def test_slot_neg(self):
         """ Test the support for the __neg__ slot. """
 

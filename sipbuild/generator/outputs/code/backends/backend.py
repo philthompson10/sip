@@ -1483,6 +1483,9 @@ static PyType_Slot sip_py_slots_{klass_name}[] = {{
                 has_rich_compare_slots = True
                 continue
 
+            if member.py_slot is PySlot.GETITEM:
+                sf.write(f'    {{Py_sq_item, (void *)slot_{klass_name}___sq_item__}},\n')
+
             self._g_py_slot_table_entry(sf, klass_name, member)
 
         if has_rich_compare_slots:
@@ -2812,9 +2815,7 @@ static const pyqt{pyqt_version}QtSignal signals_{klass.iface_file.fq_cpp_name.as
         PySlot.IRSHIFT: 'Py_nb_inplace_rshift',
         PySlot.INVERT: 'Py_nb_invert',
         PySlot.CALL: 'Py_tp_call',
-        # TODO Is the generated handler correct? (v13 seems to use a wrapper
-        # for Py_sq_item.)
-        PySlot.GETITEM: ('Py_mp_subscript', 'Py_sq_item'),
+        PySlot.GETITEM: 'Py_mp_subscript',
         # TODO Is the generated handler correct? (v13 seems to use a wrapper
         # for both.)
         PySlot.SETITEM: ('Py_mp_ass_subscript', 'Py_sq_ass_item'),
