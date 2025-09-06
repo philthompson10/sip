@@ -1537,17 +1537,23 @@ def _py_slot(backend, sf, bindings, member, scope=None):
 
     has_args = True
 
-    if is_int_arg_slot(member.py_slot):
-        has_args = False
-        arg_str = 'PyObject *sipSelf, int a0'
-        decl_arg_str = 'PyObject *, int'
-    elif member.py_slot is PySlot.CALL:
+    if member.py_slot is PySlot.CALL:
         if spec.c_bindings or member.allow_keyword_args or member.no_arg_parser:
             arg_str = 'PyObject *sipSelf, PyObject *sipArgs, PyObject *sipKwds'
         else:
             arg_str = 'PyObject *sipSelf, PyObject *sipArgs, PyObject *'
 
         decl_arg_str = 'PyObject *, PyObject *, PyObject *'
+    elif member.py_slot is PySlot.SETATTR:
+        arg_str = 'PyObject *sipSelf, PyObject *sipName, PyObject *sipValue'
+        decl_arg_str = 'PyObject *, PyObject *, PyObject *'
+    elif spec.target_abi >= (14, 0) and member.py_slot is PySlot.SETITEM:
+        arg_str = 'PyObject *sipSelf, PyObject *sipKey, PyObject *sipValue'
+        decl_arg_str = 'PyObject *, PyObject *, PyObject *'
+    elif is_int_arg_slot(member.py_slot):
+        has_args = False
+        arg_str = 'PyObject *sipSelf, int a0'
+        decl_arg_str = 'PyObject *, int'
     elif is_multi_arg_slot(member.py_slot):
         arg_str = 'PyObject *sipSelf, PyObject *sipArgs'
         decl_arg_str = 'PyObject *, PyObject *'
@@ -1558,9 +1564,6 @@ def _py_slot(backend, sf, bindings, member, scope=None):
     elif is_number_slot(member.py_slot):
         arg_str = 'PyObject *sipArg0, PyObject *sipArg1'
         decl_arg_str = 'PyObject *, PyObject *'
-    elif member.py_slot is PySlot.SETATTR:
-        arg_str = 'PyObject *sipSelf, PyObject *sipName, PyObject *sipValue'
-        decl_arg_str = 'PyObject *, PyObject *, PyObject *'
     else:
         arg_str = 'PyObject *sipSelf, PyObject *sipArg'
         decl_arg_str = 'PyObject *, PyObject *'
@@ -1779,28 +1782,21 @@ extern "C" {{static int slot_{as_word}___mp_ass_subscript__(PyObject *, PyObject
 static int slot_{as_word}___mp_ass_subscript__(PyObject *self, PyObject *key, PyObject *value)
 {{
     if (value != NULL)
-    {{
 ''')
 
             if has_setitem_slot:
-                # TODO Refactor to use a vectorcall 2 element array.
                 sf.write(
-f'''        PyObject *args = PyTuple_Pack(2, key, value);
-        if (args == NULL)
-            return -1;
-
-        int res = slot_{as_word}___setitem__(self, args);
-        Py_DECREF(args);
-
-        return res;
+f'''        return slot_{as_word}___setitem__(self, key, value);
 ''')
             else:
                 sf.write(
-'''        PyErr_SetNone(PyExc_NotImplementedError);
+'''    {
+        PyErr_SetNone(PyExc_NotImplementedError);
         return -1;
+    }
 ''')
 
-            sf.write('    }\n\n');
+            sf.write('\n');
 
             if has_delitem_slot:
                 sf.write(
@@ -1824,51 +1820,12 @@ static int slot_{as_word}___sq_ass_item__(PyObject *self, Py_ssize_t index, PyOb
     if (key == NULL)
         return -1;
 
-    int res;
-
-    if (value != NULL)
-    {{
-''')
-
-            if has_setitem_slot:
-                # TODO Refactor to use a vectorcall 2 element array.
-                sf.write(
-f'''        PyObject *args = PyTuple_Pack(2, key, value);
-        if (args != NULL)
-        {{
-            res = slot_{as_word}___setitem__(self, args);
-            Py_DECREF(args);
-        }}
-        else
-        {{
-            res = -1;
-        }}
-''')
-            else:
-                sf.write(
-'''        PyErr_SetNone(PyExc_NotImplementedError);
-        res = -1;
-''')
-
-            sf.write('    }\n    else\n    {\n');
-
-            if has_delitem_slot:
-                sf.write(
-f'''        res = slot_{as_word}___delitem__(self, key);
-''')
-            else:
-                sf.write(
-'''        PyErr_SetNone(PyExc_NotImplementedError);
-        res = -1;
-''')
-
-            sf.write(
-'''    }
+    int res = slot_{as_word}___mp_ass_subscript__(self, key, value);
 
     Py_DECREF(key);
 
     return res;
-}
+}}
 ''');
 
         # Generate a rich comparision dispatcher if required.

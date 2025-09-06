@@ -183,20 +183,26 @@ class Backend:
             args.append('&sipParseErr')
 
             if spec.target_abi >= (14, 0):
-                if overload is not None and overload.common.py_slot in (PySlot.CALL, PySlot.SETITEM):
-                    # These slots have a traditional signature.
+                if overload is not None and overload.common.py_slot is PySlot.CALL:
+                    # The call slot has a traditional signature.
                     parser_function = 'sipParseArgs'
                     args.append('sipArgs')
+                elif overload is not None and overload.common.py_slot is PySlot.SETITEM:
+                    # We use a non-standard API for setitem as we know we have
+                    # two arguments.
+                    parser_function = 'sipParsePair'
+                    args.append('sipKey')
+                    args.append('sipValue')
                 else:
-                    parser_function = 'sipParseVectorcallArgs'
                     if single_arg:
-                        args.append('&sipArg')
-                        args.append('1')
+                        parser_function = 'sipParsePair'
+                        args.append('sipArg')
+                        args.append('SIP_NULLPTR')
                     else:
+                        parser_function = 'sipParseVectorcallArgs'
                         args.append('sipArgs')
                         args.append('sipNrArgs')
-
-                    args.append('sipKwds' if is_method else 'SIP_NULLPTR')
+                        args.append('sipKwds' if is_method else 'SIP_NULLPTR')
             else:
                 parser_function = 'sipParseArgs'
                 args.append('sipArg' + '' if single_arg else 's')
