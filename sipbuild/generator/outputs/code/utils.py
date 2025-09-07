@@ -63,12 +63,6 @@ def get_normalised_cached_name(cached_name):
     return cached_name.name.replace(':', '_').replace('.', '_')
 
 
-def get_slot_name(slot_type):
-    """ Return the sip module's string equivalent of a slot. """
-
-    return slot_type.name.lower() + '_slot'
-
-
 def get_type_from_void(spec, type_name, variable_name, tight=False):
     """ Return a cast from a void * variable to a pointer type. """
 

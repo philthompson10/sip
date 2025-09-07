@@ -60,8 +60,8 @@ static void sip_api_raise_type_exception(PyObject *wmod, sipTypeID type_id,
 static int sip_api_add_type_instance(PyObject *wmod, PyObject *dict,
         const char *name, void *cppPtr, sipTypeID type_id);
 static void sip_api_bad_operator_arg(PyObject *self, PyObject *arg,
-        sipPySlotType st);
-static PyObject *sip_api_pyslot_extend(PyObject *wmod, sipPySlotType st,
+        int slot_id);
+static PyObject *sip_api_py_slot_extend(PyObject *wmod, int slot_id,
         sipTypeID type_id, PyObject *arg0, PyObject *arg1);
 static void sip_api_add_delayed_dtor(sipSimpleWrapper *w);
 static int sip_api_export_symbol(PyObject *wmod, const char *name, void *sym);
@@ -243,7 +243,7 @@ const sipAPIDef sip_api = {
     sip_api_raise_type_exception,
     sip_api_add_type_instance,
     sip_api_bad_operator_arg,
-    sip_api_pyslot_extend,
+    sip_api_py_slot_extend,
     sip_api_add_delayed_dtor,
     sip_api_bytes_as_char,
     sip_api_bytes_as_char_array,
@@ -539,7 +539,8 @@ void sip_api_free(void *mem)
  * Extend a Python slot by looking in other modules to see if there is an
  * extender function that can handle the arguments.
  */
-static PyObject *sip_api_pyslot_extend(PyObject *wmod, sipPySlotType st,
+// TODO Test this.
+static PyObject *sip_api_py_slot_extend(PyObject *wmod, int slot_id,
         sipTypeID type_id, PyObject *arg0, PyObject *arg1)
 {
     sipWrappedModuleState *wms = (sipWrappedModuleState *)PyModule_GetState(
@@ -568,7 +569,7 @@ static PyObject *sip_api_pyslot_extend(PyObject *wmod, sipPySlotType st,
         for (; ex->pse_func != NULL; ++ex)
         {
             /* Skip if not the right slot type. */
-            if (ex->pse_type != st)
+            if (ex->pse_slot_id != slot_id)
                 continue;
 
             /* Check against the type if one was given. */
@@ -582,6 +583,8 @@ static PyObject *sip_api_pyslot_extend(PyObject *wmod, sipPySlotType st,
 
             PyErr_Clear();
 
+            // TODO Handle Py_tp_richcompare separately (which will need an
+            // extra arg for the Py_EQ etc. value.
             PyObject *res = ((binaryfunc)ex->pse_func)(arg0, arg1);
 
             if (res != Py_NotImplemented)
@@ -594,8 +597,7 @@ static PyObject *sip_api_pyslot_extend(PyObject *wmod, sipPySlotType st,
     /* The arguments couldn't handled anywhere. */
     PyErr_Clear();
 
-    Py_INCREF(Py_NotImplemented);
-    return Py_NotImplemented;
+    return Py_NewRef(Py_NotImplemented);
 }
 
 
@@ -1450,26 +1452,26 @@ int sip_api_deprecated(const char *classname, const char *method,
  * be handled (those that don't return Py_NotImplemented).
  */
 static void sip_api_bad_operator_arg(PyObject *self, PyObject *arg,
-        sipPySlotType st)
+        int slot_id)
 {
     const char *sn = NULL;
 
     /* Try and get the text to match a Python exception. */
 
-    switch (st)
+    switch (slot_id)
     {
-    case concat_slot:
-    case iconcat_slot:
+    case Py_sq_concat:
+    case Py_sq_inplace_concat:
         PyErr_Format(PyExc_TypeError,
                 "cannot concatenate '%s' and '%s' objects",
                 Py_TYPE(self)->tp_name, Py_TYPE(arg)->tp_name);
         break;
 
-    case repeat_slot:
+    case Py_sq_repeat:
         sn = "*";
         break;
 
-    case irepeat_slot:
+    case Py_sq_inplace_repeat:
         sn = "*=";
         break;
 
@@ -2514,6 +2516,8 @@ int sip_api_enable_autoconversion(sipWrapperType *wt, int enable)
  * versa if either are missing.  This is a bug because they don't have the same
  * API.  We therefore reverse this.
  */
+// TODO Review if something like this is still required.
+#if 0
 void sip_fix_slots(PyTypeObject *py_type, sipPySlotDef *psd)
 {
     while (psd->psd_func != NULL)
@@ -2527,6 +2531,7 @@ void sip_fix_slots(PyTypeObject *py_type, sipPySlotDef *psd)
         ++psd;
     }
 }
+#endif
 
 
 /*

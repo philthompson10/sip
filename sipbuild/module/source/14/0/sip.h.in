@@ -529,98 +529,16 @@ typedef enum {
 
 
 /*
- * The different Python slot types.  New slots must be added to the end,
- * otherwise the major version of the internal ABI must be changed.
- */
-// TODO Remove this.
-typedef enum {
-    str_slot,           /* __str__ */
-    int_slot,           /* __int__ */
-    float_slot,         /* __float__ */
-    len_slot,           /* __len__ */
-    contains_slot,      /* __contains__ */
-    add_slot,           /* __add__ for number */
-    concat_slot,        /* __add__ for sequence types */
-    sub_slot,           /* __sub__ */
-    mul_slot,           /* __mul__ for number types */
-    repeat_slot,        /* __mul__ for sequence types */
-    div_slot,           /* __div__ */
-    mod_slot,           /* __mod__ */
-    floordiv_slot,      /* __floordiv__ */
-    truediv_slot,       /* __truediv__ */
-    and_slot,           /* __and__ */
-    or_slot,            /* __or__ */
-    xor_slot,           /* __xor__ */
-    lshift_slot,        /* __lshift__ */
-    rshift_slot,        /* __rshift__ */
-    iadd_slot,          /* __iadd__ for number types */
-    iconcat_slot,       /* __iadd__ for sequence types */
-    isub_slot,          /* __isub__ */
-    imul_slot,          /* __imul__ for number types */
-    irepeat_slot,       /* __imul__ for sequence types */
-    idiv_slot,          /* __idiv__ */
-    imod_slot,          /* __imod__ */
-    ifloordiv_slot,     /* __ifloordiv__ */
-    itruediv_slot,      /* __itruediv__ */
-    iand_slot,          /* __iand__ */
-    ior_slot,           /* __ior__ */
-    ixor_slot,          /* __ixor__ */
-    ilshift_slot,       /* __ilshift__ */
-    irshift_slot,       /* __irshift__ */
-    invert_slot,        /* __invert__ */
-    call_slot,          /* __call__ */
-    getitem_slot,       /* __getitem__ */
-    setitem_slot,       /* __setitem__ */
-    delitem_slot,       /* __delitem__ */
-    lt_slot,            /* __lt__ */
-    le_slot,            /* __le__ */
-    eq_slot,            /* __eq__ */
-    ne_slot,            /* __ne__ */
-    gt_slot,            /* __gt__ */
-    ge_slot,            /* __ge__ */
-    bool_slot,          /* __bool__, __nonzero__ */
-    neg_slot,           /* __neg__ */
-    repr_slot,          /* __repr__ */
-    hash_slot,          /* __hash__ */
-    pos_slot,           /* __pos__ */
-    abs_slot,           /* __abs__ */
-    index_slot,         /* __index__ */
-    iter_slot,          /* __iter__ */
-    next_slot,          /* __next__ */
-    setattr_slot,       /* __setattr__, __delattr__ */
-    matmul_slot,        /* __matmul__ */
-    imatmul_slot,       /* __imatmul__ */
-    await_slot,         /* __await__ */
-    aiter_slot,         /* __aiter__ */
-    anext_slot,         /* __anext__ */
-} sipPySlotType;
-
-
-/*
- * The immutable definition of a Python slot function.
- */
-// TODO Remove this.
-typedef struct _sipPySlotDef {
-    /* The function. */
-    void *psd_func;
-
-    /* The type. */
-    sipPySlotType psd_type;
-} sipPySlotDef;
-
-
-/*
  * The immutable definition of a Python slot extender.
  */
 typedef struct _sipPySlotExtenderDef {
     /* The function. */
     const void *pse_func;
 
-    /* The type. */
-    // TODO Change this to an int containing Python slot numbers.
-    sipPySlotType pse_type;
+    /* The slot ID (eg. Py_tp_str). */
+    int pse_slot_id;
 
-    /* The encoded class. */
+    /* The class type ID. */
     sipTypeID pse_class;
 } sipPySlotExtenderDef;
 
@@ -909,8 +827,8 @@ typedef struct _sipEnumTypeDef {
     int etd_nr_members;
 #endif
 
-    /* The Python slots. */
-    const struct _sipPySlotDef *etd_pyslots;
+    /* The table of Python slots. */
+    const PyType_Slot *etd_py_slots;
 } sipEnumTypeDef;
 
 
@@ -1217,9 +1135,8 @@ struct _sipAPIDef {
             void *ptr);
     int (*api_add_type_instance)(PyObject *wmod, PyObject *dict,
             const char *name, void *cppPtr, sipTypeID type_id);
-    void (*api_bad_operator_arg)(PyObject *self, PyObject *arg,
-            sipPySlotType st);
-    PyObject *(*api_pyslot_extend)(PyObject *wmod, sipPySlotType st,
+    void (*api_bad_operator_arg)(PyObject *self, PyObject *arg, int slot_id);
+    PyObject *(*api_py_slot_extend)(PyObject *wmod, int slot_id,
             sipTypeID type_id, PyObject *arg0, PyObject *arg1);
     void (*api_add_delayed_dtor)(sipSimpleWrapper *w);
     char (*api_bytes_as_char)(PyObject *obj);

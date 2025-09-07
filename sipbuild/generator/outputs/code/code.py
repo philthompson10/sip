@@ -29,9 +29,9 @@ from ..formatters import (fmt_argument_as_cpp_type, fmt_argument_as_name,
 from .backends import Backend
 from .utils import (arg_is_small_enum, callable_overloads,
         get_convert_to_type_code, get_encoded_type, get_normalised_cached_name,
-        get_slot_name, get_type_from_void, get_user_state_suffix,
-        has_method_docstring, is_used_in_code, need_error_flag, py_scope,
-        release_gil, skip_overload, type_needs_user_state)
+        get_type_from_void, get_user_state_suffix, has_method_docstring,
+        is_used_in_code, need_error_flag, py_scope, release_gil, skip_overload,
+        type_needs_user_state)
 
 
 def output_code(spec, bindings, project, buildable):
@@ -387,6 +387,9 @@ f'''    {{{first_field}SIP_NULLPTR, {{0, 0, 0}}, SIP_NULLPTR}}
 ''')
 
     # Generate any slot extender table.
+    # TODO sipPySlotExtend() only seems to be called for number and richcompare
+    # slots, so shouldn't slot extenders be appropriately limited - or have
+    # others already been filtered out by this stage?
     if slot_extenders:
         sf.write(
 '''
@@ -398,22 +401,17 @@ static sipPySlotExtenderDef slotExtenders[] = {\n''')
 
             for overload in module.overloads:
                 if overload.common is member:
-                    member_name = member.py_name
-                    slot_name = get_slot_name(member.py_slot)
-
+                    slot_ref = backend.get_slot_ref(member.py_slot)
                     sf.write(
-f'    {{(void *)slot_{member_name}, {slot_name}, {{0, 0, 0}}}},\n')
-
+f'    {{(void *)slot_{member.py_name}, {slot_ref}, {{0, 0, 0}}}},\n')
                     break
 
         for klass in module.proxies:
             for member in klass.members:
                 klass_name = klass.iface_file.fq_cpp_name.as_word
-                member_name = member.py_name
-                slot_name = get_slot_name(member.py_slot)
+                slot_ref = backend.get_slot_ref(member.py_slot)
                 encoded_type = get_encoded_type(module, klass)
-
-                sf.write(f'    {{(void *)slot_{klass_name}_{member_name}, {slot_name}, {encoded_type}}},\n')
+                sf.write(f'    {{(void *)slot_{klass_name}_{member.py_name}, {slot_ref}, {encoded_type}}},\n')
 
         sf.write(
 '''    {SIP_NULLPTR, (sipPySlotType)0, {0, 0, 0}}
@@ -477,10 +475,8 @@ static sipPySlotDef slots_{enum_name}[] = {{
 
         for member in enum.slots:
             if member.py_slot is not None:
-                member_name = member.py_name
-                slot_name = get_slot_name(member.py_slot)
-
-                sf.write(f'    {{(void *)slot_{enum_name}_{member_name}, {slot_name}}},\n')
+                slot_ref = backend.get_slot_ref(member.py_slot)
+                sf.write(f'    {{(void *)slot_{enum_name}_{member.py_name}, {slot_ref}}},\n')
 
         sf.write(
 '''    {SIP_NULLPTR, (sipPySlotType)0}
@@ -1638,10 +1634,11 @@ f'''    {cpp_name} sipCpp = static_cast<{cpp_name}>(sipConvertToEnum(sipSelf, {t
 
         if has_args:
             if member.py_slot in (PySlot.CONCAT, PySlot.ICONCAT, PySlot.REPEAT, PySlot.IREPEAT):
+                slot_ref = backend.get_slot_ref(member.py_slot)
                 sf.write(
 f'''
     /* Raise an exception if the argument couldn't be parsed. */
-    sipBadOperatorArg(sipSelf, sipArg, {get_slot_name(member.py_slot)});
+    sipBadOperatorArg(sipSelf, sipArg, {slot_ref});
 
     return SIP_NULLPTR;
 ''')
@@ -1676,15 +1673,18 @@ f'''
     Py_INCREF(Py_NotImplemented);
     return Py_NotImplemented;
 ''')
-                    elif is_number_slot(member.py_slot):
-                        sf.write(
-f'''
-    return sipPySlotExtend({extend_context}, {get_slot_name(member.py_slot)}, SIP_NULLPTR, sipArg0, sipArg1);
-''')
                     else:
-                        sf.write(
+                        slot_ref = backend.get_slot_ref(member.py_slot)
+
+                        if is_number_slot(member.py_slot):
+                            sf.write(
 f'''
-    return sipPySlotExtend({extend_context}, {get_slot_name(member.py_slot)}, {backend.get_type_ref(scope)}, sipSelf, sipArg);
+    return sipPySlotExtend({extend_context}, {slot_ref}, SIP_NULLPTR, sipArg0, sipArg1);
+''')
+                        else:
+                            sf.write(
+f'''
+    return sipPySlotExtend({extend_context}, {slot_ref}, {backend.get_type_ref(scope)}, sipSelf, sipArg);
 ''')
                 elif is_inplace_number_slot(member.py_slot):
                     sf.write(

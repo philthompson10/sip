@@ -1302,7 +1302,7 @@ f'''#define sipMalloc                   sipAPI->api_malloc
 #define sipRaiseTypeException       sipAPI->api_raise_type_exception
 #define sipBadLengthForSlice        sipAPI->api_bad_length_for_slice
 #define sipAddTypeInstance          sipAPI->api_add_type_instance
-#define sipPySlotExtend             sipAPI->api_pyslot_extend
+#define sipPySlotExtend             sipAPI->api_py_slot_extend
 #define sipAddDelayedDtor           sipAPI->api_add_delayed_dtor
 #define sipCanConvertToType         sipAPI->api_can_convert_to_type
 #define sipConvertToType            sipAPI->api_convert_to_type
@@ -1915,6 +1915,15 @@ f'''
         type.is_reference = saved_is_reference
 
         return named_value_decl
+
+    @classmethod
+    def get_slot_ref(cls, slot_type):
+        """ Return a reference to a slot. """
+
+        if is_rich_compare_slot(slot_type):
+            return 'Py_tp_richcompare'
+
+        return cls._SLOT_ID_MAP[slot_type]
 
     @staticmethod
     def get_type_ref(wrapped_object):

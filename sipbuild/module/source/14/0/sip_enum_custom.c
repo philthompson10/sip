@@ -606,8 +606,10 @@ static PyObject *create_unscoped_enum(sipSipModuleState *sms,
     if (eto == NULL)
         return NULL;
 
+#if 0
     if (etd->etd_pyslots != NULL)
         sip_fix_slots((PyTypeObject *)eto, etd->etd_pyslots);
+#endif
 
     /*
      * If the enum has a scope then the default __qualname__ will be incorrect.

@@ -9,7 +9,7 @@ from ....specification import ArgumentType, WrappedClass, WrappedEnum
 from ...formatters import fmt_argument_as_cpp_type
 
 from ..utils import (get_encoded_type, get_normalised_cached_name,
-        get_slot_name, get_user_state_suffix, is_used_in_code, py_scope,
+        get_user_state_suffix, is_used_in_code, py_scope,
         type_needs_user_state)
 
 from .backend import Backend
@@ -588,9 +588,9 @@ static sipPySlotDef slots_{klass_name}[] = {{
 
                 is_slots = True
 
-            slot_name = get_slot_name(member.py_slot)
+            slot_ref = self.get_slot_ref(member.py_slot)
             member_name = member.py_name
-            sf.write(f'    {{(void *)slot_{klass_name}_{member_name}, {slot_name}}},\n')
+            sf.write(f'    {{(void *)slot_{klass_name}_{member_name}, {slot_ref}}},\n')
 
         if is_slots:
             sf.write('    {0, (sipPySlotType)0}\n};\n')
@@ -924,6 +924,12 @@ f'''static void *init_type_{klass_name}(sipSimpleWrapper *{sip_self}, PyObject *
         iface_file = klass.iface_file
 
         return f'sipExportedTypes_{module_name}[{iface_file.type_nr}]')
+
+    @staticmethod
+    def get_slot_ref(slot_type):
+        """ Return a reference to a slot. """
+
+        return slot_type.name.lower() + '_slot'
 
     @staticmethod
     def get_type_ref(wrapped_object):
