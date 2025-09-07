@@ -9,56 +9,53 @@ from utils import SIPTestCase
 class ClassAttrsTestCase(SIPTestCase):
     """ Test the support for class attributes. """
 
-    @classmethod
-    def setUpClass(cls):
-        """ Set up the test case. """
-
-        super().setUpClass()
-
-        import class_attrs_module as c_mod
-
-        cls.c_mod = c_mod
-
     def test_plain_classes(self):
         """ Test the support for plain classes. """
 
-        self.assertEqual(len(self.c_mod.Klass.__mro__), 4)
-        self.assertIsInstance(self.c_mod.Klass(), self.c_mod.Klass)
+        from class_attrs_module import Klass
+
+        self.assertEqual(len(Klass.__mro__), 4)
+        self.assertIsInstance(Klass(), Klass)
 
     def test_nested_classes(self):
         """ Test the support for nested classes. """
 
-        self.assertIsInstance(self.c_mod.Klass.Nested(),
-                self.c_mod.Klass.Nested)
+        from class_attrs_module import Klass
+
+        self.assertIsInstance(Klass.Nested(), Klass.Nested)
 
     def test_class_attributes(self):
         """ Test the support for class attributes. """
 
-        with self.assertRaises(AttributeError):
-            self.c_mod.Klass.foo
-
-        self.c_mod.Klass.foo = 'bar'
-        self.assertEqual(self.c_mod.Klass.foo, 'bar')
-
-        del self.c_mod.Klass.foo
+        from class_attrs_module import Klass
 
         with self.assertRaises(AttributeError):
-            self.c_mod.Klass.foo
+            Klass.foo
 
-        self.assertEqual(self.c_mod.Klass.s_attr, 0)
-        self.c_mod.Klass.s_attr = 10
-        self.assertEqual(self.c_mod.Klass.s_attr, 10)
+        Klass.foo = 'bar'
+        self.assertEqual(Klass.foo, 'bar')
+
+        del Klass.foo
+
+        with self.assertRaises(AttributeError):
+            Klass.foo
+
+        self.assertEqual(Klass.s_attr, 0)
+        Klass.s_attr = 10
+        self.assertEqual(Klass.s_attr, 10)
 
         # Check the C++ value has changed and not the type dict.
-        self.assertEqual(self.c_mod.Klass.get_s_attr(), 10)
+        self.assertEqual(Klass.get_s_attr(), 10)
 
         with self.assertRaises(AttributeError):
-            del self.c_mod.Klass.s_attr;
+            del Klass.s_attr;
 
     def test_instance_attributes(self):
         """ Test the support for instance attributes. """
 
-        klass = self.c_mod.Klass()
+        from class_attrs_module import Klass
+
+        klass = Klass()
 
         with self.assertRaises(AttributeError):
             klass.foo
@@ -82,26 +79,32 @@ class ClassAttrsTestCase(SIPTestCase):
             del klass.attr;
 
         with self.assertRaises(AttributeError):
-            self.c_mod.Klass.attr
+            Klass.attr
 
     def test_py_subclass(self):
         """ Test the support for Python sub-classes. """
 
-        class SubK(self.c_mod.Klass):
+        from class_attrs_module import Klass
+
+        class SubK(Klass):
             pass
 
-        self.assertIsInstance(SubK(), self.c_mod.Klass)
+        self.assertIsInstance(SubK(), Klass)
 
     def test_simple_plain_class(self):
         """ Test the support for plain classes using simplewrapper. """
 
-        self.assertEqual(len(self.c_mod.SimpleKlass.__mro__), 3)
-        self.assertIsInstance(self.c_mod.SimpleKlass(), self.c_mod.SimpleKlass)
+        from class_attrs_module import SimpleKlass
+
+        self.assertEqual(len(SimpleKlass.__mro__), 3)
+        self.assertIsInstance(SimpleKlass(), SimpleKlass)
 
     def test_simple_py_subclass(self):
         """ Test the support for Python sub-classes using simplewrapper. """
 
-        class SimpleSubK(self.c_mod.SimpleKlass):
+        from class_attrs_module import SimpleKlass
+
+        class SimpleSubK(SimpleKlass):
             pass
 
-        self.assertIsInstance(SimpleSubK(), self.c_mod.SimpleKlass)
+        self.assertIsInstance(SimpleSubK(), SimpleKlass)

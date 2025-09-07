@@ -20,9 +20,9 @@ class PyEnumsTestCase(SIPTestCase):
 
         super().setUpClass()
 
-        from py_enums_module import EnumClass
+        from py_enums_module import Klass
 
-        class NamedEnumFixture(EnumClass):
+        class NamedEnumFixture(Klass):
             """ A fixture for testing named enum values. """
 
             def __init__(self, value):
@@ -36,14 +36,14 @@ class PyEnumsTestCase(SIPTestCase):
                 return self._value
 
         cls.member_fixture = NamedEnumFixture(
-                EnumClass.ClassNamedEnum.ClassNamedMember)
+                Klass.ClassNamedEnum.ClassNamedMember)
         cls.int_fixture = NamedEnumFixture(0)
 
-        class ScopedEnumFixture(EnumClass):
+        class ScopedEnumFixture(Klass):
             """ A fixture for testing scoped enum values. """
 
             def scoped_virt(self):
-                return EnumClass.ClassScopedEnum.ClassScopedMember
+                return Klass.ClassScopedEnum.ClassScopedMember
 
         cls.scoped_enum_fixture = ScopedEnumFixture()
 
@@ -75,10 +75,10 @@ class PyEnumsTestCase(SIPTestCase):
     def test_ClassAnon(self):
         """ Test a class level anonymous enum. """
 
-        from py_enums_module import EnumClass
+        from py_enums_module import Klass
 
-        self.assertIsInstance(EnumClass.ClassAnonMember, int)
-        self.assertEqual(EnumClass.ClassAnonMember, 40)
+        self.assertIsInstance(Klass.ClassAnonMember, int)
+        self.assertEqual(Klass.ClassAnonMember, 40)
 
     ###########################################################################
     # The following test the /BaseType/ annotation.
@@ -135,49 +135,49 @@ class PyEnumsTestCase(SIPTestCase):
     def test_ClassNamed(self):
         """ Test a class level named enum. """
 
-        from py_enums_module import EnumClass
+        from py_enums_module import Klass
 
-        self.assertTrue(issubclass(EnumClass.ClassNamedEnum, Enum))
-        self.assertEqual(EnumClass.ClassNamedEnum.ClassNamedMember.value, 50)
+        self.assertTrue(issubclass(Klass.ClassNamedEnum, Enum))
+        self.assertEqual(Klass.ClassNamedEnum.ClassNamedMember.value, 50)
 
     def test_named_get_member(self):
         """ named enum virtual result with a member value. """
 
-        from py_enums_module import EnumClass
+        from py_enums_module import Klass
 
         self.install_hook()
         self.assertEqual(self.member_fixture.named_get(),
-                EnumClass.ClassNamedEnum.ClassNamedMember)
+                Klass.ClassNamedEnum.ClassNamedMember)
         self.uninstall_hook()
 
     def test_named_set_member(self):
         """ named enum function argument with a member value. """
 
-        from py_enums_module import EnumClass
+        from py_enums_module import Klass
 
         self.member_fixture.named_set(
-                EnumClass.ClassNamedEnum.ClassNamedMember)
+                Klass.ClassNamedEnum.ClassNamedMember)
 
     def test_named_var_member(self):
         """ named enum instance variable with a member value. """
 
-        from py_enums_module import EnumClass
+        from py_enums_module import Klass
 
-        self.member_fixture.named_var = EnumClass.ClassNamedEnum.ClassNamedMember
+        self.member_fixture.named_var = Klass.ClassNamedEnum.ClassNamedMember
 
     def test_named_overload_set(self):
         """ overloaded named enum function argument. """
 
-        from py_enums_module import EnumClass
+        from py_enums_module import Klass
 
         self.member_fixture.named_overload_set(
-                EnumClass.ClassNamedEnum.ClassNamedMember)
+                Klass.ClassNamedEnum.ClassNamedMember)
         self.assertTrue(self.member_fixture.named_overload)
 
     def test_named_get_int(self):
         """ named enum virtual result with an integer value. """
 
-        from py_enums_module import EnumClass
+        from py_enums_module import Klass
 
         with self.assertRaises(TypeError):
             self.install_hook()
@@ -211,32 +211,32 @@ class PyEnumsTestCase(SIPTestCase):
     def test_ClassScoped(self):
         """ Test a class level C++11 scoped enum. """
 
-        from py_enums_module import EnumClass
+        from py_enums_module import Klass
 
-        self.assertTrue(issubclass(EnumClass.ClassScopedEnum, Enum))
-        self.assertEqual(EnumClass.ClassScopedEnum.ClassScopedMember.value, 70)
+        self.assertTrue(issubclass(Klass.ClassScopedEnum, Enum))
+        self.assertEqual(Klass.ClassScopedEnum.ClassScopedMember.value, 70)
 
     def test_scoped_get_member(self):
         """ scoped enum virtual result with a member value. """
 
-        from py_enums_module import EnumClass
+        from py_enums_module import Klass
 
         self.install_hook()
         self.assertIs(self.scoped_enum_fixture.scoped_get(),
-                EnumClass.ClassScopedEnum.ClassScopedMember)
+                Klass.ClassScopedEnum.ClassScopedMember)
         self.uninstall_hook()
 
     def test_scoped_set_member(self):
         """ scoped enum function argument with a member value. """
 
-        from py_enums_module import EnumClass
+        from py_enums_module import Klass
 
         self.scoped_enum_fixture.scoped_set(
-                EnumClass.ClassScopedEnum.ClassScopedMember)
+                Klass.ClassScopedEnum.ClassScopedMember)
 
     def test_scoped_var_member(self):
         """ scoped enum instance variable with a member value. """
 
-        from py_enums_module import EnumClass
+        from py_enums_module import Klass
 
-        self.scoped_enum_fixture.scoped_var = EnumClass.ClassScopedEnum.ClassScopedMember
+        self.scoped_enum_fixture.scoped_var = Klass.ClassScopedEnum.ClassScopedMember

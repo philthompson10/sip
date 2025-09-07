@@ -1687,12 +1687,12 @@ f'''static void *init_type_{klass_name}(sipSimpleWrapper *sipSelf, PyObject *con
     def g_type_init_body(self, sf, bindings, klass):
         """ Generate the main body of the type initialisation function. """
 
+        klass_name = klass.iface_file.fq_cpp_name.as_word
         sip_cpp_type = 'sip' + klass_name if klass.has_shadow else self.scoped_class_name(klass)
 
         sf.write(f'    {sip_cpp_type} *sipCpp = SIP_NULLPTR;\n')
 
         if bindings.tracing:
-            klass_name = klass.iface_file.fq_cpp_name.as_word
             sf.write(f'\n    sipTrace(SIP_TRACE_INITS, "sip_init_instance_{klass_name}()\\n");\n')
 
         # Generate the code that parses the Python arguments and calls the

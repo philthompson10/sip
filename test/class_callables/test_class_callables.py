@@ -9,27 +9,21 @@ from utils import SIPTestCase
 class ClassCallablesTestCase(SIPTestCase):
     """ Test the support for class callables. """
 
-    @classmethod
-    def setUpClass(cls):
-        """ Set up the test case. """
-
-        super().setUpClass()
-
-        import class_callables_module as m
-
-        cls.m = m
-
     def test_class_callables(self):
         """ Test the support for class callables. """
 
-        self.assertEqual(self.m.Klass.get_s_attr_int(), 0)
-        self.m.Klass.set_s_attr_int(10)
-        self.assertEqual(self.m.Klass.get_s_attr_int(), 10)
+        from class_callables_module import Klass
+
+        self.assertEqual(Klass.get_s_attr_int(), 0)
+        Klass.set_s_attr_int(10)
+        self.assertEqual(Klass.get_s_attr_int(), 10)
 
     def test_instance_callables(self):
         """ Test the support for instance callables. """
 
-        klass = self.m.Klass()
+        from class_callables_module import Klass
+
+        klass = Klass()
 
         self.assertEqual(klass.get_attr_int(), 0)
         klass.set_attr_int(10)
@@ -38,7 +32,9 @@ class ClassCallablesTestCase(SIPTestCase):
     def test_slot_call(self):
         """ Test the support for the __call__ slot. """
 
-        klass = self.m.Klass()
+        from class_callables_module import Klass
+
+        klass = Klass()
 
         klass.set_attr_int(33)
         self.assertEqual(klass(2), 66)
@@ -46,7 +42,9 @@ class ClassCallablesTestCase(SIPTestCase):
     def test_slot_delitem(self):
         """ Test the support for the __delitem__ slot. """
 
-        klass = self.m.Klass()
+        from class_callables_module import Klass
+
+        klass = Klass()
 
         original_count = klass.count()
         self.assertEqual(klass[2], 2)
@@ -59,8 +57,10 @@ class ClassCallablesTestCase(SIPTestCase):
     def test_slot_eq(self):
         """ Test the support for the __eq__ slot. """
 
-        klass = self.m.Klass()
-        other = self.m.Klass()
+        from class_callables_module import Klass
+
+        klass = Klass()
+        other = Klass()
 
         self.assertIs(klass == other, True)
 
@@ -72,7 +72,9 @@ class ClassCallablesTestCase(SIPTestCase):
     def test_slot_getitem(self):
         """ Test the support for the __getitem__ slot. """
 
-        klass = self.m.Klass()
+        from class_callables_module import Klass
+
+        klass = Klass()
 
         self.assertEqual(klass[2], 2)
 
@@ -85,14 +87,18 @@ class ClassCallablesTestCase(SIPTestCase):
     def test_slot_len(self):
         """ Test the support for the __len__ slot. """
 
-        klass = self.m.Klass()
+        from class_callables_module import Klass
+
+        klass = Klass()
 
         self.assertEqual(klass.count(), len(klass))
 
     def test_slot_neg(self):
         """ Test the support for the __neg__ slot. """
 
-        klass = self.m.Klass()
+        from class_callables_module import Klass
+
+        klass = Klass()
 
         klass.set_attr_int(10)
         self.assertEqual(-klass, -10)
@@ -100,7 +106,9 @@ class ClassCallablesTestCase(SIPTestCase):
     def test_slot_setitem(self):
         """ Test the support for the __setitem__ slot. """
 
-        klass = self.m.Klass()
+        from class_callables_module import Klass
+
+        klass = Klass()
 
         self.assertEqual(klass[2], 2)
         klass[2] = 20

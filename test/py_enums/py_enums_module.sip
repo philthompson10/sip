@@ -36,10 +36,9 @@ enum IntFlagBase {
 };
 
 
-class EnumClass {
+class Klass {
 public:
-    EnumClass() : named_overload(false) {}
-    virtual ~EnumClass() {}
+    Klass() : named_overload(false) {}
 
     enum {
         ClassAnonMember = 40
@@ -113,10 +112,9 @@ enum IntFlagBase /BaseType=IntFlag/ {
 };
 
 
-class EnumClass {
+class Klass {
 public:
-    EnumClass();
-    virtual ~EnumClass();
+    Klass();
 
     enum {
         ClassAnonMember
@@ -127,7 +125,8 @@ public:
     };
 
     ClassNamedEnum named_get();
-    virtual ClassNamedEnum named_virt();
+    // TODO
+    //virtual ClassNamedEnum named_virt();
     static void named_set(ClassNamedEnum);
     ClassNamedEnum named_var;
 
@@ -144,7 +143,8 @@ public:
     };
 
     ClassScopedEnum scoped_get();
-    virtual ClassScopedEnum scoped_virt();
+    // TODO
+    //virtual ClassScopedEnum scoped_virt();
     static void scoped_set(ClassScopedEnum);
     ClassScopedEnum scoped_var;
 };

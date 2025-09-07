@@ -2488,14 +2488,15 @@ f'''
 
     sf.write('\n')
 
-    _virtual_handler_call(sf, spec, klass, virtual_overload, result)
+    _virtual_handler_call(backend, sf, klass, virtual_overload, result)
 
     sf.write('}\n')
 
 
-def _virtual_handler_call(sf, spec, klass, virtual_overload, result):
+def _virtual_handler_call(backend, sf, klass, virtual_overload, result):
     """ Generate a call to a single virtual handler. """
 
+    spec = backend.spec
     module = spec.module
     overload = virtual_overload.overload
     handler = virtual_overload.handler
@@ -3095,13 +3096,13 @@ f'''
             fmt += '('
 
         if result_is_returned:
-            fmt += _get_parse_result_format(result, spec,
+            fmt += _get_parse_result_format(backend, result,
                     result_is_reference=result_is_reference,
                     transfer_result=handler.transfer_result)
 
         for arg in handler.py_signature.args:
             if arg.is_out:
-                fmt += _get_parse_result_format(arg, spec)
+                fmt += _get_parse_result_format(backend, arg)
 
         if nr_values > 1:
             fmt += ')'
@@ -3182,7 +3183,7 @@ def _add_parse_result_extra_params(backend, params, module, arg, arg_nr=-1):
                     fmt_argument_as_name(backend.spec, arg, arg_nr) + 'Key')
 
 
-def _get_parse_result_format(arg, spec, result_is_reference=False,
+def _get_parse_result_format(backend, arg, result_is_reference=False,
         transfer_result=False):
     """ Return the format characters used by sipParseResultEx() for a
     particular type.
