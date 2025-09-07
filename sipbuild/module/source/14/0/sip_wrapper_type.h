@@ -36,10 +36,6 @@ struct _sipWrapperType {
     /* Set if autoconversion of the type is disabled. */
     unsigned wt_autoconversion_disabled : 1;
 
-    /* Set if the type's dictionary contains all lazy attributes. */
-    // TODO Hopefully remove this.
-    unsigned wt_dict_complete : 1;
-
     /*
      * Set if the type is a sub-type of wrapper rather than simple wrapper.
      * This can only be used if we know we have a SIP generated type.
@@ -51,7 +47,7 @@ struct _sipWrapperType {
     unsigned wt_user_type : 1;
 
     /* Unused and available for future use. */
-    unsigned wt_unused : 28;
+    unsigned wt_unused : 29;
 
     /* A strong reference to the defining module. */
     PyObject *wt_dmod;

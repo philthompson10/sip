@@ -18,7 +18,7 @@
 
 /*
  * The type specification.  Note that the slots are implemented by
- * simplewrapper which will deal with the extra requirements of thsi type.  It
+ * simplewrapper which will deal with the extra requirements of this type.  It
  * is done this way because the correct type can only be determined at
  * run-time.
  */

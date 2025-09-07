@@ -254,9 +254,6 @@ static PyObject *SimpleWrapper_new(PyTypeObject *cls, PyObject *args,
         return NULL;
     }
 
-    if (sip_container_add_lazy_attrs(wms, td) < 0)
-        return NULL;
-
     /* See if it is a mapped type. */
     if (sipTypeIsMapped(td))
     {
