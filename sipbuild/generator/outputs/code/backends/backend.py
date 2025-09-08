@@ -1337,7 +1337,6 @@ f'''#define sipMalloc                   sipAPI->api_malloc
 #define sipTypeFromPyTypeObject     sipAPI->api_type_from_py_type_object
 #define sipTypeScope                sipAPI->api_type_scope
 #define sipResolveTypedef           sipAPI->api_resolve_typedef
-#define sipRegisterAttributeGetter  sipAPI->api_register_attribute_getter
 #define sipEnableAutoconversion     sipAPI->api_enable_autoconversion
 #define sipInitMixin                sipAPI->api_init_mixin
 #define sipExportModule             sipAPI->api_export_module

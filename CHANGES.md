@@ -41,3 +41,7 @@ The signatures of the following public API calls have changed:
     `sipBuildResult()`
     `sipConvertToBool()`
     `sipKeepReference()`
+
+The following public API calls have been removed:
+
+    `sipRegisterAttributeGetter()`
