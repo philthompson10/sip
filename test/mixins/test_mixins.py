@@ -17,8 +17,13 @@ class MixinsTestCase(SIPTestCase):
         class TestClass(Klass, Mixin):
             pass
 
-        test = TestClass(10, extra_kwarg_1=30, mixin_value=20,
-                extra_kwarg_2=40)
+        test = TestClass(10, mixin_value=20, extra_kwarg=30)
+
+        self.assertEqual(test.extra_kwarg, 30)
+
+        with self.assertRaises(TypeError):
+            TestClass(10, unknown_kwarg_1=30, mixin_value=20,
+                    unknown_kwarg_2=40)
 
         self.assertEqual(test.get_attr(), 10)
         self.assertEqual(test.attr, 10)

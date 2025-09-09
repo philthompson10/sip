@@ -622,13 +622,12 @@ static int SimpleWrapper_init(sipSimpleWrapper *self, PyObject *args,
         return 0;
     }
 
-#if 0
     /* Call any finalisation code. */
     if (final_func != NULL)
     {
         PyObject *new_unused = NULL, **new_unused_p;
 
-        if (unused == NULL || unused != kwds)
+        if (unused == NULL || unused != kwargs)
         {
             /*
              * There are no unused arguments or we have already created a dict
@@ -658,14 +657,7 @@ static int SimpleWrapper_init(sipSimpleWrapper *self, PyObject *args,
             unused = new_unused;
         }
     }
-#endif
 
-    if (unused != NULL)
-    {
-    printf("!!! unused: ");
-    PyObject_Print(unused, stdout, 0);
-    printf("\n");
-    }
     /* See if we should call the equivalent of super().__init__(). */
     if (sipTypeCallSuperInit(&ctd->ctd_base))
     {
@@ -715,7 +707,8 @@ static int SimpleWrapper_init(sipSimpleWrapper *self, PyObject *args,
 
         if (nr_names == 1)
         {
-            PyErr_Format(PyExc_TypeError, "%'S' is an unknown keyword argument",
+            PyErr_Format(PyExc_TypeError,
+                    "'%S' is an unknown keyword argument",
                     PyList_GET_ITEM(unused_names, 0));
             Py_DECREF(unused_names);
 

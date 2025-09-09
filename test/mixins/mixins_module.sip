@@ -42,10 +42,41 @@ class Klass
 public:
     Klass(int value);
 
-//%FinalisationCode
-//    // TODO
-//    return 0;
-//%End
+%FinalisationCode
+    // If the 'extra_kwarg' is given then save it as an attribute.
+    PyObject *dict;
+
+    if (sipUnused == NULL)
+    {
+        dict = Py_NewRef(sipKwds);
+    }
+    else
+    {
+        dict = PyDict_Copy(sipKwds);
+        if (dict == NULL)
+            return -1;
+
+        *sipUnused = dict;
+    }
+
+    PyObject *value;
+    int rc = PyDict_PopString(dict, "extra_kwarg", &value);
+
+    if (rc < 0)
+    {
+        Py_DECREF(dict);
+        return -1;
+    }
+
+    if (rc == 1)
+    {
+        rc = PyObject_SetAttrString(sipSelf, "extra_kwarg", value);
+        Py_DECREF(value);
+    }
+
+    Py_DECREF(dict);
+    return rc;
+%End
 
     int get_attr() const;
     void set_attr(int value);
