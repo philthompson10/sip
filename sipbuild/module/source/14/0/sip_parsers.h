@@ -72,7 +72,7 @@ int sip_api_parse_vectorcall_args(PyObject *wmod, PyObject **parse_err_p,
         const char *fmt, ...);
 int sip_api_parse_vectorcall_kwd_args(PyObject *wmod, PyObject **parse_err_p,
         PyObject *const *args, Py_ssize_t nr_args, PyObject *kwd_names,
-        const char **kwd_list, PyObject **unused, const char *fmt, ...);
+        const char **kwd_list, PyObject **unused_p, const char *fmt, ...);
 int sip_api_parse_pair(PyObject *wmod, PyObject **parse_err_p, PyObject *arg_0,
         PyObject *arg_1, const char *fmt, ...);
 int sip_api_parse_result(PyObject *wmod, sip_gilstate_t gil_state,

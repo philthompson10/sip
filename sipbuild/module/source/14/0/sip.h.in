@@ -763,9 +763,6 @@ typedef struct _sipClassTypeDef {
     /* The finalisation function. */
     sipFinalFunc ctd_final;
 
-    /* The mixin initialisation function. */
-    initproc ctd_init_mixin;
-
     /* The optional array delete function. */
     sipArrayDeleteFunc ctd_array_delete;
 

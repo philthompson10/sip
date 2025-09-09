@@ -187,6 +187,16 @@ const sipAPIDef *sipAPI_{module_name};
         # There is nothing to do.
         pass
 
+    def g_init_mixin_impl_body(self, sf, klass):
+        """ Generate the body of the implementation of a mixin initialisation
+        function.
+        """
+
+        module_name = self.spec.module.py_name
+        klass_name = klass.iface_file.fq_cpp_name.as_word
+
+        sf.write(f'    return sipInitMixin(sipSelf, sipArgs, sipKwds, (sipClassTypeDef *)&sipTypeDef_{module_name}_{klass_name});\n')
+
     def g_mapped_type_api(self, sf, mapped_type):
         """ Generate the API details for a mapped type. """
 

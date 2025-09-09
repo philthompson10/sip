@@ -478,11 +478,9 @@ static int SimpleWrapper_init(sipSimpleWrapper *self, PyObject *args,
     {
         PyObject *parseErr = NULL, **unused_p = NULL;
 
-#if 0
         /* See if we are interested in any unused keyword arguments. */
         if (sipTypeCallSuperInit(&ctd->ctd_base) || final_func != NULL)
             unused_p = &unused;
-#endif
 
         /* Call the C++ ctor. */
         owner = NULL;
@@ -498,14 +496,8 @@ static int SimpleWrapper_init(sipSimpleWrapper *self, PyObject *args,
         if (sip_vectorcall_create(args, kwargs, small_argv, &argv_len, &argv, &nr_pos_args, &kw_names) < 0)
             return -1;
 
-#if 0
-        // TODO Handle unused_p.
         sipNew = ctd->ctd_init(self, argv, nr_pos_args, kw_names, unused_p,
                 (PyObject **)&owner, &parseErr);
-#else
-        sipNew = ctd->ctd_init(self, argv, nr_pos_args, kw_names, NULL,
-                (PyObject **)&owner, &parseErr);
-#endif
 
         sip_vectorcall_dispose(small_argv, argv, argv_len, kw_names);
 
@@ -668,14 +660,14 @@ static int SimpleWrapper_init(sipSimpleWrapper *self, PyObject *args,
     }
 #endif
 
-#if 0
     /* See if we should call the equivalent of super().__init__(). */
     if (sipTypeCallSuperInit(&ctd->ctd_base))
     {
         PyObject *next;
 
         /* Find the next type in the MRO. */
-        next = sip_next_in_mro(self, (PyObject *)sms->simple_wrapper_type);
+        next = sip_next_in_mro((PyObject *)self,
+                (PyObject *)sms->simple_wrapper_type);
 
         /*
          * If the next type in the MRO is object then take a shortcut by not
@@ -687,16 +679,15 @@ static int SimpleWrapper_init(sipSimpleWrapper *self, PyObject *args,
          */
         if (next != (PyObject *)&PyBaseObject_Type)
         {
-            int rc = sip_super_init(self, sms->empty_tuple, unused, next);
+            int rc = sip_super_init((PyObject *)self, sms->empty_tuple, unused,
+                    next);
 
             Py_XDECREF(unused);
 
             return rc;
         }
     }
-#endif
 
-#if 0
     if (sms->unused_backdoor != NULL)
     {
         /*
@@ -726,7 +717,6 @@ static int SimpleWrapper_init(sipSimpleWrapper *self, PyObject *args,
 
         Py_DECREF(unused);
     }
-#endif
 
     return 0;
 }

@@ -929,6 +929,17 @@ static sipEnumMemberDef enummembers_{scope.iface_file.fq_cpp_name.as_word}[] = {
 
         sf.write('    const sipAPIDef *sipAPI = sipGetAPI(sipModule);\n')
 
+    def g_init_mixin_impl_body(self, sf, klass):
+        """ Generate the body of the implementation of a mixin initialisation
+        function.
+        """
+
+        self.g_slot_support_vars(sf)
+
+        type_ref = self.get_type_ref(klass)
+
+        sf.write(f'    return sipInitMixin(sipModule, sipSelf, sipArgs, sipKwds, {type_ref});\n')
+
     @staticmethod
     def g_gc_ellipsis(sf, signature):
         """ Generate the code to garbage collect any ellipsis argument. """
@@ -1256,7 +1267,8 @@ extern PyModuleDef sipWrappedModuleDef_{module_name};
 
         # TODO These have been reviewed as part of the private v14 API.
         sf.write(
-f'''#define sipNoFunction               sipAPI->api_no_function
+f'''#define sipInitMixin                sipAPI->api_init_mixin
+#define sipNoFunction               sipAPI->api_no_function
 #define sipNoMethod                 sipAPI->api_no_method
 #define sipParseArgs                sipAPI->api_parse_args
 #define sipParseKwdArgs             sipAPI->api_parse_kwd_args
@@ -1338,7 +1350,6 @@ f'''#define sipMalloc                   sipAPI->api_malloc
 #define sipTypeScope                sipAPI->api_type_scope
 #define sipResolveTypedef           sipAPI->api_resolve_typedef
 #define sipEnableAutoconversion     sipAPI->api_enable_autoconversion
-#define sipInitMixin                sipAPI->api_init_mixin
 #define sipExportModule             sipAPI->api_export_module
 #define sipInitModule               sipAPI->api_init_module
 #define sipGetInterpreter           sipAPI->api_get_interpreter
@@ -1467,23 +1478,16 @@ f'''    PyObject *sipModule = sipGetModule(sipSelf, &sipWrappedModuleDef_{self.s
         klass_name = klass.iface_file.fq_cpp_name.as_word
 
         # Generate the slots table.
-        has_slots = False
+        slots = []
         has_setdelitem_slots = False
         has_rich_compare_slots = False
+
+        if klass.mixin:
+            slots.append(('Py_tp_init', 'mixin_' + klass_name))
 
         for member in klass.members:
             if member.py_slot is None:
                 continue
-
-            if not has_slots:
-                sf.write(
-f'''
-
-/* Define this type's Python slots. */
-static PyType_Slot sip_py_slots_{klass_name}[] = {{
-''')
-
-                has_slots = True
 
             if member.py_slot in (PySlot.SETITEM, PySlot.DELITEM):
                 has_setdelitem_slots = True
@@ -1494,18 +1498,33 @@ static PyType_Slot sip_py_slots_{klass_name}[] = {{
                 continue
 
             if member.py_slot is PySlot.GETITEM:
-                sf.write(f'    {{Py_sq_item, (void *)slot_{klass_name}___sq_item__}},\n')
+                slots.append(('Py_sq_item', f'slot_{klass_name}___sq_item__'))
 
-            self._g_py_slot_table_entry(sf, klass_name, member)
-
-        if has_setdelitem_slots:
-            sf.write(f'    {{Py_mp_ass_subscript, (void *)slot_{klass_name}___mp_ass_subscript__}},\n')
-            sf.write(f'    {{Py_sq_ass_item, (void *)slot_{klass_name}___sq_ass_item__}},\n')
+            self._append_slot_table_entry(slots, klass_name, member)
 
         if has_rich_compare_slots:
-            sf.write(f'    {{Py_tp_richcompare, (void *)slot_{klass_name}___richcompare__}},\n')
+            slots.append(
+                    ('Py_tp_richcompare',
+                            f'slot_{klass_name}___richcompare__'))
 
-        if has_slots:
+        if has_setdelitem_slots:
+            slots.append(
+                    ('Py_mp_ass_subscript',
+                            f'slot_{klass_name}___mp_ass_subscript__'))
+            slots.append(
+                    ('Py_sq_ass_item', f'slot_{klass_name}___sq_ass_item__'))
+
+        if slots:
+            sf.write(
+f'''
+
+/* Define this type's Python slots. */
+static PyType_Slot sip_py_slots_{klass_name}[] = {{
+''')
+
+            for slot_id, slot_impl in slots:
+                sf.write(f'    {{{slot_id}, (void *){slot_impl}}},\n')
+
             sf.write('    {}\n};\n')
 
         # Generate the methods table.
@@ -1570,7 +1589,7 @@ static PyType_Slot sip_py_slots_{klass_name}[] = {{
                     '.ctd_container.cod_attributes.type_nrs = sipTypeNrs_' + klass_name)
 
 
-        if has_slots:
+        if slots:
             fields.append(
                     '.ctd_container.cod_py_slots = sip_py_slots_' + klass_name)
 
@@ -1598,9 +1617,6 @@ static PyType_Slot sip_py_slots_{klass_name}[] = {{
 
         if self.need_dealloc(bindings, klass):
             fields.append('.ctd_dealloc = dealloc_' + klass_name)
-
-        # TODO
-        # ctd_pyslots if there are any (remove?)
 
         if klass.can_create:
             fields.append(
@@ -1644,9 +1660,6 @@ static PyType_Slot sip_py_slots_{klass_name}[] = {{
 
         if klass.finalisation_code is not None:
             fields.append('.ctd_final = final_' + klass_name)
-
-        if klass.mixin:
-            fields.append('.ctd_mixin = mixin_' + klass_name)
 
         if spec.c_bindings or klass.needs_array_helper:
             fields.append('.ctd_array_delete = array_delete_' + klass_name)
@@ -2857,8 +2870,8 @@ static const pyqt{pyqt_version}QtSignal signals_{klass.iface_file.fq_cpp_name.as
     }
 
     @classmethod
-    def _g_py_slot_table_entry(cls, sf, scope_name, member):
-        """ Generate an entry in the Python slot table for a scope. """
+    def _append_slot_table_entry(cls, slots, scope_name, member):
+        """ Append an entry in the slot table for a scope. """
 
         # setitem, delitem and the rich comparison slots are handled elsewhere.
 
@@ -2866,10 +2879,11 @@ static const pyqt{pyqt_version}QtSignal signals_{klass.iface_file.fq_cpp_name.as
         py_name = member.py_name
 
         slot_id = cls._SLOT_ID_MAP[py_slot]
-        sf.write(f'    {{{slot_id}, (void *)slot_{scope_name}_{py_name}}},\n')
+        slots.append((slot_id, f'slot_{scope_name}_{py_name}'))
 
+        # __len__ is placed in two slots.
         if py_slot is PySlot.LEN:
-            sf.write(f'    {{Py_sq_length, (void *)slot_{scope_name}_{py_name}}},\n')
+            slots.append(('Py_sq_length', f'slot_{scope_name}_{py_name}'))
 
     def _g_variables_table(self, sf, scope, *, for_unbound):
         """ Generate the table of either bound or unbound variables for a scope

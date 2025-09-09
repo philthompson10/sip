@@ -56,7 +56,7 @@
  */
 typedef enum {
     Ok, Unbound, TooFew, TooMany, UnknownKeyword, Duplicate, WrongType, Raised,
-    KeywordNotString, Exception, Overflow
+    Exception, Overflow
 } sipParseFailureReason;
 
 
@@ -112,12 +112,13 @@ static void handle_failed_int_conversion(sipParseFailure *pf, PyObject *arg);
 static void handle_failed_type_conversion(sipParseFailure *pf, PyObject *arg);
 static int parse_kwd_args(PyObject *wmod, PyObject **parse_err_p,
         PyObject *const *args, Py_ssize_t nr_args, PyObject *kwd_names,
-        const char **kwd_list, PyObject **unused, const char *fmt,
+        const char **kwd_list, PyObject **unused_p, const char *fmt,
         va_list va_orig);
 static int parse_pass_1(sipWrappedModuleState *wms, PyObject **parse_err_p,
         PyObject **self_p, int *self_in_args_p, PyObject *const *args,
         Py_ssize_t nr_args, PyObject *kwd_names, Py_ssize_t nr_kwd_names,
-        const char **kwd_list, PyObject **unused, const char *fmt, va_list va);
+        const char **kwd_list, PyObject **unused_p, const char *fmt,
+        va_list va);
 static int parse_pass_2(sipWrappedModuleState *wms, PyObject *self,
         int self_in_args, PyObject *const *args, Py_ssize_t nr_args,
         PyObject *kwd_names, Py_ssize_t nr_kwd_names, const char **kwd_list,
@@ -744,30 +745,28 @@ int sip_api_parse_vectorcall_args(PyObject *wmod, PyObject **parse_err_p,
  */
 int sip_api_parse_vectorcall_kwd_args(PyObject *wmod, PyObject **parse_err_p,
         PyObject *const *args, Py_ssize_t nr_args, PyObject *kwd_names,
-        const char **kwd_list, PyObject **unused, const char *fmt, ...)
+        const char **kwd_list, PyObject **unused_p, const char *fmt, ...)
 {
     int ok;
     va_list va;
 
-    if (unused != NULL)
+    if (unused_p != NULL)
     {
         /*
          * Initialise the return of any unused keyword arguments.  This is
          * used by any ctor overload.
          */
-        *unused = NULL;
+        *unused_p = NULL;
     }
 
     va_start(va, fmt);
     ok = parse_kwd_args(wmod, parse_err_p, args, nr_args, kwd_names, kwd_list,
-            unused, fmt, va);
+            unused_p, fmt, va);
     va_end(va);
 
     /* Release any unused arguments if the parse failed. */
-    if (!ok && unused != NULL)
-    {
-        Py_XDECREF(*unused);
-    }
+    if (!ok && unused_p != NULL)
+        Py_XDECREF(*unused_p);
 
     return ok;
 }
@@ -2138,12 +2137,6 @@ static PyObject *detail_from_failure(PyObject *failure_obj)
         detail = PyUnicode_FromString("too many arguments");
         break;
 
-    case KeywordNotString:
-        detail = PyUnicode_FromFormat(
-                "%S keyword argument name is not a string",
-                failure->detail_obj);
-        break;
-
     case UnknownKeyword:
         detail = PyUnicode_FromFormat("'%U' is not a valid keyword argument",
                 failure->detail_obj);
@@ -2295,7 +2288,7 @@ static void handle_failed_type_conversion(sipParseFailure *pf, PyObject *arg)
  */
 static int parse_kwd_args(PyObject *wmod, PyObject **parse_err_p,
         PyObject *const *args, Py_ssize_t nr_args, PyObject *kwd_names,
-        const char **kwd_list, PyObject **unused, const char *fmt,
+        const char **kwd_list, PyObject **unused_p, const char *fmt,
         va_list va_orig)
 {
     /* Previous second pass errors stop subsequent parses. */
@@ -2329,7 +2322,7 @@ static int parse_kwd_args(PyObject *wmod, PyObject **parse_err_p,
 
     va_copy(va, va_orig);
     ok = parse_pass_1(wms, parse_err_p, &self, &self_in_args, args, nr_args,
-            kwd_names, nr_kwd_names, kwd_list, unused, fmt, va);
+            kwd_names, nr_kwd_names, kwd_list, unused_p, fmt, va);
     va_end(va);
 
     if (ok)
@@ -2369,7 +2362,8 @@ static int parse_kwd_args(PyObject *wmod, PyObject **parse_err_p,
 static int parse_pass_1(sipWrappedModuleState *wms, PyObject **parse_err_p,
         PyObject **self_p, int *self_in_args_p, PyObject *const *args,
         Py_ssize_t nr_args, PyObject *kwd_names, Py_ssize_t nr_kwd_names,
-        const char **kwd_list, PyObject **unused, const char *fmt, va_list va)
+        const char **kwd_list, PyObject **unused_p, const char *fmt,
+        va_list va)
 {
     sipSipModuleState *sms = wms->sip_module_state;
     int compulsory = TRUE;
@@ -2476,113 +2470,88 @@ static int parse_pass_1(sipWrappedModuleState *wms, PyObject **parse_err_p,
             else if (nr_kwd_names_used != nr_kwd_names)
             {
                 /*
-                 * Take a shortcut if no keyword arguments were used and we are
-                 * interested in them.
+                 * Go through the keyword arguments to find any that were
+                 * duplicates of positional arguments.  For the remaining ones
+                 * remember the unused ones if we are interested.
                  */
-                if (nr_kwd_names_used == 0 && unused != NULL)
-                {
-                    // TODO unused now has a different type.  Do we create a
-                    // dict to return the names and values? (Would also
-                    // maintain compatibility if convenient.)
-                    Py_INCREF(kwd_names);
-                    *unused = kwd_names;
-                }
-                else
-                {
-                    /*
-                     * Go through the keyword arguments to find any that were
-                     * duplicates of positional arguments.  For the remaining
-                     * ones remember the unused ones if we are interested.
-                     */
-                    PyObject *unused_dict = NULL;
-                    Py_ssize_t pos;
+                PyObject *unused_dict = NULL;
+                Py_ssize_t pos;
 
-                    for (pos = 0; pos < nr_kwd_names; pos++)
+                for (pos = 0; pos < nr_kwd_names; pos++)
+                {
+                    PyObject *kwd_name = PyTuple_GET_ITEM(kwd_names, pos);
+                    Py_ssize_t a;
+
+                    if (kwd_list != NULL)
                     {
-                        PyObject *kwd_name = PyTuple_GET_ITEM(kwd_names, pos);
+                        /* Get the argument's index if it is one. */
+                        for (a = 0; a < nr_args; ++a)
+                        {
+                            const char *name = kwd_list[a];
+
+                            if (name == NULL)
+                                continue;
+
+                            if (PyUnicode_CompareWithASCIIString(kwd_name, name) == 0)
+                                break;
+                        }
+                    }
+                    else
+                    {
+                        a = nr_args;
+                    }
+
+                    if (a == nr_args)
+                    {
+                        /*
+                         * The name doesn't correspond to a keyword argument.
+                         */
+                        if (unused_p == NULL)
+                        {
+                            /*
+                             * It may correspond to a keyword argument of a
+                             * different overload.
+                             */
+                            failure.reason = UnknownKeyword;
+                            failure.detail_obj = kwd_name;
+                            Py_INCREF(kwd_name);
+
+                            break;
+                        }
+
+                        /*
+                         * Add it to the dictionary of unused arguments
+                         * creating it if necessary.  Note that if the unused
+                         * arguments are actually used by a later overload then
+                         * the parse will incorrectly succeed.  This should be
+                         * picked up (perhaps with a misleading exception) so
+                         * long as the code that handles the unused arguments
+                         * checks that it can handle them all.
+                         */
+                        if (unused_dict == NULL && (*unused_p = unused_dict = PyDict_New()) == NULL)
+                        {
+                            failure.reason = Raised;
+                            break;
+                        }
+
                         PyObject *kwd_value = args[nr_args + pos];
 
-                        if (!PyUnicode_Check(kwd_name))
+                        if (PyDict_SetItem(unused_dict, kwd_name, kwd_value) < 0)
                         {
-                            failure.reason = KeywordNotString;
-                            failure.detail_obj = kwd_name;
-                            Py_INCREF(kwd_name);
+                            failure.reason = Raised;
                             break;
                         }
-
-                        Py_ssize_t a;
-
-                        if (kwd_list != NULL)
-                        {
-                            /* Get the argument's index if it is one. */
-                            for (a = 0; a < nr_args; ++a)
-                            {
-                                const char *name = kwd_list[a];
-
-                                if (name == NULL)
-                                    continue;
-
-                                if (PyUnicode_CompareWithASCIIString(kwd_name, name) == 0)
-                                    break;
-                            }
-                        }
-                        else
-                        {
-                            a = nr_args;
-                        }
-
-                        if (a == nr_args)
-                        {
-                            /*
-                             * The name doesn't correspond to a keyword
-                             * argument.
-                             */
-                            if (unused == NULL)
-                            {
-                                /*
-                                 * It may correspond to a keyword argument of a
-                                 * different overload.
-                                 */
-                                failure.reason = UnknownKeyword;
-                                failure.detail_obj = kwd_name;
-                                Py_INCREF(kwd_name);
-
-                                break;
-                            }
-
-                            /*
-                             * Add it to the dictionary of unused arguments
-                             * creating it if necessary.  Note that if the
-                             * unused arguments are actually used by a later
-                             * overload then the parse will incorrectly
-                             * succeed.  This should be picked up (perhaps with
-                             * a misleading exception) so long as the code that
-                             * handles the unused arguments checks that it can
-                             * handle them all.
-                             */
-                            if (unused_dict == NULL && (*unused = unused_dict = PyDict_New()) == NULL)
-                            {
-                                failure.reason = Raised;
-                                break;
-                            }
-
-                            if (PyDict_SetItem(unused_dict, kwd_name, kwd_value) < 0)
-                            {
-                                failure.reason = Raised;
-                                break;
-                            }
-                        }
-                        else if (a < nr_args - *self_in_args_p)
-                        {
-                            /*
-                             * The argument has been given positionally and as
-                             * a keyword.
-                             */
-                            failure.reason = Duplicate;
-                            failure.detail_obj = kwd_name;
-                            Py_INCREF(kwd_name);
-                            break;
-                        }
+                    }
+                    else if (a < nr_args - *self_in_args_p)
+                    {
+                        /*
+                         * The argument has been given positionally and as a
+                         * keyword.
+                         */
+                        failure.reason = Duplicate;
+                        failure.detail_obj = kwd_name;
+                        Py_INCREF(kwd_name);
+                        break;
                     }
                 }
             }
@@ -2638,24 +2607,14 @@ static int parse_pass_1(sipWrappedModuleState *wms, PyObject **parse_err_p,
              * a (possibly) more accurate diagnostic in the case that a keyword
              * argument has been mis-spelled.
              */
-            if (unused == NULL && kwd_names != NULL && nr_kwd_names_used != nr_kwd_names)
+            if (unused_p == NULL && kwd_names != NULL && nr_kwd_names_used != nr_kwd_names)
             {
-#if 0
-                // TODO
-                PyObject *key, *value;
-                Py_ssize_t pos = 0;
+                Py_ssize_t pos;
 
-                while (PyDict_Next(kwd_args, &pos, &key, &value))
+                for (pos = 0; pos < nr_kwd_names; pos++)
                 {
-                    int a;
-
-                    if (!PyUnicode_Check(key))
-                    {
-                        failure.reason = KeywordNotString;
-                        failure.detail_obj = key;
-                        Py_INCREF(key);
-                        break;
-                    }
+                    PyObject *kwd_name = PyTuple_GET_ITEM(kwd_names, pos);
+                    Py_ssize_t a;
 
                     if (kwd_list != NULL)
                     {
@@ -2667,7 +2626,7 @@ static int parse_pass_1(sipWrappedModuleState *wms, PyObject **parse_err_p,
                             if (name == NULL)
                                 continue;
 
-                            if (PyUnicode_CompareWithASCIIString(key, name) == 0)
+                            if (PyUnicode_CompareWithASCIIString(kwd_name, name) == 0)
                                 break;
                         }
                     }
@@ -2679,13 +2638,12 @@ static int parse_pass_1(sipWrappedModuleState *wms, PyObject **parse_err_p,
                     if (a == nr_args)
                     {
                         failure.reason = UnknownKeyword;
-                        failure.detail_obj = key;
-                        Py_INCREF(key);
+                        failure.detail_obj = kwd_name;
+                        Py_INCREF(kwd_name);
 
                         break;
                     }
                 }
-#endif
             }
 
             break;

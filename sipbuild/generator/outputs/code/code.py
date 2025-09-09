@@ -2131,9 +2131,11 @@ f'''static int final_{as_word}(PyObject *{sip_self}, void *{sip_cpp_v}, PyObject
         sf.write(
 f'''static int mixin_{as_word}(PyObject *sipSelf, PyObject *sipArgs, PyObject *sipKwds)
 {{
-    return sipInitMixin(sipSelf, sipArgs, sipKwds, (sipClassTypeDef *)&sipTypeDef_{spec.module.py_name}_{as_word});
-}}
 ''')
+
+        backend.g_init_mixin_impl_body(sf, klass)
+
+        sf.write('}\n')
 
     # The array allocation helpers.
     if spec.c_bindings or klass.needs_array_helper:

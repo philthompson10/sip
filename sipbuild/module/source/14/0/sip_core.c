@@ -1052,28 +1052,6 @@ static PyTypeObject *create_class_type(sipWrappedModuleState *wms,
         metatype = Py_TYPE(first);
     }
 
-#if 0
-This should go.
-    /* Create the type dictionary and populate it with any non-lazy methods. */
-    PyObject *type_dict;
-
-    if ((type_dict = sip_create_type_dict(wmd)) == NULL)
-        goto rel_bases;
-
-    if (sipTypeHasNonlazyMethod(&ctd->ctd_base))
-    {
-        const PyMethodDef *pmd = ctd->ctd_container.cod_methods;
-
-        for (i = 0; i < ctd->ctd_container.cod_nrmethods; ++i)
-        {
-            if (is_nonlazy_method(pmd) && add_method(sms, type_dict, pmd) < 0)
-                goto rel_dict;
-
-            ++pmd;
-        }
-    }
-#endif
-
     PyTypeObject *py_type = create_container_type(wms, &ctd->ctd_container,
             (const sipTypeDef *)ctd, bases, metatype);
 
@@ -2142,7 +2120,8 @@ static void *sip_api_get_mixin_address(sipSimpleWrapper *w,
 
 
 /*
- * Initialise from a mixin.
+ * Initialise from a mixin.  This is called via the mixin's tp_init slot which
+ * itself is only invoked for Python sub-classes.
  */
 static int sip_api_init_mixin(PyObject *wmod, PyObject *self, PyObject *args,
         PyObject *kwds, sipTypeID mixin_type_id)
@@ -2152,19 +2131,23 @@ static int sip_api_init_mixin(PyObject *wmod, PyObject *self, PyObject *args,
     sipWrappedModuleState *wms = (sipWrappedModuleState *)PyModule_GetState(
             wmod);
 
-    /* If we are not a mixin to another wrapped class then behave as normal. */
+    /*
+     * We are here either because the instance is not being created as a mixin
+     * or it is and we have been called recursively (via the call to
+     * PyObject_Call() below) to create it.  Either way call the super-class's
+     * __init__ (which will be simplewrapper or something that eventually calls
+     * simplewrapper.
+     */
     PyTypeObject *mixin_wt = sip_get_py_type(wms, mixin_type_id);
-    const sipTypeDef *td = ((sipWrapperType *)mixin_wt)->wt_td;
 
-    if (PyType_IsSubtype(Py_TYPE(self), mixin_wt))
+    if (Py_TYPE(self) == mixin_wt)
         return sip_super_init(self, args, kwds,
                 sip_next_in_mro(self, (PyObject *)mixin_wt));
 
     /*
-     * Create the mixin instance.  Retain the positional arguments for the
-     * super-class.  Remember that, even though the mixin appears after the
-     * main class in the MRO, it appears before sipWrapperType where the main
-     * class's arguments are actually parsed.
+     * Create the instance as a mixin.  Retain the positional arguments for the
+     * super-class.  Remember that it appears before sipWrapperType where the
+     * main class's arguments are actually parsed.
      */
     sipSipModuleState *sms = wms->sip_module_state;
     PyObject *unused = NULL;
@@ -2179,6 +2162,8 @@ static int sip_api_init_mixin(PyObject *wmod, PyObject *self, PyObject *args,
     /* Make sure the mixin can find the main instance. */
     ((sipSimpleWrapper *)mixin)->mixin_main = self;
     Py_INCREF(self);
+
+    const sipTypeDef *td = ((sipWrapperType *)mixin_wt)->wt_td;
 
     PyObject *mixin_name = PyUnicode_FromString(td->td_cname);
     if (mixin_name == NULL)

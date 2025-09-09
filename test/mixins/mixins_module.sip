@@ -1,7 +1,7 @@
 // The SIP implementation of the mixins_module test module.
 
 
-%Module(name=mixins_module, call_super_init=True)
+%Module(name=mixins_module, call_super_init=True, keyword_arguments="Optional")
 
 
 %ModuleHeaderCode
@@ -18,7 +18,7 @@ public:
 class Klass
 {
 public:
-    Klass(int value=0) : attr(value) {}
+    Klass(int value) : attr(value) {}
 
     int get_attr() const {return attr;}
     void set_attr(int value) {attr = value;}
@@ -27,7 +27,7 @@ public:
 %End
 
 
-class Mixin
+class Mixin /Mixin/
 {
 public:
     Mixin(int mixin_value=0);
@@ -40,7 +40,7 @@ public:
 class Klass
 {
 public:
-    Klass(int value=0);
+    Klass(int value);
 
     int get_attr() const;
     void set_attr(int value);
