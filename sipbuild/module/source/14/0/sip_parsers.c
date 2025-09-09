@@ -102,25 +102,25 @@ static void *convert_to_type_us(sipWrappedModuleState *wms, PyObject *pyObj,
 static sipSimpleWrapper *deref_mixin(sipSimpleWrapper *w);
 static PyObject *detail_from_failure(PyObject *failure_obj);
 static void failure_dtor(PyObject *capsule);
-static PyObject *get_kwd_arg(PyObject *const *args, Py_ssize_t nr_args,
+static PyObject *get_kwd_arg(PyObject *const *args, Py_ssize_t nr_pos_args,
         PyObject *kwd_names, Py_ssize_t nr_kwd_names, const char *name);
 static PyObject *get_pyobject(sipSipModuleState *sms, void *cppPtr,
         PyTypeObject *py_type);
 static int get_self_from_args(PyTypeObject *py_type, PyObject *const *args,
-        Py_ssize_t nr_args, Py_ssize_t arg_nr, PyObject **self_p);
+        Py_ssize_t nr_pos_args, Py_ssize_t arg_nr, PyObject **self_p);
 static void handle_failed_int_conversion(sipParseFailure *pf, PyObject *arg);
 static void handle_failed_type_conversion(sipParseFailure *pf, PyObject *arg);
 static int parse_kwd_args(PyObject *wmod, PyObject **parse_err_p,
-        PyObject *const *args, Py_ssize_t nr_args, PyObject *kwd_names,
+        PyObject *const *args, Py_ssize_t nr_pos_args, PyObject *kwd_names,
         const char **kwd_list, PyObject **unused_p, const char *fmt,
         va_list va_orig);
 static int parse_pass_1(sipWrappedModuleState *wms, PyObject **parse_err_p,
         PyObject **self_p, int *self_in_args_p, PyObject *const *args,
-        Py_ssize_t nr_args, PyObject *kwd_names, Py_ssize_t nr_kwd_names,
+        Py_ssize_t nr_pos_args, PyObject *kwd_names, Py_ssize_t nr_kwd_names,
         const char **kwd_list, PyObject **unused_p, const char *fmt,
         va_list va);
 static int parse_pass_2(sipWrappedModuleState *wms, PyObject *self,
-        int self_in_args, PyObject *const *args, Py_ssize_t nr_args,
+        int self_in_args, PyObject *const *args, Py_ssize_t nr_pos_args,
         PyObject *kwd_names, Py_ssize_t nr_kwd_names, const char **kwd_list,
         const char *fmt, va_list va);
 static int parse_result(sipWrappedModuleState *wms, PyObject *method,
@@ -724,14 +724,14 @@ int sip_api_parse_kwd_args(PyObject *wmod, PyObject **parse_err_p,
  * Parse the vectorcall arguments to a C/C++ function without any side effects.
  */
 int sip_api_parse_vectorcall_args(PyObject *wmod, PyObject **parse_err_p,
-        PyObject *const *args, Py_ssize_t nr_args, PyObject *kwd_names,
+        PyObject *const *args, Py_ssize_t nr_pos_args, PyObject *kwd_names,
         const char *fmt, ...)
 {
     int ok;
     va_list va;
 
     va_start(va, fmt);
-    ok = parse_kwd_args(wmod, parse_err_p, args, nr_args, kwd_names, NULL,
+    ok = parse_kwd_args(wmod, parse_err_p, args, nr_pos_args, kwd_names, NULL,
             NULL, fmt, va);
     va_end(va);
 
@@ -744,7 +744,7 @@ int sip_api_parse_vectorcall_args(PyObject *wmod, PyObject **parse_err_p,
  * without any side effects.
  */
 int sip_api_parse_vectorcall_kwd_args(PyObject *wmod, PyObject **parse_err_p,
-        PyObject *const *args, Py_ssize_t nr_args, PyObject *kwd_names,
+        PyObject *const *args, Py_ssize_t nr_pos_args, PyObject *kwd_names,
         const char **kwd_list, PyObject **unused_p, const char *fmt, ...)
 {
     int ok;
@@ -760,8 +760,8 @@ int sip_api_parse_vectorcall_kwd_args(PyObject *wmod, PyObject **parse_err_p,
     }
 
     va_start(va, fmt);
-    ok = parse_kwd_args(wmod, parse_err_p, args, nr_args, kwd_names, kwd_list,
-            unused_p, fmt, va);
+    ok = parse_kwd_args(wmod, parse_err_p, args, nr_pos_args, kwd_names,
+            kwd_list, unused_p, fmt, va);
     va_end(va);
 
     /* Release any unused arguments if the parse failed. */
@@ -2193,7 +2193,7 @@ static void failure_dtor(PyObject *capsule)
 /*
  * Return the value of a keyword argument.
  */
-static PyObject *get_kwd_arg(PyObject *const *args, Py_ssize_t nr_args,
+static PyObject *get_kwd_arg(PyObject *const *args, Py_ssize_t nr_pos_args,
         PyObject *kwd_names, Py_ssize_t nr_kwd_names, const char *name)
 {
     Py_ssize_t i;
@@ -2203,7 +2203,7 @@ static PyObject *get_kwd_arg(PyObject *const *args, Py_ssize_t nr_args,
         PyObject *kwd_name = PyTuple_GET_ITEM(kwd_names, i);
 
         if (PyUnicode_CompareWithASCIIString(kwd_name, name) == 0)
-            return args[nr_args + i];
+            return args[nr_pos_args + i];
     }
 
     return NULL;
@@ -2225,9 +2225,9 @@ static PyObject *get_pyobject(sipSipModuleState *sms, void *cppPtr,
  * Class.Method(self, ...) rather than self.Method(...).
  */
 static int get_self_from_args(PyTypeObject *py_type, PyObject *const *args,
-        Py_ssize_t nr_args, Py_ssize_t arg_nr, PyObject **self_p)
+        Py_ssize_t nr_pos_args, Py_ssize_t arg_nr, PyObject **self_p)
 {
-    if (arg_nr >= nr_args)
+    if (arg_nr >= nr_pos_args)
         return FALSE;
 
     PyObject *self = args[arg_nr];
@@ -2287,7 +2287,7 @@ static void handle_failed_type_conversion(sipParseFailure *pf, PyObject *arg)
  * Parse the arguments to a C/C++ function without any side effects.
  */
 static int parse_kwd_args(PyObject *wmod, PyObject **parse_err_p,
-        PyObject *const *args, Py_ssize_t nr_args, PyObject *kwd_names,
+        PyObject *const *args, Py_ssize_t nr_pos_args, PyObject *kwd_names,
         const char **kwd_list, PyObject **unused_p, const char *fmt,
         va_list va_orig)
 {
@@ -2321,8 +2321,8 @@ static int parse_kwd_args(PyObject *wmod, PyObject **parse_err_p,
     va_list va;
 
     va_copy(va, va_orig);
-    ok = parse_pass_1(wms, parse_err_p, &self, &self_in_args, args, nr_args,
-            kwd_names, nr_kwd_names, kwd_list, unused_p, fmt, va);
+    ok = parse_pass_1(wms, parse_err_p, &self, &self_in_args, args,
+            nr_pos_args, kwd_names, nr_kwd_names, kwd_list, unused_p, fmt, va);
     va_end(va);
 
     if (ok)
@@ -2332,8 +2332,8 @@ static int parse_kwd_args(PyObject *wmod, PyObject **parse_err_p,
          * have the right signature.
          */
         va_copy(va, va_orig);
-        ok = parse_pass_2(wms, self, self_in_args, args, nr_args, kwd_names,
-                nr_kwd_names, kwd_list, fmt, va);
+        ok = parse_pass_2(wms, self, self_in_args, args, nr_pos_args,
+                kwd_names, nr_kwd_names, kwd_list, fmt, va);
         va_end(va);
 
         /* Remove any previous failed parses. */
@@ -2361,7 +2361,7 @@ static int parse_kwd_args(PyObject *wmod, PyObject **parse_err_p,
  */
 static int parse_pass_1(sipWrappedModuleState *wms, PyObject **parse_err_p,
         PyObject **self_p, int *self_in_args_p, PyObject *const *args,
-        Py_ssize_t nr_args, PyObject *kwd_names, Py_ssize_t nr_kwd_names,
+        Py_ssize_t nr_pos_args, PyObject *kwd_names, Py_ssize_t nr_kwd_names,
         const char **kwd_list, PyObject **unused_p, const char *fmt,
         va_list va)
 {
@@ -2402,7 +2402,7 @@ static int parse_pass_1(sipWrappedModuleState *wms, PyObject **parse_err_p,
                 /* The call was self.method(...). */
                 *self_p = self;
             }
-            else if (get_self_from_args(py_type, args, nr_args, arg_nr, self_p))
+            else if (get_self_from_args(py_type, args, nr_pos_args, arg_nr, self_p))
             {
                 /* The call was cls.method(self, ...). */
                 *self_in_args_p = TRUE;
@@ -2462,7 +2462,7 @@ static int parse_pass_1(sipWrappedModuleState *wms, PyObject **parse_err_p,
 
         if (ch == '\0')
         {
-            if (arg_nr < nr_args)
+            if (arg_nr < nr_pos_args)
             {
                 /* There are still positional arguments. */
                 failure.reason = TooMany;
@@ -2477,6 +2477,12 @@ static int parse_pass_1(sipWrappedModuleState *wms, PyObject **parse_err_p,
                 PyObject *unused_dict = NULL;
                 Py_ssize_t pos;
 
+                /*
+                 * At this point the value of arg_nr corresponds to the total
+                 * number of arguments (optional or otherwise) that can be
+                 * passed.  Therefore it is also the length of the kwd_list
+                 * array.
+                 */
                 for (pos = 0; pos < nr_kwd_names; pos++)
                 {
                     PyObject *kwd_name = PyTuple_GET_ITEM(kwd_names, pos);
@@ -2485,7 +2491,7 @@ static int parse_pass_1(sipWrappedModuleState *wms, PyObject **parse_err_p,
                     if (kwd_list != NULL)
                     {
                         /* Get the argument's index if it is one. */
-                        for (a = 0; a < nr_args; ++a)
+                        for (a = 0; a < arg_nr; ++a)
                         {
                             const char *name = kwd_list[a];
 
@@ -2498,10 +2504,10 @@ static int parse_pass_1(sipWrappedModuleState *wms, PyObject **parse_err_p,
                     }
                     else
                     {
-                        a = nr_args;
+                        a = arg_nr;
                     }
 
-                    if (a == nr_args)
+                    if (a == arg_nr)
                     {
                         /*
                          * The name doesn't correspond to a keyword argument.
@@ -2534,7 +2540,7 @@ static int parse_pass_1(sipWrappedModuleState *wms, PyObject **parse_err_p,
                             break;
                         }
 
-                        PyObject *kwd_value = args[nr_args + pos];
+                        PyObject *kwd_value = args[nr_pos_args + pos];
 
                         if (PyDict_SetItem(unused_dict, kwd_name, kwd_value) < 0)
                         {
@@ -2542,7 +2548,7 @@ static int parse_pass_1(sipWrappedModuleState *wms, PyObject **parse_err_p,
                             break;
                         }
                     }
-                    else if (a < nr_args - *self_in_args_p)
+                    else if (a < nr_pos_args - *self_in_args_p)
                     {
                         /*
                          * The argument has been given positionally and as a
@@ -2564,7 +2570,7 @@ static int parse_pass_1(sipWrappedModuleState *wms, PyObject **parse_err_p,
         failure.arg_nr = -1;
         failure.arg_name = NULL;
 
-        if (arg_nr < nr_args)
+        if (arg_nr < nr_pos_args)
         {
             /* It's a positional argument. */
             arg = args[arg_nr];
@@ -2576,7 +2582,7 @@ static int parse_pass_1(sipWrappedModuleState *wms, PyObject **parse_err_p,
 
             if (name != NULL)
             {
-                arg = get_kwd_arg(args, nr_args, kwd_names, nr_kwd_names,
+                arg = get_kwd_arg(args, nr_pos_args, kwd_names, nr_kwd_names,
                         name);
 
                 if (arg != NULL)
@@ -2619,7 +2625,7 @@ static int parse_pass_1(sipWrappedModuleState *wms, PyObject **parse_err_p,
                     if (kwd_list != NULL)
                     {
                         /* Get the argument's index if it is one. */
-                        for (a = 0; a < nr_args; ++a)
+                        for (a = 0; a < nr_pos_args; ++a)
                         {
                             const char *name = kwd_list[a];
 
@@ -2632,10 +2638,10 @@ static int parse_pass_1(sipWrappedModuleState *wms, PyObject **parse_err_p,
                     }
                     else
                     {
-                        a = nr_args;
+                        a = nr_pos_args;
                     }
 
-                    if (a == nr_args)
+                    if (a == nr_pos_args)
                     {
                         failure.reason = UnknownKeyword;
                         failure.detail_obj = kwd_name;
@@ -3582,7 +3588,7 @@ static int parse_pass_1(sipWrappedModuleState *wms, PyObject **parse_err_p,
  * have side effects.  Return TRUE if there was no error.
  */
 static int parse_pass_2(sipWrappedModuleState *wms, PyObject *self,
-        int self_in_args, PyObject *const *args, Py_ssize_t nr_args,
+        int self_in_args, PyObject *const *args, Py_ssize_t nr_pos_args,
         PyObject *kwd_names, Py_ssize_t nr_kwd_names, const char **kwd_list,
         const char *fmt, va_list va)
 {
@@ -3657,7 +3663,7 @@ static int parse_pass_2(sipWrappedModuleState *wms, PyObject *self,
         /* Get the next argument. */
         arg = NULL;
 
-        if (arg_nr < nr_args)
+        if (arg_nr < nr_pos_args)
         {
             arg = args[arg_nr];
         }
@@ -3666,7 +3672,7 @@ static int parse_pass_2(sipWrappedModuleState *wms, PyObject *self,
             const char *name = kwd_list[arg_nr - self_in_args];
 
             if (name != NULL)
-                arg = get_kwd_arg(args, nr_args, kwd_names, nr_kwd_names,
+                arg = get_kwd_arg(args, nr_pos_args, kwd_names, nr_kwd_names,
                         name);
         }
 
@@ -3929,10 +3935,10 @@ static int parse_pass_2(sipWrappedModuleState *wms, PyObject *self,
         Py_ssize_t da = 0;
 
         /* Create a tuple for any remaining arguments. */
-        if ((al = PyTuple_New(nr_args - arg_nr)) == NULL)
+        if ((al = PyTuple_New(nr_pos_args - arg_nr)) == NULL)
             return FALSE;
 
-        while (arg_nr < nr_args)
+        while (arg_nr < nr_pos_args)
         {
             PyObject *varg = args[arg_nr];
 

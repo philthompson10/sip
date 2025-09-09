@@ -14,12 +14,11 @@ class MixinsTestCase(SIPTestCase):
 
         from mixins_module import Klass, Mixin
 
-        m = Mixin()
-        #class TestClass(Klass, Mixin):
-        class TestClass(Mixin, Klass):
+        class TestClass(Klass, Mixin):
             pass
 
-        test = TestClass(10, mixin_value=20)
+        test = TestClass(10, extra_kwarg_1=30, mixin_value=20,
+                extra_kwarg_2=40)
 
         self.assertEqual(test.get_attr(), 10)
         self.assertEqual(test.attr, 10)

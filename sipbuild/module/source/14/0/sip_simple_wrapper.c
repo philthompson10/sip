@@ -660,6 +660,12 @@ static int SimpleWrapper_init(sipSimpleWrapper *self, PyObject *args,
     }
 #endif
 
+    if (unused != NULL)
+    {
+    printf("!!! unused: ");
+    PyObject_Print(unused, stdout, 0);
+    printf("\n");
+    }
     /* See if we should call the equivalent of super().__init__(). */
     if (sipTypeCallSuperInit(&ctd->ctd_base))
     {
@@ -699,23 +705,43 @@ static int SimpleWrapper_init(sipSimpleWrapper *self, PyObject *args,
     else if (unused != NULL)
     {
         /* We shouldn't have any unused keyword arguments. */
-        if (PyDict_Size(unused) != 0)
+        PyObject *unused_names = PyDict_Keys(unused);
+        Py_DECREF(unused);
+
+        if (unused_names == NULL)
+            return -1;
+
+        Py_ssize_t nr_names = PyList_GET_SIZE(unused_names);
+
+        if (nr_names == 1)
         {
-            PyObject *key, *value;
-            Py_ssize_t pos = 0;
+            PyErr_Format(PyExc_TypeError, "%'S' is an unknown keyword argument",
+                    PyList_GET_ITEM(unused_names, 0));
+            Py_DECREF(unused_names);
 
-            /* Just report one of the unused arguments. */
-            PyDict_Next(unused, &pos, &key, &value);
+            return -1;
+        }
+        else if (nr_names > 1)
+        {
+            PyObject *sep = PyUnicode_FromString("', '");
+            if (sep == NULL)
+            {
+                Py_DECREF(unused_names);
+                return -1;
+            }
 
-            PyErr_Format(PyExc_TypeError,
-                    "'%S' is an unknown keyword argument", key);
+            PyObject *names = PyUnicode_Join(sep, unused_names);
+            Py_DECREF(sep);
+            Py_DECREF(unused_names);
 
-            Py_DECREF(unused);
+            PyErr_Format(PyExc_TypeError, "'%S' are unknown keyword arguments",
+                    names);
+            Py_DECREF(names);
 
             return -1;
         }
 
-        Py_DECREF(unused);
+        Py_DECREF(unused_names);
     }
 
     return 0;

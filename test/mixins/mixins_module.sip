@@ -42,6 +42,11 @@ class Klass
 public:
     Klass(int value);
 
+//%FinalisationCode
+//    // TODO
+//    return 0;
+//%End
+
     int get_attr() const;
     void set_attr(int value);
     int attr;
