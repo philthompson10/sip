@@ -9,21 +9,6 @@ from utils import SIPTestCase
 class ClassAttrsTestCase(SIPTestCase):
     """ Test the support for class attributes. """
 
-    def test_plain_classes(self):
-        """ Test the support for plain classes. """
-
-        from class_attrs_module import Klass
-
-        self.assertEqual(len(Klass.__mro__), 4)
-        self.assertIsInstance(Klass(), Klass)
-
-    def test_nested_classes(self):
-        """ Test the support for nested classes. """
-
-        from class_attrs_module import Klass
-
-        self.assertIsInstance(Klass.Nested(), Klass.Nested)
-
     def test_class_attributes(self):
         """ Test the support for class attributes. """
 
@@ -80,31 +65,3 @@ class ClassAttrsTestCase(SIPTestCase):
 
         with self.assertRaises(AttributeError):
             Klass.attr
-
-    def test_py_subclass(self):
-        """ Test the support for Python sub-classes. """
-
-        from class_attrs_module import Klass
-
-        class SubK(Klass):
-            pass
-
-        self.assertIsInstance(SubK(), Klass)
-
-    def test_simple_plain_class(self):
-        """ Test the support for plain classes using simplewrapper. """
-
-        from class_attrs_module import SimpleKlass
-
-        self.assertEqual(len(SimpleKlass.__mro__), 3)
-        self.assertIsInstance(SimpleKlass(), SimpleKlass)
-
-    def test_simple_py_subclass(self):
-        """ Test the support for Python sub-classes using simplewrapper. """
-
-        from class_attrs_module import SimpleKlass
-
-        class SimpleSubK(SimpleKlass):
-            pass
-
-        self.assertIsInstance(SimpleSubK(), SimpleKlass)

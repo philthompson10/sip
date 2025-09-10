@@ -93,8 +93,6 @@ static sipFinalFunc find_finalisation(sipWrappedModuleState *wms,
 static int SimpleWrapper_clear(sipSimpleWrapper *self)
 {
     sipWrapperType *wt = (sipWrapperType *)Py_TYPE(self);
-    sipWrappedModuleState *wms = (sipWrappedModuleState *)PyModule_GetState(
-            wt->wt_dmod);
     int vret = 0;
 
     /*
@@ -348,8 +346,6 @@ static int SimpleWrapper_traverse(sipSimpleWrapper *self, visitproc visit,
         void *arg)
 {
     sipWrapperType *wt = (sipWrapperType *)Py_TYPE(self);
-    sipWrappedModuleState *wms = (sipWrappedModuleState *)PyModule_GetState(
-            wt->wt_dmod);
 
     Py_VISIT(Py_TYPE(self));
 
@@ -645,7 +641,7 @@ static int SimpleWrapper_init(sipSimpleWrapper *self, PyObject *args,
             new_unused_p = &new_unused;
         }
             
-        if (final_func(self, sipNew, unused, new_unused_p) < 0)
+        if (final_func((PyObject *)self, sipNew, unused, new_unused_p) < 0)
         {
             Py_XDECREF(unused);
             return -1;

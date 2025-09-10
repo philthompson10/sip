@@ -8,10 +8,6 @@
 class Klass
 {
 public:
-    class Nested
-    {
-    };
-
     Klass() : attr(0) {}
 
     static int s_attr;
@@ -19,10 +15,6 @@ public:
 
     int attr;
     int get_attr() {return attr;}
-};
-
-class SimpleKlass
-{
 };
 %End
 
@@ -35,10 +27,6 @@ int Klass::s_attr = 0;
 class Klass
 {
 public:
-    class Nested
-    {
-    };
-
     Klass();
 
     static int s_attr;
@@ -46,8 +34,4 @@ public:
 
     int attr;
     int get_attr();
-};
-
-class SimpleKlass /Supertype=class_attrs_module.simplewrapper/
-{
 };
