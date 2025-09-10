@@ -9,6 +9,17 @@ from utils import SIPTestCase
 class ClassMiscTestCase(SIPTestCase):
     """ Test the support for a variety of class features. """
 
+    def test_base_types(self):
+        """ Test if the base types can be instantiated. """
+
+        from class_misc_module import simplewrapper, wrapper
+
+        with self.assertRaises(TypeError):
+            simplewrapper()
+
+        with self.assertRaises(TypeError):
+            wrapper()
+
     def test_plain_classes(self):
         """ Test the support for plain classes. """
 

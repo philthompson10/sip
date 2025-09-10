@@ -54,6 +54,8 @@ static void SimpleWrapper_dealloc(sipSimpleWrapper *self);
 //static int SimpleWrapper_getbuffer(PyObject *self, Py_buffer *buf, int flags);
 static int SimpleWrapper_init(sipSimpleWrapper *self, PyObject *args,
         PyObject *kwd_args);
+static PyObject *SimpleWrapper_new(PyTypeObject *cls, PyObject *args,
+        PyObject *kwds);
 //static void SimpleWrapper_releasebuffer(PyObject *self, Py_buffer *buf);
 static int SimpleWrapper_traverse(sipSimpleWrapper *self, visitproc visit,
         void *arg);
@@ -66,6 +68,7 @@ static PyType_Slot SimpleWrapper_slots[] = {
     {Py_tp_getset, SimpleWrapper_getset},
     {Py_tp_init, SimpleWrapper_init},
     {Py_tp_members, SimpleWrapper_members},
+    {Py_tp_new, SimpleWrapper_new},
     {Py_tp_traverse, SimpleWrapper_traverse},
     {0, NULL}
 };
@@ -226,23 +229,18 @@ static int SimpleWrapper_getbuffer(PyObject *self, Py_buffer *buf, int flags)
 #endif
 
 
-// TODO Test that the behaviour here can be achieved with appropriate TP_FLAGS.
-#if 0
 /*
  * The simple wrapper new slot.
  */
 static PyObject *SimpleWrapper_new(PyTypeObject *cls, PyObject *args,
         PyObject *kwds)
 {
-    sipSipModuleState *sms = sip_get_sip_module_state_from_sip_type(cls);
-    sipWrapperType *wt = (sipWrapperType *)cls;
-    const sipTypeDef *td = wt->wt_td;
-
     (void)args;
     (void)kwds;
 
+    sipSipModuleState *sms = sip_get_sip_module_state_from_sip_type(cls);
+
     /* Check the base types are not being used directly. */
-    // TODO Is this still necessary with the current TP_FLAGS?
     if (cls == sms->simple_wrapper_type || cls == sms->wrapper_type)
     {
         PyErr_Format(PyExc_TypeError,
@@ -251,6 +249,10 @@ static PyObject *SimpleWrapper_new(PyTypeObject *cls, PyObject *args,
 
         return NULL;
     }
+
+#if 0
+    sipWrapperType *wt = (sipWrapperType *)cls;
+    const sipTypeDef *td = wt->wt_td;
 
     /* See if it is a mapped type. */
     if (sipTypeIsMapped(td))
@@ -262,7 +264,9 @@ static PyObject *SimpleWrapper_new(PyTypeObject *cls, PyObject *args,
 
         return NULL;
     }
+#endif
 
+#if 0
     /* See if it is a namespace. */
     if (sipTypeIsNamespace(td))
     {
@@ -273,7 +277,9 @@ static PyObject *SimpleWrapper_new(PyTypeObject *cls, PyObject *args,
 
         return NULL;
     }
+#endif
 
+#if 0
     /*
      * See if the object is being created explicitly rather than being wrapped.
      */
@@ -305,11 +311,11 @@ static PyObject *SimpleWrapper_new(PyTypeObject *cls, PyObject *args,
             return NULL;
         }
     }
+#endif
 
     /* Call the standard super-type new. */
     return PyBaseObject_Type.tp_new(cls, sms->empty_tuple, NULL);
 }
-#endif
 
 
 /*
