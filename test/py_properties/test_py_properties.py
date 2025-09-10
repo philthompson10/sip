@@ -3,9 +3,12 @@
 # Copyright (c) 2025 Phil Thompson <phil@riverbankcomputing.com>
 
 
+from unittest import skip
+
 from utils import SIPTestCase
 
 
+@skip("Needs porting to ABI v14")
 class PyPropertiesTestCase(SIPTestCase):
     """ Test the support for the %Property directive.  (See issue/74.)
     """

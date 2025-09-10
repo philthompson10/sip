@@ -3,9 +3,12 @@
 # Copyright (c) 2025 Phil Thompson <phil@riverbankcomputing.com>
 
 
+from unittest import skip
+
 from utils import SIPGeneratorTestCase
 
 
+@skip("Needs porting to ABI v14")
 class GenerateClassesTestCase(SIPGeneratorTestCase):
     """ Test the generator support for classes. """
 

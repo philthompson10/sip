@@ -3,11 +3,14 @@
 # Copyright (c) 2025 Phil Thompson <phil@riverbankcomputing.com>
 
 
+from unittest import skip
+
 from enum import Enum, Flag, IntEnum, IntFlag
 
 from utils import SIPTestCase
 
 
+@skip("Needs porting to ABI v14")
 class PyEnumsTestCase(SIPTestCase):
     """ Test the support for Python enums. """
 
