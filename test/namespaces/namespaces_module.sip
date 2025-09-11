@@ -7,14 +7,19 @@
 %ModuleHeaderCode
 namespace NS
 {
-    int attr;
-    int get_attr() {return attr;}
+    extern int attr;
+    int get_attr();
 };
 %End
 
 
 %ModuleCode
 int NS::attr = 0;
+
+int NS::get_attr()
+{
+    return NS::attr;
+}
 %End
 
 

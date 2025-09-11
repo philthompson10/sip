@@ -984,14 +984,13 @@ def _ordinary_function(backend, sf, bindings, member, scope=None):
 
     if scope is None:
         overloads = spec.module.overloads
-        py_scope = None
-        py_scope_prefix = ''
+        scope_prefix = ''
     else:
         overloads = scope.overloads
-        py_scope = py_scope(scope)
+        scope = py_scope(scope)
 
-        if py_scope is not None:
-            member_name = py_scope.iface_file.fq_cpp_name.as_word + '_' + member_name
+        if scope is not None:
+            member_name = scope.iface_file.fq_cpp_name.as_word + '_' + member_name
 
     sf.write('\n\n')
 
@@ -1010,7 +1009,7 @@ def _ordinary_function(backend, sf, bindings, member, scope=None):
     else:
         kw_fw_decl = kw_decl = ''
 
-    if py_scope is None:
+    if scope is None:
         if not spec.c_bindings:
             sf.write(f'extern "C" {{static PyObject *func_{member_name}({backend.py_method_args(is_impl=False, self_is_type=False)}{kw_fw_decl});}}\n')
 
@@ -1036,14 +1035,14 @@ def _ordinary_function(backend, sf, bindings, member, scope=None):
             break
 
         if need_intro:
-            if py_scope is None:
+            if scope is None:
                 backend.g_function_support_vars(sf)
             else:
                 backend.g_method_support_vars(sf)
 
             sf.write('    PyObject *sipParseErr = SIP_NULLPTR;\n')
 
-            if py_scope is None and spec.c_bindings:
+            if scope is None and spec.c_bindings:
                 sf.write(
 '''
     (void)sipSelf;

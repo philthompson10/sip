@@ -250,34 +250,30 @@ static PyObject *SimpleWrapper_new(PyTypeObject *cls, PyObject *args,
         return NULL;
     }
 
-#if 0
     sipWrapperType *wt = (sipWrapperType *)cls;
     const sipTypeDef *td = wt->wt_td;
 
+#if 0
     /* See if it is a mapped type. */
     if (sipTypeIsMapped(td))
     {
         PyErr_Format(PyExc_TypeError,
-                "%s.%s represents a mapped type and cannot be instantiated",
-                sipNameOfModule(td->td_module),
-                sip_get_container(td)->cod_name, td));
+                "%s represents a mapped type and cannot be instantiated",
+                cls->tp_name);
 
         return NULL;
     }
 #endif
 
-#if 0
     /* See if it is a namespace. */
     if (sipTypeIsNamespace(td))
     {
         PyErr_Format(PyExc_TypeError,
-                "%s.%s represents a C++ namespace and cannot be instantiated",
-                sipNameOfModule(td->td_module),
-                sip_get_container(td)->cod_name, td));
+                "%s represents a C++ namespace and cannot be instantiated",
+                cls->tp_name);
 
         return NULL;
     }
-#endif
 
 #if 0
     /*
@@ -293,9 +289,8 @@ static PyObject *SimpleWrapper_new(PyTypeObject *cls, PyObject *args,
         if (((sipClassTypeDef *)td)->ctd_init == NULL)
         {
             PyErr_Format(PyExc_TypeError,
-                    "%s.%s cannot be instantiated or sub-classed",
-                    sipNameOfModule(td->td_module),
-                    sip_get_container(td)->cod_name, td));
+                    "%s cannot be instantiated or sub-classed",
+                    cls->tp_name);
 
             return NULL;
         }
@@ -304,9 +299,8 @@ static PyObject *SimpleWrapper_new(PyTypeObject *cls, PyObject *args,
         if (sipTypeIsAbstract(td) && !wt->wt_user_type && ((const sipClassTypeDef *)td)->ctd_init_mixin == NULL)
         {
             PyErr_Format(PyExc_TypeError,
-                    "%s.%s represents a C++ abstract class and cannot be instantiated",
-                    sipNameOfModule(td->td_module),
-                    sip_get_container(td)->cod_name, td));
+                    "%s represents a C++ abstract class and cannot be instantiated",
+                    cls->tp_name);
 
             return NULL;
         }

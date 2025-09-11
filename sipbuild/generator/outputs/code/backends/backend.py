@@ -1613,7 +1613,8 @@ static PyType_Slot sip_py_slots_{klass_name}[] = {{
         #if len(klass.superclasses) != 0:
         #    ctd_supers
 
-        fields.append('.ctd_init = init_type_' + klass_name)
+        if klass.can_create:
+            fields.append('.ctd_init = init_type_' + klass_name)
 
         if self.need_dealloc(bindings, klass):
             fields.append('.ctd_dealloc = dealloc_' + klass_name)
