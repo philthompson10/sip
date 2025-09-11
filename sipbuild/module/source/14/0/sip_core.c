@@ -826,8 +826,6 @@ static PyTypeObject *create_container_type(sipWrappedModuleState *wms,
     PyType_Spec spec = {
         .name = cod->cod_name,
         .basicsize = 0,
-        // TODO Add flags to support namespaces, abstract classes etc. so that
-        // legacy runtime checks can be removed.
         .flags = Py_TPFLAGS_DEFAULT|Py_TPFLAGS_BASETYPE,
         .slots = (PyType_Slot *)slots,
     };
