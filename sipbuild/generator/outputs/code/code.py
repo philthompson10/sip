@@ -4833,7 +4833,7 @@ def _get_parse_result_format(arg, spec, result_is_reference=False,
     if arg.type is ArgumentType.PYOBJECT:
         return 'O'
 
-    if arg.type in (ArgumentType.PYTUPLE, ArgumentType.PYLIST, ArgumentType.PYDICT, ArgumentType.SLICE, ArgumentType.PYTYPE):
+    if arg.type in (ArgumentType.PYTUPLE, ArgumentType.PYLIST, ArgumentType.PYDICT, ArgumentType.PYSLICE, ArgumentType.PYTYPE):
         return 'N' if arg.allow_none else 'T'
 
     if arg.type is ArgumentType.PYBUFFER:
