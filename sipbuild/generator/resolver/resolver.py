@@ -943,6 +943,7 @@ _ENUM_BASE_TYPES = (
     ArgumentType.USHORT,
     ArgumentType.INT,
     ArgumentType.UINT,
+    ArgumentType.BOOL,
 )
 
 def _resolve_enums(spec, error_log):
