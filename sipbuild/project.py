@@ -604,10 +604,29 @@ class Project(AbstractProject, Configurable):
     def run_command(self, args, *, fatal=True):
         """ Run a command and display the output if requested. """
 
+        deck = None if self.verbose else collections.deque((), 100)
+
         # Read stdout and stderr until there is no more output.
-        for line in self.read_command_pipe(args, and_stderr=True, fatal=fatal):
-            if self.verbose:
-                sys.stdout.write(line)
+        nr_lines = 0
+
+        try:
+            for line in self.read_command_pipe(args, and_stderr=True, fatal=fatal):
+                nr_lines += 1
+
+                if deck is None:
+                    sys.stdout.write(line)
+                else:
+                    deck.append(line)
+        except UserException:
+            if deck is not None:
+                for line in deck:
+                    sys.stdout.write(line)
+
+                if nr_lines > deck.maxlen:
+                    sys.stdout.write(
+                            "To see the full output use the --verbose option.\n")
+
+            raise
 
     def setup(self, pyproject, tool, tool_description):
         """ Complete the configuration of the project. """
