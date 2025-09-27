@@ -19,9 +19,9 @@ from ..version import SIP_VERSION_STR
 WHEEL_VERSION = '1.0'
 
 
-def distinfo(name, console_scripts, gui_scripts, generator, generator_version,
-        inventory, metadata_overrides, prefix, project_root, requires_dists,
-        wheel_tag):
+def distinfo(name, console_scripts, gui_scripts, sbom_files, generator,
+        generator_version, inventory, metadata_overrides, prefix, project_root,
+        requires_dists, wheel_tag):
     """ Create and populate a .dist-info directory from an inventory file. """
 
     if prefix is None:
@@ -50,12 +50,13 @@ def distinfo(name, console_scripts, gui_scripts, generator, generator_version,
 
     # Create the directory.
     create_distinfo(name, wheel_tag, installed, metadata, requires_dists,
-            project_root, console_scripts, gui_scripts, prefix_dir=prefix,
-            generator=generator, generator_version=generator_version)
+            project_root, console_scripts, gui_scripts, sbom_files,
+            prefix_dir=prefix, generator=generator,
+            generator_version=generator_version)
 
 
 def create_distinfo(distinfo_dir, wheel_tag, installed, metadata,
-        requires_dists, project_root, console_scripts, gui_scripts,
+        requires_dists, project_root, console_scripts, gui_scripts, sbom_files,
         prefix_dir='', generator=None, generator_version=None):
     """ Create and populate a .dist-info directory. """
 
@@ -87,25 +88,19 @@ def create_distinfo(distinfo_dir, wheel_tag, installed, metadata,
                         real_distinfo_dir),
                 str(e))
 
-    # Reproducable builds.
-    installed.sort()
-
-    # Copy any license files.
+    # Copy any license and sbom files.
     saved = os.getcwd()
     os.chdir(project_root)
 
-    license_root = os.path.join(distinfo_dir, 'licenses')
-
-    for license_patt in metadata.get('license-file', []):
-        for license_file in glob.glob(license_patt):
-            license_fn = os.path.join(license_root, license_file)
-            installed.append(license_fn)
-
-            real_license_dir = prefix_dir + os.path.dirname(license_fn)
-            os.makedirs(real_license_dir, exist_ok=True)
-            shutil.copy(license_file, real_license_dir)
+    _install_files(metadata.get('license-file', ()), prefix_dir,
+            os.path.join(distinfo_dir, 'licenses'), installed)
+    _install_files(sbom_files, prefix_dir, os.path.join(distinfo_dir, 'sboms'),
+            installed)
 
     os.chdir(saved)
+
+    # Reproducable builds.
+    installed.sort()
 
     if wheel_tag is None:
         # Create the INSTALLER file.
@@ -232,6 +227,21 @@ def write_metadata(metadata, requires_dists, metadata_fn, project_root,
 
             with open(os.path.join(project_root, description)) as description_f:
                 metadata_f.write(description_f.read())
+
+
+def _install_files(files, prefix_dir, target_dir, installed):
+    """ Install a list of files into a subdirectory of the .dist-info
+        directory and update the list of installed files.
+    """
+
+    for patt in files:
+        for file in glob.glob(patt):
+            file_fn = os.path.join(target_dir, file)
+            installed.append(file_fn)
+
+            real_dir = prefix_dir + os.path.dirname(file_fn)
+            os.makedirs(real_dir, exist_ok=True)
+            shutil.copy(file, real_dir)
 
 
 def _write_metadata_item(name, value, metadata_f):

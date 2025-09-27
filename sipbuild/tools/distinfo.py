@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: BSD-2-Clause
 
-# Copyright (c) 2024 Phil Thompson <phil@riverbankcomputing.com>
+# Copyright (c) 2025 Phil Thompson <phil@riverbankcomputing.com>
 
 
 from ..argument_parser import ArgumentParser
@@ -47,6 +47,9 @@ def main():
     parser.add_argument('--requires-dist', dest='requires_dists',
             action='append', help="additional Requires-Dist", metavar="EXPR")
 
+    parser.add_argument('--sbom', dest='sbom_files', action='append',
+            help="the name of an SBOM file", metavar='FILE')
+
     parser.add_argument('--wheel-tag',
             help="the tag if a wheel is being created", metavar="TAG")
 
@@ -57,7 +60,8 @@ def main():
 
     try:
         distinfo(name=args.names[0], console_scripts=args.console_scripts,
-                gui_scripts=args.gui_scripts, generator=args.generator,
+                gui_scripts=args.gui_scripts, sbom_files=args.sbom_files,
+                generator=args.generator,
                 generator_version=args.generator_version,
                 inventory=args.inventory,
                 metadata_overrides=args.metadata_overrides, prefix=args.prefix,

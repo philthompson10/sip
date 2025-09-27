@@ -83,7 +83,7 @@ class DistutilsBuilder(Builder):
             create_distinfo(project.get_distinfo_dir(target_dir), wheel_tag,
                     installed, project.metadata, project.get_requires_dists(),
                     project.root_dir, project.console_scripts,
-                    project.gui_scripts)
+                    project.gui_scripts, project.sbom_files)
 
     def _build_extension_module(self, buildable):
         """ Build an extension module from the sources. """
