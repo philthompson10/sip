@@ -92,7 +92,7 @@ def create_distinfo(distinfo_dir, wheel_tag, installed, metadata,
     saved = os.getcwd()
     os.chdir(project_root)
 
-    _install_files(metadata.get('license-file', ()), prefix_dir,
+    _install_files(metadata.get('license-file'), prefix_dir,
             os.path.join(distinfo_dir, 'licenses'), installed)
     _install_files(sbom_files, prefix_dir, os.path.join(distinfo_dir, 'sboms'),
             installed)
@@ -234,14 +234,15 @@ def _install_files(files, prefix_dir, target_dir, installed):
         directory and update the list of installed files.
     """
 
-    for patt in files:
-        for file in glob.glob(patt):
-            file_fn = os.path.join(target_dir, file)
-            installed.append(file_fn)
+    if files:
+        for patt in files:
+            for file in glob.glob(patt):
+                file_fn = os.path.join(target_dir, file)
+                installed.append(file_fn)
 
-            real_dir = prefix_dir + os.path.dirname(file_fn)
-            os.makedirs(real_dir, exist_ok=True)
-            shutil.copy(file, real_dir)
+                real_dir = prefix_dir + os.path.dirname(file_fn)
+                os.makedirs(real_dir, exist_ok=True)
+                shutil.copy(file, real_dir)
 
 
 def _write_metadata_item(name, value, metadata_f):
