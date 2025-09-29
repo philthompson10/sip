@@ -225,6 +225,11 @@ list options may contain environment markers as defined in `PEP 508
     target directory.  By default the directory containing the Python
     interpreter is used.  There is also a corresponding command line option.
 
+**sbom-files**
+    The value is a list of files that are copied to the :file:`sboms`
+    subdirectory of the :file:`.dist-info` directory as defined in PEP 770.  A
+    file may be a glob-style pattern.
+
 **sdist-excludes**
     The value is a list of files and directories, expressed as *glob* patterns
     and relative to the directory containing the :file:`pyproject.toml` file,

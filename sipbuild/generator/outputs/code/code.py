@@ -3284,7 +3284,7 @@ def _get_parse_result_format(backend, arg, result_is_reference=False,
     if arg.type is ArgumentType.PYOBJECT:
         return 'O'
 
-    if arg.type in (ArgumentType.PYTUPLE, ArgumentType.PYLIST, ArgumentType.PYDICT, ArgumentType.SLICE, ArgumentType.PYTYPE):
+    if arg.type in (ArgumentType.PYTUPLE, ArgumentType.PYLIST, ArgumentType.PYDICT, ArgumentType.PYSLICE, ArgumentType.PYTYPE):
         return 'N' if arg.allow_none else 'T'
 
     if arg.type is ArgumentType.PYBUFFER:
@@ -4724,7 +4724,9 @@ def _get_slot_call(backend, scope, overload, dereferenced):
         return f'(*sipCpp)[{_get_slot_arg(spec, overload, 0)}]'
 
     if py_slot in (PySlot.INT, PySlot.FLOAT):
-        return '*sipCpp'
+        cpp_type = fmt_argument_as_cpp_type(spec,
+                overload.cpp_signature.result)
+        return cpp_type + '(*sipCpp)'
 
     if py_slot is PySlot.ADD:
         return _get_number_slot_call(spec, overload, '+')

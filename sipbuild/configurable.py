@@ -219,8 +219,8 @@ class Option:
     attribute of a Configurable object.  The value of the attribute can be set
     either by __init__(), the pyproject.toml file and by the user using a
     command line argument (in that order).  Once the value is set it cannot be
-    changed subsequently.  For example, if an attribute is set
-    in pyproject.toml then the user will not then be able to modify it from the
+    changed subsequently.  For example, if an attribute is set in
+    pyproject.toml then the user will not then be able to modify it from the
     command line.  The value can only be changed from the command line if the
     Option object has help text specified.
     """

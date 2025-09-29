@@ -225,6 +225,14 @@ The full set of command line options is:
     used to specify a particular version of a package project's :mod:`sip`
     module.  This option may be specified multiple times.
 
+.. option:: --sbom FILE
+
+    .. versionadded:: 6.13
+
+    ``FILE`` is copied to the :file:`sboms` subdirectory of the
+    :file:`.dist-info` directory as defined in PEP 770.  ``FILE`` may be a
+    glob-style pattern.  This option may be specified multiple times.
+
 .. option:: --wheel-tag TAG
 
     ``TAG`` is written as the ``Tag`` in the :file:`WHEEL` file in the
