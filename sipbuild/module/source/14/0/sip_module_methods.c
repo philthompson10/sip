@@ -205,13 +205,13 @@ static PyObject *meth_dump(PyObject *mod, PyObject *arg)
 static PyObject *meth_enableautoconversion(PyObject *mod, PyObject *args)
 {
     sipSipModuleState *sms = (sipSipModuleState *)PyModule_GetState(mod);
-    sipWrapperType *wt;
+    PyTypeObject *py_type;
     int enable;
 
-    if (!PyArg_ParseTuple(args, "O!i:enableautoconversion", sms->wrapper_type_type, &wt, &enable))
+    if (!PyArg_ParseTuple(args, "O!i:enableautoconversion", sms->wrapper_type_type, &py_type, &enable))
         return NULL;
 
-    int was_enabled = sip_api_enable_autoconversion(wt, enable);
+    int was_enabled = sip_api_enable_autoconversion(py_type, enable);
 
     PyObject *res = (was_enabled ? Py_True : Py_False);
 

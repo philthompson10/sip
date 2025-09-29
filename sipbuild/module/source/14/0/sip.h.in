@@ -185,9 +185,6 @@ typedef struct _sipTimeDef sipTimeDef;
 struct _sipTypeDef;
 typedef struct _sipTypeDef sipTypeDef;
 
-struct _sipWrapperType;
-typedef struct _sipWrapperType sipWrapperType;
-
 struct _sipWrapper;
 typedef struct _sipWrapper sipWrapper;
 
@@ -198,7 +195,8 @@ typedef struct _sipWrapper sipWrapper;
 /*
  * The state of a wrapped module.  This is opaque as far as the public ABI is
  * concerned.  Note that it cannot be put into an internal header file because
- * it's sizeof() is required before the ABI is available.
+ * it's sizeof() is required before the ABI is available.  It also means that
+ * members cannot be modified and new members must be appended.
  */
 typedef struct {
     /*
@@ -292,7 +290,7 @@ typedef int (*sipCollectingWrapperEventHandler)(const sipTypeDef *td,
 typedef int (*sipFinalisingTypeEventHandler)(const sipTypeDef *td,
         PyObject *dict);
 typedef int (*sipPySubclassCreatedEventHandler)(const sipTypeDef *td,
-        sipWrapperType *w);
+        PyTypeObject *wt);
 
 
 /*
@@ -1032,7 +1030,7 @@ struct _sipAPIDef {
     const char *(*api_resolve_typedef)(PyObject *wmod, const char *name);
     sipErrorState (*api_bad_callable_arg)(int arg_nr, PyObject *arg);
     void *(*api_get_address)(struct _sipSimpleWrapper *w);
-    int (*api_enable_autoconversion)(sipWrapperType *wt, int enable);
+    int (*api_enable_autoconversion)(PyTypeObject *py_type, int enable);
     void *(*api_get_mixin_address)(struct _sipSimpleWrapper *w,
             const sipTypeDef *td);
     PyObject *(*api_convert_from_new_pytype)(PyObject *wmod, void *cpp,
@@ -1044,8 +1042,8 @@ struct _sipAPIDef {
     PyObject *(*api_convert_to_array)(PyObject *wmod, void *data,
             const char *format, Py_ssize_t len, int flags);
     PyInterpreterState *(*api_get_interpreter)(PyObject *wmod);
-    void (*api_set_type_user_data)(sipWrapperType *, void *);
-    void *(*api_get_type_user_data)(const sipWrapperType *);
+    void (*api_set_type_user_data)(PyTypeObject *py_type, void *data);
+    void *(*api_get_type_user_data)(const PyTypeObject *py_type);
     PyObject *(*api_py_type_dict)(const PyTypeObject *);
     const char *(*api_py_type_name)(const PyTypeObject *);
     int (*api_get_method)(PyObject *, sipMethodDef *);
@@ -1057,7 +1055,7 @@ struct _sipAPIDef {
     PyObject *(*api_from_datetime)(const sipDateDef *, const sipTimeDef *);
     int (*api_get_time)(PyObject *, sipTimeDef *);
     PyObject *(*api_from_time)(const sipTimeDef *);
-    int (*api_is_user_type)(const sipWrapperType *);
+    int (*api_is_user_type)(const PyTypeObject *py_type);
     int (*api_check_plugin_for_type)(const sipTypeDef *, const char *);
     PyObject *(*api_unicode_new)(Py_ssize_t, unsigned, int *, void **);
     void (*api_unicode_write)(int, void *, int, unsigned);

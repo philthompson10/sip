@@ -3,7 +3,7 @@
 This is an ad-hoc list of changes when ABI v14 is used.  Eventually these
 should drive changes to the documentation.
 
-Python v3.12 or later is required.
+Python v3.15 or later will be required.
 
 The `%AccessCode` directive has been removed.  `%GetCode` should be used
 instead.
@@ -46,12 +46,24 @@ The following public API calls have been removed:
 
     `sipRegisterAttributeGetter()`
 
+The `sipWrapperType`, `sipWrapper` and `sipSimpleWrapper` structs are no longer
+visible.
+
+All API calls that used to take a `sipWrapperType *` now take a
+`PyTypeObject *`.
+
+All API calls that used to take a `sipWrapper *` or a `sipSimpleWrapper *` now
+take a `PyObject *`.
+
 
 # TODO
 
 These are the remaining broad areas of work.
 
-- Use `PyObject_GetTypeData()` and a negative `basicsize`.
+- Use `tp_token` instead of `wt_td`.
+- Use a managed dict.
+- Consider using `PyObject_GetTypeData()` and a negative `basicsize` within the
+  `sip` module to faciliate using the limited API for the `sip` module.
 - Refactor the code generation.  There will be a outer framework managing the
   creation of generated files which calls a backend.  A backend will present a
   much more abstract API than they do now.  Code common to multiple backends

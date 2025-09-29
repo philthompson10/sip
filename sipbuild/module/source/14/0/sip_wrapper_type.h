@@ -26,7 +26,7 @@ extern "C" {
 /*
  * The meta-type of a wrapper type.
  */
-struct _sipWrapperType {
+typedef struct {
     /*
      * The super-metatype.  This must be first in the structure so that it can
      * be cast to a PyTypeObject *.
@@ -74,7 +74,7 @@ struct _sipWrapperType {
      */
     // TODO Should this be a PyObject?
     void *wt_user_data;
-};
+} sipWrapperType;
 
 
 int sip_wrapper_type_init(PyObject *module, sipSipModuleState *sms);

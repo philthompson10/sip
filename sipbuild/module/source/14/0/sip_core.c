@@ -77,8 +77,8 @@ static int sip_api_init_mixin(PyObject *wmod, PyObject *self, PyObject *args,
 static void *sip_api_get_mixin_address(sipSimpleWrapper *w,
         const sipTypeDef *td);
 static PyInterpreterState *sip_api_get_interpreter(PyObject *wmod);
-static void sip_api_set_type_user_data(sipWrapperType *wt, void *data);
-static void *sip_api_get_type_user_data(const sipWrapperType *wt);
+static void sip_api_set_type_user_data(PyTypeObject *py_type, void *data);
+static void *sip_api_get_type_user_data(const PyTypeObject *py_type);
 static PyObject *sip_api_py_type_dict(const PyTypeObject *py_type);
 static PyObject *sip_api_py_type_dict_ref(PyTypeObject *py_type);
 static const char *sip_api_py_type_name(const PyTypeObject *py_type);
@@ -93,7 +93,7 @@ static PyObject *sip_api_from_datetime(const sipDateDef *date,
         const sipTimeDef *time);
 static int sip_api_get_time(PyObject *obj, sipTimeDef *time);
 static PyObject *sip_api_from_time(const sipTimeDef *time);
-static int sip_api_is_user_type(const sipWrapperType *wt);
+static int sip_api_is_user_type(const PyTypeObject *py_type);
 static int sip_api_check_plugin_for_type(const sipTypeDef *td,
         const char *name);
 static PyObject *sip_api_unicode_new(Py_ssize_t len, unsigned maxchar,
@@ -2484,8 +2484,10 @@ sipConvertFromFunc sip_get_from_convertor(PyTypeObject *py_type,
 /*
  * Enable or disable the auto-conversion.  Returns the previous enabled state.
  */
-int sip_api_enable_autoconversion(sipWrapperType *wt, int enable)
+int sip_api_enable_autoconversion(PyTypeObject *py_type, int enable)
 {
+    sipWrapperType *wt = (sipWrapperType *)py_type;
+
     int was_enabled = !wt->wt_autoconversion_disabled;
 
     wt->wt_autoconversion_disabled = !enable;
@@ -2560,8 +2562,10 @@ void *sip_get_final_address(sipSipModuleState *sms, const sipTypeDef *td,
 /*
  * Set the user-specific type data.
  */
-static void sip_api_set_type_user_data(sipWrapperType *wt, void *data)
+static void sip_api_set_type_user_data(PyTypeObject *py_type, void *data)
 {
+    sipWrapperType *wt = (sipWrapperType *)py_type;
+
     wt->wt_user_data = data;
 }
 
@@ -2569,8 +2573,10 @@ static void sip_api_set_type_user_data(sipWrapperType *wt, void *data)
 /*
  * Get the user-specific type data.
  */
-static void *sip_api_get_type_user_data(const sipWrapperType *wt)
+static void *sip_api_get_type_user_data(const PyTypeObject *py_type)
 {
+    const sipWrapperType *wt = (const sipWrapperType *)py_type;
+
     return wt->wt_user_data;
 }
 
@@ -2784,8 +2790,10 @@ static PyObject *sip_api_from_time(const sipTimeDef *time)
 /*
  * See if a type is user defined.
  */
-static int sip_api_is_user_type(const sipWrapperType *wt)
+static int sip_api_is_user_type(const PyTypeObject *py_type)
 {
+    const sipWrapperType *wt = (const sipWrapperType *)py_type;
+
     return wt->wt_user_type;
 }
 

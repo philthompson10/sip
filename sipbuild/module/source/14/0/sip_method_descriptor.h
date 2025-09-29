@@ -17,6 +17,8 @@
 
 #include "sip.h"
 
+#include "sip_wrapper_type.h"
+
 
 #ifdef __cplusplus
 extern "C" {

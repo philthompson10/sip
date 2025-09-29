@@ -19,6 +19,9 @@
 
 #include "sip.h"
 
+// TODO This may no longer be needed when all is done.
+#include "sip_wrapper_type.h"
+
 
 #ifdef __cplusplus
 extern "C" {
@@ -80,7 +83,7 @@ int sip_api_convert_from_slice_object(PyObject *slice, Py_ssize_t length,
         Py_ssize_t *slicelength);
 int sip_api_deprecated(const char *classname, const char *method,
         const char *message);
-int sip_api_enable_autoconversion(sipWrapperType *wt, int enable);
+int sip_api_enable_autoconversion(PyTypeObject *py_type, int enable);
 void sip_api_free(void *mem);
 void *sip_api_get_address(sipSimpleWrapper *w);
 void *sip_api_get_cpp_ptr(PyObject *wmod, sipSimpleWrapper *w,
