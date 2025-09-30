@@ -182,9 +182,6 @@ typedef struct _sipTimeDef sipTimeDef;
 struct _sipTypeDef;
 typedef struct _sipTypeDef sipTypeDef;
 
-struct _sipWrapper;
-typedef struct _sipWrapper sipWrapper;
-
 
 // TODO Consider renaming immutable Def structures to Spec to be consistent
 // with Python.

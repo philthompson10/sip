@@ -29,7 +29,7 @@ extern "C" {
  * The type of a C/C++ wrapper object that supports parent/child relationships.
  * A parent holds a strong reference to each of its children.
  */
-struct _sipWrapper {
+typedef struct {
     /* The super-type. */
     sipSimpleWrapper super;
 
@@ -44,7 +44,7 @@ struct _sipWrapper {
 
     /* Owning object. */
     PyObject *parent;
-};
+} sipWrapper;
 
 
 int sip_wrapper_init(PyObject *module, sipSipModuleState *sms);
