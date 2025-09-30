@@ -10,9 +10,6 @@
 #ifndef _SIP_OBJECT_MAP_H
 #define _SIP_OBJECT_MAP_H
 
-
-/* Remove when Python v3.12 is no longer supported. */
-#define PY_SSIZE_T_CLEAN
 #include <Python.h>
 
 #include "sip.h"
@@ -21,7 +18,6 @@
 #ifdef __cplusplus
 extern "C" {
 #endif
-
 
 /*
  * This defines a single entry in an object map's hash table.
@@ -55,7 +51,6 @@ void sip_om_init(sipObjectMap *om);
 int sip_om_remove_object(sipWrappedModuleState *wms, PyObject *w_inst);
 void sip_om_visit_wrappers(sipObjectMap *om, sipWrapperVisitorFunc visitor,
         void *closure);
-
 
 #ifdef __cplusplus
 }

@@ -10,16 +10,12 @@
 #ifndef _SIP_THREADS_H
 #define _SIP_THREADS_H
 
-
-/* Remove when Python v3.12 is no longer supported. */
-#define PY_SSIZE_T_CLEAN
 #include <Python.h>
 
 
 #ifdef __cplusplus
 extern "C" {
 #endif
-
 
 struct _sipSipModuleState;
 
@@ -51,7 +47,6 @@ int sip_get_pending(struct _sipSipModuleState *sms, void **pp,
 int sip_is_pending(struct _sipSipModuleState *sms);
 PyObject *sip_wrap_instance(struct _sipSipModuleState *sms, void *cpp,
         PyTypeObject *py_type, PyObject *args, PyObject *owner, int flags);
-
 
 #ifdef __cplusplus
 }

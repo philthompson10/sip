@@ -10,9 +10,6 @@
 #ifndef _SIP_SIMPLE_WRAPPER_H
 #define _SIP_SIMPLE_WRAPPER_H
 
-
-/* Remove when Python v3.12 is no longer supported. */
-#define PY_SSIZE_T_CLEAN
 #include <Python.h>
 
 #include "sip.h"
@@ -21,7 +18,6 @@
 #ifdef __cplusplus
 extern "C" {
 #endif
-
 
 /* These are held in flags. */
 #define SIP_PY_OWNED        0x0010  /* If owned by Python. */
@@ -74,7 +70,6 @@ typedef struct {
 
 
 int sip_simple_wrapper_init(PyObject *module, sipSipModuleState *sms);
-
 
 #ifdef __cplusplus
 }

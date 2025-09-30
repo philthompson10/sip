@@ -10,9 +10,6 @@
 #ifndef _SIP_PARSERS_H
 #define _SIP_PARSERS_H
 
-
-/* Remove when Python v3.12 is no longer supported. */
-#define PY_SSIZE_T_CLEAN
 #include <Python.h>
 
 #include "sip.h"
@@ -21,7 +18,6 @@
 #ifdef __cplusplus
 extern "C" {
 #endif
-
 
 void sip_api_add_exception(sipErrorState es, PyObject **parseErrp);
 sipErrorState sip_api_bad_callable_arg(int arg_nr, PyObject *arg);
@@ -97,7 +93,6 @@ int sip_vectorcall_create(PyObject *args, PyObject *kwargs,
         Py_ssize_t *nr_pos_args_p, PyObject **kw_names_p);
 void sip_vectorcall_dispose(PyObject **small_argv, PyObject **argv,
         Py_ssize_t argv_len, PyObject *kw_names);
-
 
 #ifdef __cplusplus
 }

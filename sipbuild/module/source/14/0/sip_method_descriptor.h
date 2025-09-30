@@ -10,9 +10,6 @@
 #ifndef _SIP_METHOD_DESCRIPTOR_H
 #define _SIP_METHOD_DESCRIPTOR_H
 
-
-/* Remove when Python v3.12 is no longer supported. */
-#define PY_SSIZE_T_CLEAN
 #include <Python.h>
 
 #include "sip.h"
@@ -24,13 +21,11 @@
 extern "C" {
 #endif
 
-
 PyObject *sipMethodDescr_New(sipSipModuleState *sms, const PyMethodDef *pmd,
         PyTypeObject *defining_class);
 PyObject *sipMethodDescr_Copy(sipSipModuleState *sms, PyObject *orig,
         PyObject *mixin_name);
 int sip_method_descr_init(PyObject *module, sipSipModuleState *sms);
-
 
 #ifdef __cplusplus
 }

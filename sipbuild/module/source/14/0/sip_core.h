@@ -10,17 +10,11 @@
 #ifndef _SIP_CORE_H
 #define _SIP_CORE_H
 
-
-/* Remove when Python v3.12 is no longer supported. */
-#define PY_SSIZE_T_CLEAN
 #include <Python.h>
 
 #include <stdint.h>
 
 #include "sip.h"
-
-// TODO This may no longer be needed when all is done.
-#include "sip_wrapper_type.h"
 
 
 #ifdef __cplusplus

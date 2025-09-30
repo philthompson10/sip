@@ -10,9 +10,6 @@
 #ifndef _SIP_WRAPPER_H
 #define _SIP_WRAPPER_H
 
-
-/* Remove when Python v3.12 is no longer supported. */
-#define PY_SSIZE_T_CLEAN
 #include <Python.h>
 
 #include "sip.h"
@@ -23,7 +20,6 @@
 #ifdef __cplusplus
 extern "C" {
 #endif
-
 
 /*
  * The type of a C/C++ wrapper object that supports parent/child relationships.
@@ -48,7 +44,6 @@ typedef struct {
 
 
 int sip_wrapper_init(PyObject *module, sipSipModuleState *sms);
-
 
 #ifdef __cplusplus
 }

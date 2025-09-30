@@ -10,9 +10,6 @@
 #ifndef _SIP_ENUM_H
 #define _SIP_ENUM_H
 
-
-/* Remove when Python v3.12 is no longer supported. */
-#define PY_SSIZE_T_CLEAN
 #include <Python.h>
 
 #include "sip.h"
@@ -21,7 +18,6 @@
 #ifdef __cplusplus
 extern "C" {
 #endif
-
 
 /* These are part of the module API. */
 #if defined(SIP_CONFIGURATION_PyEnums)

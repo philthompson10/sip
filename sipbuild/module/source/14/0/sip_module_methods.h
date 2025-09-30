@@ -10,9 +10,6 @@
 #ifndef _SIP_MODULE_METHODS_H
 #define _SIP_MODULE_METHODS_H
 
-
-/* Remove when Python v3.12 is no longer supported. */
-#define PY_SSIZE_T_CLEAN
 #include <Python.h>
 
 
@@ -20,9 +17,7 @@
 extern "C" {
 #endif
 
-
 extern PyMethodDef sipModuleMethods[];
-
 
 #ifdef __cplusplus
 }

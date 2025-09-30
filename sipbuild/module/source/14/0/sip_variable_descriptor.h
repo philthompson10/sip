@@ -10,9 +10,6 @@
 #ifndef _SIP_VARIABLE_DESCRIPTOR_H
 #define _SIP_VARIABLE_DESCRIPTOR_H
 
-
-/* Remove when Python v3.12 is no longer supported. */
-#define PY_SSIZE_T_CLEAN
 #include <Python.h>
 
 #include "sip.h"
@@ -24,13 +21,11 @@
 extern "C" {
 #endif
 
-
 PyObject *sipVariableDescr_New(sipSipModuleState *sms, PyTypeObject *w_type,
         const sipWrappedVariableDef *wvd);
 PyObject *sipVariableDescr_Copy(sipSipModuleState *sms, PyObject *orig,
         PyObject *mixin_name);
 int sip_variable_descr_init(PyObject *module, sipSipModuleState *sms);
-
 
 #ifdef __cplusplus
 }

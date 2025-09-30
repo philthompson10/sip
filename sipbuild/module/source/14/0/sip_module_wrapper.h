@@ -10,9 +10,6 @@
 #ifndef _SIP_MODULE_WRAPPER_H
 #define _SIP_MODULE_WRAPPER_H
 
-
-/* Remove when Python v3.12 is no longer supported. */
-#define PY_SSIZE_T_CLEAN
 #include <Python.h>
 
 #include "sip.h"
@@ -23,7 +20,6 @@
 #ifdef __cplusplus
 extern "C" {
 #endif
-
 
 PyObject *sip_mod_con_getattro(sipWrappedModuleState *wms, PyObject *self,
         PyObject *name, const sipWrappedAttrsDef *wad);
@@ -36,7 +32,6 @@ PyObject *sip_variable_get(sipWrappedModuleState *wms, PyObject *instance,
 int sip_variable_set(sipWrappedModuleState *wms, PyObject *instance,
         PyObject *value, const sipWrappedVariableDef *wvd,
         PyTypeObject *binding_type, PyObject *mixin_name);
-
 
 #ifdef __cplusplus
 }

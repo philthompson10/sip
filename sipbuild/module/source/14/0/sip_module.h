@@ -10,9 +10,6 @@
 #ifndef _SIP_MODULE_H
 #define _SIP_MODULE_H
 
-
-/* Remove when Python v3.12 is no longer supported. */
-#define PY_SSIZE_T_CLEAN
 #include <Python.h>
 
 #include "sip.h"
@@ -24,7 +21,6 @@
 #ifdef __cplusplus
 extern "C" {
 #endif
-
 
 /* The sip module's state. */
 typedef struct _sipSipModuleState {
@@ -135,7 +131,6 @@ void sip_sip_module_free(sipSipModuleState *sms);
 int sip_sip_module_init(sipSipModuleState *sms, PyObject *mod);
 int sip_sip_module_traverse(sipSipModuleState *sms, visitproc visit,
         void *arg);
-
 
 #ifdef __cplusplus
 }

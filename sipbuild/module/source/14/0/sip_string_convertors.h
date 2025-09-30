@@ -10,16 +10,12 @@
 #ifndef _SIP_STRING_CONVERTORS
 #define _SIP_STRING_CONVERTORS
 
-
-/* Remove when Python v3.12 is no longer supported. */
-#define PY_SSIZE_T_CLEAN
 #include <Python.h>
 
 
 #ifdef __cplusplus
 extern "C" {
 #endif
-
 
 char sip_api_bytes_as_char(PyObject *obj);
 const char *sip_api_bytes_as_char_array(PyObject *obj, Py_ssize_t *asize_p);
@@ -33,7 +29,6 @@ const char *sip_api_string_as_utf8_string(PyObject **obj_p);
 wchar_t sip_api_string_as_wchar(PyObject *obj);
 wchar_t *sip_api_string_as_wchar_array(PyObject **obj_p, Py_ssize_t *asize_p);
 wchar_t *sip_api_string_as_wstring(PyObject **obj_p);
-
 
 #ifdef __cplusplus
 }

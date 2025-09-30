@@ -10,9 +10,6 @@
 #ifndef _SIP_INT_CONVERTORS_H
 #define _SIP_INT_CONVERTORS_H
 
-
-/* Remove when Python v3.12 is no longer supported. */
-#define PY_SSIZE_T_CLEAN
 #include <Python.h>
 
 #include <stdbool.h>
@@ -21,7 +18,6 @@
 #ifdef __cplusplus
 extern "C" {
 #endif
-
 
 _Bool sip_api_convert_to_bool(PyObject *o);
 char sip_api_long_as_char(PyObject *o);
@@ -36,7 +32,6 @@ unsigned long sip_api_long_as_unsigned_long(PyObject *o);
 long long sip_api_long_as_long_long(PyObject *o);
 unsigned long long sip_api_long_as_unsigned_long_long(PyObject *o);
 size_t sip_api_long_as_size_t(PyObject *o);
-
 
 #ifdef __cplusplus
 }

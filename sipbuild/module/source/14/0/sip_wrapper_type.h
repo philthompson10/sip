@@ -10,10 +10,6 @@
 #ifndef _SIP_WRAPPER_TYPE_H
 #define _SIP_WRAPPER_TYPE_H
 
-
-// TODO Remove all of these.
-/* Remove when Python v3.12 is no longer supported. */
-#define PY_SSIZE_T_CLEAN
 #include <Python.h>
 
 #include "sip.h"
@@ -22,7 +18,6 @@
 #ifdef __cplusplus
 extern "C" {
 #endif
-
 
 /*
  * The meta-type of a wrapper type.
@@ -79,7 +74,6 @@ typedef struct {
 
 
 int sip_wrapper_type_init(PyObject *module, sipSipModuleState *sms);
-
 
 #ifdef __cplusplus
 }
