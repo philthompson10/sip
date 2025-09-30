@@ -47,7 +47,7 @@ extern "C" {
 /*
  * The type of a simple C/C++ wrapper object.
  */
-struct _sipSimpleWrapper {
+typedef struct {
     PyObject_HEAD
 
     /* The data, ie. a pointer to the C/C++ object. */
@@ -66,11 +66,11 @@ struct _sipSimpleWrapper {
     PyObject *mixin_main;
 
     /* Next object at this address. */
-    struct _sipSimpleWrapper *next;
+    PyObject *next;
 
     /* For the user to use. */
     PyObject *user;
-};
+} sipSimpleWrapper;
 
 
 int sip_simple_wrapper_init(PyObject *module, sipSipModuleState *sms);

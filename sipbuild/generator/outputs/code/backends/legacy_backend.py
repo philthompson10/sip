@@ -955,6 +955,12 @@ f'''static void *init_type_{klass_name}(sipSimpleWrapper *{sip_self}, PyObject *
 
         return 'sipTypeDef *sipExportedTypes'
 
+    @staticmethod
+    def get_wrapped_type_type():
+        """ Return the type of the C representation of a wrapped object. """
+
+        return 'sipSimpleWrapper *'
+
     def module_supports_qt(self):
         """ Return True if the module implements Qt support. """
 

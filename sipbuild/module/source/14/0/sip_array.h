@@ -23,9 +23,9 @@ extern "C" {
 #endif
 
 
-PyObject *sip_api_convert_to_array(PyObject *wmod, void *data,
+PyObject *sip_api_convert_to_array(PyObject *w_mod, void *data,
         const char *format, Py_ssize_t len, int flags);
-PyObject *sip_api_convert_to_typed_array(PyObject *wmod, void *data,
+PyObject *sip_api_convert_to_typed_array(PyObject *w_mod, void *data,
         sipTypeID type_id, const char *format, size_t stride, Py_ssize_t len,
         int flags);
 

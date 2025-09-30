@@ -49,16 +49,15 @@ static PyMemberDef SimpleWrapper_members[] = {
 /*
  * The type's slots.
  */
-static int SimpleWrapper_clear(sipSimpleWrapper *self);
-static void SimpleWrapper_dealloc(sipSimpleWrapper *self);
+static int SimpleWrapper_clear(PyObject *self);
+static void SimpleWrapper_dealloc(PyObject *self);
 //static int SimpleWrapper_getbuffer(PyObject *self, Py_buffer *buf, int flags);
-static int SimpleWrapper_init(sipSimpleWrapper *self, PyObject *args,
+static int SimpleWrapper_init(PyObject *self, PyObject *args,
         PyObject *kwd_args);
 static PyObject *SimpleWrapper_new(PyTypeObject *cls, PyObject *args,
         PyObject *kwds);
 //static void SimpleWrapper_releasebuffer(PyObject *self, Py_buffer *buf);
-static int SimpleWrapper_traverse(sipSimpleWrapper *self, visitproc visit,
-        void *arg);
+static int SimpleWrapper_traverse(PyObject *self, visitproc visit, void *arg);
 
 static PyType_Slot SimpleWrapper_slots[] = {
     //{Py_bf_getbuffer, sipSimpleWrapper_getbuffer},
@@ -93,9 +92,10 @@ static sipFinalFunc find_finalisation(sipWrappedModuleState *wms,
 /*
  * The simple wrapper clear slot.
  */
-static int SimpleWrapper_clear(sipSimpleWrapper *self)
+static int SimpleWrapper_clear(PyObject *self)
 {
     sipWrapperType *wt = (sipWrapperType *)Py_TYPE(self);
+    sipSimpleWrapper *sw = (sipSimpleWrapper *)self;
     int vret = 0;
 
     /*
@@ -107,12 +107,12 @@ static int SimpleWrapper_clear(sipSimpleWrapper *self)
     sipClearFunc clear = ((const sipClassTypeDef *)wt->wt_td)->ctd_clear;
 
     if (clear != NULL)
-        vret = clear(self->data);
+        vret = clear(sw->data);
 
-    Py_CLEAR(self->dict);
-    Py_CLEAR(self->extra_refs);
-    Py_CLEAR(self->mixin_main);
-    Py_CLEAR(self->user);
+    Py_CLEAR(sw->dict);
+    Py_CLEAR(sw->extra_refs);
+    Py_CLEAR(sw->mixin_main);
+    Py_CLEAR(sw->user);
 
     /* Handle any children if the type supports the concept. */
     if (wt->wt_is_wrapper)
@@ -131,9 +131,9 @@ static int SimpleWrapper_clear(sipSimpleWrapper *self)
 /*
  * The simple wrapper dealloc slot.
  */
-static void SimpleWrapper_dealloc(sipSimpleWrapper *self)
+static void SimpleWrapper_dealloc(PyObject *self)
 {
-    PyObject_GC_UnTrack((PyObject *)self);
+    PyObject_GC_UnTrack(self);
 
     /*
      * Remove the object from the map and call the C/C++ dtor if we own the
@@ -141,7 +141,7 @@ static void SimpleWrapper_dealloc(sipSimpleWrapper *self)
      */
     sipWrapperType *wt = (sipWrapperType *)Py_TYPE(self);
     sipWrappedModuleState *wms = (sipWrappedModuleState *)PyModule_GetState(
-            wt->wt_dmod);
+            wt->wt_d_mod);
     sipSipModuleState *sms = wms->sip_module_state;
 
 #if 0
@@ -186,9 +186,9 @@ static void SimpleWrapper_dealloc(sipSimpleWrapper *self)
      */
     SimpleWrapper_clear(self);
 
-    PyTypeObject *type = Py_TYPE(self);
-    type->tp_free(self);
-    Py_DECREF(type);
+    PyTypeObject *w_type = Py_TYPE(self);
+    w_type->tp_free(self);
+    Py_DECREF(w_type);
 }
 
 
@@ -342,10 +342,11 @@ static void SimpleWrapper_releasebuffer(PyObject *self, Py_buffer *buf)
 /*
  * The simple wrapper traverse slot.
  */
-static int SimpleWrapper_traverse(sipSimpleWrapper *self, visitproc visit,
+static int SimpleWrapper_traverse(PyObject *self, visitproc visit,
         void *arg)
 {
     sipWrapperType *wt = (sipWrapperType *)Py_TYPE(self);
+    sipSimpleWrapper *sw = (sipSimpleWrapper *)self;
 
     Py_VISIT(Py_TYPE(self));
 
@@ -354,21 +355,21 @@ static int SimpleWrapper_traverse(sipSimpleWrapper *self, visitproc visit,
 
     if (traverse != NULL)
     {
-        int vret = traverse(self->data, visit, arg);
+        int vret = traverse(sw->data, visit, arg);
 
         if (vret != 0)
             return vret;
     }
 
-    Py_VISIT(self->dict);
-    Py_VISIT(self->extra_refs);
-    Py_VISIT(self->mixin_main);
-    Py_VISIT(self->user);
+    Py_VISIT(sw->dict);
+    Py_VISIT(sw->extra_refs);
+    Py_VISIT(sw->mixin_main);
+    Py_VISIT(sw->user);
 
     /* Handle any children if the type supports the concept. */
     if (wt->wt_is_wrapper)
     {
-        sipWrapper *w = ((sipWrapper *)self)->first_child;
+        PyObject *w = ((sipWrapper *)self)->first_child;
 
         while (w != NULL)
         {
@@ -379,15 +380,15 @@ static int SimpleWrapper_traverse(sipSimpleWrapper *self, visitproc visit,
              * means that plugins implemented in Python have a chance of
              * working.
              */
-            if (w != (sipWrapper *)self)
+            if (w != self)
             {
-                int vret = visit((PyObject *)w, arg);
+                int vret = visit(w, arg);
 
                 if (vret != 0)
                     return vret;
             }
 
-            w = w->sibling_next;
+            w = ((sipWrapper *)w)->sibling_next;
         }
     }
 
@@ -449,16 +450,16 @@ static int SimpleWrapper_set_dict(PyObject *self, PyObject *value,
 /*
  * The simple wrapper init slot.
  */
-static int SimpleWrapper_init(sipSimpleWrapper *self, PyObject *args,
+static int SimpleWrapper_init(PyObject *self, PyObject *args,
         PyObject *kwargs)
 {
     sipWrapperType *wt = (sipWrapperType *)Py_TYPE(self);
     sipWrappedModuleState *wms = (sipWrappedModuleState *)PyModule_GetState(
-            wt->wt_dmod);
+            wt->wt_d_mod);
     sipSipModuleState *sms = wms->sip_module_state;
 
     void *sipNew;
-    sipWrapper *owner;
+    PyObject *owner;
     int sipFlags;
 
     /* Check for an existing C++ instance waiting to be wrapped. */
@@ -579,20 +580,21 @@ static int SimpleWrapper_init(sipSimpleWrapper *self, PyObject *args,
          * calling __init__() for a second time), so make sure we don't already
          * have a parent.
          */
-        sip_remove_from_parent((sipWrapper *)self);
+        sip_remove_from_parent(self);
 
         if (owner != NULL)
         {
             // TODO If owner might be bad (ie. it comes from the user and
             // hasn't already been checked) then check properly (and earlier).
-            assert(PyObject_TypeCheck((PyObject *)owner, sms->wrapper_type));
+            assert(PyObject_TypeCheck(owner, sms->wrapper_type));
 
-            sip_add_to_parent((sipWrapper *)self, (sipWrapper *)owner);
+            sip_add_to_parent(self, owner);
         }
     }
 
-    self->data = sipNew;
-    self->flags = sipFlags | SIP_CREATED;
+    sipSimpleWrapper *sw = (sipSimpleWrapper *)self;
+    sw->data = sipNew;
+    sw->flags = sipFlags | SIP_CREATED;
 
     sip_om_add_object(wms, self);
 
@@ -641,7 +643,7 @@ static int SimpleWrapper_init(sipSimpleWrapper *self, PyObject *args,
             new_unused_p = &new_unused;
         }
             
-        if (final_func((PyObject *)self, sipNew, unused, new_unused_p) < 0)
+        if (final_func(self, sipNew, unused, new_unused_p) < 0)
         {
             Py_XDECREF(unused);
             return -1;
@@ -660,8 +662,7 @@ static int SimpleWrapper_init(sipSimpleWrapper *self, PyObject *args,
         PyObject *next;
 
         /* Find the next type in the MRO. */
-        next = sip_next_in_mro((PyObject *)self,
-                (PyObject *)sms->simple_wrapper_type);
+        next = sip_next_in_mro(self, (PyObject *)sms->simple_wrapper_type);
 
         /*
          * If the next type in the MRO is object then take a shortcut by not
@@ -673,8 +674,7 @@ static int SimpleWrapper_init(sipSimpleWrapper *self, PyObject *args,
          */
         if (next != (PyObject *)&PyBaseObject_Type)
         {
-            int rc = sip_super_init((PyObject *)self, sms->empty_tuple, unused,
-                    next);
+            int rc = sip_super_init(self, sms->empty_tuple, unused, next);
 
             Py_XDECREF(unused);
 

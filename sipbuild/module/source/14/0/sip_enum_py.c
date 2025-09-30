@@ -111,10 +111,10 @@ int sip_enum_convert_to_enum(sipWrappedModuleState *wms, PyObject *obj,
 /*
  * Return a non-zero value if an object is a sub-class of enum.Flag.
  */
-int sip_api_is_enum_flag(PyObject *wmod, PyObject *obj)
+int sip_api_is_enum_flag(PyObject *w_mod, PyObject *obj)
 {
     sipWrappedModuleState *wms = (sipWrappedModuleState *)PyModule_GetState(
-            wmod);
+            w_mod);
 
     return (PyObject_IsSubclass(obj, wms->sip_module_state->enum_flag_type) == 1);
 }

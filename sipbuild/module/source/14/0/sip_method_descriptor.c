@@ -33,7 +33,7 @@ typedef struct {
     const PyMethodDef *pmd;
 
     /* The defining class. */
-    sipWrapperType *defining_class;
+    PyTypeObject *defining_class;
 
     /* The mixin name, if any. */
     PyObject *mixin_name;
@@ -84,7 +84,7 @@ static MethodDescr *alloc_method_descr(sipSipModuleState *sms);
  * Return a new method descriptor for the given method.
  */
 PyObject *sipMethodDescr_New(sipSipModuleState *sms, const PyMethodDef *pmd,
-        sipWrapperType *defining_class)
+        PyTypeObject *defining_class)
 {
     MethodDescr *descr = alloc_method_descr(sms);
 
@@ -111,7 +111,7 @@ PyObject *sipMethodDescr_Copy(sipSipModuleState *sms, PyObject *orig,
     if (descr != NULL)
     {
         descr->pmd = orig_descr->pmd;
-        descr->defining_class = (sipWrapperType *)Py_NewRef(
+        descr->defining_class = (PyTypeObject *)Py_NewRef(
                 orig_descr->defining_class);
         descr->mixin_name = Py_XNewRef(mixin_name);
     }

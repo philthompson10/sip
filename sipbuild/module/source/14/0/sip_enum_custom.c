@@ -198,11 +198,11 @@ static int EnumType_traverse(PyObject *self, visitproc visit, void *arg)
 /*
  * Create a Python object for a member of a named enum.
  */
-PyObject *sip_api_convert_from_enum(PyObject *wmod, int member,
+PyObject *sip_api_convert_from_enum(PyObject *w_mod, int member,
         sipTypeID type_id)
 {
     sipWrappedModuleState *wms = (sipWrappedModuleState *)PyModule_GetState(
-            wmod);
+            w_mod);
 
     return sip_enum_convert_from_enum(wms, member, type_id);
 }
@@ -245,17 +245,16 @@ int sip_enum_convert_to_constrained_enum(sipWrappedModuleState *wms,
  * Create an enum object and add it to a dictionary.  Return a new reference to
  * the enum object or NULL (and an exception set) if there was an error.
  */
-ZZZ
 PyTypeObject *sip_enum_create_custom_enum(sipSipModuleState *sms,
         const sipWrappedModuleDef *wmd, const sipEnumTypeDef *etd, int enum_nr,
-        PyObject *wmod_dict)
+        PyObject *w_mod_dict)
 {
     /* Get the dictionary into which the type will be placed. */
     PyObject *dict;
 
     if (etd->etd_scope < 0)
-        dict = wmod_dict;
-    else if ((dict = sip_get_scope_dict(sms, wmd->types[etd->etd_scope], wmod_dict, wmd)) == NULL)
+        dict = w_mod_dict;
+    else if ((dict = sip_get_scope_dict(sms, wmd->types[etd->etd_scope], w_mod_dict, wmd)) == NULL)
         return NULL;
 
     /* Create an object corresponding to the type name. */

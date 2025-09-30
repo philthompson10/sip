@@ -64,7 +64,7 @@ PyMethodDef sipModuleMethods[] = {
 
 
 /* Forward declarations. */
-static void clear_wrapper(sipSipModuleState *sms, sipSimpleWrapper *sw);
+static void clear_wrapper(sipSipModuleState *sms, PyObject *w_inst);
 static void print_object(const char *label, PyObject *obj);
 
 
@@ -140,18 +140,20 @@ static PyObject *meth_assign(PyObject *mod, PyObject *args)
 static PyObject *meth_delete(PyObject *mod, PyObject *args)
 {
     sipSipModuleState *sms = (sipSipModuleState *)PyModule_GetState(mod);
-    sipSimpleWrapper *sw;
+    PyObject *w_inst;
 
-    if (!PyArg_ParseTuple(args, "O!:delete", sms->simple_wrapper_type, &sw))
+    if (!PyArg_ParseTuple(args, "O!:delete", sms->simple_wrapper_type, &w_inst))
         return NULL;
 
-    if (sip_check_pointer(sw->data, sw) < 0)
+    sipSimpleWrapper *sw = (sipSimpleWrapper *)w_inst;
+
+    if (sip_check_pointer(sw->data, w_inst) < 0)
         return NULL;
 
-    clear_wrapper(sms, sw);
+    clear_wrapper(sms, w_inst);
 
-    sip_release(sw->data, ((sipWrapperType *)Py_TYPE(sw))->wt_td, sw->flags,
-            NULL);
+    sip_release(sw->data, ((sipWrapperType *)Py_TYPE(w_inst))->wt_td,
+            sw->flags, NULL);
 
     Py_INCREF(Py_None);
     return Py_None;
@@ -180,7 +182,7 @@ static PyObject *meth_dump(PyObject *mod, PyObject *arg)
     print_object(NULL, (PyObject *)sw);
 
     printf("    Reference count: %" PY_FORMAT_SIZE_T "d\n", Py_REFCNT(sw));
-    printf("    Address of wrapped object: %p\n", sip_api_get_address(sw));
+    printf("    Address of wrapped object: %p\n", sip_api_get_address(arg));
     printf("    Created by: %s\n", (sipIsDerived(sw) ? "Python" : "C/C++"));
     printf("    To be destroyed by: %s\n", (sipIsPyOwned(sw) ? "Python" : "C/C++"));
 
@@ -205,13 +207,13 @@ static PyObject *meth_dump(PyObject *mod, PyObject *arg)
 static PyObject *meth_enableautoconversion(PyObject *mod, PyObject *args)
 {
     sipSipModuleState *sms = (sipSipModuleState *)PyModule_GetState(mod);
-    PyTypeObject *py_type;
+    PyTypeObject *w_type;
     int enable;
 
-    if (!PyArg_ParseTuple(args, "O!i:enableautoconversion", sms->wrapper_type_type, &py_type, &enable))
+    if (!PyArg_ParseTuple(args, "O!i:enableautoconversion", sms->wrapper_type_type, &w_type, &enable))
         return NULL;
 
-    int was_enabled = sip_api_enable_autoconversion(py_type, enable);
+    int was_enabled = sip_api_enable_autoconversion(w_type, enable);
 
     PyObject *res = (was_enabled ? Py_True : Py_False);
 
@@ -226,12 +228,12 @@ static PyObject *meth_enableautoconversion(PyObject *mod, PyObject *args)
 static PyObject *meth_isdeleted(PyObject *mod, PyObject *args)
 {
     sipSipModuleState *sms = (sipSipModuleState *)PyModule_GetState(mod);
-    sipSimpleWrapper *sw;
+    PyObject *w_inst;
 
-    if (!PyArg_ParseTuple(args, "O!:isdeleted", sms->simple_wrapper_type, &sw))
+    if (!PyArg_ParseTuple(args, "O!:isdeleted", sms->simple_wrapper_type, &w_inst))
         return NULL;
 
-    PyObject *res = (sip_api_get_address(sw) == NULL ? Py_True : Py_False);
+    PyObject *res = (sip_api_get_address(w_inst) == NULL ? Py_True : Py_False);
 
     Py_INCREF(res);
     return res;
@@ -282,12 +284,12 @@ static PyObject *meth_ispyowned(PyObject *mod, PyObject *args)
 static PyObject *meth_setdeleted(PyObject *mod, PyObject *args)
 {
     sipSipModuleState *sms = (sipSipModuleState *)PyModule_GetState(mod);
-    sipSimpleWrapper *sw;
+    PyObject *w_inst;
 
-    if (!PyArg_ParseTuple(args, "O!:setdeleted", sms->simple_wrapper_type, &sw))
+    if (!PyArg_ParseTuple(args, "O!:setdeleted", sms->simple_wrapper_type, &w_inst))
         return NULL;
 
-    clear_wrapper(sms, sw);
+    clear_wrapper(sms, w_inst);
 
     Py_INCREF(Py_None);
     return Py_None;
@@ -416,23 +418,24 @@ static PyObject *meth_wrapinstance(PyObject *mod, PyObject *args)
 /*
  * Clear a simple wrapper.
  */
-static void clear_wrapper(sipSipModuleState *sms, sipSimpleWrapper *sw)
+static void clear_wrapper(sipSipModuleState *sms, PyObject *w_inst)
 {
-    sipWrapperType *wt = (sipWrapperType *)Py_TYPE(sw);
+    sipWrapperType *wt = (sipWrapperType *)Py_TYPE(w_inst);
 
     if (wt->wt_is_wrapper)
-        sip_remove_from_parent((sipWrapper *)sw);
+        sip_remove_from_parent(w_inst);
 
     /*
      * Transfer ownership to C++ so we don't try to release it when the
      * Python object is garbage collected.
      */
+    sipSimpleWrapper *sw = (sipSimpleWrapper *)w_inst;
     sipResetPyOwned(sw);
 
     sipWrappedModuleState *wms = (sipWrappedModuleState *)PyModule_GetState(
-            wt->wt_dmod);
+            wt->wt_d_mod);
 
-    sip_om_remove_object(wms, sw);
+    sip_om_remove_object(wms, w_inst);
 }
 
 

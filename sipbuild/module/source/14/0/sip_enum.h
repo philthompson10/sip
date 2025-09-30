@@ -25,7 +25,7 @@ extern "C" {
 
 /* These are part of the module API. */
 #if defined(SIP_CONFIGURATION_PyEnums)
-int sip_api_is_enum_flag(PyObject *wmod, PyObject *obj);
+int sip_api_is_enum_flag(PyObject *w_mod, PyObject *obj);
 #endif
 
 /* These are internal. */
@@ -55,7 +55,7 @@ typedef struct {
 
 PyTypeObject *sip_enum_create_custom_enum(sipSipModuleState *sms,
         const sipWrappedModuleDef *wmd, const sipEnumTypeDef *etd, int enum_nr,
-        PyObject *wmod_dict);
+        PyObject *w_mod_dict);
 PyObject *sip_enum_pickle_custom_enum(PyObject *self,
         PyTypeObject *defining_class, PyObject *const *args, Py_ssize_t nargs,
         PyObject *kwd_args);

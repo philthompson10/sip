@@ -11,6 +11,7 @@
 #define _SIP_WRAPPER_TYPE_H
 
 
+// TODO Remove all of these.
 /* Remove when Python v3.12 is no longer supported. */
 #define PY_SSIZE_T_CLEAN
 #include <Python.h>
@@ -50,7 +51,7 @@ typedef struct {
     unsigned wt_unused : 29;
 
     /* A strong reference to the defining module. */
-    PyObject *wt_dmod;
+    PyObject *wt_d_mod;
 
     /* The wrapped type definition. */
     const sipTypeDef *wt_td;

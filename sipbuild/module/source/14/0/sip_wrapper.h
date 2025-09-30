@@ -31,19 +31,19 @@ extern "C" {
  */
 struct _sipWrapper {
     /* The super-type. */
-    struct _sipSimpleWrapper super;
+    sipSimpleWrapper super;
 
     /* First child object. */
-    struct _sipWrapper *first_child;
+    PyObject *first_child;
 
     /* Next sibling. */
-    struct _sipWrapper *sibling_next;
+    PyObject *sibling_next;
 
     /* Previous sibling. */
-    struct _sipWrapper *sibling_prev;
+    PyObject *sibling_prev;
 
     /* Owning object. */
-    struct _sipWrapper *parent;
+    PyObject *parent;
 };
 
 

@@ -1355,7 +1355,6 @@ f'''#define sipMalloc                   sipAPI->api_malloc
 #define sipGetInterpreter           sipAPI->api_get_interpreter
 #define sipSetTypeUserData          sipAPI->api_set_type_user_data
 #define sipGetTypeUserData          sipAPI->api_get_type_user_data
-#define sipPyTypeDict               sipAPI->api_py_type_dict
 #define sipPyTypeName               sipAPI->api_py_type_name
 #define sipGetCFunction             sipAPI->api_get_c_function
 #define sipGetMethod                sipAPI->api_get_method
@@ -1682,12 +1681,12 @@ sipClassTypeDef sipTypeDef_{module_name}_{klass_name} = {{
         klass_name = klass.iface_file.fq_cpp_name.as_word
 
         if not spec.c_bindings:
-            sf.write(f'extern "C" {{static void *init_type_{klass_name}(sipSimpleWrapper *, PyObject *const *, Py_ssize_t, PyObject *, PyObject **, PyObject **, PyObject **);}}\n')
+            sf.write(f'extern "C" {{static void *init_type_{klass_name}(PyObject *, PyObject *const *, Py_ssize_t, PyObject *, PyObject **, PyObject **, PyObject **);}}\n')
 
         sip_owner = 'sipOwner' if need_owner else ''
 
         sf.write(
-f'''static void *init_type_{klass_name}(sipSimpleWrapper *sipSelf, PyObject *const *sipArgs, Py_ssize_t sipNrArgs, PyObject *sipKwds, PyObject **sipUnused, PyObject **{sip_owner}, PyObject **sipParseErr)
+f'''static void *init_type_{klass_name}(PyObject *sipSelf, PyObject *const *sipArgs, Py_ssize_t sipNrArgs, PyObject *sipKwds, PyObject **sipUnused, PyObject **{sip_owner}, PyObject **sipParseErr)
 {{
 ''')
 
@@ -1956,6 +1955,12 @@ f'''
         """ Return the prefix in the name of the wrapped types table. """
 
         return 'static const sipTypeDef *const sipTypeDefs'
+
+    @staticmethod
+    def get_wrapped_type_type():
+        """ Return the type of the C representation of a wrapped object. """
+
+        return 'PyObject *'
 
     def keep_py_reference(self, arg):
         """ Return True if the argument has a type that requires an extra

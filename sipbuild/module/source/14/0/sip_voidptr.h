@@ -24,11 +24,12 @@ extern "C" {
 
 
 void *sip_api_convert_to_void_ptr(PyObject *obj);
-PyObject *sip_api_convert_from_void_ptr(PyObject *wmod, void *val);
-PyObject *sip_api_convert_from_const_void_ptr(PyObject *wmod, const void *val);
-PyObject *sip_api_convert_from_void_ptr_and_size(PyObject *wmod, void *val,
+PyObject *sip_api_convert_from_void_ptr(PyObject *w_mod, void *val);
+PyObject *sip_api_convert_from_const_void_ptr(PyObject *w_mod,
+        const void *val);
+PyObject *sip_api_convert_from_void_ptr_and_size(PyObject *w_mod, void *val,
         Py_ssize_t size);
-PyObject *sip_api_convert_from_const_void_ptr_and_size(PyObject *wmod,
+PyObject *sip_api_convert_from_const_void_ptr_and_size(PyObject *w_mod,
         const void *val, Py_ssize_t size);
 
 PyObject *sip_convert_from_void_ptr(sipSipModuleState *sms, void *val);

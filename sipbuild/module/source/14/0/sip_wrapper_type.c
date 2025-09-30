@@ -128,7 +128,7 @@ Try and get rid of the back door.
  */
 static int WrapperType_clear(sipWrapperType *self)
 {
-    Py_CLEAR(self->wt_dmod);
+    Py_CLEAR(self->wt_d_mod);
 
     return 0;
 }
@@ -157,11 +157,11 @@ static PyObject *WrapperType_getattro(sipWrapperType *self, PyObject *name)
     /*
      * We might be dealing with the simplewrapper or wrapper types themselves.
      */
-    if (self->wt_dmod == NULL)
+    if (self->wt_d_mod == NULL)
         return PyType_Type.tp_getattro((PyObject *)self, name);
 
     sipWrappedModuleState *wms = (sipWrappedModuleState *)PyModule_GetState(
-            self->wt_dmod);
+            self->wt_d_mod);
     const sipClassTypeDef *ctd = (const sipClassTypeDef *)self->wt_td;
 
     return sip_mod_con_getattro(wms, (PyObject *)self, name,
@@ -202,9 +202,9 @@ static int WrapperType_init(sipWrapperType *self, PyObject *args,
     // TODO Properly understand the last sentence above.
     if (base != NULL && PyObject_TypeCheck((PyObject *)base, sms->wrapper_type_type))
     {
-        // TODO Check if dmod can be NULL (ie. when wt_td might be NULL).
+        // TODO Check if d_mod can be NULL (ie. when wt_td might be NULL).
         self->wt_is_wrapper = ((sipWrapperType *)base)->wt_is_wrapper;
-        self->wt_dmod = Py_XNewRef(((sipWrapperType *)base)->wt_dmod);
+        self->wt_d_mod = Py_XNewRef(((sipWrapperType *)base)->wt_d_mod);
         self->wt_td = ((sipWrapperType *)base)->wt_td;
 
 #if 0
@@ -240,11 +240,11 @@ static int WrapperType_setattro(sipWrapperType *self, PyObject *name,
     /*
      * We might be dealing with the simplewrapper or wrapper types themselves.
      */
-    if (self->wt_dmod == NULL)
+    if (self->wt_d_mod == NULL)
         return PyType_Type.tp_setattro((PyObject *)self, name, value);
 
     sipWrappedModuleState *wms = (sipWrappedModuleState *)PyModule_GetState(
-            self->wt_dmod);
+            self->wt_d_mod);
     const sipClassTypeDef *ctd = (const sipClassTypeDef *)self->wt_td;
 
     return sip_mod_con_setattro(wms, (PyObject *)self, name, value,
@@ -260,7 +260,7 @@ static int WrapperType_traverse(sipWrapperType *self, visitproc visit,
 {
     Py_VISIT(Py_TYPE(self));
 
-    Py_VISIT(self->wt_dmod);
+    Py_VISIT(self->wt_d_mod);
 
     return 0;
 }

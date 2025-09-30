@@ -2216,10 +2216,12 @@ f'''    return new {scope_s}(reinterpret_cast<const {scope_s} *>(sipSrc)[sipSrcI
     if backend.need_dealloc(bindings, klass):
         sf.write('\n\n')
 
-        if not spec.c_bindings:
-            sf.write(f'extern "C" {{static void dealloc_{as_word}(sipSimpleWrapper *);}}\n')
+        wrapped_type_type = backend.get_wrapped_type_type()
 
-        sf.write(f'static void dealloc_{as_word}(sipSimpleWrapper *sipSelf)\n{{\n')
+        if not spec.c_bindings:
+            sf.write(f'extern "C" {{static void dealloc_{as_word}({wrapped_type_type});}}\n')
+
+        sf.write(f'static void dealloc_{as_word}({wrapped_type_type}sipSelf)\n{{\n')
 
         backend.g_slot_support_vars(sf)
 

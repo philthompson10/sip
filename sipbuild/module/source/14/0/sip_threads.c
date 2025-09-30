@@ -27,7 +27,7 @@ static sipPendingDef *get_pending(sipSipModuleState *sms, int auto_alloc);
 /*
  * Get the address etc. of any C/C++ object waiting to be wrapped.
  */
-int sip_get_pending(sipSipModuleState *sms, void **pp, sipWrapper **op,
+int sip_get_pending(sipSipModuleState *sms, void **pp, PyObject **owner_p,
         int *fp)
 {
     sipPendingDef *pd;
@@ -36,7 +36,7 @@ int sip_get_pending(sipSipModuleState *sms, void **pp, sipWrapper **op,
         return -1;
 
     *pp = pd->cpp;
-    *op = pd->owner;
+    *owner_p = pd->owner;
     *fp = pd->flags;
 
     /* Clear in case we execute Python code before finishing this wrapping. */
@@ -64,7 +64,7 @@ int sip_is_pending(sipSipModuleState *sms)
  * Convert a new C/C++ pointer to a Python instance.
  */
 PyObject *sip_wrap_instance(sipSipModuleState *sms, void *cpp,
-        PyTypeObject *py_type, PyObject *args, sipWrapper *owner, int flags)
+        PyTypeObject *py_type, PyObject *args, PyObject *owner, int flags)
 {
     sipPendingDef old_pending, *pd;
     PyObject *self;
@@ -101,10 +101,10 @@ PyObject *sip_wrap_instance(sipSipModuleState *sms, void *cpp,
 /*
  * Handle the termination of a thread.
  */
-void sip_api_end_thread(PyObject *wmod)
+void sip_api_end_thread(PyObject *w_mod)
 {
     sipWrappedModuleState *wms = (sipWrappedModuleState *)PyModule_GetState(
-            wmod);
+            w_mod);
 
     PyGILState_STATE gil = PyGILState_Ensure();
 

@@ -20,7 +20,7 @@
 
 
 /* Forward references. */
-static int add_license(PyObject *wmod, const sipLicenseDef *lc);
+static int add_license(PyObject *w_mod, const sipLicenseDef *lc);
 
 
 /* The wrapped module's clear slot. */
@@ -83,8 +83,8 @@ void sip_api_wrapped_module_free(sipWrappedModuleState *wms)
  * Initialise a wrapped module.
  */
 // TODO There are lots of leaks if this fails in any way.
-int sip_api_wrapped_module_init(PyObject *wmod, const sipWrappedModuleDef *wmd,
-        PyObject *sip_module)
+int sip_api_wrapped_module_init(PyObject *w_mod,
+        const sipWrappedModuleDef *wmd, PyObject *sip_module)
 {
     /* Check that we can support it. */
     if (wmd->abi_major != SIP_ABI_MAJOR_VERSION || wmd->abi_minor > SIP_ABI_MINOR_VERSION)
@@ -93,12 +93,12 @@ int sip_api_wrapped_module_init(PyObject *wmod, const sipWrappedModuleDef *wmd,
         PyErr_Format(PyExc_RuntimeError,
                 "the sip module implements ABI v%d.0 to v%d.%d but the %s module requires ABI v%d.%d",
                 SIP_ABI_MAJOR_VERSION, SIP_ABI_MAJOR_VERSION,
-                SIP_ABI_MINOR_VERSION, PyModule_GetName(wmod),
+                SIP_ABI_MINOR_VERSION, PyModule_GetName(w_mod),
                 wmd->abi_major, wmd->abi_minor);
 #else
         PyErr_Format(PyExc_RuntimeError,
                 "the sip module implements ABI v%d.0 but the %s module requires ABI v%d.%d",
-                SIP_ABI_MAJOR_VERSION, PyModule_GetName(wmod),
+                SIP_ABI_MAJOR_VERSION, PyModule_GetName(w_mod),
                 wmd->abi_major, wmd->abi_minor);
 #endif
 
@@ -109,29 +109,29 @@ int sip_api_wrapped_module_init(PyObject *wmod, const sipWrappedModuleDef *wmd,
     {
         PyErr_Format(PyExc_RuntimeError,
                 "the sip module has a configuration of 0x%04x but the %s module requires 0x%04x",
-                SIP_CONFIGURATION, PyModule_GetName(wmod),
+                SIP_CONFIGURATION, PyModule_GetName(w_mod),
                 wmd->sip_configuration);
 
         return -1;
     }
 
     sipWrappedModuleState *wms = (sipWrappedModuleState *)PyModule_GetState(
-            wmod);
+            w_mod);
 
     wms->sip_api = &sip_api;
 #if _SIP_MODULE_SHARED
     wms->sip_module = sip_module;
     wms->sip_module_state = (sipSipModuleState *)PyModule_GetState(sip_module);
 #else
-    wms->sip_module = wmod;
-    Py_INCREF(wmod);
+    wms->sip_module = w_mod;
+    Py_INCREF(w_mod);
 
     wms->sip_module_state = sip_api_malloc(sizeof (sipSipModuleState));
 
-    if (sip_sip_module_init(wms->sip_module_state, wmod) < 0)
+    if (sip_sip_module_init(wms->sip_module_state, w_mod) < 0)
         return -1;
 #endif
-    wms->wrapped_module = wmod;
+    wms->wrapped_module = w_mod;
     wms->wrapped_module_def = wmd;
 
     /* Update the new module's super-type. */
@@ -139,7 +139,7 @@ int sip_api_wrapped_module_init(PyObject *wmod, const sipWrappedModuleDef *wmd,
     if (class_s == NULL)
         return -1;
 
-    if (PyObject_SetAttr(wmod, class_s, (PyObject *)wms->sip_module_state->module_wrapper_type) < 0)
+    if (PyObject_SetAttr(w_mod, class_s, (PyObject *)wms->sip_module_state->module_wrapper_type) < 0)
     {
         Py_DECREF(class_s);
         return -1;
@@ -148,10 +148,10 @@ int sip_api_wrapped_module_init(PyObject *wmod, const sipWrappedModuleDef *wmd,
     Py_DECREF(class_s);
 
     /* Add the SIP version number. */
-    if (PyModule_AddIntMacro(wmod, SIP_VERSION) < 0)
+    if (PyModule_AddIntMacro(w_mod, SIP_VERSION) < 0)
         return -1;
 
-    if (PyModule_AddStringMacro(wmod, SIP_VERSION_STR) < 0)
+    if (PyModule_AddStringMacro(w_mod, SIP_VERSION_STR) < 0)
         return -1;
 
     /* Add the SIP ABI version number. */
@@ -159,11 +159,11 @@ int sip_api_wrapped_module_init(PyObject *wmod, const sipWrappedModuleDef *wmd,
             (SIP_ABI_MINOR_VERSION << 8) +
             SIP_MODULE_PATCH_VERSION;
 
-    if (PyModule_AddIntConstant(wmod, "SIP_ABI_VERSION", abi_version) < 0)
+    if (PyModule_AddIntConstant(w_mod, "SIP_ABI_VERSION", abi_version) < 0)
         return -1;
 
     /* Add the module's methods. */
-    if (PyModule_AddFunctions(wmod, sipModuleMethods) < 0)
+    if (PyModule_AddFunctions(w_mod, sipModuleMethods) < 0)
         return -1;
 
     /* Allocate the space for any wrapped type type objects. */
@@ -191,7 +191,7 @@ int sip_api_wrapped_module_init(PyObject *wmod, const sipWrappedModuleDef *wmd,
     /* Add it to the list of wrapped modules. */
     sipSipModuleState *sms = wms->sip_module_state;
 
-    if (sip_append_py_object_to_list(&sms->module_list, wmod) < 0)
+    if (sip_append_py_object_to_list(&sms->module_list, w_mod) < 0)
         return -1;
 
 #if 0
@@ -206,7 +206,7 @@ int sip_api_wrapped_module_init(PyObject *wmod, const sipWrappedModuleDef *wmd,
 // Need to do this a different way if still needed.  Anon enums?
     /* Add any ints that aren't name enum members. */
     if (next_int != NULL)
-        if (sip_container_add_int_instances(wmod_dict, next_int) < 0)
+        if (sip_container_add_int_instances(w_mod_dict, next_int) < 0)
             return -1;
 #endif
 #endif
@@ -259,7 +259,7 @@ int sip_api_wrapped_module_init(PyObject *wmod, const sipWrappedModuleDef *wmd,
 
         mo = sip_enum_convert_from_enum(sms, emd->em_val, etd);
 
-        if (sip_dict_set_and_discard(wmod_dict, emd->em_name, mo) < 0)
+        if (sip_dict_set_and_discard(w_mod_dict, emd->em_name, mo) < 0)
             return -1;
     }
 #endif
@@ -267,12 +267,12 @@ int sip_api_wrapped_module_init(PyObject *wmod, const sipWrappedModuleDef *wmd,
 #if 0
 // This is no longer needed but are any non-static values that need to be added?
     /* Add any global static instances. */
-    if (sip_container_add_instances(wms, wmod_dict, &wmd->instances) < 0)
+    if (sip_container_add_instances(wms, w_mod_dict, &wmd->instances) < 0)
         return -1;
 #endif
 
     /* Add any license. */
-    if (wmd->license != NULL && add_license(wmod, wmd->license) < 0)
+    if (wmd->license != NULL && add_license(w_mod, wmd->license) < 0)
         return -1;
 
 #if 0
@@ -281,7 +281,7 @@ int sip_api_wrapped_module_init(PyObject *wmod, const sipWrappedModuleDef *wmd,
     {
         PyObject *mod = PyList_GET_ITEM(sms->module_list, i);
 
-        if (mod == wmod)
+        if (mod == w_mod)
             continue;
 
         sipWrappedModuleState *ms = (sipWrappedModuleState *)PyModule_GetState(
@@ -348,7 +348,7 @@ int sip_api_wrapped_module_traverse(sipWrappedModuleState *wms,
 /*
  * Add a license to a module.
  */
-static int add_license(PyObject *wmod, const sipLicenseDef *lc)
+static int add_license(PyObject *w_mod, const sipLicenseDef *lc)
 {
     int rc;
     PyObject *ldict, *o;
@@ -408,17 +408,17 @@ static int add_license(PyObject *wmod, const sipLicenseDef *lc)
 
     /* Create and save a read-only proxy. */
 #if PY_MAJOR_VERSION >= 0x030d0000
-    rc = PyModule_Add(wmod, "__license__", PyDictProxy_New(ldict));
+    rc = PyModule_Add(w_mod, "__license__", PyDictProxy_New(ldict));
 #else
     PyObject *proxy = PyDictProxy_New(ldict);
 #if PY_MAJOR_VERSION >= 0x030a0000
-    rc = PyModule_AddObjectRef(wmod, "__license__", proxy);
+    rc = PyModule_AddObjectRef(w_mod, "__license__", proxy);
     Py_XDECREF(proxy);
 #else
     if (proxy == NULL)
         goto deldict;
 
-    rc = PyModule_AddObject(wmod, "__license__", proxy);
+    rc = PyModule_AddObject(w_mod, "__license__", proxy);
     if (rc < 0)
         Py_DECREF(proxy);
 #endif

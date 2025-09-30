@@ -29,7 +29,7 @@ extern "C" {
 typedef struct
 {
     void *key;                  /* The C/C++ address. */
-    sipSimpleWrapper *first;    /* The first object at this address. */
+    PyObject *first;            /* The first object at this address. */
 } sipHashEntry;
 
 
@@ -47,12 +47,12 @@ typedef struct
 } sipObjectMap;
 
 
-void sip_om_add_object(sipWrappedModuleState *wms, sipSimpleWrapper *val);
+void sip_om_add_object(sipWrappedModuleState *wms, PyObject *w_inst);
 void sip_om_finalise(sipObjectMap *om);
-sipSimpleWrapper *sip_om_find_object(sipObjectMap *om, void *key,
-        PyTypeObject *py_type);
+PyObject *sip_om_find_object(sipObjectMap *om, void *key,
+        PyTypeObject *w_type);
 void sip_om_init(sipObjectMap *om);
-int sip_om_remove_object(sipWrappedModuleState *wms, sipSimpleWrapper *val);
+int sip_om_remove_object(sipWrappedModuleState *wms, PyObject *w_inst);
 void sip_om_visit_wrappers(sipObjectMap *om, sipWrapperVisitorFunc visitor,
         void *closure);
 

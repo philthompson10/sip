@@ -22,7 +22,6 @@ extern "C" {
 
 
 struct _sipSipModuleState;
-struct _sipWrapper;
 
 
 /*
@@ -30,7 +29,7 @@ struct _sipWrapper;
  */
 typedef struct {
     void *cpp;                      /* The C/C++ object ot be wrapped. */
-    struct _sipWrapper *owner;      /* The owner of the object. */
+    PyObject *owner;                /* The owner of the object. */
     int flags;                      /* The flags. */
 } sipPendingDef;
 
@@ -45,14 +44,13 @@ typedef struct _sipThread {
 } sipThread;
 
 
-void sip_api_end_thread(PyObject *wmod);
+void sip_api_end_thread(PyObject *w_mod);
 
 int sip_get_pending(struct _sipSipModuleState *sms, void **pp,
-        struct _sipWrapper **op, int *fp);
+        PyObject **owner_p, int *fp);
 int sip_is_pending(struct _sipSipModuleState *sms);
 PyObject *sip_wrap_instance(struct _sipSipModuleState *sms, void *cpp,
-        PyTypeObject *py_type, PyObject *args, struct _sipWrapper *owner,
-        int flags);
+        PyTypeObject *py_type, PyObject *args, PyObject *owner, int flags);
 
 
 #ifdef __cplusplus
