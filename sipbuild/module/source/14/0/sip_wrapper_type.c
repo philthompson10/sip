@@ -48,9 +48,7 @@ static PyType_Spec WrapperType_TypeSpec = {
     .name = _SIP_MODULE_FQ_NAME ".wrappertype",
     .basicsize = sizeof (sipWrapperType),
     .flags = Py_TPFLAGS_DEFAULT|Py_TPFLAGS_BASETYPE|Py_TPFLAGS_HAVE_GC|
-#if defined(Py_TPFLAGS_IMMUTABLETYPE)
              Py_TPFLAGS_IMMUTABLETYPE|
-#endif
              Py_TPFLAGS_TYPE_SUBCLASS,
     .slots = WrapperType_slots,
 };

@@ -67,12 +67,8 @@ static PyType_Spec VariableDescr_TypeSpec = {
     .name = _SIP_MODULE_FQ_NAME ".variabledescriptor",
     .basicsize = sizeof (VariableDescr),
     .flags = Py_TPFLAGS_DEFAULT |
-#if defined(Py_TPFLAGS_DISALLOW_INSTANTIATION)
              Py_TPFLAGS_DISALLOW_INSTANTIATION |
-#endif
-#if defined(Py_TPFLAGS_IMMUTABLETYPE)
              Py_TPFLAGS_IMMUTABLETYPE |
-#endif
              Py_TPFLAGS_HAVE_GC,
     .slots = VariableDescr_slots,
 };

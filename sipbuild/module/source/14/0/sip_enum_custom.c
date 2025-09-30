@@ -47,12 +47,8 @@ static PyType_Spec EnumType_TypeSpec = {
     .name = _SIP_MODULE_FQ_NAME ".enumtype",
     .basicsize = sizeof (sipEnumTypeObject),
     .flags = Py_TPFLAGS_DEFAULT |
-#if defined(Py_TPFLAGS_DISALLOW_INSTANTIATION)
              Py_TPFLAGS_DISALLOW_INSTANTIATION |
-#endif
-#if defined(Py_TPFLAGS_IMMUTABLETYPE)
              Py_TPFLAGS_IMMUTABLETYPE |
-#endif
              Py_TPFLAGS_HAVE_GC,
     .slots = EnumType_slots,
 };
