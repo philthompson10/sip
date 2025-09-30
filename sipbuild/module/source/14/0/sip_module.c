@@ -7,8 +7,6 @@
  */
 
 
-/* Remove when Python v3.12 is no longer supported. */
-#define PY_SSIZE_T_CLEAN
 #include <Python.h>
 
 #include <assert.h>
@@ -42,12 +40,8 @@ static int module_traverse(PyObject *module, visitproc visit, void *arg);
 /* The standalone sip module definition. */
 static PyModuleDef_Slot module_slots[] = {
     {Py_mod_exec, module_exec},
-#if PY_VERSION_HEX >= 0x030c0000
     {Py_mod_multiple_interpreters, Py_MOD_PER_INTERPRETER_GIL_SUPPORTED},
-#endif
-#if PY_VERSION_HEX >= 0x030d0000
     {Py_mod_gil, Py_MOD_GIL_USED},
-#endif
     {0, NULL},
 };
 
@@ -169,12 +163,7 @@ int sip_sip_module_init(sipSipModuleState *sms, PyObject *mod)
         return -1;
 
     /* This will always be needed. */
-#if PY_VERSION_HEX >= 0x030d0000
     sms->empty_tuple = Py_GetConstant(Py_CONSTANT_EMPTY_TUPLE);
-#else
-    if ((sms->empty_tuple = PyTuple_New(0)) == NULL)
-        return -1;
-#endif
 
     /* Initialise the object map. */
     sip_om_init(&sms->object_map);

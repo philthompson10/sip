@@ -7,8 +7,6 @@
  */
 
 
-/* Remove when Python v3.12 is no longer supported. */
-#define PY_SSIZE_T_CLEAN
 #include <Python.h>
 
 #include <stddef.h>
@@ -136,11 +134,7 @@ static PyObject *VoidPtr_ascapsule(VoidPtr *v, PyObject *arg)
  */
 static PyObject *VoidPtr_asarray(VoidPtr *v, PyObject *args, PyObject *kw)
 {
-#if PY_VERSION_HEX >= 0x030d0000
-    static char * const kwlist[] = {"size", NULL};
-#else
-    static char *kwlist[] = {"size", NULL};
-#endif
+    static char *const kwlist[] = {"size", NULL};
 
     Py_ssize_t size = -1;
 
@@ -161,11 +155,7 @@ static PyObject *VoidPtr_asarray(VoidPtr *v, PyObject *args, PyObject *kw)
  */
 static PyObject *VoidPtr_asstring(VoidPtr *v, PyObject *args, PyObject *kw)
 {
-#if PY_VERSION_HEX >= 0x030d0000
-    static char * const kwlist[] = {"size", NULL};
-#else
-    static char *kwlist[] = {"size", NULL};
-#endif
+    static char *const kwlist[] = {"size", NULL};
 
     Py_ssize_t size = -1;
 
@@ -425,11 +415,7 @@ static int VoidPtr_getbuffer(PyObject *self, Py_buffer *buf, int flags)
  */
 static PyObject *VoidPtr_new(PyTypeObject *cls, PyObject *args, PyObject *kw)
 {
-#if PY_VERSION_HEX >= 0x030d0000
-    static char * const kwlist[] = {"address", "size", "writeable", NULL};
-#else
-    static char *kwlist[] = {"address", "size", "writeable", NULL};
-#endif
+    static char *const kwlist[] = {"address", "size", "writeable", NULL};
 
     struct vp_values vp_conversion;
     Py_ssize_t size = -1;

@@ -7,8 +7,6 @@
  */
 
 
-/* Remove when Python v3.12 is no longer supported. */
-#define PY_SSIZE_T_CLEAN
 #include <Python.h>
 #include <datetime.h>
 
@@ -2626,13 +2624,7 @@ static void *sip_api_get_type_user_data(PyTypeObject *py_type)
  */
 static PyObject *sip_api_py_type_dict_ref(PyTypeObject *py_type)
 {
-#if PY_VERSION_HEX >= 0x030c0000
     return PyType_GetDict(py_type);
-#else
-    PyObject *ref = py_type->tp_dict;
-    Py_XINCREF(ref);
-    return ref;
-#endif
 }
 
 

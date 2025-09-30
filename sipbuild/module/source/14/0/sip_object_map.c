@@ -8,6 +8,8 @@
  */
 
 
+#include <Python.h>
+
 #include <stdint.h>
 #include <string.h>
 

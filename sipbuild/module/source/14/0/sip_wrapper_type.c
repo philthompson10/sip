@@ -7,8 +7,6 @@
  */
 
 
-/* Remove when Python v3.12 is no longer supported. */
-#define PY_SSIZE_T_CLEAN
 #include <Python.h>
 
 #include "sip_wrapper_type.h"

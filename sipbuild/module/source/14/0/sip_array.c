@@ -7,8 +7,6 @@
  */
 
 
-/* Remove when Python v3.12 is no longer supported. */
-#define PY_SSIZE_T_CLEAN
 #include <Python.h>
 
 #include <stddef.h>
@@ -439,11 +437,7 @@ static PyObject *Array_repr(PyObject *self)
  */
 static PyObject *Array_new(PyTypeObject *cls, PyObject *args, PyObject *kw)
 {
-#if PY_VERSION_HEX >= 0x030d0000
-    static char * const kwlist[] = {"", "", NULL};
-#else
-    static char *kwlist[] = {"", "", NULL};
-#endif
+    static char *const kwlist[] = {"", "", NULL};
 
     sipSipModuleState *sms = (sipSipModuleState *)PyType_GetModuleState(cls);
     sipWrapperType *wt;
