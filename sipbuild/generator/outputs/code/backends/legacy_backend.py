@@ -709,7 +709,7 @@ static sipPySlotDef slots_{klass_name}[] = {{
             base_fields.append('SIP_NULLPTR')
 
         base_fields.append('SIP_NULLPTR')
-        base_fields.append(self.get_class_flags(klass, py_debug)
+        base_fields.append(self.get_class_flags(klass, py_debug))
         base_fields.append(self.cached_name_ref(klass.iface_file.cpp_name,
                 as_nr=True))
         base_fields.append('SIP_NULLPTR')
