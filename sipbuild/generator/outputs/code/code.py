@@ -3399,7 +3399,7 @@ def _class_functions(sf, spec, bindings, klass, py_debug):
 
     # Any shadow code.
     if klass.has_shadow:
-        if not klass.export_derived:
+        if not (klass.export_derived or klass.export_derived_locally):
             _shadow_class_declaration(sf, spec, bindings, klass)
 
         _shadow_code(sf, spec, bindings, klass)
@@ -5074,6 +5074,10 @@ def _module_api(sf, spec, bindings):
     for klass in spec.classes:
         if klass.iface_file.module is module:
             _class_api(sf, spec, klass)
+
+            if klass.export_derived_locally:
+                sf.write_code(klass.iface_file.type_header_code)
+                _shadow_class_declaration(sf, spec, bindings, klass)
 
         if klass.export_derived:
             sf.write_code(klass.iface_file.type_header_code)

@@ -425,12 +425,22 @@ Class Annotations
     This string annotation is used to specify the filename extension to be used
     for the file containing the generated code for this class.
 
+
 .. class-annotation:: ExportDerived
 
     In many cases SIP generates a derived class for each class being wrapped
     (see :ref:`ref-derived-classes`).  Normally this is used internally.  This
     boolean annotation specifies that the declaration of the class is exported
-    and able to be used by handwritten code.
+    and able to be used by handwritten code of any module.
+
+
+.. class-annotation:: ExportDerivedLocally
+
+    .. versionchanged:: 6.13
+
+    This boolean annotation is similar to the :canno:`ExportDerived` class
+    annotation except that the declaration of the derived class is only
+    exported to handwritten code in the same module that the class is defined.
 
 
 .. class-annotation:: External

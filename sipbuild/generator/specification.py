@@ -1516,6 +1516,9 @@ class WrappedClass:
     # Set if /ExportDerived/ was specified.
     export_derived: bool = False
 
+    # Set if /ExportDerivedLocally/ was specified.
+    export_derived_locally: bool = False
+
     # Set if /External/ was specified.
     external: bool = False
 

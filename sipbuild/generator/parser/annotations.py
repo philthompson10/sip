@@ -218,6 +218,7 @@ _ANNOTATION_TYPES = {
     'DelayDtor':                boolean(),
     'DisallowNone':             boolean(),
     'ExportDerived':            boolean(),
+    'ExportDerivedLocally':     boolean(),
     'External':                 boolean(),
     'Encoding':                 string(),
     'Factory':                  boolean(),

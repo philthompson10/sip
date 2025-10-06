@@ -123,6 +123,8 @@ class ParserManager:
             klass.supertype = cached_name(self.spec, supertype)
 
         klass.export_derived = annotations.get('ExportDerived', False)
+        klass.export_derived_locally = annotations.get('ExportDerivedLocally',
+                False)
         klass.mixin = annotations.get('Mixin', False)
 
         file_extension = annotations.get('FileExtension')
