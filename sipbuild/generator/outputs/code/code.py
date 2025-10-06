@@ -5224,6 +5224,8 @@ class sip{klass_name} : public {_scoped_class_name(spec, klass)}
 public:
 ''')
 
+    sf.write_code(klass.type_derived_code)
+
     # Define a shadow class for any protected classes we have.
     for protected_klass in spec.classes:
         if not protected_klass.is_protected:

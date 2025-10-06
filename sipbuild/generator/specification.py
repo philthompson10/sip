@@ -1636,6 +1636,9 @@ class WrappedClass:
     # The %TypeCode.
     type_code: list[CodeBlock] = field(default_factory=list)
 
+    # The %TypeDerivedCode.
+    type_derived_code: list[CodeBlock] = field(default_factory=list)
+
     # The %TypeHintCode.
     type_hint_code: Optional[CodeBlock] = None
 

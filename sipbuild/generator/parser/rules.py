@@ -1427,6 +1427,19 @@ def p_type_code(p):
     pm.scope.type_code.append(p[2])
 
 
+# %TypeDerivedCode ############################################################
+
+def p_type_derived_code(p):
+    "type_derived_code : TypeDerivedCode CODE_BLOCK"
+
+    pm = p.parser.pm
+
+    if pm.skipping:
+        return
+
+    pm.scope.type_derived_code.append(p[2])
+
+
 # %TypeHeaderCode #############################################################
 
 def p_type_header_code(p):
@@ -1993,6 +2006,7 @@ def p_class_line(p):
         | property
         | release_buffer_code
         | type_code
+        | type_derived_code
         | type_header_code
         | type_hint_code
         | deprecated_code_directives CODE_BLOCK"""

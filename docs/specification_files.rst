@@ -88,6 +88,7 @@ file.
             :directive:`%InstanceCode` |
             :directive:`%PickleCode` |
             :directive:`%TypeCode` |
+            :directive:`%TypeDerivedCode` |
             :directive:`%TypeHeaderCode` |
             :directive:`%TypeHintCode` |
             *constructor* |

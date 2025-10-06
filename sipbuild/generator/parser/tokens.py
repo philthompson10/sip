@@ -43,8 +43,8 @@ code_directives = {
     'InitialisationCode', 'InstanceCode', 'MethodCode', 'ModuleCode',
     'ModuleHeaderCode', 'PickleCode', 'PostInitialisationCode',
     'PreInitialisationCode', 'PreMethodCode', 'RaiseCode', 'ReleaseCode',
-    'SetCode', 'TypeCode', 'TypeHeaderCode', 'TypeHintCode', 'UnitCode',
-    'UnitPostIncludeCode', 'VirtualCallCode', 'VirtualCatcherCode',
+    'SetCode', 'TypeCode', 'TypeDerivedCode', 'TypeHeaderCode', 'TypeHintCode',
+    'UnitCode', 'UnitPostIncludeCode', 'VirtualCallCode', 'VirtualCatcherCode',
     'VirtualErrorHandler',
 
     # Remove in SIP v7.

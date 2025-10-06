@@ -2235,6 +2235,49 @@ clashes of function names within a module in case the SIP ``-j`` command line
 option is used.
 
 
+.. directive:: %TypeDerivedCode
+
+:directive:`%TypeDerivedCode`
+-----------------------------
+
+.. parsed-literal::
+    %TypeDerivedCode
+        *code*
+    %End
+
+.. versionadded:: 6.13
+
+In many cases SIP generates a derived class for each class being wrapped (see
+:ref:`ref-derived-classes`).  This directive is used to specify handwritten
+code, typically the declaration of additional class members, to be included in
+the class's declaration.  The code is placed at the start of the declaration in
+a public section.
+
+:directive:`%TypeCode` may be used to define the corresponding implementation
+of the new member if necessary.
+
+For example::
+
+    class Klass
+    {
+    %TypeDerivedCode
+    // Print the instance on stderr for debugging purposes.
+    void dump() const;
+    %End
+
+    %TypeCode
+    // The implementation.
+    void Klass::dump() const
+    {
+        fprintf(stderr,"Klass %s at %p\n", name(), this);
+    }
+    %End
+
+        // The rest of the class specification.
+
+    };
+
+
 .. directive:: %TypeHeaderCode
 
 :directive:`%TypeHeaderCode`
