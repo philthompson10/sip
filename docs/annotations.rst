@@ -436,7 +436,7 @@ Class Annotations
 
 .. class-annotation:: ExportDerivedLocally
 
-    .. versionchanged:: 6.13
+    .. versionadded:: 6.13
 
     This boolean annotation is similar to the :canno:`ExportDerived` class
     annotation except that the declaration of the derived class is only

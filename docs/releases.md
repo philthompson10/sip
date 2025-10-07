@@ -1,5 +1,59 @@
 # Release Notes
 
+## v6.13.0
+
+### `/ExportDerivedLocally/` class annotation
+
+The new `/ExportDerivedLocally/` class annotation is similar to the
+`/ExportDerived/` class annotation except that it only makes the derived
+class declaration available to handwritten code in the module in which the
+class was defined.
+
+### `%TypeDerivedCode` directive
+
+The new `%TypeDerivedCode` directive allows handwritten code to be specified
+that is included at the start of the declaration of a derived class.
+
+### Support for SBOMs
+
+The `tools.sip.project.sbom-files` key in `pyproject.toml` is used to
+specify a list of files (and glob-style patterns) that will be copied to
+the `.dist-info/sboms` directory as described in PEP 770.
+
+Resolves [#83](https://github.com/Python-SIP/sip/issues/83)
+
+### Improved error reporting
+
+When a build fails the last 100 lines of the build output will be
+displayed.  As with previous versions the `--verbose` option must be
+specified to see the full build output.
+
+Resolves [#84](https://github.com/Python-SIP/sip/issues/84)
+
+### Support for bool-based enums
+
+Enums can now have `bool` as a base type.
+
+Resolves [#88](https://github.com/Python-SIP/sip/issues/88)
+
+### Non-public super-classes not supported
+
+An attempt to use non-public super-classes will now result in a deprecation
+message rather than being silently ignored.  The super-class should simply
+be removed.
+
+### Bug fixes
+
+- Fixed the code generated for operator casts.
+- Fixed the handling of mapped types for C++ templates with `typedef`ed
+  arguments.
+- Fixed the test for the `/Movable/` annotation so that it works with
+  Python v3.14.  Resolves [#82](https://github.com/Python-SIP/sip/issues/82)
+- A mis-named enum member was corrected.  Resolves [#86](https://github.com/Python-SIP/sip/issues/86)
+- Specifying `%Docstring` as a sub-directive of the `%Module` directive
+  generated invalid code.  Resolves [#81](https://github.com/Python-SIP/sip/issues/81)
+
+
 ## v6.12.0
 
 ### Support for C++11 enum base types
