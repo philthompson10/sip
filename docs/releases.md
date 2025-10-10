@@ -1,5 +1,13 @@
 # Release Notes
 
+## v6.13.1
+
+### Bug fixes
+
+Fixed a regression in v6.13.0 in the handling of mapped types for C++
+templates with `typedef`ed arguments.
+
+
 ## v6.13.0
 
 ### `/ExportDerivedLocally/` class annotation
