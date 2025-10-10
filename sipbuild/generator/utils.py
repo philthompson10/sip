@@ -355,12 +355,18 @@ def same_base_type(type1, type2):
 
     # The types must be the same.
     if type1.type is not type2.type:
+        # Compare original typedef names if appropriate.
+        if type1.original_typedef is not None and type2.type is ArgumentType.DEFINED:
+            return type1.original_typedef.fq_cpp_name.matches(type2.definition)
+
+        if type1.type is ArgumentType.DEFINED and type2.original_typedef is not None:
+            return type2.original_typedef.fq_cpp_name.matches(type1.definition)
+
         # If we are comparing a template with those that have already been used
         # to instantiate a class or mapped type then we need to compare with
         # the class or mapped type name.
 
         if type1.type is ArgumentType.CLASS and type2.type is ArgumentType.DEFINED:
-
             return type1.definition.iface_file.fq_cpp_name.matches(type2.definition)
 
         if type1.type is ArgumentType.DEFINED and type2.type is ArgumentType.CLASS:

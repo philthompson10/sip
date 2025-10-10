@@ -1783,15 +1783,6 @@ def _resolve_type(spec, mod, scope, type, error_log, allow_defined=False):
 
             return
 
-    # Do a lightweight lookup of any template arguments that will resolve
-    # typedefs.
-    if type.type is ArgumentType.TEMPLATE:
-        for arg in type.definition.types.args:
-            if arg.type is ArgumentType.DEFINED:
-                _name_lookup(spec, mod, arg.definition, arg)
-                if arg.type is ArgumentType.NONE:
-                    arg.type = ArgumentType.DEFINED
-
     # See if the type refers to an instantiated template.
     _resolve_instantiated_class_template(spec, type)
 
