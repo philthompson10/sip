@@ -19,15 +19,15 @@ There will be a `staging` branch that only contains changes that affect
 existing code.
 
 A commit to the `working` branch must contain changes to new code **or** to
-existing code **but not both**.  Commits that affect existing code are pushed
-to the `staging` branch.
+existing code **but not both**.  Commits that affect existing code are merged
+into the `staging` branch.
 
 Periodically the `staging` branch is squash-merged into the `develop` branch.
 Exactly when this is done is a judgment call.  Doing it earlier and more often
 increases the chances of problems coming to light sooner rather than later.
 
 When the development is complete (ie. ready for external testing) then this
-file is removed and all outstanding changes in the `working` branch are pushed
+file is removed and all outstanding changes in the `working` branch are merged
 to the `staging` branch.  These are then squash-merged into the `develop`
 branch.  The `working` and `staging` branches can then be deleted.
 
