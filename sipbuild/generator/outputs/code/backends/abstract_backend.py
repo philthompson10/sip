@@ -18,7 +18,10 @@ class AbstractBackend(ABC):
     def factory(spec):
         """ Return an appropriate backend for the target ABI. """
 
-        from .v12v13 import v12v13Backend as backend
+        if spec.target_abi >= (14, 0):
+            from .v14 import v14Backend as backend
+        else:
+            from .v12v13 import v12v13Backend as backend
 
         return backend(spec)
 
