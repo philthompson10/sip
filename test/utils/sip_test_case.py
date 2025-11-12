@@ -15,6 +15,9 @@ from .sip_base_test_case import SIPBaseTestCase
 class SIPTestCase(SIPBaseTestCase):
     """ Encapsulate a test case that tests the execution of  bindings. """
 
+    # The optional list of sip module configuration options.
+    sip_module_configuration = None
+
     # Set if a separate sip module should be generated.  It will be built
     # automatically if more than one module is being built.
     use_sip_module = False
@@ -89,6 +92,9 @@ class SIPTestCase(SIPBaseTestCase):
 
         sip_module_name = 'sip'
 
+        if cls.namespace is not None:
+            sip_module_name = f'{cls.namespace}.{sip_module_name}'
+
         # Create the sdist.
         args = [sys.executable, '-m', 'sipbuild.tools.module', '--sdist',
             '--target-dir', root_dir
@@ -98,13 +104,19 @@ class SIPTestCase(SIPBaseTestCase):
             args.append('--abi-version')
             args.append(cls.abi_version)
 
+        if cls.sip_module_configuration is not None:
+            for option in cls.sip_module_configuration:
+                args.append('--option')
+                args.append(option)
+
         args.append(sip_module_name)
 
         subprocess.run(args).check_returncode()
 
         # Find the sdist and unpack it.
         sdists = glob.glob(
-                os.path.join(root_dir, sip_module_name + '-*.tar.gz'))
+                os.path.join(root_dir,
+                        sip_module_name.replace('.', '_') + '-*.tar.gz'))
 
         if len(sdists) != 1:
             raise Exception(

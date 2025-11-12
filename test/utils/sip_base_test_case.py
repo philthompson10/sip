@@ -21,6 +21,10 @@ class SIPBaseTestCase(unittest.TestCase):
     # Set if exception support should be enabled.
     exceptions = False
 
+    # The namespace (ie. top-level module) in which generated modules will be
+    # placed.
+    namespace = None
+
     # The list of tags to be used to configure the test modules.
     tags = None
 
@@ -55,7 +59,8 @@ class SIPBaseTestCase(unittest.TestCase):
                 f.write(_ABI_VERSION.format(abi_version=cls.abi_version))
 
             if use_sip_module:
-                f.write(_SIP_MODULE)
+                sip_module = 'sip' if cls.namespace is None else cls.namespace + '.sip'
+                f.write(_SIP_MODULE.format(sip_module=sip_module))
 
             if cls.tags is not None or cls.exceptions:
                 f.write(f'\n[tool.sip.bindings.{module_name}]\n')
@@ -85,6 +90,8 @@ class SIPBaseTestCase(unittest.TestCase):
         cwd = os.getcwd()
         os.chdir(src_dir)
 
+        ns_dir = root_dir
+
         # Do the build.
         args = [sys.executable] + build_args
 
@@ -104,6 +111,14 @@ class SIPBaseTestCase(unittest.TestCase):
             impl_pattern.extend(impl_subdirs)
 
         impl_pattern.append('lib*')
+
+        if cls.namespace is not None:
+            ns_subdirs = cls.namespace.split('.')
+            impl_pattern.extend(ns_subdirs)
+
+            ns_dir = os.path.join(ns_dir, os.path.join(*ns_subdirs))
+            os.makedirs(ns_dir, exist_ok=True)
+
         impl_pattern.append(
                 module_name + '*.pyd' if sys.platform == 'win32' else '*.so')
 
@@ -119,7 +134,7 @@ class SIPBaseTestCase(unittest.TestCase):
         impl_path = os.path.abspath(impl_paths[0])
         impl = os.path.basename(impl_path)
 
-        os.chdir(root_dir)
+        os.chdir(ns_dir)
 
         try:
             os.remove(impl)
@@ -158,5 +173,5 @@ abi-version = "{abi_version}"
 """
 
 _SIP_MODULE = """
-sip-module = "sip"
+sip-module = "{sip_module}"
 """

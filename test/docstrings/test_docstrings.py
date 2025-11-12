@@ -12,6 +12,6 @@ class DocstringsTestCase(SIPTestCase):
     def test_ModuleDocstrings(self):
         """ Test the support for timelines. """
 
-        import docstrings_module as dm
+        import docstrings_module as mod
 
-        self.assertEqual(dm.__doc__, 'Module')
+        self.assertEqual(mod.__doc__, 'Module')
