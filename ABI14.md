@@ -19,8 +19,8 @@ There will be a `staging` branch that only contains changes that affect
 existing code.
 
 A commit to the `working` branch must contain changes to new code **or** to
-existing code **but not both**.  Commits that affect existing code are merged
-into the `staging` branch.
+existing code **but not both**.  Commits that affect existing code are
+cherry-picked into the `staging` branch.
 
 Periodically the `staging` branch is squash-merged into the `develop` branch.
 Exactly when this is done is a judgment call.  Doing it earlier and more often
