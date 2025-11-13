@@ -39,6 +39,9 @@ should drive changes to the documentation.
 
 Python v3.15 or later will be required.
 
+`sip-module` now takes any number of `--option` arguments to specify the
+configuration of the module.
+
 The `%AccessCode` directive has been removed.  `%GetCode` should be used
 instead.
 
@@ -52,8 +55,6 @@ All `__len__` handwritten code must return `Py_ssize_t`.
 
 Types in the `sip` module now have fully qualified names (eg.
 `PyQt5.sip.wrapper`.
-
-The `%AccessCode` directive is no longer supported.
 
 The `%GetCode` and `%SetCode` directives are now supported for module
 attributes.

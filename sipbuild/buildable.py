@@ -154,6 +154,8 @@ class BuildableBindings(BuildableModule):
 
         self.bindings = bindings
 
+        self.sip_module_configuration = None
+
     def get_bindings_installable(self, name):
         """ Return an installable for the buildable's bindings directory. """
 
@@ -195,3 +197,6 @@ sip-abi-version = "{abi_major}.{abi_minor}"
 module-tags = [{tags}]
 module-disabled-features = [{disabled}]
 ''')
+
+            if self.project.target_abi >= (14, 0):
+                cf.write(f'sip-module-configuration = {self.sip_module_configuration}\n')
