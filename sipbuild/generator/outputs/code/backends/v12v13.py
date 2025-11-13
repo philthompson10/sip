@@ -22,6 +22,8 @@ from ...formatters import (fmt_argument_as_cpp_type, fmt_argument_as_name,
         fmt_signature_as_type_hint, fmt_value_list_as_cpp_expression)
 
 from .abstract_backend import AbstractBackend
+from .snippets import (g_composite_module_code, g_declare_limited_api,
+        g_include_sip_h, g_module_docstring, g_module_init_start)
 
 
 class v12v13Backend(AbstractBackend):
@@ -30,7 +32,8 @@ class v12v13Backend(AbstractBackend):
     def g_composite_module_code(self, sf, py_debug):
         """ Generate the code for a composite module. """
 
-        _composite_module_code(sf, self.spec, py_debug)
+        g_composite_module_code(sf, self.spec, py_debug,
+                _module_definition(self.spec.module))
 
     def g_iface_file_code(self, sf, bindings, project, py_debug, buildable,
             iface_file, need_postinc):
@@ -54,66 +57,6 @@ class v12v13Backend(AbstractBackend):
         _internal_api_header(sf, self.spec, bindings, py_debug, closure)
 
 
-def _composite_module_code(sf, spec, py_debug):
-    """ Output the code for a composite module. """
-
-    module = spec.module
-
-    _declare_limited_api(sf, py_debug)
-    _include_sip_h(sf, module)
-
-    sf.write(
-'''
-
-static void sip_import_component_module(PyObject *d, const char *name)
-{
-    PyObject *mod;
-
-    PyErr_Clear();
-
-    mod = PyImport_ImportModule(name);
-
-    /*
-     * Note that we don't complain if the module can't be imported.  This
-     * is a favour to Linux distro packagers who like to split PyQt into
-     * different sub-packages.
-     */
-    if (mod)
-    {
-        PyDict_Merge(d, PyModule_GetDict(mod), 0);
-        Py_DECREF(mod);
-    }
-}
-''')
-
-    _module_docstring(sf, module)
-    _module_init_start(sf, spec)
-    _module_definition(sf, module)
-
-    sf.write(
-'''
-    PyObject *sipModule, *sipModuleDict;
-
-    if ((sipModule = PyModule_Create(&sip_module_def)) == SIP_NULLPTR)
-        return SIP_NULLPTR;
-
-    sipModuleDict = PyModule_GetDict(sipModule);
-
-''')
-
-    for mod in module.all_imports:
-        sf.write(
-f'    sip_import_component_module(sipModuleDict, "{mod.fq_py_name}");\n')
-
-    sf.write(
-'''
-    PyErr_Clear();
-
-    return sipModule;
-}
-''')
-
-
 def _internal_api_header(sf, spec, bindings, py_debug, name_cache_list):
     """ Generate the C++ internal module API header file and return its path
     name.
@@ -128,8 +71,8 @@ f'''#ifndef _{module_name}API_H
 #define _{module_name}API_H
 ''')
 
-    _declare_limited_api(sf, py_debug, module=module)
-    _include_sip_h(sf, module)
+    g_declare_limited_api(sf, py_debug, module=module)
+    g_include_sip_h(sf, module)
 
     if _pyqt5(spec) or _pyqt6(spec):
         sf.write(
@@ -1068,7 +1011,7 @@ f'''    {exception_handler},
 }};
 ''')
 
-    _module_docstring(sf, module)
+    g_module_docstring(sf, module)
 
     # Generate the storage for the external API pointers.
     sf.write(
@@ -1087,7 +1030,7 @@ sip_qt_metacast_func sip_{module_name}_qt_metacast;
 ''')
 
     # Generate the Python module initialisation function.
-    _module_init_start(sf, spec)
+    g_module_init_start(sf, spec)
 
     # Generate the global functions.
     sf.write('    static PyMethodDef sip_methods[] = {\n')
@@ -1104,7 +1047,7 @@ sip_qt_metacast_func sip_{module_name}_qt_metacast;
     };
 ''')
 
-    _module_definition(sf, module, method_table='sip_methods')
+    sf.write(_module_definition(module, method_table='sip_methods'))
 
     sf.write('\n    PyObject *sipModule, *sipModuleDict;\n')
 
@@ -1387,41 +1330,15 @@ f'''    if ((sipAPI_{module_name} = sip_init_library(sipModuleDict)) == SIP_NULL
 ''')
 
 
-def _module_init_start(sf, spec, generate_c=True):
-    """ Generate the start of the Python module initialisation function. """
-
-    if spec.is_composite or spec.c_bindings:
-        extern_c = ''
-        arg_type = 'void'
-    else:
-        extern_c = 'extern "C" '
-        arg_type = ''
-
-    module_name = spec.module.py_name
-
-    sf.write(
-f'''
-
-/* The Python module initialisation function. */
-#if defined(SIP_STATIC_MODULE)
-{extern_c}PyObject *PyInit_{module_name}({arg_type})
-#else
-PyMODINIT_FUNC PyInit_{module_name}({arg_type})
-#endif
-{{
-''')
-
-
-def _module_definition(sf, module, method_table='SIP_NULLPTR'):
-    """ Generate the module definition structure. """
+def _module_definition(module, method_table='SIP_NULLPTR'):
+    """ Return the module definition structure. """
 
     if module.docstring is None:
         docstring_ref = 'SIP_NULLPTR'
     else:
         docstring_ref = f'doc_mod_{module.py_name}'
 
-    sf.write(
-f'''    static PyModuleDef sip_module_def = {{
+    return f'''    static PyModuleDef sip_module_def = {{
         PyModuleDef_HEAD_INIT,
         "{module.fq_py_name}",
         {docstring_ref},
@@ -1432,7 +1349,7 @@ f'''    static PyModuleDef sip_module_def = {{
         SIP_NULLPTR,
         SIP_NULLPTR
     }};
-''')
+'''
 
 
 def _subclass_convertors(sf, spec, module):
@@ -8472,16 +8389,6 @@ def _docstring_text(docstring):
     return s
 
 
-def _module_docstring(sf, module):
-    """ Generate the definition of a module's optional docstring. """
-
-    if module.docstring is not None:
-        sf.write(
-f'''
-PyDoc_STRVAR(doc_mod_{module.py_name}, "{_docstring_text(module.docstring)}");
-''')
-
-
 def _get_void_ptr_cast(type):
     """ Return a void* cast for an argument if needed. """
 
@@ -8492,21 +8399,6 @@ def _get_void_ptr_cast(type):
         return ''
 
     return '(const void *)' if type.is_const else '(void *)'
-
-
-def _declare_limited_api(sf, py_debug, module=None):
-    """ Declare the use of the limited API. """
-
-    if py_debug:
-        return
-
-    if module is None or module.use_limited_api:
-        sf.write(
-'''
-#if !defined(Py_LIMITED_API)
-#define Py_LIMITED_API
-#endif
-''')
 
 
 def _plugin_signals_table(sf, spec, bindings, klass):
@@ -8643,21 +8535,6 @@ def _enum_class_scope(spec, enum):
         scope_s = _scoped_class_name(spec, enum.scope)
 
     return scope_s
-
-
-def _include_sip_h(sf, module):
-    """ Generate the inclusion of sip.h. """
-
-    if module.py_ssize_t_clean:
-        sf.write(
-'''
-#define PY_SSIZE_T_CLEAN
-''')
-
-    sf.write(
-'''
-#include "sip.h"
-''')
 
 
 def _enum_member(spec, enum_member):
