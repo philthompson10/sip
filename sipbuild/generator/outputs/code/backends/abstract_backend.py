@@ -52,3 +52,11 @@ class AbstractBackend(ABC):
         """ Generate the internal module API header file. """
 
         ...
+
+    # The remaining public methods are snippet helpers.
+
+    @abstractmethod
+    def g_module_definition(self, sf):
+        """ Generate the module definition structures. """
+
+        ...

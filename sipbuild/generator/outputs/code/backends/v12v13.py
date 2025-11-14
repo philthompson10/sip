@@ -32,8 +32,7 @@ class v12v13Backend(AbstractBackend):
     def g_composite_module_code(self, sf, py_debug):
         """ Generate the code for a composite module. """
 
-        g_composite_module_code(sf, self.spec, py_debug,
-                _module_definition(self.spec.module))
+        g_composite_module_code(sf, py_debug, self)
 
     def g_iface_file_code(self, sf, bindings, project, py_debug, buildable,
             iface_file, need_postinc):
@@ -55,6 +54,13 @@ class v12v13Backend(AbstractBackend):
         """ Generate the internal module API header file. """
 
         _internal_api_header(sf, self.spec, bindings, py_debug, closure)
+
+    # The remaining public methods are snippet helpers.
+
+    def g_module_definition(self, sf):
+        """ Generate the module definition structures. """
+
+        _module_definition(sf, self.spec.module)
 
 
 def _internal_api_header(sf, spec, bindings, py_debug, name_cache_list):
@@ -1047,7 +1053,7 @@ sip_qt_metacast_func sip_{module_name}_qt_metacast;
     };
 ''')
 
-    sf.write(_module_definition(module, method_table='sip_methods'))
+    _module_definition(sf, module, method_table='sip_methods')
 
     sf.write('\n    PyObject *sipModule, *sipModuleDict;\n')
 
@@ -1330,15 +1336,16 @@ f'''    if ((sipAPI_{module_name} = sip_init_library(sipModuleDict)) == SIP_NULL
 ''')
 
 
-def _module_definition(module, method_table='SIP_NULLPTR'):
-    """ Return the module definition structure. """
+def _module_definition(sf, module, method_table='SIP_NULLPTR'):
+    """ Generate the module definition structures. """
 
     if module.docstring is None:
         docstring_ref = 'SIP_NULLPTR'
     else:
         docstring_ref = f'doc_mod_{module.py_name}'
 
-    return f'''    static PyModuleDef sip_module_def = {{
+    sf.write(
+f'''    static PyModuleDef sip_module_def = {{
         PyModuleDef_HEAD_INIT,
         "{module.fq_py_name}",
         {docstring_ref},
@@ -1349,7 +1356,7 @@ def _module_definition(module, method_table='SIP_NULLPTR'):
         SIP_NULLPTR,
         SIP_NULLPTR
     }};
-'''
+''')
 
 
 def _subclass_convertors(sf, spec, module):
