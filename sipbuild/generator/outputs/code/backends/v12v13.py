@@ -23,8 +23,8 @@ from ...formatters import (fmt_argument_as_cpp_type, fmt_argument_as_name,
 
 from .abstract_backend import AbstractBackend
 from .snippets import (g_composite_module_code, g_internal_api_header,
-        g_module_docstring, g_module_init_start, pyqt5_supported,
-        pyqt6_supported)
+        g_module_docstring, g_module_init_start, g_used_includes,
+        pyqt5_supported, pyqt6_supported)
 
 
 class v12v13Backend(AbstractBackend):
@@ -349,7 +349,7 @@ def _module_code(sf, spec, bindings, project, py_debug, buildable):
 
     # Include the library headers for types used by virtual handlers, module
     # level functions, module level variables, exceptions and Qt meta types.
-    _used_includes(sf, module.used)
+    g_used_includes(sf, module.used)
 
     sf.write_code(module.unit_postinclude_code)
 
@@ -1893,7 +1893,7 @@ def _iface_file_cpp(spec, bindings, project, buildable, py_debug, iface_file,
     sf.write('\n')
 
     sf.write_code(iface_file.type_header_code)
-    _used_includes(sf, iface_file.used)
+    g_used_includes(sf, iface_file.used)
 
     if need_postinc:
         sf.write_code(iface_file.module.unit_postinclude_code)
@@ -4818,17 +4818,6 @@ def _tuple_builder(spec, signature):
                 args.append(_gto_name(arg.definition))
 
     return ', '.join(args)
-
-
-def _used_includes(sf, used):
-    """ Generate the library header #include directives required by either a
-    class or a module.
-    """
-
-    sf.write('\n')
-
-    for iface_file in used:
-        sf.write_code(iface_file.type_header_code)
 
 
 def _module_api(sf, spec, bindings):
