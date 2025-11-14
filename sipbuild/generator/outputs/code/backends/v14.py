@@ -32,8 +32,7 @@ class v14Backend(AbstractBackend):
     def g_composite_module_code(self, sf, py_debug):
         """ Generate the code for a composite module. """
 
-        g_composite_module_code(sf, self.spec, py_debug,
-                _module_definition(self.spec.module))
+        g_composite_module_code(sf, py_debug, self)
 
     def g_iface_file_code(self, sf, bindings, project, py_debug, buildable,
             iface_file, need_postinc):
@@ -55,6 +54,13 @@ class v14Backend(AbstractBackend):
         """ Generate the internal module API header file. """
 
         _internal_api_header(sf, self.spec, bindings, py_debug, closure)
+
+    # The remaining public methods are snippet helpers.
+
+    def g_module_definition(self, sf):
+        """ Generate the module definition structures. """
+
+        _module_definition(sf, self.spec.module)
 
 
 def _internal_api_header(sf, spec, bindings, py_debug, name_cache_list):
@@ -1048,8 +1054,8 @@ sip_qt_metacast_func sip_{module_name}_qt_metacast;
 ''')
 
     # TODO: Fix for v14.
-    #sf.write(_module_definition(sf, module, method_table='sip_methods'))
-    sf.write(_module_definition(sf, module))
+    #_module_definition(sf, module, method_table='sip_methods')
+    _module_definition(sf, module)
 
     sf.write('\n    PyObject *sipModule, *sipModuleDict;\n')
 
@@ -1333,13 +1339,14 @@ f'''    if ((sipAPI_{module_name} = sip_init_library(sipModuleDict)) == SIP_NULL
 
 
 def _module_definition(sf, module, has_module_functions=False):
-    """ Return a module's definition structure. """
+    """ Generate a module's definition structures. """
 
     # TODO This value should be taken from a new option of the %Module
     # directive and default to Py_MOD_MULTIPLE_INTERPRETERS_NOT_SUPPORTED.
     interp_support = 'Py_MOD_MULTIPLE_INTERPRETERS_NOT_SUPPORTED'
 
-    module_definition = f'''
+    sf.write(
+f'''
 
 /* The wrapped module's immutable slot definitions. */
 static PyModuleDef_Slot sip_wrapped_module_slots[] = {{
@@ -1363,18 +1370,16 @@ PyModuleDef sipWrappedModuleDef_{module.py_name} = {{
     .m_clear = wrapped_module_clear,
     .m_traverse = wrapped_module_traverse,
     .m_free = wrapped_module_free,
-'''
+''')
 
     if module.docstring is not None:
         # TODO The name should have a sip_ prefix.
-        module_definition += f'    .m_doc = doc_mod_{module.py_name},\n'
+        sf.write(f'    .m_doc = doc_mod_{module.py_name},\n')
 
     if has_module_functions:
-        module_definition += f'    .m_methods = sip_methods_{module.py_name},\n'
+        sf.write(f'    .m_methods = sip_methods_{module.py_name},\n')
 
     module_definition += '};\n'
-
-    return module_definition
 
 
 def _subclass_convertors(sf, spec, module):
