@@ -3,9 +3,10 @@
 # Copyright (c) 2025 Phil Thompson <phil@riverbankcomputing.com>
 
 
-def g_composite_module_code(sf, spec, py_debug, module_definition):
+def g_composite_module_code(sf, py_debug, backend):
     """ Generate the implementation of a composite module. """
 
+    spec = backend.spec
     module = spec.module
 
     g_declare_limited_api(sf, py_debug)
@@ -37,7 +38,7 @@ static void sip_import_component_module(PyObject *d, const char *name)
 
     g_module_docstring(sf, module)
     g_module_init_start(sf, spec)
-    sf.write(module_definition)
+    backend.g_module_definition(sf)
 
     sf.write(
 '''
