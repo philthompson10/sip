@@ -179,6 +179,17 @@ PyMODINIT_FUNC PyInit_{module_name}({arg_type})
 ''')
 
 
+def g_used_includes(sf, used):
+    """ Generate the library header #include directives required by either a
+    class or a module.
+    """
+
+    sf.write('\n')
+
+    for iface_file in used:
+        sf.write_code(iface_file.type_header_code)
+
+
 def pyqt5_supported(spec):
     """ Return True if the PyQt5 plugin was specified. """
 

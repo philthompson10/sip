@@ -76,7 +76,7 @@ class AbstractBackend(ABC):
 
         ...
 
-    def handle_module_closure(sf, closure):
+    def handle_module_closure(self, sf, closure):
         """ Handle the module closure (ie. that returned by g_module_code() and
         passed to g_module_header_file().
         """
