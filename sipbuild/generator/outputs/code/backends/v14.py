@@ -1048,7 +1048,8 @@ sip_qt_metacast_func sip_{module_name}_qt_metacast;
 ''')
 
     # TODO: Fix for v14.
-    sf.write(_module_definition(sf, module, method_table='sip_methods'))
+    #sf.write(_module_definition(sf, module, method_table='sip_methods'))
+    sf.write(_module_definition(sf, module))
 
     sf.write('\n    PyObject *sipModule, *sipModuleDict;\n')
 
@@ -1338,8 +1339,7 @@ def _module_definition(sf, module, has_module_functions=False):
     # directive and default to Py_MOD_MULTIPLE_INTERPRETERS_NOT_SUPPORTED.
     interp_support = 'Py_MOD_MULTIPLE_INTERPRETERS_NOT_SUPPORTED'
 
-    module_definition =
-f'''
+    module_definition = f'''
 
 /* The wrapped module's immutable slot definitions. */
 static PyModuleDef_Slot sip_wrapped_module_slots[] = {{
@@ -1363,7 +1363,7 @@ PyModuleDef sipWrappedModuleDef_{module.py_name} = {{
     .m_clear = wrapped_module_clear,
     .m_traverse = wrapped_module_traverse,
     .m_free = wrapped_module_free,
-''')
+'''
 
     if module.docstring is not None:
         # TODO The name should have a sip_ prefix.
@@ -1372,7 +1372,7 @@ PyModuleDef sipWrappedModuleDef_{module.py_name} = {{
     if has_module_functions:
         module_definition += f'    .m_methods = sip_methods_{module.py_name},\n'
 
-    module_definition += sf.write('};\n')
+    module_definition += '};\n'
 
     return module_definition
 
