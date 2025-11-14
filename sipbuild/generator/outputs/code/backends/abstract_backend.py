@@ -56,7 +56,33 @@ class AbstractBackend(ABC):
     # The remaining public methods are snippet helpers.
 
     @abstractmethod
+    def g_imported_module_api(self, sf, imported_module):
+        """ Generate the representation of an imported module's API. """
+
+        ...
+
+    @abstractmethod
+    def g_module_api(self, sf):
+        """ Generate the representation of the module's API. """
+
+        ...
+
+    @abstractmethod
     def g_module_definition(self, sf):
         """ Generate the module definition structures. """
 
         ...
+
+    @abstractmethod
+    def g_sip_api(self, sf):
+        """ Generate the macros for the SIP API. """
+
+        ...
+
+    def handle_module_closure(sf, closure):
+        """ Handle the module closure (ie. that returned by g_module_code() and
+        passed to g_module_header_file().
+        """
+
+        # This default implementation does nothing.
+        pass

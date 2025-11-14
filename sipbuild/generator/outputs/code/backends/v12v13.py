@@ -22,8 +22,9 @@ from ...formatters import (fmt_argument_as_cpp_type, fmt_argument_as_name,
         fmt_signature_as_type_hint, fmt_value_list_as_cpp_expression)
 
 from .abstract_backend import AbstractBackend
-from .snippets import (g_composite_module_code, g_declare_limited_api,
-        g_include_sip_h, g_module_docstring, g_module_init_start)
+from .snippets import (g_composite_module_code, g_internal_api_header,
+        g_module_docstring, g_module_init_start, pyqt5_supported,
+        pyqt6_supported)
 
 
 class v12v13Backend(AbstractBackend):
@@ -53,65 +54,45 @@ class v12v13Backend(AbstractBackend):
     def g_module_header_file(self, sf, bindings, py_debug, closure):
         """ Generate the internal module API header file. """
 
-        _internal_api_header(sf, self.spec, bindings, py_debug, closure)
+        g_internal_api_header(sf, bindings, py_debug, closure, self)
 
     # The remaining public methods are snippet helpers.
+
+    def g_imported_module_api(self, sf, imported_module):
+        """ Generate the representation of an imported module's API. """
+
+        _imported_module_api(sf, self.spec, imported_module)
+
+    def g_module_api(self, sf, bindings):
+        """ Generate the representation of the module's API. """
+
+        _module_api(sf, self.spec, bindings)
 
     def g_module_definition(self, sf):
         """ Generate the module definition structures. """
 
         _module_definition(sf, self.spec.module)
 
+    def g_sip_api(self, sf):
+        """ Generate the macros for the SIP API. """
 
-def _internal_api_header(sf, spec, bindings, py_debug, name_cache_list):
-    """ Generate the C++ internal module API header file and return its path
-    name.
-    """
+        _sip_api_macros(sf, self.spec)
 
-    module = spec.module
-    module_name = spec.module.py_name
+    def handle_module_closure(self, sf, closure):
+        """ Handle the module closure (ie. that returned by g_module_code() and
+        passed to g_module_header_file().
+        """
 
-    # The include files.
-    sf.write(
-f'''#ifndef _{module_name}API_H
-#define _{module_name}API_H
-''')
+        # Generate references to (potentially) shared strings.
+        module_name = self.spec.module.py_name
+        no_intro = True
 
-    g_declare_limited_api(sf, py_debug, module=module)
-    g_include_sip_h(sf, module)
+        for cached_name in closure:
+            if not cached_name.used:
+                continue
 
-    if _pyqt5(spec) or _pyqt6(spec):
-        sf.write(
-'''
-#include <QMetaType>
-#include <QThread>
-''')
-
-    # Define the qualifiers.
-    qualifier_defines = []
-
-    _append_qualifier_defines(module, bindings, qualifier_defines)
-
-    for imported_module in module.all_imports:
-        _append_qualifier_defines(imported_module, bindings, qualifier_defines)
-
-    if len(qualifier_defines) != 0:
-        sf.write('\n/* These are the qualifiers that are enabled. */\n')
-
-        for qualifier_define in qualifier_defines:
-            sf.write(qualifier_define + '\n')
-
-        sf.write('\n')
-
-    # Generate references to (potentially) shared strings.
-    no_intro = True
-
-    for cached_name in name_cache_list:
-        if not cached_name.used:
-            continue
-
-        if no_intro:
-            sf.write(
+            if no_intro:
+                sf.write(
 '''
 /*
  * Convenient names to refer to various strings defined in this module.
@@ -119,16 +100,26 @@ f'''#ifndef _{module_name}API_H
  */
 ''')
 
-            no_intro = False
+                no_intro = False
 
-        sf.write(
+            sf.write(
 f'''#define {_cached_name_ref(cached_name, as_nr=True)} {cached_name.offset}
 #define {_cached_name_ref(cached_name)} &sipStrings_{module_name}[{cached_name.offset}]
 ''')
 
+        sf.write(f'\nextern const char sipStrings_{module_name}[];\n')
+
+
+def _sip_api_macros(sf, spec):
+    """ Generate the macros for the SIP API. """
+
+    module_name = spec.module.py_name
+
     # These are common to all ABI versions.
     sf.write(
 f'''
+/* The SIP API. */
+
 #define sipMalloc                   sipAPI_{module_name}->api_malloc
 #define sipFree                     sipAPI_{module_name}->api_free
 #define sipBuildResult              sipAPI_{module_name}->api_build_result
@@ -344,63 +335,10 @@ f'''#define sipIsPyMethod               sipAPI_{module_name}->api_is_py_method_1
 f'''#define sipIsPyMethod               sipAPI_{module_name}->api_is_py_method
 ''')
 
-    # The name strings.
     sf.write(
 f'''
-/* The strings used by this module. */
-extern const char sipStrings_{module_name}[];
-''')
-
-    _module_api(sf, spec, bindings)
-
-    sf.write(
-f'''
-/* The SIP API, this module's API and the APIs of any imported modules. */
 extern const sipAPIDef *sipAPI_{module_name};
-extern sipExportedModuleDef sipModuleAPI_{module_name};
 ''')
-
-    if len(module.needed_types) != 0:
-        sf.write(f'extern sipTypeDef *sipExportedTypes_{module_name}[];\n')
-
-    for imported_module in module.all_imports:
-        imported_module_name = imported_module.py_name
-
-        _imported_module_api(sf, spec, imported_module)
-
-        if len(imported_module.needed_types) != 0:
-            sf.write(f'extern sipImportedTypeDef sipImportedTypes_{module_name}_{imported_module_name}[];\n')
-
-        if imported_module.nr_virtual_error_handlers != 0:
-            sf.write(f'extern sipImportedVirtErrorHandlerDef sipImportedVirtErrorHandlers_{module_name}_{imported_module_name}[];\n')
-
-        if imported_module.nr_exceptions != 0:
-            sf.write(f'extern sipImportedExceptionDef sipImportedExceptions_{module_name}_{imported_module_name}[];\n')
-
-    if _pyqt5(spec) or _pyqt6(spec):
-        sf.write(
-f'''
-typedef const QMetaObject *(*sip_qt_metaobject_func)(sipSimpleWrapper *, sipTypeDef *);
-extern sip_qt_metaobject_func sip_{module_name}_qt_metaobject;
-
-typedef int (*sip_qt_metacall_func)(sipSimpleWrapper *, sipTypeDef *, QMetaObject::Call, int, void **);
-extern sip_qt_metacall_func sip_{module_name}_qt_metacall;
-
-typedef bool (*sip_qt_metacast_func)(sipSimpleWrapper *, const sipTypeDef *, const char *, void **);
-extern sip_qt_metacast_func sip_{module_name}_qt_metacast;
-''')
-
-    # Handwritten code.
-    sf.write_code(spec.exported_header_code)
-    sf.write_code(module.module_header_code)
-
-    # Make sure any header code needed by the default exception is included.
-    if module.default_exception is not None:
-        sf.write_code(module.default_exception.iface_file.type_header_code)
-
-    # Note that we don't forward declare the virtual handlers.  This is because
-    # we would need to #include everything needed for their argument types.
-    sf.write('\n#endif\n')
 
 
 def _module_code(sf, spec, bindings, project, py_debug, buildable):
@@ -1027,7 +965,7 @@ f'''
 const sipAPIDef *sipAPI_{module_name};
 ''')
 
-    if _pyqt5(spec) or _pyqt6(spec):
+    if pyqt5_supported(spec) or pyqt6_supported(spec):
         sf.write(
 f'''
 sip_qt_metaobject_func sip_{module_name}_qt_metaobject;
@@ -1088,7 +1026,7 @@ f'''    /* Export the module and publish it's API. */
     }}
 ''')
 
-    if _pyqt5(spec) or _pyqt6(spec):
+    if pyqt5_supported(spec) or pyqt6_supported(spec):
         # Import the helpers.
         sf.write(
 f'''
@@ -1146,7 +1084,7 @@ f'''
 
     # Generate the enum and QFlag meta-type registrations for PyQt6.  (It may
     # be possible to create these dynamically on demand.)
-    if _pyqt6(spec):
+    if pyqt6_supported(spec):
         for enum in spec.enums:
             if enum.module is not module or enum.fq_cpp_name is None:
                 continue
@@ -2124,7 +2062,7 @@ f'''static PyObject *convertFrom_{mapped_type_name}(void *sipCppV, PyObject *{xf
     if cod_nrmethods > 0:
         needs_namespace = True
 
-    if _pyqt6(spec) and mapped_type.pyqt_flags != 0:
+    if pyqt6_supported(spec) and mapped_type.pyqt_flags != 0:
         sf.write(f'\n\nstatic pyqt6MappedTypePluginDef plugin_{mapped_type_name} = {{{mapped_type.pyqt_flags}}};\n')
 
         td_plugin_data = '&plugin_' + mapped_type_name
@@ -3298,7 +3236,7 @@ f'''    if (targetType == {sc_gto_name})
         public_dtor = klass.dtor is AccessSpecifier.PUBLIC
 
         if klass.can_create or public_dtor:
-            if (_pyqt5(spec) or _pyqt6(spec)) and klass.is_qobject and public_dtor:
+            if (pyqt5_supported(spec) or pyqt6_supported(spec)) and klass.is_qobject and public_dtor:
                 need_ptr = need_cast_ptr = True
             elif klass.has_shadow:
                 need_ptr = need_state = True
@@ -3332,7 +3270,7 @@ f'''    if (targetType == {sc_gto_name})
             if release_gil:
                 sf.write('    Py_BEGIN_ALLOW_THREADS\n\n')
 
-            if (_pyqt5(spec) or _pyqt6(spec)) and klass.is_qobject and public_dtor:
+            if (pyqt5_supported(spec) or pyqt6_supported(spec)) and klass.is_qobject and public_dtor:
                 # QObjects should only be deleted in the threads that they
                 # belong to.
                 sf.write(
@@ -3691,7 +3629,7 @@ def _shadow_code(sf, spec, bindings, klass):
         sf.write('    sipInstanceDestroyedEx(&sipPySelf);\n}\n')
 
     # The meta methods if required.
-    if (_pyqt5(spec) or _pyqt6(spec)) and klass.is_qobject:
+    if (pyqt5_supported(spec) or pyqt6_supported(spec)) and klass.is_qobject:
         module_name = spec.module.py_name
         gto_name = _gto_name(klass)
 
@@ -4937,11 +4875,21 @@ extern PyObject *sipExportedExceptions_{module_name}[];
         if virtual_error_handler.module is module:
             sf.write(f'\nvoid sipVEH_{module_name}_{virtual_error_handler.name}(sipSimpleWrapper *, sip_gilstate_t);\n')
 
+    sf.write(
+f'''
+/* This module's API. */
+extern sipExportedModuleDef sipModuleAPI_{module_name};
+''')
+
+    if len(module.needed_types) != 0:
+        sf.write(f'extern sipTypeDef *sipExportedTypes_{module_name}[];\n')
+
 
 def _imported_module_api(sf, spec, imported_module):
     """ Generate the API details for an imported module. """
 
     module_name = spec.module.py_name
+    imported_module_name = imported_module.py_name
 
     for klass in spec.classes:
         iface_file = klass.iface_file
@@ -4978,6 +4926,15 @@ def _imported_module_api(sf, spec, imported_module):
             sf.write(f'\n#define sipException_{iface_file.fq_cpp_name.as_word} sipImportedExceptions_{module_name}_{iface_file.module.py_name}[{exception.exception_nr}].iexc_object\n')
 
     _enum_macros(sf, spec, imported_module=imported_module)
+
+    if len(imported_module.needed_types) != 0:
+        sf.write(f'extern sipImportedTypeDef sipImportedTypes_{module_name}_{imported_module_name}[];\n')
+
+    if imported_module.nr_virtual_error_handlers != 0:
+        sf.write(f'extern sipImportedVirtErrorHandlerDef sipImportedVirtErrorHandlers_{module_name}_{imported_module_name}[];\n')
+
+    if imported_module.nr_exceptions != 0:
+        sf.write(f'extern sipImportedExceptionDef sipImportedExceptions_{module_name}_{imported_module_name}[];\n')
 
 
 def _mapped_type_api(sf, spec, mapped_type):
@@ -5097,7 +5054,7 @@ f'''    class sip{protected_klass_base_name} : public {protected_klass_base_name
         sf.write(f'    {virtual_s}~sip{klass_name}(){throw_specifier};\n')
 
     # The metacall methods if required.
-    if (_pyqt5(spec) or _pyqt6(spec)) and klass.is_qobject:
+    if (pyqt5_supported(spec) or pyqt6_supported(spec)) and klass.is_qobject:
         sf.write(
 '''
     int qt_metacall(QMetaObject::Call, int, void **) SIP_OVERRIDE;
@@ -5539,7 +5496,7 @@ static sipPySlotDef slots_{klass_name}[] = {{
     # Generate any plugin-specific data structures.
     plugin_ref = 'SIP_NULLPTR'
 
-    if _pyqt5(spec) or _pyqt6(spec):
+    if pyqt5_supported(spec) or pyqt6_supported(spec):
         if _pyqt_class_plugin(sf, spec, bindings, klass):
             plugin_ref = '&plugin_' + klass_name
 
@@ -8440,7 +8397,7 @@ def _plugin_signals_table(sf, spec, bindings, klass):
 
                 _pyqt_emitters(sf, spec, klass)
 
-                pyqt_version = '5' if _pyqt5(spec) else '6'
+                pyqt_version = '5' if pyqt5_supported(spec) else '6'
                 sf.write(
 f'''
 
@@ -8478,7 +8435,7 @@ def _pyqt_class_plugin(sf, spec, bindings, klass):
     is_signals = _plugin_signals_table(sf, spec, bindings, klass)
 
     # The PyQt6 support code doesn't assume the structure is generated.
-    if _pyqt6(spec):
+    if pyqt6_supported(spec):
         generated = is_signals
 
         if klass.is_qobject and not klass.pyqt_no_qmetaobject:
@@ -8492,13 +8449,13 @@ def _pyqt_class_plugin(sf, spec, bindings, klass):
 
     klass_name = klass.iface_file.fq_cpp_name.as_word
 
-    pyqt_version = '5' if _pyqt5(spec) else '6'
+    pyqt_version = '5' if pyqt5_supported(spec) else '6'
     sf.write(f'\n\nstatic pyqt{pyqt_version}ClassPluginDef plugin_{klass_name} = {{\n')
 
     mo_ref = f'&{_scoped_class_name(spec, klass)}::staticMetaObject' if klass.is_qobject and not klass.pyqt_no_qmetaobject else 'SIP_NULLPTR'
     sf.write(f'    {mo_ref},\n')
 
-    if _pyqt5(spec):
+    if pyqt5_supported(spec):
         sf.write(f'    {klass.pyqt_flags},\n')
 
     signals_ref = f'signals_{klass_name}' if is_signals else 'SIP_NULLPTR'
@@ -8616,52 +8573,6 @@ bool sipExceptionHandler_{spec.module.py_name}(std::exception_ptr sipExcPtr)
 ''')
  
  
-def _pyqt5(spec):
-    """ Return True if the PyQt5 plugin was specified. """
-
-    return 'PyQt5' in spec.plugins
-
-
-def _pyqt6(spec):
-    """ Return True if the PyQt6 plugin was specified. """
-
-    return 'PyQt6' in spec.plugins
-
-
-def _append_qualifier_defines(module, bindings, qualifier_defines):
-    """ Append the #defines for each feature defined in a module to a list of
-    them.
-    """
-
-    for qualifier in module.qualifiers:
-        qualifier_type_name = None
-
-        if qualifier.type is QualifierType.TIME:
-            if _qualifier_enabled(qualifier, bindings):
-                qualifier_type_name = 'TIMELINE'
-
-        elif qualifier.type is QualifierType.PLATFORM:
-            if _qualifier_enabled(qualifier, bindings):
-                qualifier_type_name = 'PLATFORM'
-
-        elif qualifier.type is QualifierType.FEATURE:
-            if qualifier.name not in bindings.disabled_features and qualifier.enabled_by_default:
-                qualifier_type_name = 'FEATURE'
-
-        if qualifier_type_name is not None:
-            qualifier_defines.append(f'#define SIP_{qualifier_type_name}_{qualifier.name}')
-
-
-def _qualifier_enabled(qualifier, bindings):
-    """ Return True if a qualifier is enabled. """
-
-    for tag in bindings.tags:
-        if qualifier.name == tag:
-            return qualifier.enabled_by_default
-
-    return False
-
-
 def _overload_auto_docstring(sf, spec, overload, is_method=True):
     """ Generate the docstring for a single API overload. """
 
