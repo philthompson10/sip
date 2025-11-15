@@ -9,12 +9,13 @@ import subprocess
 import sys
 
 from ..exceptions import UserException
-from ..py_versions import MINIMUM_SETUPTOOLS, OLDEST_SUPPORTED_MINOR
+from ..py_versions import (DEFAULT_ABI_MAJOR, MINIMUM_SETUPTOOLS,
+        OLDEST_SUPPORTED_MINOR)
 from ..sip_module_configuration import SipModuleConfiguration
 from ..version import SIP_VERSION, SIP_VERSION_STR
 
-from .abi_version import (get_latest_version, get_module_source_dir,
-        get_source_version_range, parse_abi_version)
+from .abi_version import (get_module_source_dir, get_source_version_range,
+        parse_abi_version)
 
 
 def module(sip_module, abi_version, sip_module_configuration, project, sdist,
@@ -25,7 +26,7 @@ def module(sip_module, abi_version, sip_module_configuration, project, sdist,
     if abi_version:
         major_version, minor_version = parse_abi_version(abi_version)
     else:
-        major_version = get_latest_version()
+        major_version = DEFAULT_ABI_MAJOR
         minor_version = None
 
     oldest_source, latest_source = get_source_version_range(major_version)
