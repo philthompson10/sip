@@ -3,7 +3,7 @@
 # Copyright (c) 2025 Phil Thompson <phil@riverbankcomputing.com>
 
 
-from ....specification import QualifierType
+from ....specification import ArgumentType, QualifierType, WrappedClass
 
 
 def g_composite_module_code(sf, py_debug, backend):
@@ -179,6 +179,44 @@ PyMODINIT_FUNC PyInit_{module_name}({arg_type})
 ''')
 
 
+def g_types_table(sf, module, needed_enums, table_prefix):
+    """ Generate the types table for a module. """
+
+    module_name = module.py_name
+
+    sf.write(
+f'''
+
+/*
+ * This defines each type in this module.
+ */
+{table_prefix}_{module_name}[] = {{
+''')
+
+    # TODO Does this exclude types defined in another module?
+    for needed_type in module.needed_types:
+        if needed_type.type is ArgumentType.CLASS:
+            klass = needed_type.definition
+
+            if klass.external:
+                sf.write('    0,\n')
+            elif not klass.is_hidden_namespace:
+                sf.write(f'    &sipTypeDef_{module_name}_{klass.iface_file.fq_cpp_name.as_word}.ctd_base,\n')
+
+        elif needed_type.type is ArgumentType.MAPPED:
+            mapped_type = needed_type.definition
+
+            sf.write(f'    &sipTypeDef_{module_name}_{mapped_type.iface_file.fq_cpp_name.as_word}.mtd_base,\n')
+
+        elif needed_type.type is ArgumentType.ENUM:
+            enum = needed_type.definition
+            enum_index = needed_enums.index(enum)
+
+            sf.write(f'    &enumTypes[{enum_index}].etd_base,\n')
+
+    sf.write('};\n')
+
+
 def g_used_includes(sf, used):
     """ Generate the library header #include directives required by either a
     class or a module.
@@ -188,6 +226,12 @@ def g_used_includes(sf, used):
 
     for iface_file in used:
         sf.write_code(iface_file.type_header_code)
+
+
+def py_scope(scope):
+    """ Return the Python scope by accounting for hidden C++ namespaces. """
+
+    return None if isinstance(scope, WrappedClass) and scope.is_hidden_namespace else scope
 
 
 def pyqt5_supported(spec):
@@ -200,6 +244,17 @@ def pyqt6_supported(spec):
     """ Return True if the PyQt6 plugin was specified. """
 
     return 'PyQt6' in spec.plugins
+
+
+def variables_in_scope(spec, scope, check_handler=True):
+    """ An iterator over the variables in a scope. """
+
+    for variable in spec.variables:
+        if py_scope(variable.scope) is scope and variable.module is spec.module:
+            if check_handler and variable.needs_handler:
+                continue
+
+            yield variable
 
 
 def _append_qualifier_defines(module, bindings, qualifier_defines):

@@ -23,8 +23,9 @@ from ...formatters import (fmt_argument_as_cpp_type, fmt_argument_as_name,
 
 from .abstract_backend import AbstractBackend
 from .snippets import (g_composite_module_code, g_internal_api_header,
-        g_module_docstring, g_module_init_start, g_used_includes,
-        pyqt5_supported, pyqt6_supported)
+        g_module_docstring, g_module_init_start, g_types_table,
+        g_used_includes, py_scope, pyqt5_supported, pyqt6_supported,
+        variables_in_scope)
 
 
 class v12v13Backend(AbstractBackend):
@@ -604,7 +605,7 @@ f'    {{{{-1, SIP_NULLPTR, SIP_NULLPTR, {sip_type}, sipNameNr_{cpp_name}, SIP_NU
 
     # Generate the types table.
     if len(module.needed_types) != 0:
-        _types_table(sf, module, needed_enums)
+        g_types_table(sf, module, needed_enums, 'sipTypeDef *sipExportedTypes')
 
     # Generate the typedefs table.
     if module.nr_typedefs > 0:
@@ -1182,43 +1183,6 @@ const char sipStrings_{spec.module.py_name}[] = {{
     sf.write('};\n')
 
 
-def _types_table(sf, module, needed_enums):
-    """ Generate the types table for a module. """
-
-    module_name = module.py_name
-
-    sf.write(
-f'''
-
-/*
- * This defines each type in this module.
- */
-sipTypeDef *sipExportedTypes_{module_name}[] = {{
-''')
-
-    for needed_type in module.needed_types:
-        if needed_type.type is ArgumentType.CLASS:
-            klass = needed_type.definition
-
-            if klass.external:
-                sf.write('    0,\n')
-            elif not klass.is_hidden_namespace:
-                sf.write(f'    &sipTypeDef_{module_name}_{klass.iface_file.fq_cpp_name.as_word}.ctd_base,\n')
-
-        elif needed_type.type is ArgumentType.MAPPED:
-            mapped_type = needed_type.definition
-
-            sf.write(f'    &sipTypeDef_{module_name}_{mapped_type.iface_file.fq_cpp_name.as_word}.mtd_base,\n')
-
-        elif needed_type.type is ArgumentType.ENUM:
-            enum = needed_type.definition
-            enum_index = needed_enums.index(enum)
-
-            sf.write(f'    &enumTypes[{enum_index}].etd_base,\n')
-
-    sf.write('};\n')
-
-
 def _sip_api(sf, spec):
     """ Generate the code to get the sip API. """
 
@@ -1384,7 +1348,7 @@ def _ordinary_function(sf, spec, bindings, member, scope=None):
         py_scope_prefix = ''
     else:
         overloads = scope.overloads
-        py_scope = _py_scope(scope)
+        py_scope = py_scope(scope)
         py_scope_prefix = '' if py_scope is None else py_scope.iface_file.fq_cpp_name.as_word + '_'
 
     sf.write('\n\n')
@@ -1476,7 +1440,7 @@ def _enum_member_table(sf, spec, scope=None):
         if enum.module is not spec.module:
             continue
 
-        enum_py_scope = _py_scope(enum.scope)
+        enum_py_scope = py_scope(enum.scope)
 
         if isinstance(scope, WrappedClass):
             # The scope is a class.
@@ -1500,7 +1464,7 @@ def _enum_member_table(sf, spec, scope=None):
     enum_members.sort(key=lambda v: v.scope.type_nr)
     enum_members.sort(key=lambda v: v.py_name.name)
 
-    if _py_scope(scope) is None:
+    if py_scope(scope) is None:
         sf.write(
 '''
 /* These are the enum members of all global enums. */
@@ -1525,7 +1489,7 @@ static sipEnumMemberDef enummembers_{scope.iface_file.fq_cpp_name.as_word}[] = {
 def _access_functions(sf, spec, scope=None):
     """ Generate the access functions for the variables. """
 
-    for variable in _variables_in_scope(spec, scope, check_handler=False):
+    for variable in variables_in_scope(spec, scope, check_handler=False):
         if variable.access_code is None:
             continue
 
@@ -1609,7 +1573,7 @@ def _types_inline(sf, spec):
 
             no_intro = False
 
-        if _py_scope(variable.scope) is None:
+        if py_scope(variable.scope) is None:
             dict_name = 'sipModuleDict'
         else:
             dict_name = f'(PyObject *)sipTypeAsPyTypeObject({_gto_name(variable.scope)})'
@@ -1632,7 +1596,7 @@ def _class_instances(sf, spec, scope=None):
 
     instances = []
 
-    for variable in _variables_in_scope(spec, scope):
+    for variable in variables_in_scope(spec, scope):
         if variable.type.type is not ArgumentType.CLASS and (variable.type.type is not ArgumentType.ENUM or variable.type.definition.fq_cpp_name is None):
             continue
 
@@ -1676,7 +1640,7 @@ def _void_pointer_instances(sf, spec, scope=None):
 
     instances = []
 
-    for variable in _variables_in_scope(spec, scope):
+    for variable in variables_in_scope(spec, scope):
         if variable.type.type not in (ArgumentType.VOID, ArgumentType.STRUCT, ArgumentType.UNION):
             continue
 
@@ -1697,7 +1661,7 @@ def _char_instances(sf, spec, scope=None):
 
     instances = []
 
-    for variable in _variables_in_scope(spec, scope):
+    for variable in variables_in_scope(spec, scope):
         if variable.type.type not in (ArgumentType.ASCII_STRING, ArgumentType.LATIN1_STRING, ArgumentType.UTF8_STRING, ArgumentType.SSTRING, ArgumentType.USTRING, ArgumentType.STRING) or len(variable.type.derefs) != 0:
             continue
 
@@ -1719,7 +1683,7 @@ def _string_instances(sf, spec, scope=None):
 
     instances = []
 
-    for variable in _variables_in_scope(spec, scope):
+    for variable in variables_in_scope(spec, scope):
         if (variable.type.type not in (ArgumentType.ASCII_STRING, ArgumentType.LATIN1_STRING, ArgumentType.UTF8_STRING, ArgumentType.SSTRING, ArgumentType.USTRING, ArgumentType.STRING) or len(variable.type.derefs) == 0) and variable.type.type is not ArgumentType.WSTRING:
             continue
 
@@ -1760,7 +1724,7 @@ def _int_instances(sf, spec, scope=None):
 
             enum = type.definition
 
-            if _py_scope(enum.scope) is not scope or enum.module is not spec.module:
+            if py_scope(enum.scope) is not scope or enum.module is not spec.module:
                 continue
 
             for enum_member in enum.members:
@@ -1769,7 +1733,7 @@ def _int_instances(sf, spec, scope=None):
                 instances.append((ii_name, ii_val))
 
     # Handle int variables.
-    for variable in _variables_in_scope(spec, scope):
+    for variable in variables_in_scope(spec, scope):
         if variable.type.type not in (ArgumentType.ENUM, ArgumentType.BYTE, ArgumentType.SBYTE, ArgumentType.UBYTE, ArgumentType.USHORT, ArgumentType.SHORT, ArgumentType.CINT, ArgumentType.INT, ArgumentType.BOOL, ArgumentType.CBOOL):
             continue
 
@@ -1784,7 +1748,7 @@ def _int_instances(sf, spec, scope=None):
     # Anonymous enum members are handled as int variables.
     if spec.target_abi >= (13, 0) or scope is None:
         for enum in spec.enums:
-            if _py_scope(enum.scope) is not scope or enum.module is not spec.module:
+            if py_scope(enum.scope) is not scope or enum.module is not spec.module:
                 continue
 
             if enum.fq_cpp_name is not None:
@@ -1842,7 +1806,7 @@ def _write_int_instances(sf, spec, scope, target_type, type_name):
 
     instances = []
 
-    for variable in _variables_in_scope(spec, scope):
+    for variable in variables_in_scope(spec, scope):
         variable_type = variable.type.type
 
         # We treat unsigned and size_t as unsigned long as we don't (currently
@@ -1873,7 +1837,7 @@ def _double_instances(sf, spec, scope=None):
 
     instances = []
 
-    for variable in _variables_in_scope(spec, scope):
+    for variable in variables_in_scope(spec, scope):
         if variable.type.type not in (ArgumentType.FLOAT, ArgumentType.CFLOAT, ArgumentType.DOUBLE, ArgumentType.CDOUBLE):
             continue
 
@@ -5535,7 +5499,7 @@ static sipPySlotDef slots_{klass_name}[] = {{
 
     if klass.real_class is not None:
         encoded_type = _encoded_type(module, klass.real_class)
-    elif _py_scope(klass.scope) is not None:
+    elif py_scope(klass.scope) is not None:
         encoded_type = _encoded_type(module, klass.scope)
     else:
         encoded_type = '{0, 0, 1}'
@@ -8767,27 +8731,10 @@ def _overload_cpp_name(overload):
     return overload.cpp_name if py_slot is None else _SLOT_NAME_MAP[py_slot]
 
 
-def _py_scope(scope):
-    """ Return the Python scope by accounting for hidden C++ namespaces. """
-
-    return None if isinstance(scope, WrappedClass) and scope.is_hidden_namespace else scope
-
-
 def _release_gil(gil_action, bindings):
     """ Return True if the GIL is to be released. """
 
     return bindings.release_gil if gil_action is GILAction.DEFAULT else gil_action is GILAction.RELEASE
-
-
-def _variables_in_scope(spec, scope, check_handler=True):
-    """ An iterator over the variables in a scope. """
-
-    for variable in spec.variables:
-        if _py_scope(variable.scope) is scope and variable.module is spec.module:
-            if check_handler and variable.needs_handler:
-                continue
-
-            yield variable
 
 
 def _write_instances_table(sf, scope, instances, declaration_template):
