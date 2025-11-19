@@ -12,6 +12,8 @@ from ...specification import IfaceFileType
 from ..formatters import fmt_copying
 
 from .backends import AbstractBackend
+from .snippets import (g_composite_module_code, g_iface_file_code,
+        g_module_code, g_module_header_file)
 
 
 def output_code(spec, bindings, project, buildable):
@@ -26,7 +28,7 @@ def output_code(spec, bindings, project, buildable):
                 'sip' + module.py_name + 'cmodule.c')
 
         with CompilationUnit(source_name, "Composite module code.", module, project, buildable, sip_api_file=False) as sf:
-            backend.g_composite_module_code(sf, py_debug)
+            g_composite_module_code(backend, sf, py_debug)
     else:
         _module_code(backend, bindings, project, py_debug, buildable)
 
@@ -84,7 +86,7 @@ def _module_code(backend, bindings, project, py_debug, buildable):
     sf = CompilationUnit(source_name, "Module code.", module, project,
             buildable)
 
-    closure = backend.g_module_code(sf, bindings, project, py_debug, buildable)
+    closure = g_module_code(backend, sf, bindings, project, py_debug, buildable)
 
     # Generate the interface source files.
     for iface_file in spec.iface_files:
@@ -136,15 +138,15 @@ def _module_code(backend, bindings, project, py_debug, buildable):
 
                     need_postinc = True
 
-                backend.g_iface_file_code(sf, bindings, project, py_debug,
-                        buildable, iface_file, need_postinc)
+                g_iface_file_code(backend, sf, bindings, project, buildable,
+                        py_debug, iface_file, need_postinc)
 
     sf.close()
 
     header_name = os.path.join(buildable.build_dir, f'sipAPI{module_name}.h')
 
     with SourceFile(header_name, "Internal module API header file.", module, project, buildable.headers) as sf:
-        backend.g_module_header_file(sf, bindings, py_debug, closure)
+        g_module_header_file(backend, sf, bindings, py_debug, closure)
 
 
 class SourceFile:
