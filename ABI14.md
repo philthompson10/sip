@@ -99,11 +99,6 @@ These are the remaining broad areas of work.
 - Use a managed dict.
 - Consider using `PyObject_GetTypeData()` and a negative `basicsize` within the
   `sip` module to faciliate using the limited API for the `sip` module.
-- Refactor the code generation.  There will be a outer framework managing the
-  creation of generated files which calls a backend.  A backend will present a
-  much more abstract API than they do now.  Code common to multiple backends
-  (possibly configured by passing the target ABI version, or specific flags)
-  will be contained in a package of snippets.
 - Mapped types.
 - Python enums.
 - Custom enums.
