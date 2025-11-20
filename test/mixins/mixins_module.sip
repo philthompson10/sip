@@ -48,7 +48,7 @@ public:
 
     if (sipUnused == NULL)
     {
-        dict = Py_NewRef(sipKwds);
+        dict = sipKwds;
     }
     else
     {
@@ -63,10 +63,7 @@ public:
     int rc = PyDict_PopString(dict, "extra_kwarg", &value);
 
     if (rc < 0)
-    {
-        Py_DECREF(dict);
         return -1;
-    }
 
     if (rc == 1)
     {
@@ -74,7 +71,6 @@ public:
         Py_DECREF(value);
     }
 
-    Py_DECREF(dict);
     return rc;
 %End
 
