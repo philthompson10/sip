@@ -67,8 +67,6 @@ modified.
 
 `sipBuildResult()` `b` format character takes a `_Bool` argument.
 
-`_Bool` is now a synonym of `bool` in `.sip` specification files.
-
 `sipFindType()` has been replaced with `sipFindTypeID()`.
 
 The signatures of the following public API calls have changed:
