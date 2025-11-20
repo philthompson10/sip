@@ -64,6 +64,14 @@ class AbstractBackend(ABC):
 
         ...
 
+    def g_mapped_type_int_instances(self, sf, mapped_type):
+        """ Generate the code to add a set of ints to a mapped type.  Return
+        True if there was at least one.
+        """
+
+        # This default implementation does nothing.
+        return False
+
     def g_method_support_vars(self, sf):
         """ Generate the variables needed by a method. """
 

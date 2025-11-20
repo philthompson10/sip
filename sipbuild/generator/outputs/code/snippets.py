@@ -2920,7 +2920,7 @@ f'''static PyObject *convertFrom_{mapped_type_name}(void *sipCppV, PyObject *{xf
         has_ints = False
         needs_namespace = (cod_nrenummembers > 0)
     else:
-        if _int_instances(backend, sf, scope=mapped_type):
+        if backend.g_mapped_type_int_instances(sf, mapped_type):
             id_int = 'intInstances_' + mapped_type_name
 
         needs_namespace = False

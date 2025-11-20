@@ -14,12 +14,12 @@ from ..snippets import (g_class_docstring, g_class_method_table,
         g_module_init_start, g_pyqt_class_plugin, g_pyqt_helper_defns,
         g_pyqt_helper_init)
 from ..utils import (get_class_flags, get_const_cast, get_docstring_text,
-        get_encoded_type, get_named_value_decl, get_normalised_cached_name,
-        get_optional_ptr, get_use_in_code, get_user_state_suffix,
-        get_void_ptr_cast, has_method_docstring, is_used_in_code,
-        keep_py_reference, need_dealloc, py_scope, pyqt5_supported,
-        pyqt6_supported, scoped_class_name, scoped_variable_name,
-        type_needs_user_state, variables_in_scope)
+        get_encoded_type, get_enum_member, get_named_value_decl,
+        get_normalised_cached_name, get_optional_ptr, get_use_in_code,
+        get_user_state_suffix, get_void_ptr_cast, has_method_docstring,
+        is_used_in_code, keep_py_reference, need_dealloc, py_scope,
+        pyqt5_supported, pyqt6_supported, scoped_class_name,
+        scoped_variable_name, type_needs_user_state, variables_in_scope)
 
 from .abstract_backend import AbstractBackend
 
@@ -218,6 +218,13 @@ extern sipMappedTypeDef sipTypeDef_{module_name}_{mapped_type_name};
 ''')
 
         self.g_enum_macros(sf, scope=mapped_type)
+
+    def g_mapped_type_int_instances(self, sf, mapped_type):
+        """ Generate the code to add a set of ints to a mapped type.  Return
+        True if there was at least one.
+        """
+
+        return self._g_instances_int(sf, mapped_type)
 
     def g_module_definition(self, sf, has_module_functions=False):
         """ Generate the module definition structure. """
@@ -1127,7 +1134,7 @@ static sipDoubleInstanceDef doubleInstances{suffix}[]''')
 
                 for enum_member in enum.members:
                     ii_name = self.cached_name_ref(enum_member.py_name)
-                    ii_val = self.get_enum_member(enum_member)
+                    ii_val = get_enum_member(spec, enum_member)
                     instances.append((ii_name, ii_val))
 
         # Handle int variables.
@@ -1154,7 +1161,7 @@ static sipDoubleInstanceDef doubleInstances{suffix}[]''')
 
                 for enum_member in enum.members:
                     ii_name = self.cached_name_ref(enum_member.py_name)
-                    ii_val = _enum_member(self, enum_member)
+                    ii_val = get_enum_member(spec, enum_member)
                     instances.append((ii_name, ii_val))
 
         return _write_instances_table(sf, scope, instances,
