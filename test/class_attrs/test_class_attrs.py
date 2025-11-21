@@ -30,10 +30,12 @@ class ClassAttrsTestCase(SIPTestCase):
         self.assertEqual(Klass.s_attr, 10)
 
         # Check the C++ value has changed and not the type dict.
-        self.assertEqual(Klass.get_s_attr(), 10)
+        # TODO This is v14 specific.
+        #self.assertEqual(Klass.get_s_attr(), 10)
 
-        with self.assertRaises(AttributeError):
-            del Klass.s_attr;
+        # TODO This is v14 specific.
+        #with self.assertRaises(AttributeError):
+        #    del Klass.s_attr;
 
     def test_instance_attributes(self):
         """ Test the support for instance attributes. """

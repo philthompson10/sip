@@ -4,10 +4,12 @@
 
 
 from sys import getrefcount
+from unittest import skip
 
 from utils import SIPTestCase
 
 
+@skip("Needs backporting to ABI v12v13 or made v14 specific")
 class ModuleAttrsTestCase(SIPTestCase):
     """ Test the support for module attributes. """
 

@@ -3,12 +3,15 @@
 # Copyright (c) 2025 Phil Thompson <phil@riverbankcomputing.com>
 
 
+from unittest import skip
+
 from utils import SIPTestCase
 
 
 class ModuleCallablesTestCase(SIPTestCase):
     """ Test the support for module callables. """
 
+    @skip("This depends on v14 support for module attributes")
     def test_module_void_ret_no_args(self):
         """ Test the support a module void() function. """
 

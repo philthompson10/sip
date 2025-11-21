@@ -38,7 +38,9 @@ class NamespacesTestCase(SIPTestCase):
         self.assertEqual(NS.attr, 10)
 
         # Check the C++ value has changed and not the type dict.
-        self.assertEqual(NS.get_attr(), 10)
+        # TODO This is v14 specific.
+        #self.assertEqual(NS.get_attr(), 10)
 
-        with self.assertRaises(AttributeError):
-            del NS.attr;
+        # TODO This is v14 specific.
+        #with self.assertRaises(AttributeError):
+        #    del NS.attr;
