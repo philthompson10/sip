@@ -95,6 +95,14 @@ class SIPTestCase(SIPBaseTestCase):
         if cls.namespace is not None:
             sip_module_name = f'{cls.namespace}.{sip_module_name}'
 
+        # TODO Take the ABI major version into account.
+        sdist_glob = os.path.join(root_dir,
+                sip_module_name.replace('.', '_') + '-*.tar.gz')
+
+        # Remove any existing sdists.
+        for old in glob.glob(sdist_glob):
+            os.remove(old)
+
         # Create the sdist.
         args = [sys.executable, '-m', 'sipbuild.tools.module', '--sdist',
             '--target-dir', root_dir
@@ -114,9 +122,7 @@ class SIPTestCase(SIPBaseTestCase):
         subprocess.run(args).check_returncode()
 
         # Find the sdist and unpack it.
-        sdists = glob.glob(
-                os.path.join(root_dir,
-                        sip_module_name.replace('.', '_') + '-*.tar.gz'))
+        sdists = glob.glob(sdist_glob)
 
         if len(sdists) != 1:
             raise Exception(
