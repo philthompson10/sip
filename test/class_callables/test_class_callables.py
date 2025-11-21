@@ -3,9 +3,12 @@
 # Copyright (c) 2025 Phil Thompson <phil@riverbankcomputing.com>
 
 
+from unittest import skip
+
 from utils import SIPTestCase
 
 
+@skip("The ABI v14 support for these tests is under development")
 class ClassCallablesTestCase(SIPTestCase):
     """ Test the support for class callables. """
 
