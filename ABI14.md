@@ -32,10 +32,22 @@ to the `staging` branch.  These are then squash-merged into the `develop`
 branch.  The `working` and `staging` branches can then be deleted.
 
 
+## API Changes
+
+This section describes API changes when ABI v14 is used.  These will be
+reflected in the documentation (and in any bindings-specific documentation).
+
+The behaviour when setting the value of static attributes (of either modules or
+classes) has changed.  With ABI v14 the value of the underlying C/C++ is
+changed accordingly.  With older ABIs the Python attribute would be changed
+(possibly to a different type entirely) but the underlying value would not
+change.
+
+
 ## ABI Changes
 
-This is an ad-hoc list of changes when ABI v14 is used.  Eventually these
-should drive changes to the documentation.
+This is an ad-hoc list of changes when ABI v14 is used.  These will be
+reflected in the documentation.
 
 Python v3.15 or later will be required.
 
