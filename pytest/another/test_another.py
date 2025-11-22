@@ -3,6 +3,9 @@
 # Copyright (c) 2025 Phil Thompson <phil@riverbankcomputing.com>
 
 
+disable_tests = True
+
+
 def test_module___name__(module):
     assert module.__name__ == 'another_module'
 

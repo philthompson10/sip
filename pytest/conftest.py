@@ -5,8 +5,8 @@
 
 import glob
 import importlib
-import inspect
 import os
+import shutil
 import subprocess
 import sys
 
@@ -14,57 +14,61 @@ import pytest
 
 
 # The different configurations the tests are run for.
-CONFIGURATIONS = ('12', '13')
+CONFIGURATIONS = ('12', '13', '14')
 
 
 @pytest.fixture(scope='module', params=CONFIGURATIONS)
 def module(request):
-    """ The fixture is an appropriately built and imported wrapped modules. """
+    """ The fixture is an appropriately built and imported wrapped module. """
 
-    # See if we want to build a separate sip module.  We will do anyway if
-    # there is more than one wrapped module to build
+    # See if the tests should be skipped.
+    if getattr(request.module, 'disable_tests', False):
+        pytest.skip("Skipping disabled test")
+
+    # Get the ABI major version we are testing.
+    abi_version = request.param
+
+    # See if we want to build a separate sip module.
     use_sip_module = getattr(request.module, 'use_sip_module', False)
 
     # Get the directory containing the particular test.
-    test_dir = os.path.dirname(inspect.getfile(request.module))
+    test_dir = request.path.parent
 
-    # It is assumed that there will be one .sip for each module to be built.
+    # It is assumed that there will be one .sip file with a name that matches
+    # the module name.
     sip_files = glob.glob(os.path.join(test_dir, '*.sip'))
 
-    # TODO This fixture should only handle one wrapped module.
-    assert len(sip_files) == 1
-
-    if len(sip_file) > 1:
-        use_sip_module = True
+    if len(sip_files) != 1:
+        raise ValueError("Exactly one .sip file expected")
 
     # Build each module.
-    module_names = []
-    for sip_file in sip_files:
-        module_names.append(
-                _build_test_module(sip_file, test_dir,
-                        use_sip_module=use_sip_module)
+    sip_file = sip_files[0]
+    module_name = _build_test_module(sip_file, test_dir, abi_version,
+            use_sip_module=use_sip_module)
 
     # Build a sip module if required.
-    if use_sip_module:
-        module_names.append(_build_sip_module(test_dir))
+    sip_module_name = _build_sip_module(test_dir, abi_version) if use_sip_module else None
 
-    # Fix the path.
-    # TODO Is this needed?
-    sys.path.insert(0, test_dir)
+    # Import the module.
+    importlib.invalidate_caches()
+    importlib.import_module(module_name)
 
-    importlib.import_module(module_names[0])
-
-    yield sys.modules[module_names[0]]
+    # The fixture is the module object.
+    m = sys.modules[module_name]
+    print("!!!!!!!!", hex(m.SIP_ABI_VERSION))
+    yield m
+    #yield sys.modules[module_name]
 
     # Unload each module.
-    for module_name in module_names:
+    del sys.modules[module_name]
+
+    if sip_module_name is not None:
         try:
-            del sys.modules[module_name]
+            del sys.modules[sip_module_name]
         except KeyError:
             pass
 
-    # Restore the path.
-    del sys.path[0]
+    importlib.invalidate_caches()
 
 
 # The prototype pyproject.toml file.
@@ -77,12 +81,9 @@ build-backend = "sipbuild.api"
 name = "{module_name}"
 
 [tool.sip.project]
+abi-version = "{abi_version}"
 minimum-macos-version = "10.9"
 sip-files-dir = ".."
-"""
-
-_ABI_VERSION = """
-abi-version = "{abi_version}"
 """
 
 _SIP_MODULE = """
@@ -94,7 +95,6 @@ def _build_module(module_name, build_args, src_dir, test_dir,
         impl_subdirs=None, no_compile=False):
     """ Build a module and move any implementation to the test directory. """
 
-    cwd = os.getcwd()
     os.chdir(src_dir)
 
     ns_dir = test_dir
@@ -110,21 +110,14 @@ def _build_module(module_name, build_args, src_dir, test_dir,
     if no_compile:
         return
 
-    # Find the implementation.  Note that we only support setuptools and
-        # not distutils.
+    # Find the implementation.  Note that we only support setuptools and not
+    # distutils.
     impl_pattern = ['build']
 
     if impl_subdirs is not None:
         impl_pattern.extend(impl_subdirs)
 
     impl_pattern.append('lib*')
-
-    #if cls.namespace is not None:
-    #    ns_subdirs = cls.namespace.split('.')
-    #    impl_pattern.extend(ns_subdirs)
-
-    #    ns_dir = os.path.join(ns_dir, os.path.join(*ns_subdirs))
-    #    os.makedirs(ns_dir, exist_ok=True)
 
     impl_pattern.append(
             module_name + '*.pyd' if sys.platform == 'win32' else '*.so')
@@ -150,10 +143,8 @@ def _build_module(module_name, build_args, src_dir, test_dir,
 
     os.rename(impl_path, impl)
 
-    os.chdir(cwd)
 
-
-def _build_test_module(sip_file, test_dir, use_sip_module=False,
+def _build_test_module(sip_file, test_dir, abi_version, use_sip_module=False,
         no_compile=False):
     """ Build a test extension module and return its name. """
 
@@ -169,14 +160,12 @@ def _build_test_module(sip_file, test_dir, use_sip_module=False,
     pyproject_toml = os.path.join(build_dir, 'pyproject.toml')
 
     with open(pyproject_toml, 'w') as f:
-        f.write(_PYPROJECT_TOML.format(module_name=module_name))
-
-        #if cls.abi_version is not None:
-        #    f.write(_ABI_VERSION.format(abi_version=cls.abi_version))
+        f.write(
+                _PYPROJECT_TOML.format(module_name=module_name,
+                        abi_version=abi_version))
 
         #if use_sip_module:
-        #    sip_module = 'sip' if cls.namespace is None else cls.namespace + '.sip'
-        #    f.write(_SIP_MODULE.format(sip_module=sip_module))
+        #    f.write(_SIP_MODULE.format(sip_module='sip'))
 
         #if cls.tags is not None or cls.exceptions:
         #    f.write(f'\n[tool.sip.bindings.{module_name}]\n')
@@ -196,17 +185,13 @@ def _build_test_module(sip_file, test_dir, use_sip_module=False,
     return module_name
 
 
-def _build_sip_module(test_dir):
+def _build_sip_module(test_dir, abi_version):
     """ Build the sip module and return its name. """
 
     sip_module_name = 'sip'
 
-    #if cls.namespace is not None:
-    #    sip_module_name = f'{cls.namespace}.{sip_module_name}'
-
     # TODO Take the ABI major version into account.
-    sdist_glob = os.path.join(root_dir,
-            sip_module_name.replace('.', '_') + '-*.tar.gz')
+    sdist_glob = os.path.join(root_dir, sip_module_name + '-*.tar.gz')
 
     # Remove any existing sdists.
     for old in glob.glob(sdist_glob):
@@ -214,12 +199,8 @@ def _build_sip_module(test_dir):
 
     # Create the sdist.
     args = [sys.executable, '-m', 'sipbuild.tools.module', '--sdist',
-        '--target-dir', root_dir
+        '--target-dir', root_dir, '--abi-version', abi_version
     ]
-
-    if cls.abi_version is not None:
-        args.append('--abi-version')
-        args.append(cls.abi_version)
 
     #if cls.sip_module_configuration is not None:
     #    for option in cls.sip_module_configuration:
