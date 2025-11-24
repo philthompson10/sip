@@ -34,19 +34,26 @@ def module(request):
     # Get the ABI version.
     abi_version = request.config.getoption('sip_abi_version')
 
-    # Get the ABI versions for which the tests are enabled.  If the value is
-    # omitted or True then the tests are enabled.  If the value is None, False
-    # or an empty sequence then the tests are disabled.  Otherwise the value
-    # is a list of ABI versions for which the tests are enabled.
-    enabled_for = getattr(request.module, 'cfg_enabled_for', True)
+    # Determine if the tests should be skipped depending on the ABI version.
+    if hasattr(request.module, 'cfg_enabled_for'):
+        # If the value is a non-empty sequence then it defines those ABIs for
+        # which the tests are enabled.
+        enabled_for = getattr(request.module, 'cfg_enabled_for')
 
-    if enabled_for is True:
-        pass
-    elif enabled_for:
-        if abi_version not in enabled_for:
-            pytest.skip(f"Skipping test for ABI v{abi_version}")
-    else:
-        pytest.skip("Skipping disabled test")
+        if enabled_for:
+            if abi_version not in enabled_for:
+                pytest.skip(f"Skipping non-enabled test for ABI v{abi_version}")
+        else:
+            pytest.skip("Skipping disabled test")
+
+    elif hasattr(request.module, 'cfg_disabled_for'):
+        # If the value is a non-empty sequence then it defines those ABIs for
+        # which the tests are disabled.
+        disabled_for = getattr(request.module, 'cfg_disabled_for')
+
+        if disabled_for:
+            if abi_version in disabled_for:
+                pytest.skip(f"Skipping disabled test for ABI v{abi_version}")
 
     # See if we want to build a separate sip module.
     use_separate_sip_module = getattr(request.module,
