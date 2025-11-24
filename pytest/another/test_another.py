@@ -3,7 +3,7 @@
 # Copyright (c) 2025 Phil Thompson <phil@riverbankcomputing.com>
 
 
-disable_tests = True
+cfg_enabled_for = None
 
 
 def test_module___name__(module):

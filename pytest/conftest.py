@@ -13,33 +13,54 @@ import sys
 import pytest
 
 
-# The different sip module configurations.
-CONFIGURATIONS = ('v12', 'v13')
+# The different ABI versions.
+ABI_VERSIONS = ('12', '13')
 
 
 def pytest_addoption(parser):
-    """ Add the required command line option to specify the configuration of
-    the sip module to test.
+    """ Add the required command line option to specify the ABI version to
+    test.
     """
 
-    parser.addoption("--sip-configuration",
-            help="Specify the sip module ABI/configuration",
-            choices=CONFIGURATIONS, required=True)
+    parser.addoption("--sip-abi-version",
+            help="Specify the sip module ABI version",
+            choices=ABI_VERSIONS, required=True)
 
 
 @pytest.fixture(scope='module')
 def module(request):
     """ The fixture is an appropriately built and imported wrapped module. """
 
-    # Get the sip module configuration.
-    abi_version = _parse_sip_configuration(request)
+    # Get the ABI version.
+    abi_version = request.config.getoption('sip_abi_version')
 
-    # See if the tests should be skipped.
-    if getattr(request.module, 'disable_tests', False):
+    # Get the ABI versions for which the tests are enabled.  If the value is
+    # omitted or True then the tests are enabled.  If the value is None, False
+    # or an empty sequence then the tests are disabled.  Otherwise the value
+    # is a list of ABI versions for which the tests are enabled.
+    enabled_for = getattr(request.module, 'cfg_enabled_for', True)
+
+    if enabled_for is True:
+        pass
+    elif enabled_for:
+        if abi_version not in enabled_for:
+            pytest.skip(f"Skipping test for ABI v{abi_version}")
+    else:
         pytest.skip("Skipping disabled test")
 
     # See if we want to build a separate sip module.
-    use_sip_module = getattr(request.module, 'use_sip_module', False)
+    use_separate_sip_module = getattr(request.module,
+            'cfg_use_separate_sip_module', False)
+
+    # The optional configuration of a separate sip module.
+    sip_module_configuration = getattr(request.module,
+            'cfg_sip_module_configuration', None)
+
+    # See if exception support should be enabled.
+    exceptions = getattr(request.module, 'cfg_exceptions', False)
+
+    # Get the optional list of tags to be used to configure the test module.
+    tags = getattr(request.module, 'cfg_tags', None)
 
     # Get the directory containing the particular test.
     test_dir = request.path.parent
@@ -54,20 +75,16 @@ def module(request):
     # Build each module.
     sip_file = sip_files[0]
     module_name = _build_test_module(sip_file, test_dir, abi_version,
-            use_sip_module=use_sip_module)
+            exceptions, tags, use_separate_sip_module=use_separate_sip_module)
 
     # Build a sip module if required.
-    sip_module_name = _build_sip_module(test_dir, abi_version) if use_sip_module else None
+    sip_module_name = _build_sip_module(test_dir, abi_version, sip_module_configuration) if use_separate_sip_module else None
 
     # Import the module.
-    importlib.invalidate_caches()
     importlib.import_module(module_name)
 
     # The fixture is the module object.
-    m = sys.modules[module_name]
-    print("!!!!!!!!", hex(m.SIP_ABI_VERSION))
-    yield m
-    #yield sys.modules[module_name]
+    yield sys.modules[module_name]
 
     # Unload each module.
     del sys.modules[module_name]
@@ -77,8 +94,6 @@ def module(request):
             del sys.modules[sip_module_name]
         except KeyError:
             pass
-
-    importlib.invalidate_caches()
 
 
 # The prototype pyproject.toml file.
@@ -154,8 +169,8 @@ def _build_module(module_name, build_args, src_dir, test_dir,
     os.rename(impl_path, impl)
 
 
-def _build_test_module(sip_file, test_dir, abi_version, use_sip_module=False,
-        no_compile=False):
+def _build_test_module(sip_file, test_dir, abi_version, exceptions, tags,
+        use_separate_sip_module=False, no_compile=False):
     """ Build a test extension module and return its name. """
 
     build_dir = sip_file[:-4]
@@ -174,18 +189,18 @@ def _build_test_module(sip_file, test_dir, abi_version, use_sip_module=False,
                 _PYPROJECT_TOML.format(module_name=module_name,
                         abi_version=abi_version))
 
-        #if use_sip_module:
-        #    f.write(_SIP_MODULE.format(sip_module='sip'))
+        if use_separate_sip_module:
+            f.write(_SIP_MODULE.format(sip_module='sip'))
 
-        #if cls.tags is not None or cls.exceptions:
-        #    f.write(f'\n[tool.sip.bindings.{module_name}]\n')
+        if exceptions or tags is not None:
+            f.write(f'\n[tool.sip.bindings.{module_name}]\n')
 
-        #    if cls.tags is not None:
-        #        tags_s = ', '.join([f'"{t}"' for t in cls.tags])
-        #        f.write(f'tags = [{tags_s}]\n')
+            if exceptions:
+                f.write('exceptions = true\n')
 
-        #    if cls.exceptions:
-        #        f.write('exceptions = true\n')
+            if tags is not None:
+                tags_s = ', '.join([f'"{t}"' for t in tags])
+                f.write(f'tags = [{tags_s}]\n')
 
     # Build and move the test module.
     _build_module(module_name, ['-m', 'sipbuild.tools.build', '--verbose'],
@@ -195,12 +210,11 @@ def _build_test_module(sip_file, test_dir, abi_version, use_sip_module=False,
     return module_name
 
 
-def _build_sip_module(test_dir, abi_version):
+def _build_sip_module(test_dir, abi_version, sip_module_configuration):
     """ Build the sip module and return its name. """
 
     sip_module_name = 'sip'
 
-    # TODO Take the ABI major version into account.
     sdist_glob = os.path.join(root_dir, sip_module_name + '-*.tar.gz')
 
     # Remove any existing sdists.
@@ -212,10 +226,10 @@ def _build_sip_module(test_dir, abi_version):
         '--target-dir', root_dir, '--abi-version', abi_version
     ]
 
-    #if cls.sip_module_configuration is not None:
-    #    for option in cls.sip_module_configuration:
-    #        args.append('--option')
-    #        args.append(option)
+    if sip_module_configuration is not None:
+        for option in sip_module_configuration:
+            args.append('--option')
+            args.append(option)
 
     args.append(sip_module_name)
 
@@ -239,14 +253,3 @@ def _build_sip_module(test_dir, abi_version):
     _build_module(sip_module_name, ['setup.py', 'build'], src_dir, test_dir)
 
     return sip_module_name
-
-
-def _parse_sip_configuration(request):
-    """ Return the ABI version of the sip module to test from the command line.
-    """
-
-    config = request.config.getoption('sip_configuration')
-
-    # Remove the leading 'v'.  Future versions will support more specific
-    # configurations.
-    return config[1:]
