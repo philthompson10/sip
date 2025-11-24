@@ -13,20 +13,30 @@ import sys
 import pytest
 
 
-# The different configurations the tests are run for.
-CONFIGURATIONS = ('12', '13', '14')
+# The different sip module configurations.
+CONFIGURATIONS = ('v12', 'v13')
 
 
-@pytest.fixture(scope='module', params=CONFIGURATIONS)
+def pytest_addoption(parser):
+    """ Add the required command line option to specify the configuration of
+    the sip module to test.
+    """
+
+    parser.addoption("--sip-configuration",
+            help="Specify the sip module ABI/configuration",
+            choices=CONFIGURATIONS, required=True)
+
+
+@pytest.fixture(scope='module')
 def module(request):
     """ The fixture is an appropriately built and imported wrapped module. """
+
+    # Get the sip module configuration.
+    abi_version = _parse_sip_configuration(request)
 
     # See if the tests should be skipped.
     if getattr(request.module, 'disable_tests', False):
         pytest.skip("Skipping disabled test")
-
-    # Get the ABI major version we are testing.
-    abi_version = request.param
 
     # See if we want to build a separate sip module.
     use_sip_module = getattr(request.module, 'use_sip_module', False)
@@ -229,3 +239,14 @@ def _build_sip_module(test_dir, abi_version):
     _build_module(sip_module_name, ['setup.py', 'build'], src_dir, test_dir)
 
     return sip_module_name
+
+
+def _parse_sip_configuration(request):
+    """ Return the ABI version of the sip module to test from the command line.
+    """
+
+    config = request.config.getoption('sip_configuration')
+
+    # Remove the leading 'v'.  Future versions will support more specific
+    # configurations.
+    return config[1:]
