@@ -44,7 +44,7 @@ def module(sip_module, abi_version, sip_module_configuration, project, sdist,
 
     # Create the patches.
     patches = _create_patches(sip_module, sip_module_configuration,
-            module_source_dir, sip_is_embedded=False, project=project)
+            module_source_dir, sip_module_shared=True, project=project)
 
     # The names of generated files.
     sdist_dir = project + '-' + patches['@SIP_MODULE_VERSION@']
@@ -67,13 +67,13 @@ def module(sip_module, abi_version, sip_module_configuration, project, sdist,
         _create_sip_file(sip_rst_fn, module_source_dir, patches)
 
 
-def copy_sip_h(abi_version, sip_module_configuration, target_dir,
-        sip_module, *, sip_is_embedded, version_info=True):
+def copy_sip_h(abi_version, sip_module, sip_module_configuration, target_dir,
+        *, sip_module_shared=True, version_info=True):
     """ Copy the sip.h file. """
 
     module_source_dir = get_module_source_dir(abi_version)
     patches = _create_patches(sip_module, sip_module_configuration,
-            module_source_dir, sip_is_embedded=sip_is_embedded,
+            module_source_dir, sip_module_shared=sip_module_shared,
             version_info=version_info)
     _install_source_file('sip.h', module_source_dir, target_dir, patches)
 
@@ -85,13 +85,13 @@ def copy_sip_pyi(abi_version, target_dir):
     shutil.copy(os.path.join(module_source_dir, 'sip.pyi'), target_dir)
 
 
-def copy_nonshared_sources(abi_version, sip_module_configuration, target_dir,
-        sip_module):
+def copy_nonshared_sources(abi_version, sip_module, sip_module_configuration,
+        target_dir):
     """ Copy the module sources as a non-shared module. """
 
     # Copy the patched sip.h.
-    copy_sip_h(abi_version, sip_module_configuration, target_dir, sip_module,
-            sip_is_embedded=True)
+    copy_sip_h(abi_version, sip_module, sip_module_configuration, target_dir,
+            sip_module_shared=False)
 
     # Copy the remaining source code.
     sources = []
@@ -111,7 +111,7 @@ def copy_nonshared_sources(abi_version, sip_module_configuration, target_dir,
 
 
 def _create_patches(sip_module, sip_module_configuration, module_source_dir, *,
-        sip_is_embedded, project='', version_info=True):
+        sip_module_shared, project='', version_info=True):
     """ Return a dict of the patches. """
 
     sip_module_parts = sip_module.split('.')
@@ -157,7 +157,9 @@ def _create_patches(sip_module, sip_module_configuration, module_source_dir, *,
         '@_SIP_MINIMUM_SETUPTOOLS@':            MINIMUM_SETUPTOOLS,
         '@_SIP_MODULE_FQ_NAME@':                sip_module,
         '@_SIP_MODULE_NAME@':                   sip_module_name,
-        '@_SIP_MODULE_SHARED@':                 '0' if sip_is_embedded else '1',
+        # Note that it would be better to replace _SIP_MODULE_SHARED with
+        # defined(_SIP_MODULE_ENTRY).
+        '@_SIP_MODULE_SHARED@':                 '1' if sip_module_shared else '0',
         '@_SIP_MODULE_DEF@':                    'sipWrappedModuleDef_' + sip_module_name,
         '@_SIP_MODULE_ENTRY@':                  'PyInit_' + sip_module_name,
         '@_SIP_OLDEST_SUPPORTED_MINOR@':        str(OLDEST_SUPPORTED_MINOR),

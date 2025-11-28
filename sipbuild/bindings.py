@@ -238,8 +238,9 @@ class Bindings(Configurable):
         else:
             buildable.sources.extend(
                     copy_nonshared_sources(project.build_abi,
+                            module.fq_py_name.name,
                             spec.sip_module_configuration,
-                            buildable.build_dir, module.py_name))
+                            buildable.build_dir))
 
         buildable.include_dirs.extend(self.include_dirs)
         buildable.sources.extend(self.sources)
