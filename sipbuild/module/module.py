@@ -157,8 +157,6 @@ def _create_patches(sip_module, sip_module_configuration, module_source_dir, *,
         '@_SIP_MINIMUM_SETUPTOOLS@':            MINIMUM_SETUPTOOLS,
         '@_SIP_MODULE_FQ_NAME@':                sip_module,
         '@_SIP_MODULE_NAME@':                   sip_module_name,
-        # Note that it would be better to replace _SIP_MODULE_SHARED with
-        # defined(_SIP_MODULE_ENTRY).
         '@_SIP_MODULE_SHARED@':                 '1' if sip_module_shared else '0',
         '@_SIP_MODULE_DEF@':                    'sipWrappedModuleDef_' + sip_module_name,
         '@_SIP_MODULE_ENTRY@':                  'PyInit_' + sip_module_name,
