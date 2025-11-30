@@ -39,9 +39,9 @@ reflected in the documentation (and in any bindings-specific documentation).
 
 The behaviour when setting the value of static attributes (of either modules or
 classes) has changed.  With ABI v14 the value of the underlying C/C++ is
-changed accordingly.  With older ABIs the Python attribute would be changed
-(possibly to a different type entirely) but the underlying value would not
-change.
+changed accordingly and may involve a type conversion of the new value.  With
+older ABIs the Python attribute would be changed (possibly to a different type
+entirely) but the underlying value would not change.
 
 
 ## ABI Changes
