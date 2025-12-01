@@ -6,6 +6,7 @@
 from ....scoped_name import STRIP_GLOBAL
 from ....specification import (ArgumentType, IfaceFileType, WrappedClass,
         WrappedEnum)
+from ....utils import find_method
 
 from ...formatters import fmt_argument_as_cpp_type
 
@@ -1040,7 +1041,7 @@ f'''static void *init_type_{klass_name}(sipSimpleWrapper *{sip_self}, PyObject *
 
             ci_name = self.cached_name_ref(variable.py_name)
             ci_val = variable.fq_cpp_name.cpp_stripped(STRIP_GLOBAL)
-            ci_encoding = "'" + _get_encoding(variable.type) + "'"
+            ci_encoding = _get_encoding(variable.type)
 
             instances.append((ci_name, ci_val, ci_encoding))
 
@@ -1194,18 +1195,17 @@ static sipIntInstanceDef intInstances{suffix}[]''')
             if (variable.type.type not in (ArgumentType.ASCII_STRING, ArgumentType.LATIN1_STRING, ArgumentType.UTF8_STRING, ArgumentType.SSTRING, ArgumentType.USTRING, ArgumentType.STRING) or len(variable.type.derefs) == 0) and variable.type.type is not ArgumentType.WSTRING:
                 continue
 
+            if variable.type.type in (ArgumentType.SSTRING, ArgumentType.USTRING, ArgumentType.WSTRING):
+                cast = '(const char *)'
+
+                if variable.type.type is ArgumentType.WSTRING and len(variable.type.derefs) == 0:
+                    cast += '&'
+            else:
+                cast = ''
+
             si_name = self.cached_name_ref(variable.py_name)
-            si_val = variable.fq_cpp_name.cpp_stripped(STRIP_GLOBAL)
-
-            # This is the hack for handling wchar_t and wchar_t*.
-            encoding = _get_encoding(variable.type)
-
-            if encoding == 'w':
-                si_val = '(const char *)&' + si_val
-            elif encoding == 'W':
-                si_val = '(const char *)' + si_val
-
-            si_encoding = "'" + encoding + "'"
+            si_val = cast + variable.fq_cpp_name.cpp_stripped(STRIP_GLOBAL)
+            si_encoding = _get_encoding(variable.type)
 
             instances.append((si_name, si_val, si_encoding))
 
@@ -1247,7 +1247,7 @@ static sipStringInstanceDef stringInstances{suffix}[]''')
 
         return _write_instances_table(sf, scope, instances,
 '''/* Define the void pointers to be added to this {dict_type} dictionary. */
-"static sipVoidPtrInstanceDef voidPtrInstances{suffix}[]''')
+static sipVoidPtrInstanceDef voidPtrInstances{suffix}[]''')
 
     def _g_module_init_body(self, sf):
         """ Generate the body of the module initialisation function. """
@@ -1421,7 +1421,7 @@ f'''
             py_name = self.cached_name_ref(variable.py_name)
             cpp_name = scoped_variable_name(spec, variable)
 
-            sf.write(f'    PyDict_SetItemString(sipModuleDict, {py_name}, {cpp_name});\n')
+            sf.write(f'    PyDict_SetItemString(sipModuleDict, {py_name}, ({cpp_name} != NULL ? {cpp_name} : Py_None));\n')
 
     def _g_sip_api(self, sf):
         """ Generate the code to get the sip API. """
@@ -2141,6 +2141,10 @@ f'''
             if variable_type in (ArgumentType.UINT, ArgumentType.SIZE) and target_type is ArgumentType.ULONG:
                 variable_type = ArgumentType.ULONG
 
+            # Likewise we treat Py_hash_t and Py_ssize_t as long.
+            if variable_type in (ArgumentType.HASH, ArgumentType.SSIZE) and target_type is ArgumentType.LONG:
+                variable_type = ArgumentType.LONG
+
             if variable_type is not target_type:
                 continue
 
@@ -2180,15 +2184,15 @@ def _get_encoding(type):
     """ Return the encoding character for the given type. """
 
     if type.type is ArgumentType.ASCII_STRING:
-        encoding = 'A'
+        encoding = "'A'"
     elif type.type is ArgumentType.LATIN1_STRING:
-        encoding = 'L'
+        encoding = "'L'"
     elif type.type is ArgumentType.UTF8_STRING:
-        encoding = '8'
+        encoding = "'8'"
     elif type.type is ArgumentType.WSTRING:
-        encoding = 'w' if len(type.derefs) == 0 else 'W'
+        encoding = "'w'" if len(type.derefs) == 0 else "'W'"
     else:
-        encoding = 'N'
+        encoding = "'N'"
 
     return encoding
 
