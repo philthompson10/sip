@@ -3,67 +3,73 @@
 # Copyright (c) 2025 Phil Thompson <phil@riverbankcomputing.com>
 
 
-from utils import SIPTestCase
+import pytest
 
 
-class ClassAttrsTestCase(SIPTestCase):
-    """ Test the support for class attributes. """
+@pytest.fixture
+def klass(module):
+    """ This is a fixture that returns an instance of Klass. """
 
-    def test_class_attributes(self):
-        """ Test the support for class attributes. """
+    return module.Klass()
 
-        from class_attrs_module import Klass
 
-        with self.assertRaises(AttributeError):
-            Klass.foo
+def test_missing_class_attribute(module):
+    with pytest.raises(AttributeError):
+        module.Klass.foo
 
-        Klass.foo = 'bar'
-        self.assertEqual(Klass.foo, 'bar')
+def test_new_class_attribute(module):
+    module.Klass.foo = 'bar'
+    assert module.Klass.foo == 'bar'
 
-        del Klass.foo
+    del module.Klass.foo
 
-        with self.assertRaises(AttributeError):
-            Klass.foo
+    with pytest.raises(AttributeError):
+        module.Klass.foo
 
-        self.assertEqual(Klass.s_attr, 0)
-        Klass.s_attr = 10
-        self.assertEqual(Klass.s_attr, 10)
+def test_initial_class_attribute(module):
+    assert module.Klass.s_attr == 0
 
-        # Check the C++ value has changed and not the type dict.
-        # TODO This is v14 specific.
-        #self.assertEqual(Klass.get_s_attr(), 10)
+def test_set_class_attribute(module, abi_version):
+    module.Klass.s_attr = 10
+    assert module.Klass.s_attr == 10
 
-        # TODO This is v14 specific.
-        #with self.assertRaises(AttributeError):
-        #    del Klass.s_attr;
+    # For ABI v14 check the C++ value has changed and not the type dict.
+    if abi_version >= 14:
+        assert module.Klass.get_s_attr() == 10
 
-    def test_instance_attributes(self):
-        """ Test the support for instance attributes. """
+def test_del_class_attribute(module, abi_version):
+    # For ABI v14 check a wrapped class attribute cannot be deleted.
+    if abi_version >= 14:
+        with pytest.raises(AttributeError):
+            del module.Klass.s_attr;
 
-        from class_attrs_module import Klass
+def test_missing_instance_attribute(klass):
+    with pytest.raises(AttributeError):
+        klass.foo
 
-        klass = Klass()
+def test_new_instance_attribute(klass):
+    klass.foo = 'bar'
+    assert klass.foo == 'bar'
 
-        with self.assertRaises(AttributeError):
-            klass.foo
+    del klass.foo
 
-        klass.foo = 'bar'
-        self.assertEqual(klass.foo, 'bar')
+    with pytest.raises(AttributeError):
+        klass.foo
 
-        del klass.foo
+def test_initial_instance_attribute(klass):
+    assert klass.attr == 0
 
-        with self.assertRaises(AttributeError):
-            klass.foo
+def test_set_instance_attribute(klass):
+    klass.attr = 10
+    assert klass.attr == 10
 
-        self.assertEqual(klass.attr, 0)
-        klass.attr = 10
-        self.assertEqual(klass.attr, 10)
+    # Check the C++ value has changed and not the type dict.
+    assert klass.get_attr() == 10
 
-        # Check the C++ value has changed and not the instance dict.
-        self.assertEqual(klass.get_attr(), 10)
+def test_del_instance_attribute(klass):
+    with pytest.raises(AttributeError):
+        del klass.attr;
 
-        with self.assertRaises(AttributeError):
-            del klass.attr;
-
-        with self.assertRaises(AttributeError):
-            Klass.attr
+def test_attribute_is_instance_attribute(module):
+    with pytest.raises(AttributeError):
+        module.Klass.attr

@@ -43,6 +43,10 @@ public:
     Klass(int value);
 
 %FinalisationCode
+    // Handle the trivial case.
+    if (sipKwds == NULL)
+        return 0;
+
     // If the 'extra_kwarg' is given then save it as an attribute.
     PyObject *dict;
 

@@ -12,10 +12,6 @@ public:
     {
     };
 };
-
-class SimpleKlass
-{
-};
 %End
 
 
@@ -25,8 +21,4 @@ public:
     class Nested
     {
     };
-};
-
-class SimpleKlass /Supertype=class_misc_module.simplewrapper/
-{
 };

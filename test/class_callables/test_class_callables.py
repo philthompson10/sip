@@ -3,122 +3,76 @@
 # Copyright (c) 2025 Phil Thompson <phil@riverbankcomputing.com>
 
 
-from unittest import skip
-
-from utils import SIPTestCase
+import pytest
 
 
-@skip("The ABI v14 support for these tests is under development")
-class ClassCallablesTestCase(SIPTestCase):
-    """ Test the support for class callables. """
+# TODO: Needs in-development v14 support.
+cfg_disabled_for = [14]
 
-    def test_class_callables(self):
-        """ Test the support for class callables. """
 
-        from class_callables_module import Klass
+@pytest.fixture
+def klass(module):
+    """ This is a fixture that returns an instance of Klass. """
 
-        self.assertEqual(Klass.get_s_attr_int(), 0)
-        Klass.set_s_attr_int(10)
-        self.assertEqual(Klass.get_s_attr_int(), 10)
+    return module.Klass()
 
-    def test_instance_callables(self):
-        """ Test the support for instance callables. """
 
-        from class_callables_module import Klass
+def test_class_callables(module):
+    assert module.Klass.get_s_attr_int() == 0
+    module.Klass.set_s_attr_int(10)
+    assert module.Klass.get_s_attr_int() == 10
 
-        klass = Klass()
+def test_instance_callables(klass):
+    assert klass.get_attr_int() == 0
+    klass.set_attr_int(10)
+    assert klass.get_attr_int() == 10
 
-        self.assertEqual(klass.get_attr_int(), 0)
-        klass.set_attr_int(10)
-        self.assertEqual(klass.get_attr_int(), 10)
+def test_slot_call(klass):
+    klass.set_attr_int(33)
+    assert klass(2) == 66
 
-    def test_slot_call(self):
-        """ Test the support for the __call__ slot. """
+def test_slot_delitem(klass):
+    original_count = klass.count()
+    assert klass[2] == 2
 
-        from class_callables_module import Klass
+    del klass[2]
 
-        klass = Klass()
+    assert klass.count() == original_count - 1
+    assert klass[2] == 3
 
-        klass.set_attr_int(33)
-        self.assertEqual(klass(2), 66)
+def test_slot_eq(klass, module):
+    other = module.Klass()
 
-    def test_slot_delitem(self):
-        """ Test the support for the __delitem__ slot. """
+    assert klass == other
 
-        from class_callables_module import Klass
+    klass.set_attr_int(10)
+    assert not (klass == other)
 
-        klass = Klass()
+    assert not (klass == 100)
 
-        original_count = klass.count()
-        self.assertEqual(klass[2], 2)
+def test_slot_getitem(klass):
+    assert klass[2] == 2
 
-        del klass[2]
+    with pytest.raises(IndexError):
+        klass[-1]
 
-        self.assertEqual(klass.count(), original_count - 1)
-        self.assertEqual(klass[2], 3)
+    with pytest.raises(IndexError):
+        klass[klass.count()]
 
-    def test_slot_eq(self):
-        """ Test the support for the __eq__ slot. """
+def test_slot_len(klass):
+    assert klass.count() == len(klass)
 
-        from class_callables_module import Klass
+def test_slot_neg(klass):
+    klass.set_attr_int(10)
+    assert -klass == -10
 
-        klass = Klass()
-        other = Klass()
+def test_slot_setitem(klass):
+    assert klass[2] == 2
+    klass[2] = 20
+    assert klass[2] == 20
 
-        self.assertIs(klass == other, True)
+    with pytest.raises(IndexError):
+        klass[-1] = 0
 
-        klass.set_attr_int(10)
-        self.assertIs(klass == other, False)
-
-        self.assertIs(klass == 100, False)
-
-    def test_slot_getitem(self):
-        """ Test the support for the __getitem__ slot. """
-
-        from class_callables_module import Klass
-
-        klass = Klass()
-
-        self.assertEqual(klass[2], 2)
-
-        with self.assertRaises(IndexError):
-            klass[-1]
-
-        with self.assertRaises(IndexError):
-            klass[klass.count()]
-
-    def test_slot_len(self):
-        """ Test the support for the __len__ slot. """
-
-        from class_callables_module import Klass
-
-        klass = Klass()
-
-        self.assertEqual(klass.count(), len(klass))
-
-    def test_slot_neg(self):
-        """ Test the support for the __neg__ slot. """
-
-        from class_callables_module import Klass
-
-        klass = Klass()
-
-        klass.set_attr_int(10)
-        self.assertEqual(-klass, -10)
-
-    def test_slot_setitem(self):
-        """ Test the support for the __setitem__ slot. """
-
-        from class_callables_module import Klass
-
-        klass = Klass()
-
-        self.assertEqual(klass[2], 2)
-        klass[2] = 20
-        self.assertEqual(klass[2], 20)
-
-        with self.assertRaises(IndexError):
-            klass[-1] = 0
-
-        with self.assertRaises(IndexError):
-            klass[klass.count()] = 0
+    with pytest.raises(IndexError):
+        klass[klass.count()] = 0

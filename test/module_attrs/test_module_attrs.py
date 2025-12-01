@@ -4,462 +4,348 @@
 
 
 from sys import getrefcount
-from unittest import skip
 
-from utils import SIPTestCase
-
-
-@skip("Needs backporting to ABI v12v13 or made v14 specific")
-class ModuleAttrsTestCase(SIPTestCase):
-    """ Test the support for module attributes. """
-
-    def test_attrs_bool(self):
-        """ Test the support for bool and _Bool attributes. """
-
-        import module_attrs_module as mod
-
-        self.assertIs(mod.bool_attr, True)
-        mod.bool_attr = False
-        self.assertIs(mod.bool_attr, False)
-        mod.bool_attr = 10
-        self.assertIs(mod.bool_attr, True)
-
-        self.assertIs(mod._Bool_attr, True)
-        mod._Bool_attr = False
-        self.assertIs(mod._Bool_attr, False)
-        mod._Bool_attr = 10
-        self.assertIs(mod._Bool_attr, True)
-
-    def test_attrs_byte(self):
-        """ Test the support for char as integer attributes. """
-
-        import module_attrs_module as mod
-
-        self.assertEqual(mod.byte_attr, 10)
-        mod.byte_attr = 20
-        self.assertEqual(mod.byte_attr, 20)
-
-    def test_attrs_sbyte(self):
-        """ Test the support for signed char as integer attributes. """
-
-        import module_attrs_module as mod
-
-        self.assertEqual(mod.sbyte_attr, -10)
-        mod.sbyte_attr = 20
-        self.assertEqual(mod.sbyte_attr, 20)
-
-    def test_attrs_ubyte(self):
-        """ Test the support for unsigned char as integer attributes. """
-
-        import module_attrs_module as mod
-
-        self.assertEqual(mod.ubyte_attr, 10)
-        mod.ubyte_attr = 20
-        self.assertEqual(mod.ubyte_attr, 20)
-
-    def test_attrs_short(self):
-        """ Test the support for short attributes. """
-
-        import module_attrs_module as mod
-
-        self.assertEqual(mod.short_attr, -10)
-        mod.short_attr = 20
-        self.assertEqual(mod.short_attr, 20)
-
-    def test_attrs_ushort(self):
-        """ Test the support for unsigned short attributes. """
-
-        import module_attrs_module as mod
-
-        self.assertEqual(mod.ushort_attr, 10)
-        mod.ushort_attr = 20
-        self.assertEqual(mod.ushort_attr, 20)
-
-    def test_attrs_int(self):
-        """ Test the support for int attributes. """
-
-        import module_attrs_module as mod
-
-        self.assertEqual(mod.int_attr, -10)
-        mod.int_attr = 20
-        self.assertEqual(mod.int_attr, 20)
-
-        # Check the C++ value has changed and not the module dict.
-        self.assertEqual(mod.get_int_attr(), 20)
-
-    def test_attrs_uint(self):
-        """ Test the support for unsigned int attributes. """
-
-        import module_attrs_module as mod
-
-        self.assertEqual(mod.uint_attr, 10)
-        mod.uint_attr = 20
-        self.assertEqual(mod.uint_attr, 20)
-
-    def test_attrs_long(self):
-        """ Test the support for long attributes. """
-
-        import module_attrs_module as mod
-
-        self.assertEqual(mod.long_attr, -10)
-        mod.long_attr = 20
-        self.assertEqual(mod.long_attr, 20)
-
-    def test_attrs_ulong(self):
-        """ Test the support for unsigned long attributes. """
-
-        import module_attrs_module as mod
-
-        self.assertEqual(mod.ulong_attr, 10)
-        mod.ulong_attr = 20
-        self.assertEqual(mod.ulong_attr, 20)
-
-    def test_attrs_longlong(self):
-        """ Test the support for long long attributes. """
-
-        import module_attrs_module as mod
-
-        self.assertEqual(mod.longlong_attr, -10)
-        mod.longlong_attr = 20
-        self.assertEqual(mod.longlong_attr, 20)
-
-    def test_attrs_ulonglong(self):
-        """ Test the support for unsigned long long attributes. """
-
-        import module_attrs_module as mod
-
-        self.assertEqual(mod.ulonglong_attr, 10)
-        mod.ulonglong_attr = 20
-        self.assertEqual(mod.ulonglong_attr, 20)
-
-    def test_attrs_pyhasht(self):
-        """ Test the support for Py_hash_t attributes. """
-
-        import module_attrs_module as mod
-
-        self.assertEqual(mod.pyhasht_attr, -10)
-        mod.pyhasht_attr = 20
-        self.assertEqual(mod.pyhasht_attr, 20)
-
-    def test_attrs_pyssizet(self):
-        """ Test the support for Py_ssize_t attributes. """
-
-        import module_attrs_module as mod
-
-        self.assertEqual(mod.pyssizet_attr, -10)
-        mod.pyssizet_attr = 20
-        self.assertEqual(mod.pyssizet_attr, 20)
-
-    def test_attrs_sizet(self):
-        """ Test the support for size_t attributes. """
-
-        import module_attrs_module as mod
-
-        self.assertEqual(mod.sizet_attr, 10)
-        mod.sizet_attr = 20
-        self.assertEqual(mod.sizet_attr, 20)
-
-    def test_attrs_float(self):
-        """ Test the support for float attributes. """
-
-        import module_attrs_module as mod
-
-        self.assertEqual(mod.float_attr, 10.)
-        mod.float_attr = 20.
-        self.assertEqual(mod.float_attr, 20.)
-
-    def test_attrs_double(self):
-        """ Test the support for double attributes. """
-
-        import module_attrs_module as mod
-
-        self.assertEqual(mod.double_attr, 10.)
-        mod.double_attr = 20.
-        self.assertEqual(mod.double_attr, 20.)
-
-    def test_attrs_char(self):
-        """ Test the support for char attributes. """
-
-        import module_attrs_module as mod
-
-        self.assertEqual(mod.char_attr, b'\x0a')
-        mod.char_attr = b'\x14'
-        self.assertEqual(mod.char_attr, b'\x14')
-
-    def test_attrs_char_ascii(self):
-        """ Test the support for ASCII char attributes. """
-
-        import module_attrs_module as mod
-
-        self.assertEqual(mod.char_ascii_attr, 'A')
-        mod.char_ascii_attr = 'Z'
-        self.assertEqual(mod.char_ascii_attr, 'Z')
-
-    def test_attrs_char_latin1(self):
-        """ Test the support for Latin-1 char attributes. """
-
-        import module_attrs_module as mod
-
-        self.assertEqual(mod.char_latin1_attr, '£')
-        mod.char_latin1_attr = '§'
-        self.assertEqual(mod.char_latin1_attr, '§')
-
-    def test_attrs_char_utf8(self):
-        """ Test the support for UTF-8 char attributes. """
-
-        import module_attrs_module as mod
-
-        self.assertEqual(mod.char_utf8_attr, 'A')
-        mod.char_utf8_attr = 'Z'
-        self.assertEqual(mod.char_utf8_attr, 'Z')
-
-    def test_attrs_schar(self):
-        """ Test the support for signed char attributes. """
-
-        import module_attrs_module as mod
-
-        self.assertEqual(mod.schar_attr, b'\x0a')
-        mod.schar_attr = b'\x14'
-        self.assertEqual(mod.schar_attr, b'\x14')
-
-    def test_attrs_uchar(self):
-        """ Test the support for unsigned char attributes. """
-
-        import module_attrs_module as mod
-
-        self.assertEqual(mod.uchar_attr, b'\x0a')
-        mod.uchar_attr = b'\x14'
-        self.assertEqual(mod.uchar_attr, b'\x14')
-
-    def test_attrs_wchar(self):
-        """ Test the support for wchar_t attributes. """
-
-        import module_attrs_module as mod
-
-        self.assertEqual(mod.wchar_attr, 'β')
-        mod.wchar_attr = 'α'
-        self.assertEqual(mod.wchar_attr, 'α')
-
-    def test_attrs_string(self):
-        """ Test the support for string attributes. """
-
-        import module_attrs_module as mod
-
-        self.assertIsNone(mod.string_attr)
-
-        with self.assertRaises(ValueError):
-            mod.string_attr = b'bad'
-
-        self.assertEqual(mod.string_attr_const, b'str')
-
-        mod.string_attr_const = b'new_str'
-        self.assertEqual(mod.string_attr_const, b'new_str')
-
-        mod.string_attr_const = None
-        self.assertIsNone(mod.string_attr_const)
-
-    def test_attrs_string_ascii(self):
-        """ Test the support for ASCII string attributes. """
-
-        import module_attrs_module as mod
-
-        self.assertIsNone(mod.string_ascii_attr)
-
-        with self.assertRaises(ValueError):
-            mod.string_ascii_attr = 'bad'
-
-        self.assertEqual(mod.string_ascii_attr_const, 'str')
-
-        mod.string_ascii_attr_const = 'new_str'
-        self.assertEqual(mod.string_ascii_attr_const, 'new_str')
-
-        mod.string_ascii_attr_const = None
-        self.assertIsNone(mod.string_ascii_attr_const)
-
-        mod.string_ascii_attr_const = b'bytes'
-        self.assertEqual(mod.string_ascii_attr_const, 'bytes')
-
-    def test_attrs_string_latin1(self):
-        """ Test the support for Latin-1 string attributes. """
-
-        import module_attrs_module as mod
-
-        self.assertIsNone(mod.string_latin1_attr)
-
-        with self.assertRaises(ValueError):
-            mod.string_latin1_attr = 'bad'
-
-        self.assertEqual(mod.string_latin1_attr_const, '££')
-
-        mod.string_latin1_attr_const = '§§'
-        self.assertEqual(mod.string_latin1_attr_const, '§§')
-
-        mod.string_latin1_attr_const = None
-        self.assertIsNone(mod.string_latin1_attr_const)
-
-        mod.string_latin1_attr_const = '££'.encode('latin-1')
-        self.assertEqual(mod.string_latin1_attr_const, '££')
-
-    def test_attrs_string_utf8(self):
-        """ Test the support for UTF-8 string attributes. """
-
-        import module_attrs_module as mod
-
-        self.assertIsNone(mod.string_utf8_attr)
-
-        with self.assertRaises(ValueError):
-            mod.string_utf8_attr = 'bad'
-
-        self.assertEqual(mod.string_utf8_attr_const, '2H₂ + O₂ ⇌ 2H₂O')
-
-        mod.string_utf8_attr_const = 'ሲተረጉሙ ይደረግሙ።'
-        self.assertEqual(mod.string_utf8_attr_const, 'ሲተረጉሙ ይደረግሙ።')
-
-        mod.string_utf8_attr_const = None
-        self.assertIsNone(mod.string_utf8_attr_const)
-
-        mod.string_utf8_attr_const = 'Καλημέρα'.encode('utf-8')
-        self.assertEqual(mod.string_utf8_attr_const, 'Καλημέρα')
-
-    def test_attrs_sstring(self):
-        """ Test the support for signed string attributes. """
-
-        import module_attrs_module as mod
-
-        self.assertIsNone(mod.sstring_attr)
-
-        with self.assertRaises(ValueError):
-            mod.sstring_attr = b'bad'
-
-        self.assertEqual(mod.sstring_attr_const, b'str')
-
-        mod.sstring_attr_const = b'new_str'
-        self.assertEqual(mod.sstring_attr_const, b'new_str')
-
-        mod.sstring_attr_const = None
-        self.assertIsNone(mod.sstring_attr_const)
-
-    def test_attrs_ustring(self):
-        """ Test the support for unsigned string attributes. """
-
-        import module_attrs_module as mod
-
-        self.assertIsNone(mod.ustring_attr)
-
-        with self.assertRaises(ValueError):
-            mod.ustring_attr = b'bad'
-
-        self.assertEqual(mod.ustring_attr_const, b'str')
-
-        mod.ustring_attr_const = b'new_str'
-        self.assertEqual(mod.ustring_attr_const, b'new_str')
-
-        mod.ustring_attr_const = None
-        self.assertIsNone(mod.ustring_attr_const)
-
-    def test_attrs_voidptr(self):
-        """ Test the support for void pointer attributes. """
-
-        import module_attrs_module as mod
-
-        vp = mod.voidptr_attr
-        self.assertEqual(vp.asstring(size=5), b'bytes')
-        self.assertTrue(vp.getwriteable())
-
-        mod.voidptr_attr = None
-        self.assertIsNone(mod.voidptr_attr)
-
-        const_vp = mod.voidptr_const_attr
-        self.assertEqual(const_vp.asstring(size=11), b'bytes const')
-        self.assertFalse(const_vp.getwriteable())
-
-        mod.voidptr_const_attr = None
-        self.assertIsNone(mod.voidptr_const_attr)
-
-    def test_attrs_pyobject(self):
-        """ Test the support for Python object attributes. """
-
-        import module_attrs_module as mod
-
-        # Note that SIP does not check the Python types of these attributes
-        # (which is really a bug) so we don't test the different types.
-        self.assertIsNone(mod.pyobject_attr)
-
-        obj = object()
-        obj_refcount = getrefcount(obj)
-
-        mod.pyobject_attr = obj
-        self.assertIs(mod.pyobject_attr, obj)
-        self.assertEqual(getrefcount(obj), obj_refcount + 1)
-
-    def test_del_attrs(self):
-        """ Test the support for deleting module attributes. """
-
-        import module_attrs_module as mod
-
-        with self.assertRaises(AttributeError):
-            del mod.int_attr
-
-    def test_nonwrapped_attrs(self):
-        """ Test the support for non-wrapped module attributes. """
-
-        import module_attrs_module as mod
-
-        with self.assertRaises(AttributeError):
-            mod.foo
-
-        mod.foo = 'bar'
-        self.assertEqual(mod.foo, 'bar')
-
-        del mod.foo
-
-        with self.assertRaises(AttributeError):
-            mod.foo
-
-    def test_const_types(self):
-        """ Test the support for const module attributes. """
-
-        import module_attrs_module as mod
-
-        self.assertEqual(mod.int_attr_const, 10)
-
-        with self.assertRaises(ValueError):
-            mod.int_attr_const = 0
-
-    def test_getters_and_setters(self):
-        """ Test the support for %GetCode and %SetCode. """
-
-        import module_attrs_module as mod
-
-        self.assertEqual(mod.int_attr_getter, 20)
-
-        mod.int_attr_setter = 20
-        self.assertEqual(mod.int_attr_setter, 40)
-
-        with self.assertRaises(NameError):
-            mod.int_attr_bad_setter = 0
-
-    def test_no_setter_types(self):
-        """ Test the support for the /NoSetter/ annotation. """
-
-        import module_attrs_module as mod
-
-        self.assertEqual(mod.int_attr_no_setter, 10)
-
-        with self.assertRaises(ValueError):
-            mod.int_attr_no_setter = 0
-
-    def test_nonwrapped_attrs(self):
-        """ Test that non-wrapped attributes are handled properly. """
-
-        import module_attrs_module as mod
-
-        mod.nonwrapped_int = 10
-        self.assertEqual(mod.nonwrapped_int, 10)
-
-    def test_py_name_attrs(self):
-        """ Test the support for the /PyName/ annotation. """
-
-        import module_attrs_module as mod
-
-        self.assertEqual(mod.py_int_attr, 10)
+import pytest
+
+
+def test_attrs_bool(module, abi_version):
+    if abi_version >= 14:
+        # Values are mapped to True and False.
+        assert module.bool_attr is True
+        module.bool_attr = False
+        assert module.bool_attr is False
+        module.bool_attr = 10
+        assert module.bool_attr is True
+        module.bool_attr = 0
+        assert module.bool_attr is False
+    else:
+        # Values are left as integers.
+        assert module.bool_attr
+        module.bool_attr = False
+        assert not module.bool_attr
+        module.bool_attr = 10
+        assert module.bool_attr
+        module.bool_attr = 0
+        assert not module.bool_attr
+
+def test_attrs__Bool(module, abi_version):
+    if abi_version >= 14:
+        # Values are mapped to True and False.
+        assert module._Bool_attr is True
+        module._Bool_attr = False
+        assert module._Bool_attr is False
+        module._Bool_attr = 10
+        assert module._Bool_attr is True
+        module._Bool_attr = 0
+        assert module._Bool_attr is False
+    else:
+        # Values are left as integers.
+        assert module._Bool_attr
+        module._Bool_attr = False
+        assert not module._Bool_attr
+        module._Bool_attr = 10
+        assert module._Bool_attr
+        module._Bool_attr = 0
+        assert not module._Bool_attr
+
+def test_attrs_byte(module):
+    assert module.byte_attr == 10
+    module.byte_attr = 20
+    assert module.byte_attr == 20
+
+def test_attrs_signed_byte(module):
+    assert module.sbyte_attr == -10
+    module.sbyte_attr = 20
+    assert module.sbyte_attr == 20
+
+def test_attrs_unsigned_byte(module):
+    assert module.ubyte_attr == 10
+    module.ubyte_attr = 20
+    assert module.ubyte_attr == 20
+
+def test_attrs_short(module):
+    assert module.short_attr == -10
+    module.short_attr = 20
+    assert module.short_attr == 20
+
+def test_attrs_unsigned_short(module):
+    assert module.ushort_attr == 10
+    module.ushort_attr = 20
+    assert module.ushort_attr == 20
+
+def test_attrs_int(module, abi_version):
+    assert module.int_attr == -10
+    module.int_attr = 20
+    assert module.int_attr == 20
+
+    # For ABI v14 check the C++ value has changed and not the module dict.
+    if abi_version >= 14:
+        assert module.get_int_attr() == 20
+
+def test_attrs_unsigned_int(module):
+    assert module.uint_attr == 10
+    module.uint_attr = 20
+    assert module.uint_attr == 20
+
+def test_attrs_long(module):
+    assert module.long_attr == -10
+    module.long_attr = 20
+    assert module.long_attr == 20
+
+def test_attrs_unsigned_long(module):
+    assert module.ulong_attr == 10
+    module.ulong_attr = 20
+    assert module.ulong_attr == 20
+
+def test_attrs_long_long(module):
+    assert module.longlong_attr == -10
+    module.longlong_attr = 20
+    assert module.longlong_attr == 20
+
+def test_attrs_unsigned_long_long(module):
+    assert module.ulonglong_attr == 10
+    module.ulonglong_attr = 20
+    assert module.ulonglong_attr == 20
+
+def test_attrs_pyhasht(module):
+    assert module.pyhasht_attr == -10
+    module.pyhasht_attr = 20
+    assert module.pyhasht_attr == 20
+
+def test_attrs_pyssizet(module):
+    assert module.pyssizet_attr == -10
+    module.pyssizet_attr = 20
+    assert module.pyssizet_attr == 20
+
+def test_attrs_sizet(module):
+    assert module.sizet_attr == 10
+    module.sizet_attr = 20
+    assert module.sizet_attr == 20
+
+def test_attrs_float(module):
+    assert module.float_attr == 10.
+    module.float_attr = 20.
+    assert module.float_attr == 20.
+
+def test_attrs_double(module):
+    assert module.double_attr == 10.
+    module.double_attr = 20.
+    assert module.double_attr == 20.
+
+def test_attrs_char(module):
+    assert module.char_attr == b'\x0a'
+    module.char_attr = b'\x14'
+    assert module.char_attr == b'\x14'
+
+def test_attrs_char_ascii(module):
+    assert module.char_ascii_attr == 'A'
+    module.char_ascii_attr = 'Z'
+    assert module.char_ascii_attr == 'Z'
+
+def test_attrs_char_latin1(module):
+    assert module.char_latin1_attr == '£'
+    module.char_latin1_attr = '§'
+    assert module.char_latin1_attr == '§'
+
+def test_attrs_char_utf8(module):
+    assert module.char_utf8_attr == 'A'
+    module.char_utf8_attr = 'Z'
+    assert module.char_utf8_attr == 'Z'
+
+def test_attrs_signed_char(module):
+    assert module.schar_attr == b'\x0a'
+    module.schar_attr = b'\x14'
+    assert module.schar_attr == b'\x14'
+
+def test_attrs_unsigned_char(module):
+    assert module.uchar_attr == b'\x0a'
+    module.uchar_attr = b'\x14'
+    assert module.uchar_attr == b'\x14'
+
+def test_attrs_wchar(module):
+    assert module.wchar_attr == 'β'
+    module.wchar_attr = 'α'
+    assert module.wchar_attr == 'α'
+
+def test_attrs_string(module, abi_version):
+    assert module.string_attr is None
+
+    # For ABI v14 check a NULL wrapped module attribute cannot be updated to
+    # point to potentially ephemeral data.  (Earlier versions just update the
+    # module dictionary.)
+    if abi_version >= 14:
+        with pytest.raises(ValueError):
+            module.string_attr = b'bad'
+
+def test_attrs_const_string(module):
+    assert module.string_attr_const == b'str'
+    module.string_attr_const = b'new_str'
+    assert module.string_attr_const == b'new_str'
+    module.string_attr_const = None
+    assert module.string_attr_const is None
+
+def test_attrs_string_ascii(module, abi_version):
+    assert module.string_ascii_attr is None
+
+    # For ABI v14 check a NULL wrapped module attribute cannot be updated to
+    # point to potentially ephemeral data.  (Earlier versions just update the
+    # module dictionary.)
+    if abi_version >= 14:
+        with pytest.raises(ValueError):
+            module.string_ascii_attr = 'bad'
+
+def test_attrs_const_string_ascii(module, abi_version):
+    assert module.string_ascii_attr_const == 'str'
+    module.string_ascii_attr_const = 'new_str'
+    assert module.string_ascii_attr_const == 'new_str'
+    module.string_ascii_attr_const = None
+    assert module.string_ascii_attr_const is None
+
+    # ABI v14 will update the wrapped module attribute and convert the type in
+    # the process.
+    if abi_version >= 14:
+        module.string_ascii_attr_const = b'bytes'
+        assert module.string_ascii_attr_const == 'bytes'
+
+def test_attrs_string_latin1(module, abi_version):
+    assert module.string_latin1_attr is None
+
+    # For ABI v14 check a NULL wrapped module attribute cannot be updated to
+    # point to potentially ephemeral data.  (Earlier versions just update the
+    # module dictionary.)
+    if abi_version >= 14:
+        with pytest.raises(ValueError):
+            module.string_latin1_attr = 'bad'
+
+def test_attrs_const_string_latin1(module, abi_version):
+    assert module.string_latin1_attr_const == '££'
+    module.string_latin1_attr_const = '§§'
+    assert module.string_latin1_attr_const == '§§'
+    module.string_latin1_attr_const = None
+    assert module.string_latin1_attr_const is None
+
+    # ABI v14 will update the wrapped module attribute and convert the type in
+    # the process.
+    if abi_version >= 14:
+        module.string_latin1_attr_const = '££'.encode('latin-1')
+        assert module.string_latin1_attr_const == '££'
+
+def test_attrs_string_utf8(module, abi_version):
+    assert module.string_utf8_attr is None
+
+    # For ABI v14 check a NULL wrapped module attribute cannot be updated to
+    # point to potentially ephemeral data.  (Earlier versions just update the
+    # module dictionary.)
+    if abi_version >= 14:
+        with pytest.raises(ValueError):
+            module.string_utf8_attr = 'bad'
+
+def test_attrs_const_string_utf8(module, abi_version):
+    assert module.string_utf8_attr_const == '2H₂ + O₂ ⇌ 2H₂O'
+    module.string_utf8_attr_const = 'ሲተረጉሙ ይደረግሙ።'
+    assert module.string_utf8_attr_const == 'ሲተረጉሙ ይደረግሙ።'
+    module.string_utf8_attr_const = None
+    assert module.string_utf8_attr_const is None
+
+    # ABI v14 will update the wrapped module attribute and convert the type in
+    # the process.
+    if abi_version >= 14:
+        module.string_utf8_attr_const = 'Καλημέρα'.encode('utf-8')
+        assert module.string_utf8_attr_const == 'Καλημέρα'
+
+def test_attrs_signed_string(module, abi_version):
+    assert module.sstring_attr is None
+
+    # For ABI v14 check a NULL wrapped module attribute cannot be updated to
+    # point to potentially ephemeral data.  (Earlier versions just update the
+    # module dictionary.)
+    if abi_version >= 14:
+        with pytest.raises(ValueError):
+            module.sstring_attr = b'bad'
+
+def test_attrs_const_signed_string(module):
+    assert module.sstring_attr_const == b'str'
+    module.sstring_attr_const = b'new_str'
+    assert module.sstring_attr_const == b'new_str'
+    module.sstring_attr_const = None
+    assert module.sstring_attr_const is None
+
+def test_attrs_unsigned_string(module, abi_version):
+    assert module.ustring_attr is None
+
+    # For ABI v14 check a NULL wrapped module attribute cannot be updated to
+    # point to potentially ephemeral data.  (Earlier versions just update the
+    # module dictionary.)
+    if abi_version >= 14:
+        with pytest.raises(ValueError):
+            module.ustring_attr = b'bad'
+
+def test_attrs_const_unsigned_string(module):
+    assert module.ustring_attr_const == b'str'
+    module.ustring_attr_const = b'new_str'
+    assert module.ustring_attr_const == b'new_str'
+    module.ustring_attr_const = None
+    assert module.ustring_attr_const is None
+
+def test_attrs_voidptr(module):
+    vp = module.voidptr_attr
+    assert vp.asstring(size=5) == b'bytes'
+    assert vp.getwriteable() is True
+
+    module.voidptr_attr = None
+    assert module.voidptr_attr is None
+
+def test_attrs_const_voidptr(module, abi_version):
+    const_vp = module.voidptr_const_attr
+    assert const_vp.asstring(size=11) == b'bytes const'
+
+    # ABIs prior to v14 don't honour the const of a wrapped module attribute.
+    if abi_version >= 14:
+        assert const_vp.getwriteable() is False
+
+    module.voidptr_const_attr = None
+    assert module.voidptr_const_attr is None
+
+def test_attrs_pyobject(module):
+    # Note that SIP does not check the Python types of these attributes (which
+    # is really a bug) so we don't test the different types.
+    assert module.pyobject_attr is None
+
+    obj = object()
+    obj_refcount = getrefcount(obj)
+
+    module.pyobject_attr = obj
+    assert module.pyobject_attr is obj
+    assert getrefcount(obj) == obj_refcount + 1
+
+def test_del_attrs(module, abi_version):
+    # For ABI v14 check a wrapped module attribute cannot be deleted.
+    if abi_version >= 14:
+        with pytest.raises(AttributeError):
+            del module.int_attr
+
+def test_nonwrapped_attrs(module):
+    with pytest.raises(AttributeError):
+        module.foo
+
+    module.foo = 'bar'
+    assert module.foo == 'bar'
+
+    del module.foo
+    with pytest.raises(AttributeError):
+        module.foo
+
+def test_const_types(module, abi_version):
+    assert module.int_attr_const == 10
+
+    # For ABI v14 check a wrapped const module attribute cannot be modified.
+    if abi_version >= 14:
+        with pytest.raises(ValueError):
+            module.int_attr_const = 0
+
+def test_nonwrapped_attrs(module):
+    module.nonwrapped_int = 10
+    assert module.nonwrapped_int == 10
+
+def test_py_name_annotation_attrs(module):
+    assert module.py_int_attr == 10

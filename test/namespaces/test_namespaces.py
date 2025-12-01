@@ -3,44 +3,34 @@
 # Copyright (c) 2025 Phil Thompson <phil@riverbankcomputing.com>
 
 
-from utils import SIPTestCase
+import pytest
 
 
-class NamespacesTestCase(SIPTestCase):
-    """ Test the support for namespaces. """
+def test_instantiation(module):
+    with pytest.raises(TypeError):
+        module.NS()
 
-    def test_instantiation(self):
-        """ Test if a namespace can be instantiated. """
+def test_py_attributes(module):
+    with pytest.raises(AttributeError):
+        module.NS.foo
 
-        from namespaces_module import NS
+    module.NS.foo = 'bar'
+    assert module.NS.foo == 'bar'
 
-        with self.assertRaises(TypeError):
-            NS()
+    del module.NS.foo
+    with pytest.raises(AttributeError):
+        module.NS.foo
 
-    def test_namespaces(self):
-        """ Test the support for namespace attributes and callables. """
+def test_wrapped_attributes(module, abi_version):
+    assert module.NS.attr == 0
+    module.NS.attr = 10
+    assert module.NS.attr == 10
 
-        from namespaces_module import NS
+    # For ABI v14 check the C++ value has changed and not the type dict.
+    if abi_version >= 14:
+        assert module.NS.get_attr() == 10
 
-        with self.assertRaises(AttributeError):
-            NS.foo
-
-        NS.foo = 'bar'
-        self.assertEqual(NS.foo, 'bar')
-
-        del NS.foo
-
-        with self.assertRaises(AttributeError):
-            NS.foo
-
-        self.assertEqual(NS.attr, 0)
-        NS.attr = 10
-        self.assertEqual(NS.attr, 10)
-
-        # Check the C++ value has changed and not the type dict.
-        # TODO This is v14 specific.
-        #self.assertEqual(NS.get_attr(), 10)
-
-        # TODO This is v14 specific.
-        #with self.assertRaises(AttributeError):
-        #    del NS.attr;
+    # For ABI v14 check a wrapped namespace attribute cannot be deleted.
+    if abi_version >= 14:
+        with pytest.raises(AttributeError):
+            del module.NS.attr
