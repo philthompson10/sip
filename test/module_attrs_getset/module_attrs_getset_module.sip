@@ -19,9 +19,6 @@ int int_attr_setter = 10;
 
 // %SetCode that raises an exception.
 int int_attr_bad_setter = 10;
-
-// Utility to confirm an attribute has changed.
-int get_int_attr() {return int_attr;}
 %End
 
 
