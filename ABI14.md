@@ -118,4 +118,4 @@ These are the remaining broad areas of work.
 - Events.
 - Buffer protocol.
 - Pickling.
-- Port any legacy tests.
+- Port any remaining tests.

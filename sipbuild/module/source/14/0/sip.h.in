@@ -19,8 +19,8 @@
 
 
 /* Sanity check on the Python version. */
-#if PY_VERSION_HEX < 0x03@_SIP_OLDEST_SUPPORTED_MINOR_HEX@0000
-#error "This version of @_SIP_MODULE_FQ_NAME@ requires Python v3.@_SIP_OLDEST_SUPPORTED_MINOR@ or later"
+#if PY_VERSION_HEX < 0x030f0000
+#error "This version of @_SIP_MODULE_FQ_NAME@ requires Python v3.15 or later"
 #endif
 
 

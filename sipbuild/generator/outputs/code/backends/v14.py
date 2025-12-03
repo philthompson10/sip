@@ -162,18 +162,18 @@ f'''    return PyModuleDef_Init(&sipWrappedModuleDef_{module_name});
         # directive and default to Py_MOD_MULTIPLE_INTERPRETERS_NOT_SUPPORTED.
         interp_support = 'Py_MOD_MULTIPLE_INTERPRETERS_NOT_SUPPORTED'
 
+        # TODO This value should be taken from a new option of the %Module
+        # directive and default to Py_MOD_GIL_USED.
+        gil_support = 'Py_MOD_GIL_USED'
+
         sf.write(
 f'''
 
 /* The wrapped module's immutable slot definitions. */
 static PyModuleDef_Slot sip_wrapped_module_slots[] = {{
     {{Py_mod_exec, (void *)wrapped_module_exec}},
-#if PY_VERSION_HEX >= 0x030c0000
     {{Py_mod_multiple_interpreters, {interp_support}}},
-#endif
-#if PY_VERSION_HEX >= 0x030d0000
-    {{Py_mod_gil, Py_MOD_GIL_USED}},
-#endif
+    {{Py_mod_gil, {gil_support}}},
     {{0, SIP_NULLPTR}}
 }};
 
