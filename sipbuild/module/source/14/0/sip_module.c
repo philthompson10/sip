@@ -147,6 +147,16 @@ int sip_sip_module_init(sipSipModuleState *sms, PyObject *mod)
     sms->thread_list = NULL;
     sms->unused_backdoor = NULL;
 
+    /* Add the constants. */
+    long abi_version = (SIP_ABI_MAJOR_VERSION << 16) +
+            (SIP_ABI_MINOR_VERSION << 8) +
+            SIP_MODULE_PATCH_VERSION;
+
+    if (PyModule_AddIntConstant(mod, "SIP_ABI_VERSION", abi_version) < 0 ||
+        PyModule_AddIntMacro(mod, SIP_VERSION) < 0 ||
+        PyModule_AddStringMacro(mod, SIP_VERSION_STR) < 0)
+        return -1;
+
     /* Initialise the types. */
     if (sip_wrapper_type_init(mod, sms) < 0 ||
         sip_simple_wrapper_init(mod, sms) < 0 ||
