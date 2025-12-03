@@ -38,7 +38,10 @@ static int module_traverse(PyObject *module, visitproc visit, void *arg);
 
 
 /* The standalone sip module definition. */
+PyABIInfo_VAR(abi_info);
+
 static PyModuleDef_Slot module_slots[] = {
+    {Py_mod_abi, &abi_info},
     {Py_mod_exec, module_exec},
     {Py_mod_multiple_interpreters, Py_MOD_PER_INTERPRETER_GIL_SUPPORTED},
     {Py_mod_gil, Py_MOD_GIL_USED},

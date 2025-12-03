@@ -60,8 +60,9 @@ class BuildableFromSources(Buildable):
         self.debug = False
 
         if self.uses_limited_api:
-            self.define_macros.append(
-                    'Py_LIMITED_API=' + project.limited_abi_version_str)
+            # Force v3.15 for ABI v14.
+            limited_api = '0x030f0000' if project.target_abi >= (14, 0) else project.limited_abi_version_str
+            self.define_macros.append('Py_LIMITED_API=' + limited_api)
 
     def make_names_relative(self):
         """ Make all file and directory names relative to the build directory.

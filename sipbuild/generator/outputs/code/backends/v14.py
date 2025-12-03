@@ -170,7 +170,10 @@ f'''    return PyModuleDef_Init(&sipWrappedModuleDef_{module_name});
 f'''
 
 /* The wrapped module's immutable slot definitions. */
+PyABIInfo_VAR(sip_abi_info);
+
 static PyModuleDef_Slot sip_wrapped_module_slots[] = {{
+    {{Py_mod_abi, &sip_abi_info}},
     {{Py_mod_exec, (void *)wrapped_module_exec}},
     {{Py_mod_multiple_interpreters, {interp_support}}},
     {{Py_mod_gil, {gil_support}}},
