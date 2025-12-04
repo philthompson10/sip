@@ -118,4 +118,5 @@ These are the remaining broad areas of work.
 - Events.
 - Buffer protocol.
 - Pickling.
+- Implement and test the BrokenTypeNames sip module configuration option.
 - Port any remaining tests.
