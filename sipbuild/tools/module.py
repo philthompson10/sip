@@ -19,6 +19,10 @@ def main():
     parser.add_argument('--abi-version', help="the ABI version",
             metavar="MAJOR[.MINOR]")
 
+    parser.add_argument('--option', action='append',
+            choices=sorted(SipModuleConfiguration.__members__.keys()),
+            help="configure the sip module")
+
     parser.add_argument('--project', help="the PyPI project name",
             metavar="NAME")
 

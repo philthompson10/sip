@@ -14,11 +14,14 @@ class SipModuleConfiguration(IntFlag):
     to the user, hence the use of upper camel case.
     """
 
-    # Use standard Python enum objects to wrap enums (default).
-    PyEnums = 0x0001
+    # Use broken sip module type names.
+    BrokenTypeNames = 0x0001
+
+    # Use standard Python enum objects to wrap enums.
+    PyEnums = 0x0002
 
     # Use a custom Python object to wrap enums.
-    CustomEnums = 0x0002
+    CustomEnums = 0x0004
 
 
 def apply_module_defaults(module_configuration):
