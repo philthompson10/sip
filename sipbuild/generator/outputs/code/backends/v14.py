@@ -7,7 +7,8 @@ from .....sip_module_configuration import SipModuleConfiguration
 
 from ....python_slots import is_rich_compare_slot
 from ....scoped_name import STRIP_GLOBAL
-from ....specification import ArgumentType, IfaceFileType, PySlot, WrappedEnum
+from ....specification import (ArgumentType, GILUse, IfaceFileType,
+        MultiInterpreterSupport, PySlot, WrappedEnum)
 
 from ...formatters import fmt_class_as_scoped_py_name
 
@@ -153,18 +154,29 @@ f'''    return PyModuleDef_Init(&sipWrappedModuleDef_{module_name});
         sf.write('    PyObject *sipModule = PyType_GetModule(sipDefType);\n')
         self.g_function_support_vars(sf)
 
+    # Map GILUse values.
+    _MAP_GIL_USED = {
+        GILUse.USED:        'Py_MOD_GIL_USED',
+        GILUse.NOT_USED:    'Py_MOD_GIL_NOT_USED',
+    }
+
+    # Map MultiInterpreterSupport values.
+    _MAP_MULTI_INTERPRETER_SUPPORT = {
+        MultiInterpreterSupport.NOT_SUPPORTED:
+                'Py_MOD_MULTIPLE_INTERPRETERS_NOT_SUPPORTED',
+        MultiInterpreterSupport.PER_INTERPRETER_GIL_SUPPORTED:
+                'Py_MOD_PER_INTERPRETER_GIL_SUPPORTED',
+        MultiInterpreterSupport.SUPPORTED:
+                'Py_MOD_MULTIPLE_INTERPRETERS_SUPPORTED',
+    }
+
     def g_module_definition(self, sf, has_module_functions=False):
         """ Generate the module definition structure. """
 
         module = self.spec.module
 
-        # TODO This value should be taken from a new option of the %Module
-        # directive and default to Py_MOD_MULTIPLE_INTERPRETERS_NOT_SUPPORTED.
-        interp_support = 'Py_MOD_MULTIPLE_INTERPRETERS_NOT_SUPPORTED'
-
-        # TODO This value should be taken from a new option of the %Module
-        # directive and default to Py_MOD_GIL_USED.
-        gil_support = 'Py_MOD_GIL_USED'
+        gil_support = self._MAP_GIL_USED[module.gil_use]
+        interp_support = self._MAP_MULTI_INTERPRETER_SUPPORT[module.multi_interpreter_support]
 
         sf.write(
 f'''
@@ -175,8 +187,8 @@ PyABIInfo_VAR(sip_abi_info);
 static PyModuleDef_Slot sip_wrapped_module_slots[] = {{
     {{Py_mod_abi, &sip_abi_info}},
     {{Py_mod_exec, (void *)wrapped_module_exec}},
-    {{Py_mod_multiple_interpreters, {interp_support}}},
     {{Py_mod_gil, {gil_support}}},
+    {{Py_mod_multiple_interpreters, {interp_support}}},
     {{0, SIP_NULLPTR}}
 }};
 
