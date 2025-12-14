@@ -42,6 +42,8 @@ typedef struct {
      * The super-metatype.  This must be first in the structure so that it can
      * be cast to a PyTypeObject *.
      */
+    // TODO Convert to sipEnumTypeData.  However this is related to tp_token
+    // and the backdoor.
     PyHeapTypeObject super;
 
     /* The generated type structure. */

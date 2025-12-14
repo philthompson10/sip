@@ -22,11 +22,9 @@
 
 
 /*
- * The object data structure.
+ * The method descriptor data.
  */
 typedef struct {
-    PyObject_HEAD
-
     /* The method definition. */
     const PyMethodDef *pmd;
 
@@ -35,16 +33,16 @@ typedef struct {
 
     /* The mixin name, if any. */
     PyObject *mixin_name;
-} MethodDescr;
+} MethodDescrData;
 
 
 /* Forward declarations of slots. */
-static int MethodDescr_clear(MethodDescr *self);
-static void MethodDescr_dealloc(MethodDescr *self);
-static PyObject *MethodDescr_descr_get(MethodDescr *self, PyObject *obj,
+static int MethodDescr_clear(PyObject *self);
+static void MethodDescr_dealloc(PyObject *self);
+static PyObject *MethodDescr_descr_get(PyObject *self, PyObject *obj,
         PyObject *type);
-static PyObject *MethodDescr_repr(MethodDescr *self);
-static int MethodDescr_traverse(MethodDescr *self, visitproc visit, void *arg);
+static PyObject *MethodDescr_repr(PyObject *self);
+static int MethodDescr_traverse(PyObject *self, visitproc visit, void *arg);
 
 
 /*
@@ -61,7 +59,7 @@ static PyType_Slot MethodDescr_slots[] = {
 
 static PyType_Spec MethodDescr_TypeSpec = {
     .name = _SIP_MODULE_FQ_NAME ".methoddescriptor",
-    .basicsize = sizeof (MethodDescr),
+    .basicsize = -(int)sizeof (MethodDescrData),
     .flags = Py_TPFLAGS_DEFAULT |
              Py_TPFLAGS_DISALLOW_INSTANTIATION |
              Py_TPFLAGS_IMMUTABLETYPE |
@@ -71,7 +69,9 @@ static PyType_Spec MethodDescr_TypeSpec = {
 
 
 /* Forward declarations. */
-static MethodDescr *alloc_method_descr(sipSipModuleState *sms);
+static PyObject *alloc_method_descr(sipSipModuleState *sms);
+static MethodDescrData *get_descr_data(PyObject *descr,
+        sipSipModuleState *sms);
 
 
 /*
@@ -80,16 +80,19 @@ static MethodDescr *alloc_method_descr(sipSipModuleState *sms);
 PyObject *sipMethodDescr_New(sipSipModuleState *sms, const PyMethodDef *pmd,
         PyTypeObject *defining_class)
 {
-    MethodDescr *descr = alloc_method_descr(sms);
+    PyObject *descr = alloc_method_descr(sms);
+    if (descr == NULL)
+        return NULL;
 
-    if (descr != NULL)
-    {
-        descr->pmd = pmd;
-        descr->defining_class = defining_class;
-        descr->mixin_name = NULL;
-    }
+    MethodDescrData *descr_data = get_descr_data(descr, sms);
+    if (descr_data == NULL)
+        return NULL;
 
-    return (PyObject *)descr;
+    descr_data->pmd = pmd;
+    descr_data->defining_class = defining_class;
+    descr_data->mixin_name = NULL;
+
+    return descr;
 }
 
 
@@ -99,27 +102,39 @@ PyObject *sipMethodDescr_New(sipSipModuleState *sms, const PyMethodDef *pmd,
 PyObject *sipMethodDescr_Copy(sipSipModuleState *sms, PyObject *orig,
         PyObject *mixin_name)
 {
-    MethodDescr *orig_descr = (MethodDescr *)orig;
-    MethodDescr *descr = alloc_method_descr(sms);
+    MethodDescrData *orig_descr_data = (MethodDescrData *)PyObject_GetTypeData(
+            orig, sms->method_descr_type);
+    if (orig_descr_data == NULL)
+        return NULL;
 
-    if (descr != NULL)
-    {
-        descr->pmd = orig_descr->pmd;
-        descr->defining_class = (PyTypeObject *)Py_NewRef(
-                orig_descr->defining_class);
-        descr->mixin_name = Py_XNewRef(mixin_name);
-    }
+    PyObject *descr = alloc_method_descr(sms);
+    if (descr == NULL)
+        return NULL;
 
-    return (PyObject *)descr;
+    MethodDescrData *descr_data = get_descr_data(descr, sms);
+    if (descr_data == NULL)
+        return NULL;
+
+    descr_data->pmd = orig_descr_data->pmd;
+    descr_data->defining_class = (PyTypeObject *)Py_NewRef(
+            orig_descr_data->defining_class);
+    descr_data->mixin_name = Py_XNewRef(mixin_name);
+
+    return descr;
 }
 
 
 /*
  * The descriptor's descriptor get slot.
  */
-static PyObject *MethodDescr_descr_get(MethodDescr *self, PyObject *obj,
+static PyObject *MethodDescr_descr_get(PyObject *self, PyObject *obj,
         PyObject *type)
 {
+    MethodDescrData *descr_data = (MethodDescrData *)PyObject_GetTypeData(self,
+            Py_TYPE(self));
+    if (descr_data == NULL)
+        return NULL;
+
     PyObject *bind;
 
     if (obj == NULL)
@@ -127,9 +142,9 @@ static PyObject *MethodDescr_descr_get(MethodDescr *self, PyObject *obj,
         /* The argument parser must work out that 'self' is the type object. */
         bind = Py_NewRef(type);
     }
-    else if (self->mixin_name != NULL)
+    else if (descr_data->mixin_name != NULL)
     {
-        bind = PyObject_GetAttr(obj, self->mixin_name);
+        bind = PyObject_GetAttr(obj, descr_data->mixin_name);
     }
     else
     {
@@ -140,8 +155,8 @@ static PyObject *MethodDescr_descr_get(MethodDescr *self, PyObject *obj,
         bind = Py_NewRef(obj);
     }
 
-    PyObject *func = PyCMethod_New((PyMethodDef *)self->pmd, bind, NULL,
-            (PyTypeObject *)self->defining_class);
+    PyObject *func = PyCMethod_New((PyMethodDef *)descr_data->pmd, bind, NULL,
+            descr_data->defining_class);
     Py_DECREF(bind);
 
     return func;
@@ -152,20 +167,33 @@ static PyObject *MethodDescr_descr_get(MethodDescr *self, PyObject *obj,
  * The descriptor's repr slot.  This is for the benefit of cProfile which seems
  * to determine attribute names differently to the rest of Python.
  */
-static PyObject *MethodDescr_repr(MethodDescr *self)
+static PyObject *MethodDescr_repr(PyObject *self)
 {
-    return PyUnicode_FromFormat("<built-in method %s>", self->pmd->ml_name);
+    MethodDescrData *descr_data = (MethodDescrData *)PyObject_GetTypeData(self,
+            Py_TYPE(self));
+    if (descr_data == NULL)
+        return NULL;
+
+    return PyUnicode_FromFormat("<built-in method %s>",
+            descr_data->pmd->ml_name);
 }
 
 
 /*
  * The descriptor's traverse slot.
  */
-static int MethodDescr_traverse(MethodDescr *self, visitproc visit, void *arg)
+static int MethodDescr_traverse(PyObject *self, visitproc visit, void *arg)
 {
     Py_VISIT(Py_TYPE(self));
-    Py_VISIT(self->defining_class);
-    Py_VISIT(self->mixin_name);
+
+    MethodDescrData *descr_data = (MethodDescrData *)PyObject_GetTypeData(self,
+            Py_TYPE(self));
+
+    if (descr_data != NULL)
+    {
+        Py_VISIT(descr_data->defining_class);
+        Py_VISIT(descr_data->mixin_name);
+    }
 
     return 0;
 }
@@ -174,10 +202,16 @@ static int MethodDescr_traverse(MethodDescr *self, visitproc visit, void *arg)
 /*
  * The descriptor's clear slot.
  */
-static int MethodDescr_clear(MethodDescr *self)
+static int MethodDescr_clear(PyObject *self)
 {
-    Py_CLEAR(self->defining_class);
-    Py_CLEAR(self->mixin_name);
+    MethodDescrData *descr_data = (MethodDescrData *)PyObject_GetTypeData(self,
+            Py_TYPE(self));
+
+    if (descr_data != NULL)
+    {
+        Py_CLEAR(descr_data->defining_class);
+        Py_CLEAR(descr_data->mixin_name);
+    }
 
     return 0;
 }
@@ -186,9 +220,9 @@ static int MethodDescr_clear(MethodDescr *self)
 /*
  * The descriptor's dealloc slot.
  */
-static void MethodDescr_dealloc(MethodDescr *self)
+static void MethodDescr_dealloc(PyObject *self)
 {
-    PyObject_GC_UnTrack((PyObject *)self);
+    PyObject_GC_UnTrack(self);
     MethodDescr_clear(self);
     PyTypeObject *type = Py_TYPE(self);
     type->tp_free(self);
@@ -212,9 +246,25 @@ int sip_method_descr_init(PyObject *module, sipSipModuleState *sms)
 
 
 /*
- * Allocate a new method descriptor for a wrapper type.
+ * Allocate a new method descriptor object for a wrapper type.
  */
-static MethodDescr *alloc_method_descr(sipSipModuleState *sms)
+static PyObject *alloc_method_descr(sipSipModuleState *sms)
 {
-    return (MethodDescr *)PyType_GenericAlloc(sms->method_descr_type, 0);
+    return sms->method_descr_type->tp_alloc(sms->method_descr_type, 0);
+}
+
+
+/*
+ * Return the data for a descriptor.  If there is an error then the descriptor
+ * is discarded.
+ */
+static MethodDescrData *get_descr_data(PyObject *descr, sipSipModuleState *sms)
+{
+    MethodDescrData *descr_data = PyObject_GetTypeData(descr,
+            sms->method_descr_type);
+
+    if (descr_data == NULL)
+        Py_DECREF(descr);
+
+    return descr_data;
 }
