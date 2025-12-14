@@ -29,10 +29,6 @@ def main():
     parser.add_argument('--sdist', action='store_true', default=False,
             help="generate an sdist file")
 
-    parser.add_argument('--option', action='append',
-            choices=sorted(SipModuleConfiguration.__members__.keys()),
-            help="configure the sip module")
-
     parser.add_argument('--setup-cfg',
             help="the name of the setup.cfg file to use", metavar="FILE")
 
