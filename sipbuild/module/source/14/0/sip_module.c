@@ -337,6 +337,30 @@ PyObject *sip_get_sip_module(PyTypeObject *defining_class)
 
 
 /*
+ * Return the state for the sip module from a type that was created by the sip
+ * module.
+ */
+sipSipModuleState *sip_get_sip_module_state(PyTypeObject *type)
+{
+#if _SIP_MODULE_SHARED
+    PyObject *mod = PyType_GetModuleByDef(type, &module_def);
+    if (mod == NULL)
+        return NULL;
+
+    return (sipSipModuleState *)PyModule_GetState(mod);
+#else
+    extern PyModuleDef _SIP_MODULE_DEF;
+
+    PyObject *mod = PyType_GetModuleByDef(type, &_SIP_MODULE_DEF);
+    if (mod == NULL)
+        return NULL;
+
+    return ((sipWrappedModuleState *)PyModule_GetState(mod))->sip_module_state;
+#endif
+}
+
+
+/*
  * Return the state for the sip module from any type.  NULL is returned if the
  * type wasn't created by the sip module.
  */
@@ -364,6 +388,8 @@ sipSipModuleState *sip_get_sip_module_state_from_any_type(PyTypeObject *type)
  * Return the state for the sip module from a type that was created by the sip
  * module.
  */
+// TODO Migrate to sip_get_sip_module_state(), ie. without the assert() and
+// with error checking.
 sipSipModuleState *sip_get_sip_module_state_from_sip_type(PyTypeObject *type)
 {
 #if _SIP_MODULE_SHARED
