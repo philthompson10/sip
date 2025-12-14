@@ -65,9 +65,6 @@ All `__hash__` handwritten code must return `Py_hash_t`.
 
 All `__len__` handwritten code must return `Py_ssize_t`.
 
-Types in the `sip` module now have fully qualified names (eg.
-`PyQt5.sip.wrapper`.
-
 The `%GetCode` and `%SetCode` directives are now supported for module
 attributes.
 
