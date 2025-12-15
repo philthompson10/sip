@@ -86,10 +86,7 @@ PyObject *sipMethodDescr_New(sipSipModuleState *sms, const PyMethodDef *pmd,
 
     MethodDescrData *descr_data = get_descr_data(descr, sms);
     if (descr_data == NULL)
-    {
-        Py_DECREF(descr);
         return NULL;
-    }
 
     descr_data->pmd = pmd;
     descr_data->defining_class = defining_class;
@@ -105,8 +102,8 @@ PyObject *sipMethodDescr_New(sipSipModuleState *sms, const PyMethodDef *pmd,
 PyObject *sipMethodDescr_Copy(sipSipModuleState *sms, PyObject *orig,
         PyObject *mixin_name)
 {
-    /* Make no assumptions about the original. */
-    MethodDescrData *orig_descr_data = get_descr_data(orig, NULL);
+    MethodDescrData *orig_descr_data = (MethodDescrData *)PyObject_GetTypeData(
+            orig, sms->method_descr_type);
     if (orig_descr_data == NULL)
         return NULL;
 
@@ -116,10 +113,7 @@ PyObject *sipMethodDescr_Copy(sipSipModuleState *sms, PyObject *orig,
 
     MethodDescrData *descr_data = get_descr_data(descr, sms);
     if (descr_data == NULL)
-    {
-        Py_DECREF(descr);
         return NULL;
-    }
 
     descr_data->pmd = orig_descr_data->pmd;
     descr_data->defining_class = (PyTypeObject *)Py_NewRef(
@@ -136,7 +130,8 @@ PyObject *sipMethodDescr_Copy(sipSipModuleState *sms, PyObject *orig,
 static PyObject *MethodDescr_descr_get(PyObject *self, PyObject *obj,
         PyObject *type)
 {
-    MethodDescrData *descr_data = get_descr_data(self, NULL);
+    MethodDescrData *descr_data = (MethodDescrData *)PyObject_GetTypeData(self,
+            Py_TYPE(self));
     if (descr_data == NULL)
         return NULL;
 
@@ -174,7 +169,8 @@ static PyObject *MethodDescr_descr_get(PyObject *self, PyObject *obj,
  */
 static PyObject *MethodDescr_repr(PyObject *self)
 {
-    MethodDescrData *descr_data = get_descr_data(self, NULL);
+    MethodDescrData *descr_data = (MethodDescrData *)PyObject_GetTypeData(self,
+            Py_TYPE(self));
     if (descr_data == NULL)
         return NULL;
 
@@ -190,7 +186,8 @@ static int MethodDescr_traverse(PyObject *self, visitproc visit, void *arg)
 {
     Py_VISIT(Py_TYPE(self));
 
-    MethodDescrData *descr_data = get_descr_data(self, NULL);
+    MethodDescrData *descr_data = (MethodDescrData *)PyObject_GetTypeData(self,
+            Py_TYPE(self));
 
     if (descr_data != NULL)
     {
@@ -207,7 +204,8 @@ static int MethodDescr_traverse(PyObject *self, visitproc visit, void *arg)
  */
 static int MethodDescr_clear(PyObject *self)
 {
-    MethodDescrData *descr_data = get_descr_data(self, NULL);
+    MethodDescrData *descr_data = (MethodDescrData *)PyObject_GetTypeData(self,
+            Py_TYPE(self));
 
     if (descr_data != NULL)
     {
@@ -257,18 +255,16 @@ static PyObject *alloc_method_descr(sipSipModuleState *sms)
 
 
 /*
- * Return the data for a descriptor instance.
+ * Return the data for a descriptor.  If there is an error then the descriptor
+ * is discarded.
  */
 static MethodDescrData *get_descr_data(PyObject *descr, sipSipModuleState *sms)
 {
-    /* Get the sip module module state if necessary. */
-    if (sms == NULL)
-    {
-        sms = sip_get_sip_module_state(Py_TYPE(descr));
-        if (sms == NULL)
-            return NULL;
-    }
-
-    return (MethodDescrData *)PyObject_GetTypeData(descr,
+    MethodDescrData *descr_data = PyObject_GetTypeData(descr,
             sms->method_descr_type);
+
+    if (descr_data == NULL)
+        Py_DECREF(descr);
+
+    return descr_data;
 }
