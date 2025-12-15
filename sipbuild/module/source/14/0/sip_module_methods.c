@@ -127,8 +127,7 @@ static PyObject *meth_assign(PyObject *mod, PyObject *args)
     assign_helper(dst_addr, 0, src_addr);
 #endif
 
-    Py_INCREF(Py_None);
-    return Py_None;
+    Py_RETURN_NONE;
 }
 
 
@@ -153,8 +152,7 @@ static PyObject *meth_delete(PyObject *mod, PyObject *args)
     sip_release(sw->data, ((sipWrapperType *)Py_TYPE(w_inst))->wt_td,
             sw->flags, NULL);
 
-    Py_INCREF(Py_None);
-    return Py_None;
+    Py_RETURN_NONE;
 }
 
 
@@ -194,8 +192,7 @@ static PyObject *meth_dump(PyObject *mod, PyObject *arg)
         print_object("First child wrapper", (PyObject *)w->first_child);
     }
 
-    Py_INCREF(Py_None);
-    return Py_None;
+    Py_RETURN_NONE;
 }
 
 
@@ -289,8 +286,7 @@ static PyObject *meth_setdeleted(PyObject *mod, PyObject *args)
 
     clear_wrapper(sms, w_inst);
 
-    Py_INCREF(Py_None);
-    return Py_None;
+    Py_RETURN_NONE;
 }
 
 
@@ -307,8 +303,7 @@ static PyObject *meth_settracemask(PyObject *mod, PyObject *args)
 
     sms->trace_mask = new_mask;
 
-    Py_INCREF(Py_None);
-    return Py_None;
+    Py_RETURN_NONE;
 }
 
 
@@ -325,8 +320,7 @@ static PyObject *meth_transferback(PyObject *mod, PyObject *args)
 
     sip_transfer_back(w);
 
-    Py_INCREF(Py_None);
-    return Py_None;
+    Py_RETURN_NONE;
 }
 
 
@@ -359,8 +353,7 @@ static PyObject *meth_transferto(PyObject *mod, PyObject *args)
 
     sip_transfer_to(sms, w, owner);
 
-    Py_INCREF(Py_None);
-    return Py_None;
+    Py_RETURN_NONE;
 }
 
 

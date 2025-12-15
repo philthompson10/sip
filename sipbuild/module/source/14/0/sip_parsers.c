@@ -889,10 +889,7 @@ PyObject *sip_convert_from_type(sipWrappedModuleState *wms, void *cpp,
 {
     /* Handle None. */
     if (cpp == NULL)
-    {
-        Py_INCREF(Py_None);
-        return Py_None;
-    }
+        Py_RETURN_NONE;
 
     assert(sipTypeIDIsClass(type_id) || sipTypeIDIsMapped(type_id));
 
@@ -1755,10 +1752,7 @@ static PyObject *convert_from_new_type(sipWrappedModuleState *wms, void *cpp,
 {
     /* Handle None. */
     if (cpp == NULL)
-    {
-        Py_INCREF(Py_None);
-        return Py_None;
-    }
+        Py_RETURN_NONE;
 
     sipSipModuleState *sms = wms->sip_module_state;
     PyTypeObject *w_type;

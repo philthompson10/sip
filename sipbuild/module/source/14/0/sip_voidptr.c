@@ -188,8 +188,7 @@ static PyObject *VoidPtr_setsize(VoidPtr *v, PyObject *arg)
 
     v->size = size;
 
-    Py_INCREF(Py_None);
-    return Py_None;
+    Py_RETURN_NONE;
 }
 
 
@@ -216,8 +215,7 @@ static PyObject *VoidPtr_setwriteable(VoidPtr *v, PyObject *arg)
 
     v->rw = rw;
 
-    Py_INCREF(Py_None);
-    return Py_None;
+    Py_RETURN_NONE;
 }
 
 
@@ -657,10 +655,7 @@ static PyObject *create_voidptr(sipSipModuleState *sms, void *voidptr,
     PyErr_Clear();
 
     if (voidptr == NULL)
-    {
-        Py_INCREF(Py_None);
-        return Py_None;
-    }
+        Py_RETURN_NONE;
 
     VoidPtr *void_ptr = (VoidPtr *)PyType_GenericAlloc(sms->void_ptr_type, 0);
 

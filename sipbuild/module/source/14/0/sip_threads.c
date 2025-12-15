@@ -68,10 +68,7 @@ PyObject *sip_wrap_instance(sipSipModuleState *sms, void *cpp,
     PyObject *self;
 
     if (cpp == NULL)
-    {
-        Py_INCREF(Py_None);
-        return Py_None;
-    }
+        Py_RETURN_NONE;
 
     /*
      * Object creation can trigger the Python garbage collector which in turn

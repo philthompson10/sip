@@ -805,10 +805,7 @@ PyObject *sip_api_convert_to_array(PyObject *w_mod, void *data,
     assert(len >= 0);
 
     if (data == NULL)
-    {
-        Py_INCREF(Py_None);
-        return Py_None;
-    }
+        Py_RETURN_NONE;
 
     switch (*format)
     {
@@ -866,10 +863,7 @@ PyObject *sip_api_convert_to_typed_array(PyObject *w_mod, void *data,
         int flags)
 {
     if (data == NULL)
-    {
-        Py_INCREF(Py_None);
-        return Py_None;
-    }
+        Py_RETURN_NONE;
 
     assert(stride > 0);
     assert(len >= 0);
