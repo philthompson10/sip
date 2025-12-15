@@ -233,7 +233,7 @@ static void MethodDescr_dealloc(PyObject *self)
 
 
 /*
- * Initialise the method descriptor support.
+ * Initialise the method descriptor.
  */
 int sip_method_descr_init(PyObject *module, sipSipModuleState *sms)
 {

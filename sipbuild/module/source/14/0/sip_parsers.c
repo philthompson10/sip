@@ -3715,9 +3715,7 @@ static int parse_pass_2(sipWrappedModuleState *wms, PyObject *self,
                 {
                     if (sip_array_can_convert(wms, arg, type_id))
                     {
-                        if (sip_array_convert(wms, arg, array, nr_elem) < 0)
-                            return FALSE;
-
+                        sip_array_convert(arg, array, nr_elem);
                         *is_temp = FALSE;
                     }
                     else if (convert_from_sequence(wms, arg, type_id, array, nr_elem))
