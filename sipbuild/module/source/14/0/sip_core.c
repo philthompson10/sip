@@ -580,7 +580,7 @@ static PyObject *sip_api_py_slot_extend(PyObject *w_mod, int slot_id,
             /* Check against the type if one was given. */
             // TODO
 #if 0
-            if (td != NULL && td != sip_get_type_def(wms, ex->pse_class, NULL))
+            if (td != NULL && td != sip_get_type_def(wms, ex->pse_class))
                 continue;
 #else
             (void)type_id;
@@ -1399,7 +1399,7 @@ sipTypeID sip_type_scope(sipWrappedModuleState *wms, sipTypeID type_id)
             cod = &((const sipClassTypeDef *)td)->ctd_container;
 
         if (cod->cod_scope != sipTypeID_Invalid)
-            return sip_get_type_def(wms, cod->cod_scope, NULL);
+            return sip_get_type_def(wms, cod->cod_scope);
     }
 #endif
 
@@ -1664,13 +1664,17 @@ static int sip_api_add_type_instance(PyObject *w_mod, PyObject *dict,
     }
     else
     {
-        PyTypeObject *py_type = sip_get_py_type(wms, type_id);
-        const sipTypeDef *td = ((sipWrapperType *)py_type)->wt_td;
+        PyTypeObject *w_type;
+
+        const sipTypeDef *td = sip_get_type_detail(wms, type_id, &w_type,
+                NULL);
+        if (td == NULL)
+            return -1;
 
         if ((cppPtr = sip_get_final_address(sms, td, cppPtr)) == NULL)
             return -1;
 
-        sipConvertFromFunc cfrom = sip_get_from_convertor(py_type, td);
+        sipConvertFromFunc cfrom = sip_get_from_convertor(w_type, td);
 
         if (cfrom != NULL)
         {
@@ -1683,7 +1687,7 @@ static int sip_api_add_type_instance(PyObject *w_mod, PyObject *dict,
         }
         else
         {
-            obj = sip_wrap_simple_instance(sms, cppPtr, py_type, NULL, 0);
+            obj = sip_wrap_simple_instance(sms, cppPtr, w_type, NULL, 0);
         }
     }
 
@@ -2074,19 +2078,45 @@ static sipWrappedModuleState *get_defining_wrapped_module_state(
  * refers to an unresolved external type.
  */
 const sipTypeDef *sip_get_type_def(sipWrappedModuleState *wms,
-        sipTypeID type_id, sipWrappedModuleState **defining_wms_p)
+        sipTypeID type_id)
+{
+    return sip_get_type_detail(wms, type_id, NULL, NULL);
+}
+
+
+/*
+ * Return the type definition for a type ID and (optionally) the Python type
+ * (if the type ID corresponds to a class, or NULL if it doesn't) and the state
+ * of the type ID's defining module.
+ */
+const sipTypeDef *sip_get_type_detail(sipWrappedModuleState *wms,
+        sipTypeID type_id, PyTypeObject **py_type_p,
+        sipWrappedModuleState **defining_wms_p)
 {
     if ((wms = get_defining_wrapped_module_state(wms, type_id)) == NULL)
         return NULL;
 
+    // TODO Handle unresolved external types.
+    // TODO Handle namespace extenders.
+    sipTypeNr type_nr = sipTypeIDTypeNr(type_id);
+
+    if (py_type_p != NULL)
+    {
+        if (sipTypeIDIsClass(type_id))
+        {
+            if ((*py_type_p = sip_get_local_py_type(wms, type_nr)) == NULL)
+                return NULL;
+        }
+        else
+        {
+            *py_type_p = NULL;
+        }
+    }
+
     if (defining_wms_p != NULL)
         *defining_wms_p = wms;
 
-    /*
-     * Note that we don't go through the Python type object as Python enums
-     * would require special handling.
-     */
-    return wms->wrapped_module_def->type_defs[sipTypeIDTypeNr(type_id)];
+    return wms->wrapped_module_def->type_defs[type_nr];
 }
 
 
@@ -2103,10 +2133,7 @@ PyTypeObject *sip_get_local_py_type(sipWrappedModuleState *wms,
 
     const sipTypeDef *td = wms->wrapped_module_def->type_defs[type_nr];
 
-    // TODO Handle unresolved external types.
     // TODO Handle enums.
-    // TODO Handle mapped types.
-    // TODO Handle namespace extenders.
     assert(sipTypeIsClass(td));
 
     /* Create the type. */
@@ -2126,10 +2153,12 @@ PyTypeObject *sip_get_local_py_type(sipWrappedModuleState *wms,
  */
 PyTypeObject *sip_get_py_type(sipWrappedModuleState *wms, sipTypeID type_id)
 {
-    if ((wms = get_defining_wrapped_module_state(wms, type_id)) == NULL)
+    PyTypeObject *py_type;
+
+    if (sip_get_type_detail(wms, type_id, &py_type, NULL) == NULL)
         return NULL;
 
-    return sip_get_local_py_type(wms, sipTypeIDTypeNr(type_id));
+    return py_type;
 }
 
 
@@ -2501,15 +2530,15 @@ static int sip_api_register_exit_notifier(PyMethodDef *md)
 /*
  * Return the function that converts a C++ instance to a Python object.
  */
-sipConvertFromFunc sip_get_from_convertor(PyTypeObject *py_type,
+sipConvertFromFunc sip_get_from_convertor(PyTypeObject *w_type,
         const sipTypeDef *td)
 {
     if (sipTypeIsMapped(td))
         return ((const sipMappedTypeDef *)td)->mtd_cfrom;
 
-    assert(sipTypeIsClass(td));
+    assert(sipTypeIsClass(td) && w_type != NULL);
 
-    sipWrapperType *wt = (sipWrapperType *)py_type;
+    sipWrapperType *wt = (sipWrapperType *)w_type;
 
     if (wt->wt_autoconversion_disabled)
         return NULL;
@@ -3063,7 +3092,7 @@ static int sip_api_register_event_handler(PyObject *w_mod, sipEventType type,
 
     sipWrappedModuleState *wms = (sipWrappedModuleState *)PyModule_GetState(
             w_mod);
-    const sipTypeDef *td = sip_get_type_def(wms, type_id, NULL);
+    const sipTypeDef *td = sip_get_type_def(wms, type_id);
 
     sipEventHandler *eh = sip_api_malloc(sizeof (sipEventHandler));
     if (eh == NULL)
@@ -3105,7 +3134,7 @@ int sip_is_subtype(sipWrappedModuleState *wms, const sipClassTypeDef *ctd,
         sup_type_id = *supers++;
 
         sipWrappedModuleState *defining_wms;
-        const sipTypeDef *sup_td = sip_get_type_def(wms, sup_type_id,
+        const sipTypeDef *sup_td = sip_get_type_detail(wms, sup_type_id, NULL,
                 &defining_wms);
 
         if (sip_is_subtype(defining_wms, (const sipClassTypeDef *)sup_td, base_ctd))

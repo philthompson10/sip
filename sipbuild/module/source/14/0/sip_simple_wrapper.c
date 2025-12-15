@@ -774,8 +774,8 @@ static sipFinalFunc find_finalisation(sipWrappedModuleState *wms,
             sup_type_id = *supers++;
 
             sipWrappedModuleState *defining_wms;
-            const sipTypeDef *sup_td = sip_get_type_def(wms, sup_type_id,
-                    &defining_wms);
+            const sipTypeDef *sup_td = sip_get_type_detail(wms, sup_type_id,
+                    NULL, &defining_wms);
 
             if (sup_td == NULL)
                 return NULL;

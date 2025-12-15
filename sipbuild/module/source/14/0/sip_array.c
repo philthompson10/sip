@@ -270,8 +270,7 @@ static int Array_ass_subscript(PyObject *self, PyObject *key, PyObject *value)
     }
     else
     {
-        const sipTypeDef *td = sip_get_type_def(array->wms, array->type_id,
-                NULL);
+        const sipTypeDef *td = sip_get_type_def(array->wms, array->type_id);
 
         sipAssignFunc assign = ((const sipClassTypeDef *)td)->ctd_assign;
         if (assign == NULL)
@@ -404,7 +403,7 @@ static void Array_dealloc(PyObject *self)
         else
         {
             const sipTypeDef *td = sip_get_type_def(array->wms,
-                    array->type_id, NULL);
+                    array->type_id);
 
             ((const sipClassTypeDef *)td)->ctd_array_delete(array->data);
         }
@@ -443,8 +442,9 @@ static PyObject *Array_new(PyTypeObject *cls, PyObject *args, PyObject *kw)
         return NULL;
 
     // TODO We want to keep wt_td but not wt_type_id???
+    // TODO Can't pass NULL as the first argument.
     const sipClassTypeDef *ctd = (const sipClassTypeDef *)sip_get_type_def(
-            NULL, wt->wt_type_id, NULL);
+            NULL, wt->wt_type_id);
 
     if (ctd->ctd_array == NULL || ctd->ctd_sizeof == 0)
     {
@@ -478,7 +478,7 @@ int sip_array_can_convert(sipWrappedModuleState *wms, PyObject *obj,
 
     Array *array = (Array *)obj;
 
-    return sip_get_type_def(array->wms, array->type_id, NULL) == sip_get_type_def(wms, type_id, NULL);
+    return sip_get_type_def(array->wms, array->type_id) == sip_get_type_def(wms, type_id);
 }
 
 
@@ -670,7 +670,7 @@ static void *get_slice(Array *array, PyObject *value, Py_ssize_t len)
         }
         else if (!sipTypeIDIsPOD(other->type_id))
         {
-            if (sip_get_type_def(array->wms, array->type_id, NULL) == sip_get_type_def(other->wms, other->type_id, NULL))
+            if (sip_get_type_def(array->wms, array->type_id) == sip_get_type_def(other->wms, other->type_id))
             {
                 bad_type = FALSE;
             }
@@ -754,7 +754,7 @@ static const char *get_type_name(Array *array)
     }
     else
     {
-        type_name = sip_get_type_def(array->wms, array->type_id, NULL)->td_cname;
+        type_name = sip_get_type_def(array->wms, array->type_id)->td_cname;
     }
 
     return type_name;

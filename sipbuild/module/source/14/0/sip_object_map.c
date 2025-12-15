@@ -183,7 +183,7 @@ static void add_aliases(sipWrappedModuleState *wms, PyObject *w_inst,
         sipTypeID sup_type_id = *supers++;
 
         sipWrappedModuleState *defining_wms;
-        const sipTypeDef *sup_td = sip_get_type_def(wms, sup_type_id,
+        const sipTypeDef *sup_td = sip_get_type_detail(wms, sup_type_id, NULL,
                 &defining_wms);
 
         /* Recurse up the hierachy for the first super-class. */
@@ -200,7 +200,8 @@ static void add_aliases(sipWrappedModuleState *wms, PyObject *w_inst,
         {
             sup_type_id = *supers++;
 
-            sup_td = sip_get_type_def(wms, sup_type_id, &defining_wms);
+            sup_td = sip_get_type_detail(wms, sup_type_id, NULL,
+                    &defining_wms);
 
             /* Recurse up the hierachy for the remaining super-classes. */
             add_aliases(defining_wms, w_inst, addr, sup_td);
@@ -401,7 +402,7 @@ static void remove_aliases(sipWrappedModuleState *wms, PyObject *w_inst,
         sipTypeID sup_type_id = *supers++;
 
         sipWrappedModuleState *defining_wms;
-        const sipTypeDef *sup_td = sip_get_type_def(wms, sup_type_id,
+        const sipTypeDef *sup_td = sip_get_type_detail(wms, sup_type_id, NULL,
                 &defining_wms);
 
         /* Recurse up the hierachy for the first super-class. */
@@ -418,7 +419,8 @@ static void remove_aliases(sipWrappedModuleState *wms, PyObject *w_inst,
         {
             sup_type_id = *supers++;
 
-            sup_td = sip_get_type_def(wms, sup_type_id, &defining_wms);
+            sup_td = sip_get_type_detail(wms, sup_type_id, NULL,
+                    &defining_wms);
 
             /* Recurse up the hierachy for the remaining super-classes. */
             remove_aliases(defining_wms, w_inst, addr, sup_td);
