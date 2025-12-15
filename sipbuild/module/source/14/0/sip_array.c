@@ -935,7 +935,7 @@ PyObject *sip_api_convert_to_typed_array(PyObject *w_mod, void *data,
 /*
  * Wrap an arbitrary block of data to an array.
  */
-PyObject *sip_array_from_bytes(sipSipModuleState *sms, void *data,
+PyObject *sip_array_from_bytes(struct _sipSipModuleState *sms, void *data,
         Py_ssize_t size, int rw)
 {
     return create_array(sms->array_type, data, NULL, 0, "B",
