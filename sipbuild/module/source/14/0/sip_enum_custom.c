@@ -72,7 +72,7 @@ static int init_enum_module_types(sipSipModuleState *sms);
  */
 static PyObject *EnumType_alloc(PyTypeObject *self, Py_ssize_t nitems)
 {
-    sipSipModuleState *sms = sip_get_sip_module_state_from_sip_type(self);
+    sipSipModuleState *sms = sip_get_sip_module_state(self);
     sipEnumTypeObject *py_type;
 
     // TODO Review if this is necessary with the current TP_FLAGS.
@@ -116,8 +116,7 @@ static void EnumType_dealloc(PyObject *self)
 static PyObject *EnumType_getattro(PyObject *self, PyObject *name)
 {
 #if 0
-    sipSipModuleState *sms = sip_get_sip_module_state_from_sip_type(
-            Py_TYPE(self));
+    sipSipModuleState *sms = sip_get_sip_module_state(Py_TYPE(self));
     PyObject *res;
     sipEnumTypeDef *etd;
     const sipWrappedModuleDef *wmd;

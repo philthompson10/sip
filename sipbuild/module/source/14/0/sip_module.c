@@ -337,47 +337,25 @@ PyObject *sip_get_sip_module(PyTypeObject *defining_class)
 
 
 /*
- * Return the state for the sip module from any type.  NULL is returned if the
- * type wasn't created by the sip module.
- */
-// TODO Review the need for this.
-sipSipModuleState *sip_get_sip_module_state_from_any_type(PyTypeObject *type)
-{
-#if 0
-    // TODO module_def isn't available with an embedded sip module.
-    PyObject *mod = PyType_GetModuleByDef(type, &module_def);
-
-    if (mod == NULL)
-    {
-        PyErr_Clear();
-        return NULL;
-    }
-
-    return (sipSipModuleState *)PyModule_GetState(mod);
-#else
-    return NULL;
-#endif
-}
-
-
-/*
  * Return the state for the sip module from a type that was created by the sip
- * module.
+ * module or NULL (and an exception raised) if the type isn't known to sip.
+ * This should never be the case for generated code but might happen if the
+ * user passes in an incorrect value via the API.
  */
-sipSipModuleState *sip_get_sip_module_state_from_sip_type(PyTypeObject *type)
+sipSipModuleState *sip_get_sip_module_state(PyTypeObject *type)
 {
 #if _SIP_MODULE_SHARED
     PyObject *mod = PyType_GetModuleByDef(type, &module_def);
-
-    assert(mod != NULL);
+    if (mod == NULL)
+        return NULL;
 
     return (sipSipModuleState *)PyModule_GetState(mod);
 #else
     extern PyModuleDef _SIP_MODULE_DEF;
 
     PyObject *mod = PyType_GetModuleByDef(type, &_SIP_MODULE_DEF);
-
-    assert(mod != NULL);
+    if (mod == NULL)
+        return NULL;
 
     return ((sipWrappedModuleState *)PyModule_GetState(mod))->sip_module_state;
 #endif

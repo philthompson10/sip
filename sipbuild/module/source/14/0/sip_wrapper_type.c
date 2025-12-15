@@ -75,7 +75,7 @@ static PyObject *WrapperType_alloc(PyTypeObject *self, Py_ssize_t nitems)
      */
 #if 0
 Try and get rid of the back door.
-     sipSipModuleState *sms = sip_get_sip_module_state_from_sip_type(self);
+     sipSipModuleState *sms = sip_get_sip_module_state(self);
 
     if (sms->current_type_def_backdoor != NULL)
     {
@@ -181,8 +181,7 @@ static int WrapperType_init(sipWrapperType *self, PyObject *args,
      * Get the generated type definition and defining module from the (first)
      * super-type.
      */
-    sipSipModuleState *sms = sip_get_sip_module_state_from_sip_type(
-            (PyTypeObject *)self);
+    sipSipModuleState *sms = sip_get_sip_module_state((PyTypeObject *)self);
     PyTypeObject *base = ((PyTypeObject *)self)->tp_base;
 
     // TODO Is this still needed?

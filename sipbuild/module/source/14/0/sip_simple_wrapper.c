@@ -236,7 +236,7 @@ static PyObject *SimpleWrapper_new(PyTypeObject *cls, PyObject *args,
     (void)args;
     (void)kwds;
 
-    sipSipModuleState *sms = sip_get_sip_module_state_from_sip_type(cls);
+    sipSipModuleState *sms = sip_get_sip_module_state(cls);
 
     /* Check the base types are not being used directly. */
     if (cls == sms->simple_wrapper_type || cls == sms->wrapper_type)
