@@ -101,14 +101,33 @@ All API calls that used to take a `sipWrapper *` or a `sipSimpleWrapper *` now
 take a `PyObject *`.
 
 
+## Rejected Ideas
+
+### PEP 697
+
+This PEP describes using a negative `basicsize` for an extension type and using
+`PyObject_GetTypeData()` to access the type's data rather than casting
+`PyObject` to the specific type.  The effect is to make `PyObject` (and
+`PyTypeObject`) opaque and able to be used with the stable ABI.
+
+This would be necessary in any attempt to implement the `sip` module using the
+limited API.
+
+Experimentation showed that:
+
+- there was significant disruption to the code
+- it wasn't clear what the error checking strategy should be (assume success,
+  test failures with `assert()`, report failures as exceptions)
+- other enhancements to the limited API would still be needed before it could
+  be used to implement the `sip` module.
+
+
 ## TODO
 
 These are the remaining broad areas of work.
 
 - Use `tp_token` instead of `wt_td`.
 - Use a managed dict.
-- Consider using `PyObject_GetTypeData()` and a negative `basicsize` within the
-  `sip` module to faciliate using the limited API for the `sip` module.
 - Mapped types.
 - Python enums.
 - Custom enums.
