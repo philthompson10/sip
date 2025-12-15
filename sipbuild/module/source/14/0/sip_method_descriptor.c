@@ -92,7 +92,7 @@ PyObject *sipMethodDescr_New(sipSipModuleState *sms, const PyMethodDef *pmd,
     }
 
     descr_data->pmd = pmd;
-    descr_data->defining_class = (PyTypeObject *)Py_NewRef(defining_class);
+    descr_data->defining_class = defining_class;
     descr_data->mixin_name = NULL;
 
     return descr;
@@ -248,7 +248,7 @@ int sip_method_descr_init(PyObject *module, sipSipModuleState *sms)
 
 
 /*
- * Allocate a new method descriptor instance for a wrapper type.
+ * Allocate a new method descriptor object for a wrapper type.
  */
 static PyObject *alloc_method_descr(sipSipModuleState *sms)
 {
