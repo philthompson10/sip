@@ -2622,8 +2622,7 @@ static void sip_api_set_type_user_data(PyTypeObject *py_type, PyObject *data)
 {
     sipWrapperType *wt = (sipWrapperType *)py_type;
 
-    Py_CLEAR(wt->wt_user_data);
-    wt->wt_user_data = Py_XNewRef(data);
+    Py_XSETREF(wt->wt_user_data, Py_XNewRef(data));
 }
 
 
