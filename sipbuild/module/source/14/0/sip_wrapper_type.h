@@ -14,6 +14,8 @@
 
 #include "sip.h"
 
+#include "sip_core.h"
+
 
 #ifdef __cplusplus
 extern "C" {
@@ -48,17 +50,7 @@ typedef struct {
     /* A strong reference to the defining module. */
     PyObject *wt_d_mod;
 
-    /* The wrapped type definition. */
-    const sipTypeDef *wt_td;
-
-    /* The generated absolute type ID. */
-    // TODO This gives access to the type definition but also allows access to
-    // this type object later on without having to explicitly pass this type
-    // object.  Note that it isn't set up yet.  It is useful in Array_new() but
-    // is it useful elsewhere?  The problem is that sip_convert_from_type()
-    // needs the type object because it needs to check the autoconversion flag.
-    // If we get rid of it then we might also get rid of the idea of absolute
-    // type IDs.
+    /* The type ID in the context of the defining module. */
     sipTypeID wt_type_id;
 
     /* The list of init extenders. */
@@ -74,6 +66,17 @@ typedef struct {
 
 
 int sip_wrapper_type_init(PyObject *module, sipSipModuleState *sms);
+
+
+/*
+ * Return the type definition for a wrapper type.
+ */
+static inline const sipTypeDef *sip_get_type_def_from_wt(sipWrapperType *wt)
+{
+    return sip_get_type_def(
+            (sipWrappedModuleState *)PyModule_GetState(wt->wt_d_mod),
+            wt->wt_type_id);
+}
 
 #ifdef __cplusplus
 }

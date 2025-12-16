@@ -1667,8 +1667,8 @@ static int can_convert_to_type(sipWrappedModuleState *wms, PyObject *pyObj,
     assert(type_id == sipTypeIDInvalid || sipTypeIDIsClass(type_id) || sipTypeIDIsMapped(type_id));
 
     // TODO Handle /External/ types.
-    PyTypeObject *w_type = sip_get_py_type(wms, type_id);
-    const sipTypeDef *td = ((sipWrapperType *)w_type)->wt_td;
+    PyTypeObject *w_type;
+    const sipTypeDef *td = sip_get_type_detail(wms, type_id, &w_type, NULL);
 
     int ok;
 
@@ -1937,8 +1937,9 @@ static int convert_subclass_pass(sipSipModuleState *sms,
                 if ((w_mod = (*scc->scc_convertor)(&ptr, &sub_id)) != NULL)
                 {
                     sipWrappedModuleState *wms = (sipWrappedModuleState *)PyModule_GetState(w_mod);
-                    PyTypeObject *sub_type = sip_get_py_type(wms, sub_id);
-                    const sipTypeDef *sub_td = ((sipWrapperType *)sub_type)->wt_td;
+                    PyTypeObject *sub_type;
+                    const sipTypeDef *sub_td = sip_get_type_detail(wms, sub_id,
+                            &sub_type, NULL);
 
                     /*
                      * We are only interested in types that are not

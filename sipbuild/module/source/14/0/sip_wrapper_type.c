@@ -158,7 +158,7 @@ static PyObject *WrapperType_getattro(sipWrapperType *self, PyObject *name)
 
     sipWrappedModuleState *wms = (sipWrappedModuleState *)PyModule_GetState(
             self->wt_d_mod);
-    const sipClassTypeDef *ctd = (const sipClassTypeDef *)self->wt_td;
+    const sipClassTypeDef *ctd = (const sipClassTypeDef *)sip_get_type_def_from_wt(self);
 
     return sip_mod_con_getattro(wms, (PyObject *)self, name,
             &ctd->ctd_container.cod_attributes);
@@ -197,10 +197,10 @@ static int WrapperType_init(sipWrapperType *self, PyObject *args,
     // TODO Properly understand the last sentence above.
     if (base != NULL && PyObject_TypeCheck((PyObject *)base, sms->wrapper_type_type))
     {
-        // TODO Check if d_mod can be NULL (ie. when wt_td might be NULL).
+        // TODO Check if d_mod can be NULL, ie. if type_id can be invalid.
         self->wt_is_wrapper = ((sipWrapperType *)base)->wt_is_wrapper;
         self->wt_d_mod = Py_XNewRef(((sipWrapperType *)base)->wt_d_mod);
-        self->wt_td = ((sipWrapperType *)base)->wt_td;
+        self->wt_type_id = ((sipWrapperType *)base)->wt_type_id;
 
 #if 0
         if (self->wt_td != NULL)
@@ -240,7 +240,7 @@ static int WrapperType_setattro(sipWrapperType *self, PyObject *name,
 
     sipWrappedModuleState *wms = (sipWrappedModuleState *)PyModule_GetState(
             self->wt_d_mod);
-    const sipClassTypeDef *ctd = (const sipClassTypeDef *)self->wt_td;
+    const sipClassTypeDef *ctd = (const sipClassTypeDef *)sip_get_type_def_from_wt(self);
 
     return sip_mod_con_setattro(wms, (PyObject *)self, name, value,
             &ctd->ctd_container.cod_attributes);

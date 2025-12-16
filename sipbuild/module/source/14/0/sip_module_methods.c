@@ -81,7 +81,7 @@ static PyObject *meth_assign(PyObject *mod, PyObject *args)
     /* Get the assignment helper. */
     sipAssignFunc assign_helper;
     PyTypeObject *dst_type = Py_TYPE(dst);
-    const sipTypeDef *td = ((sipWrapperType *)dst_type)->wt_td;
+    const sipTypeDef *td = sip_get_type_def_from_wt((sipWrapperType *)dst_type);
 
     if (sipTypeIsMapped(td))
         assign_helper = ((const sipMappedTypeDef *)td)->mtd_assign;
@@ -149,7 +149,8 @@ static PyObject *meth_delete(PyObject *mod, PyObject *args)
 
     clear_wrapper(sms, w_inst);
 
-    sip_release(sw->data, ((sipWrapperType *)Py_TYPE(w_inst))->wt_td,
+    sip_release(sw->data,
+            sip_get_type_def_from_wt((sipWrapperType *)Py_TYPE(w_inst)),
             sw->flags, NULL);
 
     Py_RETURN_NONE;
@@ -399,7 +400,8 @@ static PyObject *meth_wrapinstance(PyObject *mod, PyObject *args)
     if (!PyArg_ParseTuple(args, "KO!:wrapinstance", &addr, sms->wrapper_type_type, &wt))
         return NULL;
 
-    return sip_convert_from_type(sms, (void *)addr, wt->wt_td, NULL);
+    return sip_convert_from_type(sms, (void *)addr,
+            sip_get_type_def_from_wt(wt), NULL);
 #else
     return NULL;
 #endif

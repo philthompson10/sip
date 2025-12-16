@@ -111,8 +111,6 @@ sipConvertFromFunc sip_get_from_convertor(PyTypeObject *py_type,
         const sipTypeDef *td);
 PyTypeObject *sip_get_local_py_type(sipWrappedModuleState *wms,
         sipTypeNr type_nr);
-const sipTypeDef *sip_get_type_def(sipWrappedModuleState *wms,
-        sipTypeID type_id);
 const sipTypeDef *sip_get_type_detail(sipWrappedModuleState *wms,
         sipTypeID type_id, PyTypeObject **py_type_p,
         sipWrappedModuleState **defining_wms_p);
@@ -140,6 +138,15 @@ PyObject *sip_unpickle_type(PyObject *mod, PyObject *args);
 PyObject *sip_wrap_simple_instance(sipSipModuleState *sms, void *cpp,
         PyTypeObject *w_type, PyObject *owner, int flags);
 
+
+/*
+ * Return the type definition for a type ID.
+ */
+static inline const sipTypeDef *sip_get_type_def(sipWrappedModuleState *wms,
+        sipTypeID type_id)
+{
+    return sip_get_type_detail(wms, type_id, NULL, NULL);
+}
 
 #ifdef __cplusplus
 }

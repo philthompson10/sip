@@ -441,10 +441,10 @@ static PyObject *Array_new(PyTypeObject *cls, PyObject *args, PyObject *kw)
     if (!PyArg_ParseTupleAndKeywords(args, kw, "O!n:array", kwlist, sms->wrapper_type_type, (PyObject **)&wt, &length))
         return NULL;
 
-    // TODO We want to keep wt_td but not wt_type_id???
-    // TODO Can't pass NULL as the first argument.
-    const sipClassTypeDef *ctd = (const sipClassTypeDef *)sip_get_type_def(
-            NULL, wt->wt_type_id);
+    sipWrappedModuleState *wms = (sipWrappedModuleState *)PyModule_GetState(
+            wt->wt_d_mod);
+    const sipClassTypeDef *ctd = (const sipClassTypeDef *)sip_get_type_def(wms,
+            wt->wt_type_id);
 
     if (ctd->ctd_array == NULL || ctd->ctd_sizeof == 0)
     {
@@ -462,7 +462,7 @@ static PyObject *Array_new(PyTypeObject *cls, PyObject *args, PyObject *kw)
     }
 
     /* Create the instance. */
-    return create_array(cls, ctd->ctd_array(length), NULL, wt->wt_type_id,
+    return create_array(cls, ctd->ctd_array(length), wms, wt->wt_type_id,
             NULL, ctd->ctd_sizeof, length, SIP_OWNS_MEMORY, NULL);
 }
 

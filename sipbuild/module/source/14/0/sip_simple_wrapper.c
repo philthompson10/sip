@@ -102,7 +102,7 @@ static int SimpleWrapper_clear(PyObject *self)
      * sipWrapper_dealloc()).  This feels wrong but we retain this historical
      * behaviour as it doesn't seem to have caused problems in the wild.
      */
-    sipClearFunc clear = ((const sipClassTypeDef *)wt->wt_td)->ctd_clear;
+    sipClearFunc clear = ((const sipClassTypeDef *)sip_get_type_def_from_wt(wt))->ctd_clear;
 
     if (clear != NULL)
         vret = clear(sw->data);
@@ -172,7 +172,7 @@ static void SimpleWrapper_dealloc(PyObject *self)
 
     if (sms->interpreter_state != NULL)
     {
-        sipDeallocFunc dealloc = ((const sipClassTypeDef *)wt->wt_td)->ctd_dealloc;
+        sipDeallocFunc dealloc = ((const sipClassTypeDef *)sip_get_type_def_from_wt(wt))->ctd_dealloc;
 
         if (dealloc != NULL)
             dealloc(self);
@@ -249,7 +249,7 @@ static PyObject *SimpleWrapper_new(PyTypeObject *cls, PyObject *args,
     }
 
     sipWrapperType *wt = (sipWrapperType *)cls;
-    const sipTypeDef *td = wt->wt_td;
+    const sipTypeDef *td = sip_get_type_def_from_wt(wt);
 
 #if 0
     /* See if it is a mapped type. */
@@ -349,7 +349,7 @@ static int SimpleWrapper_traverse(PyObject *self, visitproc visit,
     Py_VISIT(Py_TYPE(self));
 
     /* Call any handwritten traverse code. */
-    sipTraverseFunc traverse = ((const sipClassTypeDef *)wt->wt_td)->ctd_traverse;
+    sipTraverseFunc traverse = ((const sipClassTypeDef *)sip_get_type_def_from_wt(wt))->ctd_traverse;
 
     if (traverse != NULL)
     {
@@ -466,7 +466,7 @@ static int SimpleWrapper_init(PyObject *self, PyObject *args,
 
     int from_cpp = TRUE;
     PyObject *unused = NULL;
-    const sipClassTypeDef *ctd = (const sipClassTypeDef *)wt->wt_td;
+    const sipClassTypeDef *ctd = (const sipClassTypeDef *)sip_get_type_def_from_wt(wt);
     sipFinalFunc final_func = find_finalisation(wms, ctd);
 
     if (sipNew == NULL)

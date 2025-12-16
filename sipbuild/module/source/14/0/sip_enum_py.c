@@ -425,7 +425,7 @@ static PyTypeObject *get_enum_type(sipWrappedModuleState *wms,
     {
         PyTypeObject *scope_py_type = sip_get_py_type(wms,
                 sip_type_scope(wms, type_id));
-        const sipTypeDef *scope_td = ((sipWrapperType *)scope_py_type)->wt_td;
+        const sipTypeDef *scope_td = sip_get_type_def_from_wt((sipWrapperType *)scope_py_type);
 
         if (sip_container_add_lazy_attrs(wms, scope_py_type, scope_td) < 0)
             return NULL;

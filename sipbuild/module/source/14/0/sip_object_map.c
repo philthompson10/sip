@@ -164,7 +164,7 @@ void sip_om_add_object(sipWrappedModuleState *wms, PyObject *w_inst)
 
     /* Add any aliases. */
     add_aliases(wms, w_inst, sw->data,
-            ((sipWrapperType *)Py_TYPE(w_inst))->wt_td);
+            sip_get_type_def_from_wt((sipWrapperType *)Py_TYPE(w_inst)));
 }
 
 
@@ -194,7 +194,7 @@ static void add_aliases(sipWrappedModuleState *wms, PyObject *w_inst,
          * first one can never need one.
          */
         sipWrapperType *wt = (sipWrapperType *)Py_TYPE(w_inst);
-        sipCastFunc cast = ((const sipClassTypeDef *)(wt->wt_td))->ctd_cast;
+        sipCastFunc cast = ((const sipClassTypeDef *)sip_get_type_def_from_wt(wt))->ctd_cast;
 
         while (!sipTypeIDIsSentinel(sup_type_id))
         {
@@ -380,7 +380,7 @@ int sip_om_remove_object(sipWrappedModuleState *wms, PyObject *w_inst)
 
     /* Remove any aliases. */
     remove_aliases(wms, w_inst, sw->data,
-            ((sipWrapperType *)Py_TYPE(w_inst))->wt_td);
+            sip_get_type_def_from_wt((sipWrapperType *)Py_TYPE(w_inst)));
 
     /* Remove the object. */
     return remove_object(wms, w_inst, sw->data);
@@ -413,7 +413,7 @@ static void remove_aliases(sipWrappedModuleState *wms, PyObject *w_inst,
          * first one can never need one.
          */
         sipWrapperType *wt = (sipWrapperType *)Py_TYPE(w_inst);
-        sipCastFunc cast = ((const sipClassTypeDef *)(wt->wt_td))->ctd_cast;
+        sipCastFunc cast = ((const sipClassTypeDef *)sip_get_type_def_from_wt(wt))->ctd_cast;
 
         while (!sipTypeIDIsSentinel(sup_type_id))
         {

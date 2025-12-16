@@ -122,12 +122,17 @@ Experimentation showed that:
   be used to implement the `sip` module.
 
 
+### Managed Dicts
+
+`Py_TPFLAGS_MANAGED_DICT` was added to Python v3.12 but with little explanation
+of its purpose.
+
+
 ## TODO
 
 These are the remaining broad areas of work.
 
 - Use `tp_token` instead of `wt_td`.
-- Use a managed dict.
 - Mapped types.
 - Python enums.
 - Custom enums.

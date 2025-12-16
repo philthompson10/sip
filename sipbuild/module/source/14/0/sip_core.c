@@ -269,9 +269,9 @@ const sipAPIDef sip_api = {
 static void call_py_dtor(sipWrappedModuleState *wms, PyObject *self);
 static int compare_typedef_name(const void *key, const void *el);
 static PyTypeObject *create_class_type(sipWrappedModuleState *wms,
-        const sipClassTypeDef *ctd);
+        sipTypeID type_id, const sipClassTypeDef *ctd);
 static PyTypeObject *create_container_type(sipWrappedModuleState *wms,
-        const sipContainerDef *cod, const sipTypeDef *td, PyObject *bases,
+        sipTypeID type_id, const sipContainerDef *cod, PyObject *bases,
         PyTypeObject *metatype);
 static PyTypeObject *find_registered_py_type(sipSipModuleState *sms,
         const char *name);
@@ -830,7 +830,7 @@ PyObject *sip_get_scope_dict(sipSipModuleState *sms, const sipTypeDef *td,
  * Create a container type and return a strong reference to it.
  */
 static PyTypeObject *create_container_type(sipWrappedModuleState *wms,
-        const sipContainerDef *cod, const sipTypeDef *td, PyObject *bases,
+        sipTypeID type_id, const sipContainerDef *cod, PyObject *bases,
         PyTypeObject *metatype)
 {
     /* Configure the type. */
@@ -862,12 +862,11 @@ static PyTypeObject *create_container_type(sipWrappedModuleState *wms,
     /* Configure the type. */
     sipSipModuleState *sms = wms->sip_module_state;
 
-    // TODO Are we going to keep wt_type_id?  Should it be wt_type_nr?
     sipWrapperType *wt = (sipWrapperType *)w_type;
 
     wt->wt_is_wrapper = PyType_IsSubtype(w_type, sms->wrapper_type);
     wt->wt_d_mod = Py_NewRef(wms->wrapped_module);
-    wt->wt_td = td;
+    wt->wt_type_id = type_id;
 
     /*
      * The dict is created by the PyType_Ready() call in
@@ -991,7 +990,7 @@ ret_error:
  * Create a single class type object.
  */
 static PyTypeObject *create_class_type(sipWrappedModuleState *wms,
-        const sipClassTypeDef *ctd)
+        sipTypeID type_id, const sipClassTypeDef *ctd)
 {
     sipSipModuleState *sms = wms->sip_module_state;
 
@@ -1073,8 +1072,8 @@ static PyTypeObject *create_class_type(sipWrappedModuleState *wms,
         metatype = Py_TYPE(first);
     }
 
-    PyTypeObject *py_type = create_container_type(wms, &ctd->ctd_container,
-            (const sipTypeDef *)ctd, bases, metatype);
+    PyTypeObject *py_type = create_container_type(wms, type_id,
+            &ctd->ctd_container, bases, metatype);
 
     Py_DECREF(bases);
 
@@ -1209,7 +1208,7 @@ PyObject *sip_unpickle_type(PyObject *mod, PyObject *args)
 
     /* Check that it is a class. */
     // TODO This may be an invalid cast.
-    const sipTypeDef *td = ((sipWrapperType *)py_type)->wt_td;
+    const sipTypeDef *td = sip_get_type_def_from_wt((sipWrapperType *)py_type);
 
     if (!sipTypeIsClass(td))
     {
@@ -1793,14 +1792,14 @@ void *sip_cast_cpp_ptr(void *ptr, PyTypeObject *src_type,
 {
     sipWrapperType *src_wt = (sipWrapperType *)src_type;
 
-    sipCastFunc cast = ((const sipClassTypeDef *)src_wt->wt_td)->ctd_cast;
+    sipCastFunc cast = ((const sipClassTypeDef *)sip_get_type_def_from_wt(src_wt))->ctd_cast;
 
     /* C structures and base classes don't have cast functions. */
     if (cast != NULL)
     {
         sipWrapperType *target_wt = (sipWrapperType *)target_type;
 
-        ptr = (*cast)(ptr, target_wt->wt_td);
+        ptr = (*cast)(ptr, sip_get_type_def_from_wt(target_wt));
     }
 
     return ptr;
@@ -1965,7 +1964,7 @@ static sipTypeID sip_api_find_type_id(PyObject *w_mod, const char *type)
 
             /*
              * Return an absolute ID of a generated type.  Absolute types mean
-             * that a type that whis module known nothing about can still be
+             * that a type that this module known nothing about can still be
              * referenced.
              */
             return type_type | SIP_TYPE_ID_ABSOLUTE | (i << 16) | type_nr;
@@ -2057,8 +2056,8 @@ static sipWrappedModuleState *get_defining_wrapped_module_state(
     // If the cached type def is NULL then the number is the index of a table
     // of strings in the wrapped module definition that are the corresponding
     // names of external types.
-    // Add support for dynamic IDs where the module number is the index into
-    // the list of all modules held in the sip module state.  Dynamic IDs can
+    // Add support for absolute IDs where the module number is the index into
+    // the list of all modules held in the sip module state.  Absolute IDs can
     // only be created by sip_api_find_type_id().
     // Check for non-generated types.
     if (type_id == sipTypeID_Invalid)
@@ -2070,17 +2069,6 @@ static sipWrappedModuleState *get_defining_wrapped_module_state(
     return (sipWrappedModuleState *)PyModule_GetState(
             PyList_GET_ITEM(wms->imported_modules,
                     sipTypeIDModuleNr(type_id)));
-}
-
-
-/*
- * Return the type definition for a type ID.  This can be invalid if the ID
- * refers to an unresolved external type.
- */
-const sipTypeDef *sip_get_type_def(sipWrappedModuleState *wms,
-        sipTypeID type_id)
-{
-    return sip_get_type_detail(wms, type_id, NULL, NULL);
 }
 
 
@@ -2137,7 +2125,9 @@ PyTypeObject *sip_get_local_py_type(sipWrappedModuleState *wms,
     assert(sipTypeIsClass(td));
 
     /* Create the type. */
-    py_type = create_class_type(wms, (const sipClassTypeDef *)td);
+    sipTypeID type_id = SIP_TYPE_ID_TYPE_CLASS | SIP_TYPE_ID_CURRENT_MODULE | type_nr;
+
+    py_type = create_class_type(wms, type_id, (const sipClassTypeDef *)td);
     if (py_type == NULL)
         return NULL;
 
@@ -2227,7 +2217,8 @@ static int sip_api_init_mixin(PyObject *w_mod, PyObject *self, PyObject *args,
     ((sipSimpleWrapper *)mixin)->mixin_main = self;
     Py_INCREF(self);
 
-    const sipTypeDef *td = ((sipWrapperType *)mixin_wt)->wt_td;
+    const sipTypeDef *td = sip_get_type_def_from_wt(
+            (sipWrapperType *)mixin_wt);
 
     PyObject *mixin_name = PyUnicode_FromString(td->td_cname);
     if (mixin_name == NULL)
