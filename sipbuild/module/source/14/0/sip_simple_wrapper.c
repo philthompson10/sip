@@ -241,17 +241,14 @@ static PyObject *SimpleWrapper_new(PyTypeObject *cls, PyObject *args,
     /* Check the base types are not being used directly. */
     if (cls == sms->simple_wrapper_type || cls == sms->wrapper_type)
     {
-        PyErr_Format(PyExc_TypeError,
-                "the %s type cannot be instantiated or sub-classed",
+        PyErr_Format(PyExc_TypeError, "%s cannot be instantiated",
                 cls->tp_name);
-
         return NULL;
     }
 
     sipWrapperType *wt = (sipWrapperType *)cls;
     const sipTypeDef *td = sip_get_type_def_from_wt(wt);
 
-#if 0
     /* See if it is a mapped type. */
     if (sipTypeIsMapped(td))
     {
@@ -261,7 +258,6 @@ static PyObject *SimpleWrapper_new(PyTypeObject *cls, PyObject *args,
 
         return NULL;
     }
-#endif
 
     /* See if it is a namespace. */
     if (sipTypeIsNamespace(td))

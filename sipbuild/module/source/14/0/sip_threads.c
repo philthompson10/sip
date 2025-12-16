@@ -134,7 +134,7 @@ static sipPendingDef *get_pending(sipSipModuleState *sms, int auto_alloc)
 static sipThread *get_current_thread(sipSipModuleState *sms, int auto_alloc)
 {
     sipThread *thread, *empty = NULL;
-    long ident = PyThread_get_thread_ident();
+    unsigned long ident = PyThread_get_thread_ident();
 
     /* See if we already know about the thread. */
     for (thread = sms->thread_list; thread != NULL; thread = thread->next)

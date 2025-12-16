@@ -34,7 +34,7 @@ typedef struct {
  * The per thread data we need to maintain.
  */
 typedef struct _sipThread {
-    long thr_ident;                 /* The thread identifier. */
+    unsigned long thr_ident;        /* The thread identifier. */
     sipPendingDef pending;          /* An object waiting to be wrapped. */
     struct _sipThread *next;        /* Next in the list. */
 } sipThread;

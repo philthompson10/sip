@@ -18,7 +18,6 @@
 
 
 /* Forward declarations of slots. */
-//static PyObject *WrapperType_alloc(PyTypeObject *self, Py_ssize_t nitems);
 static int WrapperType_clear(sipWrapperType *self);
 static void WrapperType_dealloc(sipWrapperType *self);
 static PyObject *WrapperType_getattro(sipWrapperType *self, PyObject *name);
@@ -34,7 +33,6 @@ static int WrapperType_traverse(sipWrapperType *self, visitproc visit,
  * The type specification.
  */
 static PyType_Slot WrapperType_slots[] = {
-    //{Py_tp_alloc, WrapperType_alloc},
     {Py_tp_clear, WrapperType_clear},
     {Py_tp_dealloc, WrapperType_dealloc},
     {Py_tp_getattro, WrapperType_getattro},
@@ -52,71 +50,6 @@ static PyType_Spec WrapperType_TypeSpec = {
              Py_TPFLAGS_TYPE_SUBCLASS,
     .slots = WrapperType_slots,
 };
-
-
-#if 0
-/*
- * The metatype alloc slot.
- */
-static PyObject *WrapperType_alloc(PyTypeObject *self, Py_ssize_t nitems)
-{
-    PyObject *o;
-
-    /* Call the standard super-metatype alloc. */
-    if ((o = PyType_Type.tp_alloc(self, nitems)) == NULL)
-        return NULL;
-
-    /*
-     * Consume any extra type specific information and use it to initialise the
-     * slots.  This only happens for directly wrapped classes (and not
-     * programmer written sub-classes).  This must be done in the alloc
-     * function because it is the only place we can break out of the default
-     * new() function before PyType_Ready() is called.
-     */
-#if 0
-Try and get rid of the back door.
-     sipSipModuleState *sms = sip_get_sip_module_state(self);
-
-    if (sms->current_type_def_backdoor != NULL)
-    {
-        assert(!sipTypeIsEnum(sms->current_type_def_backdoor));
-
-        ((sipWrapperType *)o)->wt_td = sms->current_type_def_backdoor;
-
-        if (sipTypeIsClass(sms->current_type_def_backdoor) || sipTypeIsNamespace(sms->current_type_def_backdoor))
-        {
-            const sipClassTypeDef *ctd = (const sipClassTypeDef *)sms->current_type_def_backdoor;
-            const char *docstring = ctd->ctd_docstring;
-
-            /*
-             * Skip the marker that identifies the docstring as being
-             * automatically generated.
-             */
-            if (docstring != NULL && *docstring == AUTO_DOCSTRING)
-                ++docstring;
-
-            ((PyTypeObject *)o)->tp_doc = docstring;
-
-            PyHeapTypeObject *heap_to = &(((sipWrapperType *)o)->super);
-            PyBufferProcs *bp = &heap_to->as_buffer;
-
-            /* Add the buffer interface. */
-            if (ctd->ctd_getbuffer != NULL)
-                bp->bf_getbuffer = (getbufferproc)sipSimpleWrapper_getbuffer;
-
-            if (ctd->ctd_releasebuffer != NULL)
-                bp->bf_releasebuffer = (releasebufferproc)sipSimpleWrapper_releasebuffer;
-
-            /* Patch any mixin initialiser. */
-            if (ctd->ctd_init_mixin != NULL)
-                ((PyTypeObject *)o)->tp_init = ctd->ctd_init_mixin;
-        }
-    }
-#endif
-
-    return o;
-}
-#endif
 
 
 /*
@@ -151,11 +84,9 @@ static void WrapperType_dealloc(sipWrapperType *self)
  */
 static PyObject *WrapperType_getattro(sipWrapperType *self, PyObject *name)
 {
-    /*
-     * We might be dealing with the simplewrapper or wrapper types themselves.
-     */
+    /* Python itself may make calls along the MRO. */
     if (self->wt_d_mod == NULL)
-        return PyType_Type.tp_getattro((PyObject *)self, name);
+        return PyType_Type.tp_getattro(self, name);
 
     sipWrappedModuleState *wms = (sipWrappedModuleState *)PyModule_GetState(
             self->wt_d_mod);
@@ -179,49 +110,52 @@ static int WrapperType_init(sipWrapperType *self, PyObject *args,
         return -1;
 
     /*
-     * Get the generated type definition and defining module from the (first)
-     * super-type.
+     * Disallow this being used as a meta-type for anything other than a
+     * wrapped class.
      */
     sipSipModuleState *sms = sip_get_sip_module_state((PyTypeObject *)self);
     PyTypeObject *base = ((PyTypeObject *)self)->tp_base;
 
+    if (sms == NULL || base == NULL || !PyObject_TypeCheck((PyObject *)base, sms->wrapper_type_type))
+    {
+        PyErr_SetString(PyExc_TypeError,
+                _SIP_MODULE_FQ_NAME ".wrappertype can only be used as the "
+                "metatype for wrapped classes");
+        return -1;
+    }
+
+    /* Inherit from the base class. */
+    self->wt_d_mod = Py_XNewRef(((sipWrapperType *)base)->wt_d_mod);
+    self->wt_is_wrapper = ((sipWrapperType *)base)->wt_is_wrapper;
+    self->wt_type_id = ((sipWrapperType *)base)->wt_type_id;
+
+    /* Disallow sub-classing directly from simplewrapper or wrapper. */
+    if (self->wt_d_mod == NULL)
+    {
+        PyErr_Format(PyExc_TypeError,
+                "Python classes cannot sub-class directly from %s",
+                base->tp_name);
+        return -1;
+    }
+
     // TODO Is this still needed?
     self->wt_user_type = TRUE;
 
-    /*
-     * We allow the class to use this as a meta-type without being derived from
-     * a class that uses it.  This allows mixin classes that need their own
-     * meta-type to work so long as their meta-type is derived from this
-     * meta-type.  This condition is indicated by the pointer to the generated
-     * type structure being NULL.
-     */
-    // TODO Properly understand the last sentence above.
-    if (base != NULL && PyObject_TypeCheck((PyObject *)base, sms->wrapper_type_type))
-    {
-        // TODO Check if d_mod can be NULL, ie. if type_id can be invalid.
-        self->wt_is_wrapper = ((sipWrapperType *)base)->wt_is_wrapper;
-        self->wt_d_mod = Py_XNewRef(((sipWrapperType *)base)->wt_d_mod);
-        self->wt_type_id = ((sipWrapperType *)base)->wt_type_id;
-
 #if 0
-        if (self->wt_td != NULL)
+    sipEventHandler *eh;
+
+    /* Invoke any event handlers. */
+    for (eh = sms->event_handlers[sipEventPySubclassCreated]; eh != NULL; eh = eh->next)
+    {
+        if (sipTypeIsClass(eh->td) && sip_is_subtype(wms, (const sipClassTypeDef *)self->wt_td, (const sipClassTypeDef *)eh->td))
         {
-            sipEventHandler *eh;
+            sipPySubclassCreatedEventHandler handler = (sipPySubclassCreatedEventHandler)eh->handler;
 
-            /* Invoke any event handlers. */
-            for (eh = sms->event_handlers[sipEventPySubclassCreated]; eh != NULL; eh = eh->next)
-            {
-                if (sipTypeIsClass(eh->td) && sip_is_subtype(wms, (const sipClassTypeDef *)self->wt_td, (const sipClassTypeDef *)eh->td))
-                {
-                    sipPySubclassCreatedEventHandler handler = (sipPySubclassCreatedEventHandler)eh->handler;
-
-                    if (handler(self->wt_td, self) < 0)
-                        return -1;
-                }
-            }
+            if (handler(self->wt_td, self) < 0)
+                return -1;
         }
-#endif
     }
+#endif
 
     return 0;
 }
@@ -233,11 +167,9 @@ static int WrapperType_init(sipWrapperType *self, PyObject *args,
 static int WrapperType_setattro(sipWrapperType *self, PyObject *name,
         PyObject *value)
 {
-    /*
-     * We might be dealing with the simplewrapper or wrapper types themselves.
-     */
+    /* Python itself may make calls along the MRO. */
     if (self->wt_d_mod == NULL)
-        return PyType_Type.tp_setattro((PyObject *)self, name, value);
+        return PyType_Type.tp_setattro(self, name, value);
 
     sipWrappedModuleState *wms = (sipWrappedModuleState *)PyModule_GetState(
             self->wt_d_mod);
