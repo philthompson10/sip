@@ -1038,8 +1038,8 @@ struct _sipAPIDef {
     PyObject *(*api_convert_to_array)(PyObject *wmod, void *data,
             const char *format, Py_ssize_t len, int flags);
     PyInterpreterState *(*api_get_interpreter)(PyObject *wmod);
-    void (*api_set_type_user_data)(PyTypeObject *wtype, void *data);
-    void *(*api_get_type_user_data)(PyTypeObject *wtype);
+    void (*api_set_type_user_data)(PyTypeObject *wtype, PyObject *data);
+    PyObject *(*api_get_type_user_data)(PyTypeObject *wtype);
     const char *(*api_py_type_name)(PyTypeObject *);
     int (*api_get_method)(PyObject *, sipMethodDef *);
     PyObject *(*api_from_method)(const sipMethodDef *);

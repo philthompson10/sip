@@ -74,8 +74,8 @@ static int sip_api_init_mixin(PyObject *w_mod, PyObject *self, PyObject *args,
         PyObject *kwds, sipTypeID type_id);
 static void *sip_api_get_mixin_address(PyObject *w_inst, const sipTypeDef *td);
 static PyInterpreterState *sip_api_get_interpreter(PyObject *w_mod);
-static void sip_api_set_type_user_data(PyTypeObject *py_type, void *data);
-static void *sip_api_get_type_user_data(PyTypeObject *py_type);
+static void sip_api_set_type_user_data(PyTypeObject *py_type, PyObject *data);
+static PyObject *sip_api_get_type_user_data(PyTypeObject *py_type);
 static PyObject *sip_api_py_type_dict_ref(PyTypeObject *py_type);
 static const char *sip_api_py_type_name(PyTypeObject *py_type);
 static int sip_api_get_method(PyObject *obj, sipMethodDef *method);
@@ -2618,22 +2618,23 @@ void *sip_get_final_address(sipSipModuleState *sms, const sipTypeDef *td,
 /*
  * Set the user-specific type data.
  */
-static void sip_api_set_type_user_data(PyTypeObject *py_type, void *data)
+static void sip_api_set_type_user_data(PyTypeObject *py_type, PyObject *data)
 {
     sipWrapperType *wt = (sipWrapperType *)py_type;
 
-    wt->wt_user_data = data;
+    Py_CLEAR(wt->wt_user_data);
+    wt->wt_user_data = Py_XNewRef(data);
 }
 
 
 /*
  * Get the user-specific type data.
  */
-static void *sip_api_get_type_user_data(PyTypeObject *py_type)
+static PyObject *sip_api_get_type_user_data(PyTypeObject *py_type)
 {
     sipWrapperType *wt = (sipWrapperType *)py_type;
 
-    return wt->wt_user_data;
+    return Py_XNewRef(wt->wt_user_data);
 }
 
 

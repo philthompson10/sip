@@ -57,11 +57,9 @@ typedef struct {
     struct _sipInitExtenderDef *wt_iextend;
 
     /*
-     * For the user to use.  Note that any data structure will leak if the
-     * type is garbage collected.
+     * For the user to use.  This is a strong reference.
      */
-    // TODO Should this be a PyObject?
-    void *wt_user_data;
+    PyObject *wt_user_data;
 } sipWrapperType;
 
 

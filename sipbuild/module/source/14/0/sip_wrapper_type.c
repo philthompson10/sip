@@ -125,6 +125,7 @@ Try and get rid of the back door.
 static int WrapperType_clear(sipWrapperType *self)
 {
     Py_CLEAR(self->wt_d_mod);
+    Py_CLEAR(self->wt_user_data);
 
     return 0;
 }
@@ -256,6 +257,7 @@ static int WrapperType_traverse(sipWrapperType *self, visitproc visit,
     Py_VISIT(Py_TYPE(self));
 
     Py_VISIT(self->wt_d_mod);
+    Py_VISIT(self->wt_user_data);
 
     return 0;
 }

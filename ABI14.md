@@ -87,6 +87,11 @@ The signatures of the following public API calls have changed:
     `sipConvertToBool()`
     `sipKeepReference()`
 
+The user data that can be attached to a wrapped type is now a `PyObject`
+instead of an arbitrary pointer.  `sipSetTypeUserData()` will take a strong
+reference to the object and `sipGetTypeUserData()` will return a new reference
+to the object.
+
 The following public API calls have been removed:
 
     `sipRegisterAttributeGetter()`

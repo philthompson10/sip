@@ -286,6 +286,8 @@ extern PyModuleDef sipWrappedModuleDef_{module_name};
 #define sipFindTypeID               sipAPI->api_find_type_id
 #define sipGetAddress               sipAPI->api_get_address
 #define sipIsOwnedByPython          sipAPI->api_is_owned_by_python
+#define sipGetTypeUserData          sipAPI->api_get_type_user_data
+#define sipSetTypeUserData          sipAPI->api_set_type_user_data
 ''')
 
         # TODO These have been reviewed as part of the private v14 API.
@@ -376,8 +378,6 @@ f'''#define sipMalloc                   sipAPI->api_malloc
 #define sipExportModule             sipAPI->api_export_module
 #define sipInitModule               sipAPI->api_init_module
 #define sipGetInterpreter           sipAPI->api_get_interpreter
-#define sipSetTypeUserData          sipAPI->api_set_type_user_data
-#define sipGetTypeUserData          sipAPI->api_get_type_user_data
 #define sipPyTypeName               sipAPI->api_py_type_name
 #define sipGetCFunction             sipAPI->api_get_c_function
 #define sipGetMethod                sipAPI->api_get_method
