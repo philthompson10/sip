@@ -118,7 +118,6 @@ static PyObject *Array_item(PyObject *self, Py_ssize_t idx)
 
     if (sipTypeIDIsPOD(array->type_id))
     {
-        // TODO Consider using a POD type ID rather than 'format'.
         switch (*array->format)
         {
         case 'b':
@@ -275,7 +274,6 @@ static int Array_ass_subscript(PyObject *self, PyObject *key, PyObject *value)
         sipAssignFunc assign = ((const sipClassTypeDef *)td)->ctd_assign;
         if (assign == NULL)
         {
-            // TODO Review if type names in exceptions should be FQ.
             PyErr_Format(PyExc_TypeError,
                     "a " _SIP_MODULE_FQ_NAME ".array cannot copy '%s'",
                 Py_TYPE(self)->tp_name);
