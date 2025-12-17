@@ -44,8 +44,6 @@ typedef struct _sipThread {
 void sip_api_end_thread(PyObject *w_mod);
 
 sipThread *sip_get_thread_data(struct _sipSipModuleState *sms, int auto_alloc);
-PyObject *sip_wrap_instance(struct _sipSipModuleState *sms, void *cpp,
-        PyTypeObject *py_type, PyObject *args, PyObject *owner, int flags);
 
 #ifdef __cplusplus
 }

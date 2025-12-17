@@ -939,7 +939,7 @@ PyObject *sip_convert_from_type(sipWrappedModuleState *wms, void *cpp,
 
     if (py != NULL)
         Py_INCREF(py);
-    else if ((py = sip_wrap_simple_instance(sms, cpp, w_type, NULL, SIP_SHARE_MAP)) == NULL)
+    else if ((py = sip_wrap_instance(sms, cpp, w_type, NULL, NULL, SIP_SHARE_MAP)) == NULL)
         return NULL;
 
     /* Handle any ownership transfer. */
@@ -1803,7 +1803,7 @@ static PyObject *convert_from_new_type(sipWrappedModuleState *wms, void *cpp,
     else
         owner = transferObj;
 
-    return sip_wrap_simple_instance(sms, cpp, w_type, owner,
+    return sip_wrap_instance(sms, cpp, w_type, NULL, owner,
             (owner == NULL ? SIP_PY_OWNED : 0));
 }
 

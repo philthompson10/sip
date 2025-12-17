@@ -135,8 +135,8 @@ void sip_transfer_back(PyObject *self);
 void sip_transfer_to(sipSipModuleState *sms, PyObject *self, PyObject *owner);
 sipTypeID sip_type_scope(sipWrappedModuleState *wms, sipTypeID type_id);
 PyObject *sip_unpickle_type(PyObject *mod, PyObject *args);
-PyObject *sip_wrap_simple_instance(sipSipModuleState *sms, void *cpp,
-        PyTypeObject *w_type, PyObject *owner, int flags);
+PyObject *sip_wrap_instance(struct _sipSipModuleState *sms, void *cpp,
+        PyTypeObject *py_type, PyObject *args, PyObject *owner, int flags);
 
 
 /*

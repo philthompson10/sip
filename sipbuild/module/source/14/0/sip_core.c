@@ -1686,7 +1686,7 @@ static int sip_api_add_type_instance(PyObject *w_mod, PyObject *dict,
         }
         else
         {
-            obj = sip_wrap_simple_instance(sms, cppPtr, w_type, NULL, 0);
+            obj = sip_wrap_instance(sms, cppPtr, w_type, NULL, NULL, 0);
         }
     }
 
@@ -2032,8 +2032,8 @@ static void sip_api_raise_type_exception(PyObject *w_mod, sipTypeID type_id,
 
     SIP_BLOCK_THREADS
 
-    PyObject *self = sip_wrap_simple_instance(wms->sip_module_state, ptr,
-            py_type, NULL, SIP_PY_OWNED);
+    PyObject *self = sip_wrap_instance(wms->sip_module_state, ptr, py_type,
+            NULL, NULL, SIP_PY_OWNED);
 
     PyErr_SetObject((PyObject *)py_type, self);
 
@@ -2579,10 +2579,36 @@ void sip_fix_slots(PyTypeObject *py_type, sipPySlotDef *psd)
 /*
  * Convert a new C/C++ pointer to a Python instance.
  */
-PyObject *sip_wrap_simple_instance(sipSipModuleState *sms, void *cpp,
-        PyTypeObject *w_type, PyObject *owner, int flags)
+PyObject *sip_wrap_instance(sipSipModuleState *sms, void *cpp,
+        PyTypeObject *py_type, PyObject *args, PyObject *owner, int flags)
 {
-    return sip_wrap_instance(sms, cpp, w_type, sms->empty_tuple, owner, flags);
+    if (cpp == NULL)
+        Py_RETURN_NONE;
+
+    /*
+     * Object creation can trigger the Python garbage collector which in turn
+     * can execute arbitrary Python code which can then call this function
+     * recursively.  Therefore we save any existing pending wrap before setting
+     * the new one.
+     */
+    sipThread *thread = sip_get_thread_data(sms, TRUE);
+    if (thread == NULL)
+        return NULL;
+
+    sipPendingWrapDef old_pending_wrap = thread->pending_wrap;
+
+    thread->pending_wrap.cpp = cpp;
+    thread->pending_wrap.owner = owner;
+    thread->pending_wrap.flags = flags;
+
+    if (args == NULL)
+        args = sms->empty_tuple;
+
+    PyObject *self = PyObject_Call((PyObject *)py_type, args, NULL);
+
+    thread->pending_wrap = old_pending_wrap;
+
+    return self;
 }
 
 

@@ -18,39 +18,6 @@
 
 
 /*
- * Convert a new C/C++ pointer to a Python instance.
- */
-PyObject *sip_wrap_instance(sipSipModuleState *sms, void *cpp,
-        PyTypeObject *py_type, PyObject *args, PyObject *owner, int flags)
-{
-    if (cpp == NULL)
-        Py_RETURN_NONE;
-
-    /*
-     * Object creation can trigger the Python garbage collector which in turn
-     * can execute arbitrary Python code which can then call this function
-     * recursively.  Therefore we save any existing pending wrap before setting
-     * the new one.
-     */
-    sipThread *thread = sip_get_thread_data(sms, TRUE);
-    if (thread == NULL)
-        return NULL;
-
-    sipPendingWrapDef old_pending_wrap = thread->pending_wrap;
-
-    thread->pending_wrap.cpp = cpp;
-    thread->pending_wrap.owner = owner;
-    thread->pending_wrap.flags = flags;
-
-    PyObject *self = PyObject_Call((PyObject *)py_type, args, NULL);
-
-    thread->pending_wrap = old_pending_wrap;
-
-    return self;
-}
-
-
-/*
  * Handle the termination of a thread.
  */
 void sip_api_end_thread(PyObject *w_mod)
