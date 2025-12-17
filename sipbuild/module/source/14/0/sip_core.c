@@ -2190,7 +2190,7 @@ static int sip_api_init_mixin(PyObject *w_mod, PyObject *self, PyObject *args,
      * or it is and we have been called recursively (via the call to
      * PyObject_Call() below) to create it.  Either way call the super-class's
      * __init__ (which will be simplewrapper or something that eventually calls
-     * simplewrapper.
+     * simplewrapper).
      */
     PyTypeObject *mixin_wt = sip_get_py_type(wms, mixin_type_id);
 

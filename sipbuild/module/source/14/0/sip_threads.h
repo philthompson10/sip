@@ -27,7 +27,7 @@ typedef struct {
     void *cpp;                      /* The C/C++ object ot be wrapped. */
     PyObject *owner;                /* The owner of the object. */
     int flags;                      /* The flags. */
-} sipPendingDef;
+} sipPendingWrapDef;
 
 
 /*
@@ -35,16 +35,15 @@ typedef struct {
  */
 typedef struct _sipThread {
     unsigned long thr_ident;        /* The thread identifier. */
-    sipPendingDef pending;          /* An object waiting to be wrapped. */
+    sipPendingWrapDef pending_wrap; /* An object waiting to be wrapped. */
+    PyObject **unused_args;         /* A pointer to an unused args dict. */
     struct _sipThread *next;        /* Next in the list. */
 } sipThread;
 
 
 void sip_api_end_thread(PyObject *w_mod);
 
-int sip_get_pending(struct _sipSipModuleState *sms, void **pp,
-        PyObject **owner_p, int *fp);
-int sip_is_pending(struct _sipSipModuleState *sms);
+sipThread *sip_get_thread_data(struct _sipSipModuleState *sms, int auto_alloc);
 PyObject *sip_wrap_instance(struct _sipSipModuleState *sms, void *cpp,
         PyTypeObject *py_type, PyObject *args, PyObject *owner, int flags);
 

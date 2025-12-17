@@ -269,11 +269,12 @@ static PyObject *SimpleWrapper_new(PyTypeObject *cls, PyObject *args,
         return NULL;
     }
 
-#if 0
     /*
      * See if the object is being created explicitly rather than being wrapped.
      */
-    if (!sip_is_pending(sms))
+    sipThread *thread = sip_get_thread_data(sms, FALSE);
+
+    if (thread == NULL || thread->pending_wrap.cpp == NULL)
     {
         /*
          * See if it cannot be instantiated or sub-classed from Python, eg.
@@ -290,16 +291,15 @@ static PyObject *SimpleWrapper_new(PyTypeObject *cls, PyObject *args,
         }
 
         /* See if it is an abstract type. */
-        if (sipTypeIsAbstract(td) && !wt->wt_user_type && ((const sipClassTypeDef *)td)->ctd_init_mixin == NULL)
+        if (sipTypeIsAbstract(td) && !wt->wt_user_type)
         {
             PyErr_Format(PyExc_TypeError,
-                    "%s represents a C++ abstract class and cannot be instantiated",
+                    "%s wraps a C++ abstract class and cannot be instantiated",
                     cls->tp_name);
 
             return NULL;
         }
     }
-#endif
 
     /* Call the standard super-type new. */
     return PyBaseObject_Type.tp_new(cls, sms->empty_tuple, NULL);
@@ -452,13 +452,17 @@ static int SimpleWrapper_init(PyObject *self, PyObject *args,
             wt->wt_d_mod);
     sipSipModuleState *sms = wms->sip_module_state;
 
-    void *sipNew;
-    PyObject *owner;
-    int sipFlags;
-
     /* Check for an existing C++ instance waiting to be wrapped. */
-    if (sip_get_pending(sms, &sipNew, &owner, &sipFlags) < 0)
+    sipThread *thread = sip_get_thread_data(sms, TRUE);
+    if (thread == NULL)
         return -1;
+
+    void *sipNew = thread->pending_wrap.cpp;
+    PyObject *owner = thread->pending_wrap.owner;
+    int sipFlags = thread->pending_wrap.flags;
+
+    /* Clear in case we execute Python code before finishing this wrapping. */
+    thread->pending_wrap.cpp = NULL;
 
     int from_cpp = TRUE;
     PyObject *unused = NULL;

@@ -138,7 +138,6 @@ static int WrapperType_init(sipWrapperType *self, PyObject *args,
         return -1;
     }
 
-    // TODO Is this still needed?
     self->wt_user_type = TRUE;
 
 #if 0

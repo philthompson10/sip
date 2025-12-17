@@ -41,7 +41,6 @@ typedef struct {
     unsigned wt_is_wrapper : 1;
 
     /* Set if the type is a user implemented Python sub-class. */
-    // TODO Is this still needed?
     unsigned wt_user_type : 1;
 
     /* Unused and available for future use. */
