@@ -105,7 +105,7 @@ typedef struct _sipSipModuleState {
     unsigned trace_mask;
 
     /* For passing a dict of unused arguments. */
-    // TODO Try and get rid of this.
+    // TODO Try and get rid of this, or should it be moved to sipThread?
     PyObject **unused_backdoor;
 
     /* The variable descriptor type object. */

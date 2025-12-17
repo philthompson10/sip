@@ -108,6 +108,15 @@ take a `PyObject *`.
 
 ## Rejected Ideas
 
+### PEP 539
+
+This PEP describes the C API for thread state storage.  Using it would allow
+the handling of threads by the `sip` module to be (slightly) simplified and
+(maybe) made safer.  However there doesn't seem to be a mechanism to allow the
+data being stored to be freed (for all threads) when the `sip` module is
+garbage collected.
+
+
 ### PEP 697
 
 This PEP describes using a negative `basicsize` for an extension type and using
