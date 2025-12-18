@@ -453,16 +453,26 @@ static int SimpleWrapper_init(PyObject *self, PyObject *args,
     sipSipModuleState *sms = wms->sip_module_state;
 
     /* Check for an existing C++ instance waiting to be wrapped. */
-    sipThread *thread = sip_get_thread_data(sms, TRUE);
-    if (thread == NULL)
-        return -1;
+    sipThread *thread = sip_get_thread_data(sms, FALSE);
+    void *sipNew;
+    PyObject *owner;
+    int sipFlags;
 
-    void *sipNew = thread->pending_wrap.cpp;
-    PyObject *owner = thread->pending_wrap.owner;
-    int sipFlags = thread->pending_wrap.flags;
+    if (thread != NULL && thread->pending_wrap.cpp != NULL)
+    {
+        sipNew = thread->pending_wrap.cpp;
+        owner = thread->pending_wrap.owner;
+        sipFlags = thread->pending_wrap.flags;
 
-    /* Clear in case we execute Python code before finishing this wrapping. */
-    thread->pending_wrap.cpp = NULL;
+        /*
+         * Clear in case we execute Python code before finishing this wrapping.
+         */
+        thread->pending_wrap.cpp = NULL;
+    }
+    else
+    {
+        sipNew = NULL;
+    }
 
     int from_cpp = TRUE;
     PyObject *unused = NULL;
@@ -680,13 +690,13 @@ static int SimpleWrapper_init(PyObject *self, PyObject *args,
         }
     }
 
-    if (sms->unused_backdoor != NULL)
+    if (thread != NULL && thread->unused_args != NULL)
     {
         /*
          * We are being called by a mixin's __init__ so save any unused
          * arguments for it to pass on to the main class's __init__.
          */
-        *sms->unused_backdoor = unused;
+        *thread->unused_args = unused;
     }
     else if (unused != NULL)
     {

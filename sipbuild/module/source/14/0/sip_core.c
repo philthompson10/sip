@@ -2204,11 +2204,16 @@ static int sip_api_init_mixin(PyObject *w_mod, PyObject *self, PyObject *args,
      * main class's arguments are actually parsed.
      */
     sipSipModuleState *sms = wms->sip_module_state;
+
+    sipThread *thread = sip_get_thread_data(sms, TRUE);
+    if (thread == NULL)
+        return -1;
+
     PyObject *unused = NULL;
-    sms->unused_backdoor = &unused;
+    thread->unused_args = &unused;
     PyObject *mixin = PyObject_Call((PyObject *)mixin_wt, sms->empty_tuple,
             kwds);
-    sms->unused_backdoor = NULL;
+    thread->unused_args = NULL;
 
     if (mixin == NULL)
         goto gc_unused;

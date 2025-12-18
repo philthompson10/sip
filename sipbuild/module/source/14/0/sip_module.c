@@ -148,7 +148,6 @@ int sip_sip_module_init(sipSipModuleState *sms, PyObject *mod)
     sms->registered_py_types = NULL;
     sms->symbol_list = NULL;
     sms->thread_list = NULL;
-    sms->unused_backdoor = NULL;
 
     /* Add the constants. */
     long abi_version = (SIP_ABI_MAJOR_VERSION << 16) +

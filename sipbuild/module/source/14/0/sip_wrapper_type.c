@@ -86,7 +86,7 @@ static PyObject *WrapperType_getattro(sipWrapperType *self, PyObject *name)
 {
     /* Python itself may make calls along the MRO. */
     if (self->wt_d_mod == NULL)
-        return PyType_Type.tp_getattro(self, name);
+        return PyType_Type.tp_getattro((PyObject *)self, name);
 
     sipWrappedModuleState *wms = (sipWrappedModuleState *)PyModule_GetState(
             self->wt_d_mod);
@@ -168,7 +168,7 @@ static int WrapperType_setattro(sipWrapperType *self, PyObject *name,
 {
     /* Python itself may make calls along the MRO. */
     if (self->wt_d_mod == NULL)
-        return PyType_Type.tp_setattro(self, name, value);
+        return PyType_Type.tp_setattro((PyObject *)self, name, value);
 
     sipWrappedModuleState *wms = (sipWrappedModuleState *)PyModule_GetState(
             self->wt_d_mod);

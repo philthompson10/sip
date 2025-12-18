@@ -42,7 +42,7 @@ typedef struct _sipSipModuleState {
 
 #if defined(SIP_CONFIGURATION_CustomEnums)
     /* The type definition used in creating the current custom enum. */
-    // TODO Try and get rid of this.
+    // TODO Try and get rid of this.  Might need to be in thread storage.
     const sipTypeDef *current_enum_backdoor;
 #endif
 
@@ -103,10 +103,6 @@ typedef struct _sipSipModuleState {
 
     /* The trace mask. */
     unsigned trace_mask;
-
-    /* For passing a dict of unused arguments. */
-    // TODO Try and get rid of this, or should it be moved to sipThread?
-    PyObject **unused_backdoor;
 
     /* The variable descriptor type object. */
     PyTypeObject *variable_descr_type;
