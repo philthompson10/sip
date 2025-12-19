@@ -13,8 +13,8 @@ from ....specification import (ArgumentType, GILUse, IfaceFileType,
 from ...formatters import fmt_class_as_scoped_py_name
 
 from ..snippets import (g_class_docstring, g_class_method_table,
-        g_module_docstring, g_type_init_body, g_module_init_start,
-        g_pyqt_class_plugin, g_pyqt_helper_defns, g_pyqt_helper_init)
+        g_module_docstring, g_type_init_body, g_pyqt_class_plugin,
+        g_pyqt_helper_defns, g_pyqt_helper_init)
 from ..utils import (get_class_flags, get_optional_ptr, get_type_from_void,
         has_method_docstring, need_dealloc, py_scope, pyqt5_supported,
         pyqt6_supported, scoped_class_name, variables_in_scope)
@@ -113,10 +113,10 @@ static const sipWrappedModuleDef sipWrappedModule_{module_name} = {{
         has_module_functions = self.g_module_functions_table(sf, bindings,
                 module)
         self.g_module_definition(sf, has_module_functions=has_module_functions)
-        g_module_init_start(sf, spec)
+        self.g_module_init_start(sf)
 
         sf.write(
-f'''    return PyModuleDef_Init(&sipWrappedModuleDef_{module_name});
+f'''    return sipWrappedModuleSlots_{module_name};
 }}
 ''')
 
@@ -178,40 +178,34 @@ f'''    return PyModuleDef_Init(&sipWrappedModuleDef_{module_name});
         gil_support = self._MAP_GIL_USED[module.gil_use]
         interp_support = self._MAP_MULTI_INTERPRETER_SUPPORT[module.multi_interpreter_support]
 
+        # Note that the sip module implementation expects Py_mod_name to be the
+        # first slot.
         sf.write(
 f'''
 
 /* The wrapped module's immutable slot definitions. */
 PyABIInfo_VAR(sip_abi_info);
 
-static PyModuleDef_Slot sip_wrapped_module_slots[] = {{
+PyModuleDef_Slot sipWrappedModuleSlots_{module.py_name}[] = {{
+    {{Py_mod_name, (void *)"{module.fq_py_name}"}},
     {{Py_mod_abi, &sip_abi_info}},
     {{Py_mod_exec, (void *)wrapped_module_exec}},
     {{Py_mod_gil, {gil_support}}},
     {{Py_mod_multiple_interpreters, {interp_support}}},
-    {{0, SIP_NULLPTR}}
-}};
-
-
-/* The wrapped module's immutable definition. */
-PyModuleDef sipWrappedModuleDef_{module.py_name} = {{
-    .m_base = PyModuleDef_HEAD_INIT,
-    .m_name = "{module.fq_py_name}",
-    .m_size = sizeof (sipWrappedModuleState),
-    .m_slots = sip_wrapped_module_slots,
-    .m_clear = wrapped_module_clear,
-    .m_traverse = wrapped_module_traverse,
-    .m_free = wrapped_module_free,
+    {{Py_mod_state_clear, (void *)wrapped_module_clear}},
+    {{Py_mod_state_free, (void *)wrapped_module_free}},
+    {{Py_mod_state_size, (void *)sizeof (sipWrappedModuleState)}},
+    {{Py_mod_state_traverse, (void *)wrapped_module_traverse}},
 ''')
 
         if module.docstring is not None:
             # TODO The name should have a sip_ prefix.
-            sf.write(f'    .m_doc = doc_mod_{module.py_name},\n')
+            sf.write(f'    {{Py_mod_doc, (void *)doc_mod_{module.py_name}}},\n')
 
         if has_module_functions:
-            sf.write(f'    .m_methods = sip_methods_{module.py_name},\n')
+            sf.write(f'    {{Py_mod_methods, sip_methods_{module.py_name}}},\n')
 
-        sf.write('};\n')
+        sf.write('    {0}\n};\n')
 
     def g_module_functions_table(self, sf, bindings, module):
         """ Generate the table of module functions and return True if anything
@@ -236,6 +230,33 @@ PyModuleDef sipWrappedModuleDef_{module.py_name} = {{
 ''')
 
         return has_module_functions
+
+    def g_module_init_start(self, sf):
+        """ Generate the start of the Python module initialisation function.
+        """
+
+        spec = self.spec
+
+        if spec.is_composite or spec.c_bindings:
+            extern_c = ''
+            arg_type = 'void'
+        else:
+            extern_c = 'extern "C" '
+            arg_type = ''
+
+        module_name = spec.module.py_name
+
+        sf.write(
+f'''
+
+/* The Python module initialisation function. */
+#if defined(SIP_STATIC_MODULE)
+{extern_c}PyObject *PyModExport_{module_name}({arg_type})
+#else
+PyMODEXPORT_FUNC PyModExport_{module_name}({arg_type})
+#endif
+{{
+''')
 
     def g_py_method_table(self, sf, bindings, members, scope):
         """ Generate a Python method table for a class or mapped type and
@@ -280,7 +301,7 @@ static PyMethodDef sipMethods_{scope_name}[] = {{
         sf.write(
 f'''
 
-extern PyModuleDef sipWrappedModuleDef_{module_name};
+extern PyModuleDef_Slot sipWrappedModuleSlots_{module_name}[];
 
 #define sipBuildResult              sipAPI->api_build_result
 #define sipFindTypeID               sipAPI->api_find_type_id
@@ -436,7 +457,7 @@ f'''#define sipIsEnumFlag               sipAPI->api_is_enum_flag
         """ Generate the variables needed by a slot function. """
 
         sf.write(
-f'''    PyObject *sipModule = sipGetModule(sipSelf, &sipWrappedModuleDef_{self.spec.module.py_name});
+f'''    PyObject *sipModule = sipGetModule(sipSelf, sipWrappedModuleSlots_{self.spec.module.py_name});
     const sipAPIDef *sipAPI = sipGetAPI(sipModule);
 
 ''')

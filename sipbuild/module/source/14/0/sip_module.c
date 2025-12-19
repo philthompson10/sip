@@ -41,22 +41,17 @@ static int module_traverse(PyObject *module, visitproc visit, void *arg);
 PyABIInfo_VAR(abi_info);
 
 static PyModuleDef_Slot module_slots[] = {
+    {Py_mod_name, (void *)_SIP_MODULE_FQ_NAME},
     {Py_mod_abi, &abi_info},
-    {Py_mod_exec, module_exec},
-    {Py_mod_multiple_interpreters, Py_MOD_PER_INTERPRETER_GIL_SUPPORTED},
+    {Py_mod_doc, (void *)PyDoc_STR("Bindings related utilities")},
+    {Py_mod_exec, (void *)module_exec},
     {Py_mod_gil, Py_MOD_GIL_USED},
-    {0, NULL},
-};
-
-static PyModuleDef module_def = {
-    .m_base = PyModuleDef_HEAD_INIT,
-    .m_name = _SIP_MODULE_FQ_NAME,
-    .m_doc = PyDoc_STR("Bindings related utilities"),
-    .m_size = sizeof (sipSipModuleState),
-    .m_slots = module_slots,
-    .m_clear = module_clear,
-    .m_traverse = module_traverse,
-    .m_free = module_free,
+    {Py_mod_multiple_interpreters, Py_MOD_PER_INTERPRETER_GIL_SUPPORTED},
+    {Py_mod_state_clear, (void *)module_clear},
+    {Py_mod_state_free, (void *)module_free},
+    {Py_mod_state_size, (void *)sizeof (sipSipModuleState)},
+    {Py_mod_state_traverse, (void *)module_traverse},
+    {0}
 };
 
 
@@ -66,10 +61,10 @@ static PyModuleDef module_def = {
 #if defined(SIP_STATIC_MODULE)
 PyObject *_SIP_MODULE_ENTRY(void)
 #else
-PyMODINIT_FUNC _SIP_MODULE_ENTRY(void)
+PyMODEXPORT_FUNC _SIP_MODULE_ENTRY(void)
 #endif
 {
-    return PyModuleDef_Init(&module_def);
+    return module_slots;
 }
 
 
@@ -344,15 +339,15 @@ PyObject *sip_get_sip_module(PyTypeObject *defining_class)
 sipSipModuleState *sip_get_sip_module_state(PyTypeObject *type)
 {
 #if _SIP_MODULE_SHARED
-    PyObject *mod = PyType_GetModuleByDef(type, &module_def);
+    PyObject *mod = PyType_GetModuleByToken(type, module_slots);
     if (mod == NULL)
         return NULL;
 
     return (sipSipModuleState *)PyModule_GetState(mod);
 #else
-    extern PyModuleDef _SIP_MODULE_DEF;
+    extern PyModuleDef_Slot _SIP_MODULE_SLOTS[];
 
-    PyObject *mod = PyType_GetModuleByDef(type, &_SIP_MODULE_DEF);
+    PyObject *mod = PyType_GetModuleByToken(type, _SIP_MODULE_SLOTS);
     if (mod == NULL)
         return NULL;
 

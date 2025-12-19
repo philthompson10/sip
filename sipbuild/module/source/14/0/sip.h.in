@@ -67,7 +67,7 @@ extern "C" {
 #define _SIP_MODULE_NAME            "@_SIP_MODULE_NAME@"
 #define _SIP_MODULE_SHARED          @_SIP_MODULE_SHARED@
 #define _SIP_MODULE_ENTRY           @_SIP_MODULE_ENTRY@
-#define _SIP_MODULE_DEF             @_SIP_MODULE_DEF@
+#define _SIP_MODULE_SLOTS           @_SIP_MODULE_SLOTS@
 
 
 /*
@@ -259,7 +259,7 @@ int sip_api_wrapped_module_init(PyObject *wmod, const sipWrappedModuleDef *wmd,
  * the reference held in the wrapper type but that would mean the wrapper type
  * structure is no longer opaque.
  */
-#define sipGetModule(sw, def)   PyType_GetModuleByDef(Py_TYPE(sw), (def))
+#define sipGetModule(sw, token)   PyType_GetModuleByToken(Py_TYPE(sw), (token))
 
 
 /*

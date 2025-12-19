@@ -841,7 +841,7 @@ static PyTypeObject *create_container_type(sipWrappedModuleState *wms,
 
     if (slots == NULL)
     {
-        static PyType_Slot no_slots[] = {{0, NULL}};
+        static PyType_Slot no_slots[] = {{0}};
 
         slots = no_slots;
     }
@@ -915,7 +915,6 @@ static PyTypeObject *create_container_type(sipWrappedModuleState *wms,
     if (cod->cod_scope != sipTypeID_Invalid)
     {
         scope = (PyObject *)sip_get_py_type(wms, cod->cod_scope);
-
         if (scope == NULL)
             goto rel_type;
 
@@ -932,7 +931,11 @@ static PyTypeObject *create_container_type(sipWrappedModuleState *wms,
          * for nested types.  Therefore we need to fix __module__ and
          * __qualname__ for types with a scope.
          */
-        const char *mod_name = PyModule_GetDef(wms->wrapped_module)->m_name;
+        PyModuleDef_Slot *slots;
+        if (PyModule_GetToken(wms->wrapped_module, (void **)&slots) < 0 || slots == NULL)
+            goto rel_type;
+
+        const char *mod_name = (const char *)slots[0].value;
         const char *qualname = cod->cod_name + strlen(mod_name) + 1;
         PyObject *qualname_obj = PyUnicode_FromString(qualname);
 
@@ -1024,6 +1027,8 @@ static PyTypeObject *create_class_type(sipWrappedModuleState *wms,
 
         if (bases == NULL)
             return NULL;
+
+        Py_INCREF(bases);
     }
     else
     {
