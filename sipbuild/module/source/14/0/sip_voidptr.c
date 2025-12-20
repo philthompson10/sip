@@ -16,6 +16,7 @@
 
 #include "sip_array.h"
 #include "sip_module.h"
+#include "sip_wrapped_module.h"
 
 
 /* The object data structure. */

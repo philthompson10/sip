@@ -13,7 +13,7 @@
 #include <Python.h>
 
 #include "sip.h"
-
+#include "sip_decls.h"
 #include "sip_simple_wrapper.h"
 
 
@@ -25,7 +25,7 @@ extern "C" {
  * The type of a C/C++ wrapper object that supports parent/child relationships.
  * A parent holds a strong reference to each of its children.
  */
-typedef struct {
+struct _sipWrapper {
     /* The super-type. */
     sipSimpleWrapper super;
 
@@ -40,7 +40,7 @@ typedef struct {
 
     /* Owning object. */
     PyObject *parent;
-} sipWrapper;
+};
 
 
 int sip_wrapper_init(PyObject *module, sipSipModuleState *sms);

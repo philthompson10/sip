@@ -19,6 +19,7 @@
 #include "sip_int_convertors.h"
 #include "sip_module.h"
 #include "sip_parsers.h"
+#include "sip_wrapped_module.h"
 #include "sip_wrapper_type.h"
 
 

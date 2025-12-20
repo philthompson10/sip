@@ -20,6 +20,7 @@
 #include "sip_module.h"
 #include "sip_module_wrapper.h"
 #include "sip_object_map.h"
+#include "sip_threads.h"
 #include "sip_variable_descriptor.h"
 #include "sip_voidptr.h"
 #include "sip_wrapped_module.h"
@@ -30,7 +31,7 @@
 #if _SIP_MODULE_SHARED
 
 /* Forward declarations specific to a standalone sip module. */
-static sipWrappedModuleInitFunc bootstrap(int abi_major);
+static const sipWrappedModuleBootstrap *bootstrap(int abi_major);
 static int module_clear(PyObject *module);
 static int module_exec(PyObject *module);
 static void module_free(void *module_ptr);
@@ -79,7 +80,7 @@ static int module_exec(PyObject *module)
     if (sip_sip_module_init(sms, module) < 0)
         return -1;
 
-    /* Publish the bootstrap function. */
+    /* Publish the first stage bootstrap function. */
     PyObject *api_obj = PyCapsule_New((void *)bootstrap, "_C_BOOTSTRAP", NULL);
 
     int rc = PyModule_AddObjectRef(module, "_C_BOOTSTRAP", api_obj);
@@ -124,12 +125,17 @@ static int module_traverse(PyObject *module, visitproc visit, void *arg)
 
 
 /*
- * The bootstrap function.
+ * The first stage bootstrap function.
  */
-static sipWrappedModuleInitFunc bootstrap(int abi_major)
+static const sipWrappedModuleBootstrap *bootstrap(int abi_major)
 {
+    static sipWrappedModuleBootstrap bootstrap_def = {
+        .init = sip_api_wrapped_module_init,
+        .state_size = sizeof (sipWrappedModuleState),
+    };
+
     // TODO Verify abi_major.
-    return sip_api_wrapped_module_init;
+    return &bootstrap_def;
 }
 #endif
 

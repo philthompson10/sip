@@ -106,6 +106,10 @@ static const sipWrappedModuleDef sipWrappedModule_{module_name} = {{
 
         g_module_docstring(sf, module)
         g_pyqt_helper_defns(sf, spec)
+
+        if spec.sip_module:
+            self._g_module_bootstrap(sf)
+
         self._g_module_clear(sf)
         self._g_module_exec(sf)
         self._g_module_free(sf)
@@ -115,10 +119,19 @@ static const sipWrappedModuleDef sipWrappedModule_{module_name} = {{
         self.g_module_definition(sf, has_module_functions=has_module_functions)
         self.g_module_init_start(sf)
 
-        sf.write(
-f'''    return sipWrappedModuleSlots_{module_name};
-}}
+        if spec.sip_module:
+            sf.write(
+f'''    const sipWrappedModuleBootstrap *sip_bootstrap = wrapped_module_bootstrap(
+            NULL);
+    if (sip_bootstrap == NULL)
+        return NULL;
+
+    /* Get the wrapped module state size from the sip module. */
+    sipWrappedModuleSlots_{module_name}[1].value = (void *)sip_bootstrap->state_size;
+
 ''')
+
+        sf.write(f'    return sipWrappedModuleSlots_{module_name};\n}}\n')
 
     def g_enum_macros(self, sf, scope=None, imported_module=None):
         """ Generate the type macros for enums. """
@@ -173,13 +186,20 @@ f'''    return sipWrappedModuleSlots_{module_name};
     def g_module_definition(self, sf, has_module_functions=False):
         """ Generate the module definition structure. """
 
-        module = self.spec.module
+        spec = self.spec
+        module = spec.module
 
         gil_support = self._MAP_GIL_USED[module.gil_use]
         interp_support = self._MAP_MULTI_INTERPRETER_SUPPORT[module.multi_interpreter_support]
 
-        # Note that the sip module implementation expects Py_mod_name to be the
-        # first slot.
+        if spec.sip_module:
+            state_size = '0'
+        else:
+            state_size = '(void *)sizeof (sipWrappedModuleState)'
+            sf.write('\n\n#include "sip_wrapped_module.h"\n')
+
+        # Note that the sip module implementation expects Py_mod_name and
+        # Py_mod_state_size to be the first and second slots respectively.
         sf.write(
 f'''
 
@@ -188,13 +208,13 @@ PyABIInfo_VAR(sip_abi_info);
 
 PyModuleDef_Slot sipWrappedModuleSlots_{module.py_name}[] = {{
     {{Py_mod_name, (void *)"{module.fq_py_name}"}},
+    {{Py_mod_state_size, {state_size}}},
     {{Py_mod_abi, &sip_abi_info}},
     {{Py_mod_exec, (void *)wrapped_module_exec}},
     {{Py_mod_gil, {gil_support}}},
     {{Py_mod_multiple_interpreters, {interp_support}}},
     {{Py_mod_state_clear, (void *)wrapped_module_clear}},
     {{Py_mod_state_free, (void *)wrapped_module_free}},
-    {{Py_mod_state_size, (void *)sizeof (sipWrappedModuleState)}},
     {{Py_mod_state_traverse, (void *)wrapped_module_traverse}},
 ''')
 
@@ -810,6 +830,68 @@ f'''static void *init_type_{klass_name}(PyObject *sipSelf, PyObject *const *sipA
 
         return SipModuleConfiguration.PyEnums in self.spec.sip_module_configuration
 
+    def _g_module_bootstrap(self, sf):
+        """ Generate the module bootstrap helper. """
+
+        spec = self.spec
+
+        sf.write(
+f'''
+
+/* Return the bootstrap information from the sip module. */
+static const sipWrappedModuleBootstrap *wrapped_module_bootstrap(
+        PyObject **sip_module_p)
+{{
+    PyObject *sip_module = PyImport_ImportModule("{spec.sip_module}");
+    if (sip_module == NULL)
+        return NULL;
+
+    PyObject *capsule = PyObject_GetAttrString(sip_module, "_C_BOOTSTRAP");
+    if (capsule == NULL)
+    {{
+        Py_DECREF(sip_module);
+        return NULL;
+    }}
+
+    if (!PyCapsule_IsValid(capsule, "_C_BOOTSTRAP"))
+    {{
+        Py_DECREF(capsule);
+        Py_DECREF(sip_module);
+        return NULL;
+    }}
+
+    /*
+     * The first stage of the bootstrap is to get a function that will be
+     * called with the ABI version as its only argument.
+     */
+    sipBootstrapFunc bootstrap_func = (sipBootstrapFunc)PyCapsule_GetPointer(
+            capsule, "_C_BOOTSTRAP");
+
+    Py_DECREF(capsule);
+
+    if (bootstrap_func == NULL)
+    {{
+        Py_DECREF(sip_module);
+        return NULL;
+    }}
+
+    /*
+     * The second stage of the bootstrap is to call the function from the first
+     * stage.  The value returned is something we understand or NULL if the sip
+     * module does not support the ABI.
+     */
+    const sipWrappedModuleBootstrap *bootstrap = bootstrap_func({spec.target_abi[0]});
+
+    /* Return a reference to the sip module if required. */
+    if (sip_module_p != NULL)
+        *sip_module_p = sip_module;
+    else
+        Py_DECREF(sip_module);
+
+    return bootstrap;
+}}
+''')
+
     @staticmethod
     def _g_module_clear(sf):
         """ Generate the module clear slot. """
@@ -820,10 +902,9 @@ f'''static void *init_type_{klass_name}(PyObject *sipSelf, PyObject *const *sipA
 /* The wrapped module's clear slot. */
 static int wrapped_module_clear(PyObject *wmod)
 {
-    sipWrappedModuleState *wms = (sipWrappedModuleState *)PyModule_GetState(
-            wmod);
+    void *ms = PyModule_GetState(wmod);
 
-    return wms->sip_api->api_wrapped_module_clear(wms);
+    return ((const sipAPIDef *const)ms)->api_wrapped_module_clear(ms);
 }
 ''')
 
@@ -831,7 +912,6 @@ static int wrapped_module_clear(PyObject *wmod)
         """ Generate the module exec slot. """
 
         spec = self.spec
-        sip_module_name = spec.sip_module
         module = spec.module
         module_name = module.py_name
 
@@ -845,31 +925,15 @@ static int wrapped_module_exec(PyObject *sipModule)
 
         sf.write_code(module.preinitialisation_code)
 
-        if sip_module_name:
-            sip_init_func_ref = 'sip_init_func'
+        if spec.sip_module:
+            sip_init_func_ref = 'sip_bootstrap->init'
             sip_module_ref = 'sip_sip_module'
             sf.write(
-f'''    PyObject *{sip_module_ref} = PyImport_ImportModule("{sip_module_name}");
-    if ({sip_module_ref} == SIP_NULLPTR)
+f'''    PyObject *{sip_module_ref};
+    const sipWrappedModuleBootstrap *sip_bootstrap = wrapped_module_bootstrap(
+            &{sip_module_ref});
+    if (sip_bootstrap == NULL)
         return -1;
-
-    PyObject *sip_capsule = PyDict_GetItemString(PyModule_GetDict(sip_sip_module), "_C_BOOTSTRAP");
-    if (!PyCapsule_IsValid(sip_capsule, "_C_BOOTSTRAP"))
-    {{
-        Py_XDECREF(sip_capsule);
-        Py_DECREF(sip_sip_module);
-        return -1;
-    }}
-
-    sipBootstrapFunc sip_bootstrap = (sipBootstrapFunc)PyCapsule_GetPointer(sip_capsule, "_C_BOOTSTRAP");
-    Py_DECREF(sip_capsule);
-
-    sipWrappedModuleInitFunc {sip_init_func_ref} = sip_bootstrap({spec.target_abi[0]});
-    if ({sip_init_func_ref} == SIP_NULLPTR)
-    {{
-        Py_DECREF({sip_module_ref});
-        return -1;
-    }}
 
 ''')
         else:
@@ -905,11 +969,10 @@ f'''    if ({sip_init_func_ref}(sipModule, &sipWrappedModule_{module_name}, {sip
 /* The wrapped module's free slot. */
 static void wrapped_module_free(void *wmod_ptr)
 {
-    sipWrappedModuleState *wms = (sipWrappedModuleState *)PyModule_GetState(
-            (PyObject *)wmod_ptr);
+    void *ms = PyModule_GetState((PyObject *)wmod_ptr);
 
-    if (wms->sip_api != NULL)
-        wms->sip_api->api_wrapped_module_free(wms);
+    if (ms != NULL)
+        ((const sipAPIDef *const)ms)->api_wrapped_module_free(ms);
 }
 ''')
 
@@ -951,10 +1014,10 @@ static void wrapped_module_free(void *wmod_ptr)
 /* The wrapped module's traverse slot. */
 static int wrapped_module_traverse(PyObject *wmod, visitproc visit, void *arg)
 {
-    sipWrappedModuleState *wms = (sipWrappedModuleState *)PyModule_GetState(
-            wmod);
+    void *ms = PyModule_GetState(wmod);
 
-    return wms->sip_api->api_wrapped_module_traverse(wms, visit, arg);
+    return ((const sipAPIDef *const)ms)->api_wrapped_module_traverse(ms, visit,
+            arg);
 }
 ''')
 

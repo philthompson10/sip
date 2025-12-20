@@ -13,8 +13,7 @@
 #include <Python.h>
 
 #include "sip.h"
-
-#include "sip_wrapper_type.h"
+#include "sip_decls.h"
 
 
 #ifdef __cplusplus

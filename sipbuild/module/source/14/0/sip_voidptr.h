@@ -12,7 +12,7 @@
 
 #include <Python.h>
 
-#include "sip.h"
+#include "sip_decls.h"
 
 
 #ifdef __cplusplus

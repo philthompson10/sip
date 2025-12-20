@@ -18,6 +18,7 @@
 #include "sip_object_map.h"
 #include "sip_parsers.h"
 #include "sip_threads.h"
+#include "sip_wrapped_module.h"
 #include "sip_wrapper.h"
 #include "sip_wrapper_type.h"
 

@@ -13,8 +13,8 @@
 #include <Python.h>
 
 #include "sip.h"
-
 #include "sip_core.h"
+#include "sip_decls.h"
 
 
 #ifdef __cplusplus
@@ -24,7 +24,7 @@ extern "C" {
 /*
  * The meta-type of a wrapper type.
  */
-typedef struct {
+struct _sipWrapperType {
     /*
      * The super-metatype.  This must be first in the structure so that it can
      * be cast to a PyTypeObject *.
@@ -59,7 +59,7 @@ typedef struct {
      * For the user to use.  This is a strong reference.
      */
     PyObject *wt_user_data;
-} sipWrapperType;
+};
 
 
 int sip_wrapper_type_init(PyObject *module, sipSipModuleState *sms);

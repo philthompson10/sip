@@ -19,6 +19,7 @@
 #include "sip_module.h"
 #include "sip_string_convertors.h"
 #include "sip_voidptr.h"
+#include "sip_wrapped_module.h"
 
 
 /* Forward declarations of slots. */

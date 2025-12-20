@@ -13,6 +13,7 @@
 #include <Python.h>
 
 #include "sip.h"
+#include "sip_decls.h"
 
 
 #ifdef __cplusplus
@@ -43,7 +44,7 @@ extern "C" {
 /*
  * The type of a simple C/C++ wrapper object.
  */
-typedef struct {
+struct _sipSimpleWrapper {
     PyObject_HEAD
 
     /* The data, ie. a pointer to the C/C++ object. */
@@ -66,7 +67,7 @@ typedef struct {
 
     /* For the user to use. */
     PyObject *user;
-} sipSimpleWrapper;
+};
 
 
 int sip_simple_wrapper_init(PyObject *module, sipSipModuleState *sms);

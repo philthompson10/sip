@@ -12,13 +12,12 @@
 
 #include <Python.h>
 
+#include "sip_decls.h"
+
 
 #ifdef __cplusplus
 extern "C" {
 #endif
-
-struct _sipSipModuleState;
-
 
 /*
  * The data associated with pending request to wrap an object.
@@ -33,17 +32,17 @@ typedef struct {
 /*
  * The per thread data we need to maintain.
  */
-typedef struct _sipThread {
+struct _sipThread {
     unsigned long thr_ident;        /* The thread identifier. */
     sipPendingWrapDef pending_wrap; /* An object waiting to be wrapped. */
     PyObject **unused_args;         /* A pointer to an unused args dict. */
     struct _sipThread *next;        /* Next in the list. */
-} sipThread;
+};
 
 
 void sip_api_end_thread(PyObject *w_mod);
 
-sipThread *sip_get_thread_data(struct _sipSipModuleState *sms, int auto_alloc);
+sipThread *sip_get_thread_data(sipSipModuleState *sms, int auto_alloc);
 
 #ifdef __cplusplus
 }

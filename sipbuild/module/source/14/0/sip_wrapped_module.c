@@ -22,11 +22,13 @@ static int add_license(PyObject *w_mod, const sipLicenseDef *lc);
 
 
 /* The wrapped module's clear slot. */
-int sip_api_wrapped_module_clear(sipWrappedModuleState *wms)
+int sip_api_wrapped_module_clear(void *ms)
 {
-    int i;
+    sipWrappedModuleState *wms = (sipWrappedModuleState *)ms;
 
     /* Clear the wrapped types. */
+    int i;
+
     for (i = 0; i < wms->wrapped_module_def->nr_type_defs; i++)
         Py_CLEAR(wms->py_types[i]);
 
@@ -43,8 +45,10 @@ int sip_api_wrapped_module_clear(sipWrappedModuleState *wms)
 
 
 /* The wrapped module's free slot. */
-void sip_api_wrapped_module_free(sipWrappedModuleState *wms)
+void sip_api_wrapped_module_free(void *ms)
 {
+    sipWrappedModuleState *wms = (sipWrappedModuleState *)ms;
+
     /* Handle any delayed dtors and free the list. */
     if (wms->delayed_dtors_list != NULL)
     {
@@ -322,12 +326,13 @@ int sip_api_wrapped_module_init(PyObject *w_mod,
 
 
 /* The wrapped module's traverse slot. */
-int sip_api_wrapped_module_traverse(sipWrappedModuleState *wms,
-        visitproc visit, void *arg)
+int sip_api_wrapped_module_traverse(void *ms, visitproc visit, void *arg)
 {
-    int i;
+    sipWrappedModuleState *wms = (sipWrappedModuleState *)ms;
 
     /* Visit the types. */
+    int i;
+
     for (i = 0; i < wms->wrapped_module_def->nr_type_defs; i++)
         Py_VISIT(wms->py_types[i]);
 

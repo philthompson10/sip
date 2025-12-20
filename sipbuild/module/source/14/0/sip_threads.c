@@ -15,6 +15,7 @@
 
 #include "sip_core.h"
 #include "sip_module.h"
+#include "sip_wrapped_module.h"
 
 
 /*

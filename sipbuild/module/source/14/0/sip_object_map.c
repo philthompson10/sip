@@ -18,6 +18,7 @@
 #include "sip_core.h"
 #include "sip_module.h"
 #include "sip_simple_wrapper.h"
+#include "sip_wrapped_module.h"
 #include "sip_wrapper_type.h"
 
 

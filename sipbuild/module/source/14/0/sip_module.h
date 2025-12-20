@@ -13,9 +13,8 @@
 #include <Python.h>
 
 #include "sip.h"
-#include "sip_core.h"
+#include "sip_decls.h"
 #include "sip_object_map.h"
-#include "sip_threads.h"
 
 
 #ifdef __cplusplus
@@ -23,7 +22,7 @@ extern "C" {
 #endif
 
 /* The sip module's state. */
-typedef struct _sipSipModuleState {
+struct _sipSipModuleState {
     /* The sip.array type object. */
     PyTypeObject *array_type;
 
@@ -115,7 +114,7 @@ typedef struct _sipSipModuleState {
 
     /* The sip.wrappertype type object. */
     PyTypeObject *wrapper_type_type;
-} sipSipModuleState;
+};
 
 
 PyObject *sip_get_sip_module(PyTypeObject *defining_class);
