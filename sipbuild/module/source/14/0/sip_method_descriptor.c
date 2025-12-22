@@ -30,7 +30,7 @@ typedef struct {
     /* The method definition. */
     const PyMethodDef *pmd;
 
-    /* The defining class. */
+    /* A strong reference to the defining class. */
     PyTypeObject *defining_class;
 
     /* The mixin name, if any. */
@@ -85,7 +85,7 @@ PyObject *sipMethodDescr_New(sipSipModuleState *sms, const PyMethodDef *pmd,
     if (descr != NULL)
     {
         descr->pmd = pmd;
-        descr->defining_class = defining_class;
+        descr->defining_class = (PyTypeObject *)Py_NewRef(defining_class);
         descr->mixin_name = NULL;
     }
 

@@ -30,7 +30,7 @@ typedef struct {
     /* The wrapped variable definition. */
     const sipWrappedVariableDef *wvd;
 
-    /* The wrapped type containing the variable. */
+    /* A strong reference to the wrapped type containing the variable. */
     // TODO If this is a type ID (or a type number) then we should be able to
     // use these descriptors in enums and mapped types.
     PyTypeObject *w_type;
