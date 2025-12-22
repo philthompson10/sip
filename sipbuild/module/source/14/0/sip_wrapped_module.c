@@ -77,7 +77,6 @@ void sip_api_wrapped_module_free(void *ms)
     sip_sip_module_free(wms->sip_module_state);
     sip_api_free(wms->sip_module_state);
 #endif
-
 }
 
 

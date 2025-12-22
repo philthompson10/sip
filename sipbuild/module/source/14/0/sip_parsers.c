@@ -16,6 +16,7 @@
 
 #include "sip_parsers.h"
 
+#include "sip.h"
 #include "sip_array.h"
 #include "sip_core.h"
 #include "sip_enum.h"
@@ -1665,7 +1666,7 @@ static int can_convert_from_sequence(sipWrappedModuleState *wms, PyObject *seq,
 static int can_convert_to_type(sipWrappedModuleState *wms, PyObject *pyObj,
         sipTypeID type_id, int flags)
 {
-    assert(type_id == sipTypeIDInvalid || sipTypeIDIsClass(type_id) || sipTypeIDIsMapped(type_id));
+    assert(type_id == sipTypeID_Invalid || sipTypeIDIsClass(type_id) || sipTypeIDIsMapped(type_id));
 
     // TODO Handle /External/ types.
     PyTypeObject *w_type;

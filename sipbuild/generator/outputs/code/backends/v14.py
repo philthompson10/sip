@@ -904,7 +904,7 @@ static int wrapped_module_clear(PyObject *wmod)
 {
     void *ms = PyModule_GetState(wmod);
 
-    return ((const sipAPIDef *const)ms)->api_wrapped_module_clear(ms);
+    return (*(const sipAPIDef *const *)ms)->api_wrapped_module_clear(ms);
 }
 ''')
 
@@ -972,7 +972,7 @@ static void wrapped_module_free(void *wmod_ptr)
     void *ms = PyModule_GetState((PyObject *)wmod_ptr);
 
     if (ms != NULL)
-        ((const sipAPIDef *const)ms)->api_wrapped_module_free(ms);
+        (*(const sipAPIDef *const *)ms)->api_wrapped_module_free(ms);
 }
 ''')
 
@@ -1016,8 +1016,8 @@ static int wrapped_module_traverse(PyObject *wmod, visitproc visit, void *arg)
 {
     void *ms = PyModule_GetState(wmod);
 
-    return ((const sipAPIDef *const)ms)->api_wrapped_module_traverse(ms, visit,
-            arg);
+    return (*(const sipAPIDef *const *)ms)->api_wrapped_module_traverse(ms,
+            visit, arg);
 }
 ''')
 
