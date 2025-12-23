@@ -196,6 +196,13 @@ class AbstractBackend(ABC):
 
     @staticmethod
     @abstractmethod
+    def get_spec_suffix():
+        """ Return the suffix used for immutable specifications. """
+
+        ...
+
+    @staticmethod
+    @abstractmethod
     def get_type_ref(wrapped_object):
         """ Return the reference to the type of a wrapped object. """
 

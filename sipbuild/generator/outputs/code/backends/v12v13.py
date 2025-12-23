@@ -1008,6 +1008,12 @@ f'''static void *init_type_{klass_name}(sipSimpleWrapper *{sip_self}, PyObject *
         return slot_type.name.lower() + '_slot'
 
     @staticmethod
+    def get_spec_suffix():
+        """ Return the suffix used for immutable specifications. """
+
+        return 'Def'
+
+    @staticmethod
     def get_type_ref(wrapped_object):
         """ Return the reference to the type of a wrapped object. """
 

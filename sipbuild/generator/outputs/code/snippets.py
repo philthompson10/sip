@@ -1751,7 +1751,8 @@ def _class_api(backend, sf, klass):
 
     if not klass.external and not klass.is_hidden_namespace:
         klass_name = iface_file.fq_cpp_name.as_word
-        sf.write(f'\nextern sipClassTypeDef sipTypeDef_{module_name}_{klass_name};\n')
+        spec_suffix = backend.get_spec_suffix()
+        sf.write(f'\nextern sipClassType{spec_suffix} sipType{spec_suffix}_{module_name}_{klass_name};\n')
 
 
 def _class_docstring(sf, spec, bindings, klass):
@@ -2493,6 +2494,8 @@ f'''
 ''')
 
     # TODO Does this exclude types defined in another module?
+    spec_suffix = backend.get_spec_suffix()
+
     for needed_type in module.needed_types:
         if needed_type.type is ArgumentType.CLASS:
             klass = needed_type.definition
@@ -2500,12 +2503,12 @@ f'''
             if klass.external:
                 sf.write('    0,\n')
             elif not klass.is_hidden_namespace:
-                sf.write(f'    &sipTypeDef_{module_name}_{klass.iface_file.fq_cpp_name.as_word}.ctd_base,\n')
+                sf.write(f'    &sipType{spec_suffix}_{module_name}_{klass.iface_file.fq_cpp_name.as_word}.ctd_base,\n')
 
         elif needed_type.type is ArgumentType.MAPPED:
             mapped_type = needed_type.definition
 
-            sf.write(f'    &sipTypeDef_{module_name}_{mapped_type.iface_file.fq_cpp_name.as_word}.mtd_base,\n')
+            sf.write(f'    &sipType{spec_suffix}_{module_name}_{mapped_type.iface_file.fq_cpp_name.as_word}.mtd_base,\n')
 
         elif needed_type.type is ArgumentType.ENUM:
             enum = needed_type.definition
