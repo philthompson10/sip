@@ -2084,6 +2084,8 @@ static sipWrappedModuleState *get_defining_wrapped_module_state(
  * (if the type ID corresponds to a class, or NULL if it doesn't) and the state
  * of the type ID's defining module.
  */
+// TODO This can be called by traverse slots and it can create new types.
+// Doing both is not allowed so check that that can never happen.
 const sipTypeDef *sip_get_type_detail(sipWrappedModuleState *wms,
         sipTypeID type_id, PyTypeObject **py_type_p,
         sipWrappedModuleState **defining_wms_p)

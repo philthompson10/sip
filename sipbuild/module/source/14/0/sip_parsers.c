@@ -3673,8 +3673,6 @@ static int parse_pass_2(sipWrappedModuleState *wms, PyObject *self,
                         name);
         }
 
-        assert(arg != NULL);
-
         /*
          * Do the outstanding conversions.  For most types it has already been
          * done, so we are just skipping the parameters.

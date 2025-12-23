@@ -1158,6 +1158,10 @@ struct _sipAPIDef {
  *
  * The values of certain fields are designed so that 0 is an invalid type ID.
  */
+// TODO The above is broken for imported types as it uses an index into the
+// imported module's data (which may change from version to version).  Instead
+// it should be done as in older ABIs where the imported type is only referred
+// to by name (ie. an index into a list of imported types).
 
 /* The general type part of a type ID. */
 #define SIP_TYPE_ID_TYPE_MASK           0xe0000000
