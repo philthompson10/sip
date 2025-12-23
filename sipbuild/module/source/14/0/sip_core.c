@@ -2131,7 +2131,7 @@ PyTypeObject *sip_get_local_py_type(sipWrappedModuleState *wms,
     const sipTypeDef *td = wms->wrapped_module_def->type_defs[type_nr];
 
     // TODO Handle enums.
-    assert(sipTypeIsClass(td));
+    assert(sipTypeIsClass(td) || sipTypeIsNamespace(td));
 
     /* Create the type. */
     sipTypeID type_id = SIP_TYPE_ID_TYPE_CLASS | SIP_TYPE_ID_CURRENT_MODULE | type_nr;
