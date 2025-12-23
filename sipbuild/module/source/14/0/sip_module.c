@@ -31,7 +31,7 @@
 #if _SIP_MODULE_SHARED
 
 /* Forward declarations specific to a standalone sip module. */
-static const sipWrappedModuleBootstrap *bootstrap(int abi_major);
+static const sipModuleBootstrap *bootstrap(int abi_major);
 static int module_clear(PyObject *module);
 static int module_exec(PyObject *module);
 static void module_free(void *module_ptr);
@@ -127,11 +127,11 @@ static int module_traverse(PyObject *module, visitproc visit, void *arg)
 /*
  * The first stage bootstrap function.
  */
-static const sipWrappedModuleBootstrap *bootstrap(int abi_major)
+static const sipModuleBootstrap *bootstrap(int abi_major)
 {
-    static sipWrappedModuleBootstrap bootstrap_def = {
-        .init = sip_api_wrapped_module_init,
-        .state_size = sizeof (sipWrappedModuleState),
+    static sipModuleBootstrap bootstrap_def = {
+        .init = sip_api_module_init,
+        .state_size = sizeof (sipModuleState),
     };
 
     // TODO Verify abi_major.
@@ -332,7 +332,7 @@ int sip_sip_module_traverse(sipSipModuleState *sms, visitproc visit, void *arg)
 // TODO Review the need for this.
 PyObject *sip_get_sip_module(PyTypeObject *defining_class)
 {
-    return ((sipWrappedModuleState *)PyType_GetModuleState(defining_class))->sip_module;
+    return ((sipModuleState *)PyType_GetModuleState(defining_class))->sip_module;
 }
 
 
@@ -357,6 +357,6 @@ sipSipModuleState *sip_get_sip_module_state(PyTypeObject *type)
     if (mod == NULL)
         return NULL;
 
-    return ((sipWrappedModuleState *)PyModule_GetState(mod))->sip_module_state;
+    return ((sipModuleState *)PyModule_GetState(mod))->sip_module_state;
 #endif
 }

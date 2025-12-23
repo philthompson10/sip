@@ -27,8 +27,8 @@
 typedef struct {
     PyObject_HEAD
 
-    /* The wrapped variable definition. */
-    const sipWrappedVariableDef *wvd;
+    /* The wrapped variable specification. */
+    const sipVariableSpec *wvd;
 
     /* A strong reference to the wrapped type containing the variable. */
     // TODO If this is a type ID (or a type number) then we should be able to
@@ -82,7 +82,7 @@ static VariableDescr *alloc_variable_descr(sipSipModuleState *sms);
  * Return a new method descriptor for the given getter/setter.
  */
 PyObject *sipVariableDescr_New(sipSipModuleState *sms, PyTypeObject *w_type,
-        const sipWrappedVariableDef *wvd)
+        const sipVariableSpec *wvd)
 {
     VariableDescr *descr = alloc_variable_descr(sms);
 
@@ -124,8 +124,7 @@ static PyObject *VariableDescr_descr_get(VariableDescr *self, PyObject *obj,
         PyObject *type)
 {
     sipWrapperType *wt = (sipWrapperType *)self->w_type;
-    sipWrappedModuleState *wms = (sipWrappedModuleState *)PyModule_GetState(
-        wt->wt_d_mod);
+    sipModuleState *wms = (sipModuleState *)PyModule_GetState(wt->wt_d_mod);
 
     return sip_variable_get(wms, obj, self->wvd, self->w_type,
             self->mixin_name);
@@ -139,8 +138,7 @@ static int VariableDescr_descr_set(VariableDescr *self, PyObject *obj,
         PyObject *value)
 {
     sipWrapperType *wt = (sipWrapperType *)self->w_type;
-    sipWrappedModuleState *wms = (sipWrappedModuleState *)PyModule_GetState(
-        wt->wt_d_mod);
+    sipModuleState *wms = (sipModuleState *)PyModule_GetState(wt->wt_d_mod);
 
     return sip_variable_set(wms, obj, value, self->wvd, self->w_type,
             self->mixin_name);

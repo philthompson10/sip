@@ -23,8 +23,7 @@
  */
 void sip_api_end_thread(PyObject *w_mod)
 {
-    sipWrappedModuleState *wms = (sipWrappedModuleState *)PyModule_GetState(
-            w_mod);
+    sipModuleState *wms = (sipModuleState *)PyModule_GetState(w_mod);
 
     PyGILState_STATE gil = PyGILState_Ensure();
 

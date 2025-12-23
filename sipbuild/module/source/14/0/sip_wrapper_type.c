@@ -88,9 +88,8 @@ static PyObject *WrapperType_getattro(sipWrapperType *self, PyObject *name)
     if (self->wt_d_mod == NULL)
         return PyType_Type.tp_getattro((PyObject *)self, name);
 
-    sipWrappedModuleState *wms = (sipWrappedModuleState *)PyModule_GetState(
-            self->wt_d_mod);
-    const sipClassTypeDef *ctd = (const sipClassTypeDef *)sip_get_type_def_from_wt(self);
+    sipModuleState *wms = (sipModuleState *)PyModule_GetState(self->wt_d_mod);
+    const sipClassTypeSpec *ctd = (const sipClassTypeSpec *)sip_get_type_spec_from_wt(self);
 
     return sip_mod_con_getattro(wms, (PyObject *)self, name,
             &ctd->ctd_container.cod_attributes);
@@ -146,7 +145,7 @@ static int WrapperType_init(sipWrapperType *self, PyObject *args,
     /* Invoke any event handlers. */
     for (eh = sms->event_handlers[sipEventPySubclassCreated]; eh != NULL; eh = eh->next)
     {
-        if (sipTypeIsClass(eh->td) && sip_is_subtype(wms, (const sipClassTypeDef *)self->wt_td, (const sipClassTypeDef *)eh->td))
+        if (sipTypeIsClass(eh->td) && sip_is_subtype(wms, (const sipClassTypeSpec *)self->wt_td, (const sipClassTypeSpec *)eh->td))
         {
             sipPySubclassCreatedEventHandler handler = (sipPySubclassCreatedEventHandler)eh->handler;
 
@@ -170,9 +169,8 @@ static int WrapperType_setattro(sipWrapperType *self, PyObject *name,
     if (self->wt_d_mod == NULL)
         return PyType_Type.tp_setattro((PyObject *)self, name, value);
 
-    sipWrappedModuleState *wms = (sipWrappedModuleState *)PyModule_GetState(
-            self->wt_d_mod);
-    const sipClassTypeDef *ctd = (const sipClassTypeDef *)sip_get_type_def_from_wt(self);
+    sipModuleState *wms = (sipModuleState *)PyModule_GetState(self->wt_d_mod);
+    const sipClassTypeSpec *ctd = (const sipClassTypeSpec *)sip_get_type_spec_from_wt(self);
 
     return sip_mod_con_setattro(wms, (PyObject *)self, name, value,
             &ctd->ctd_container.cod_attributes);

@@ -21,7 +21,7 @@ extern "C" {
 #endif
 
 PyObject *sipVariableDescr_New(sipSipModuleState *sms, PyTypeObject *w_type,
-        const sipWrappedVariableDef *wvd);
+        const sipVariableSpec *wvd);
 PyObject *sipVariableDescr_Copy(sipSipModuleState *sms, PyObject *orig,
         PyObject *mixin_name);
 int sip_variable_descr_init(PyObject *module, sipSipModuleState *sms);

@@ -21,12 +21,12 @@ extern "C" {
 #endif
 
 /* A wrapped module's state. */
-struct _sipWrappedModuleState {
+struct _sipModuleState {
     /*
      * The pointers to the functions that implement the sip module API.  This
      * *must* be the first field in order to keep this structure hidden.
      */
-    const sipAPIDef *sip_api;
+    const sipAPISpec *sip_api;
 
     /* The list of delayed dtors. */
     sipDelayedDtor *delayed_dtors_list;
@@ -58,8 +58,8 @@ struct _sipWrappedModuleState {
     /* A borrowed reference to the wrapped module. */
     PyObject *wrapped_module;
 
-    /* The definition of the wrapped module. */
-    const sipWrappedModuleDef *wrapped_module_def;
+    /* The specification of the wrapped module. */
+    const sipModuleSpec *module_spec;
 
     // TODO Extensions to the state provided by the bindings author.  It must
     // be a PyObject (or another type that can be garbage collected) and may
@@ -68,9 +68,9 @@ struct _sipWrappedModuleState {
 };
 
 
-int sip_api_wrapped_module_clear(void *ms);
-void sip_api_wrapped_module_free(void *ms);
-int sip_api_wrapped_module_traverse(void *ms, visitproc visit, void *arg);
+int sip_api_module_clear(void *ms);
+void sip_api_module_free(void *ms);
+int sip_api_module_traverse(void *ms, visitproc visit, void *arg);
 
 #ifdef __cplusplus
 }

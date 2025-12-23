@@ -22,14 +22,14 @@ static int add_license(PyObject *w_mod, const sipLicenseDef *lc);
 
 
 /* The wrapped module's clear slot. */
-int sip_api_wrapped_module_clear(void *ms)
+int sip_api_module_clear(void *ms)
 {
-    sipWrappedModuleState *wms = (sipWrappedModuleState *)ms;
+    sipModuleState *wms = (sipModuleState *)ms;
 
     /* Clear the wrapped types. */
     int i;
 
-    for (i = 0; i < wms->wrapped_module_def->nr_type_defs; i++)
+    for (i = 0; i < wms->module_spec->nr_type_specs; i++)
         Py_CLEAR(wms->py_types[i]);
 
     Py_CLEAR(wms->extra_refs);
@@ -45,15 +45,15 @@ int sip_api_wrapped_module_clear(void *ms)
 
 
 /* The wrapped module's free slot. */
-void sip_api_wrapped_module_free(void *ms)
+void sip_api_module_free(void *ms)
 {
-    sipWrappedModuleState *wms = (sipWrappedModuleState *)ms;
+    sipModuleState *wms = (sipModuleState *)ms;
 
     /* Handle any delayed dtors and free the list. */
     if (wms->delayed_dtors_list != NULL)
     {
         /* Call the handler for the list. */
-        wms->wrapped_module_def->delayeddtors(wms->delayed_dtors_list);
+        wms->module_spec->delayeddtors(wms->delayed_dtors_list);
 
         /* Free the list. */
         do
@@ -67,7 +67,7 @@ void sip_api_wrapped_module_free(void *ms)
     }
 
     /* Clear all the Python references. */
-    sip_api_wrapped_module_clear(wms);
+    sip_api_module_clear(wms);
 
     /* Free the additional memory related to Python types. */
     if (wms->py_types != NULL)
@@ -84,8 +84,8 @@ void sip_api_wrapped_module_free(void *ms)
  * Initialise a wrapped module.
  */
 // TODO There are lots of leaks if this fails in any way.
-int sip_api_wrapped_module_init(PyObject *w_mod,
-        const sipWrappedModuleDef *wmd, PyObject *sip_module)
+int sip_api_module_init(PyObject *w_mod, const sipModuleSpec *wmd,
+        PyObject *sip_module)
 {
     /* Check that we can support it. */
     if (wmd->abi_major != SIP_ABI_MAJOR_VERSION || wmd->abi_minor > SIP_ABI_MINOR_VERSION)
@@ -116,8 +116,7 @@ int sip_api_wrapped_module_init(PyObject *w_mod,
         return -1;
     }
 
-    sipWrappedModuleState *wms = (sipWrappedModuleState *)PyModule_GetState(
-            w_mod);
+    sipModuleState *wms = (sipModuleState *)PyModule_GetState(w_mod);
 
     wms->sip_api = &sip_api;
 #if _SIP_MODULE_SHARED
@@ -133,7 +132,7 @@ int sip_api_wrapped_module_init(PyObject *w_mod,
         return -1;
 #endif
     wms->wrapped_module = w_mod;
-    wms->wrapped_module_def = wmd;
+    wms->module_spec = wmd;
 
     /* Update the new module's super-type. */
     PyObject *class_s = PyUnicode_InternFromString("__class__");
@@ -168,7 +167,7 @@ int sip_api_wrapped_module_init(PyObject *w_mod,
         return -1;
 
     /* Allocate the space for any wrapped type type objects. */
-    if (wmd->nr_type_defs > 0 && (wms->py_types = PyMem_Calloc(wmd->nr_type_defs, sizeof (PyTypeObject *))) == NULL)
+    if (wmd->nr_type_specs > 0 && (wms->py_types = PyMem_Calloc(wmd->nr_type_specs, sizeof (PyTypeObject *))) == NULL)
             return -1;
 
     /* Import any required wrapped modules. */
@@ -220,7 +219,7 @@ int sip_api_wrapped_module_init(PyObject *w_mod,
 
         while (ie->ie_extender != NULL)
         {
-            const sipTypeDef *td = sip_get_type_def(wms, ie->ie_class);
+            const sipTypeSpec *td = sip_get_type_spec(wms, ie->ie_class);
             sipWrapperType *wt = (sipWrapperType *)sipTypeAsPyTypeObject(td);
 
             ie->ie_next = wt->wt_iextend;
@@ -239,7 +238,7 @@ int sip_api_wrapped_module_init(PyObject *w_mod,
 
         while (scc->scc_convertor != NULL)
         {
-            scc->scc_basetype = sip_get_type_def(wms, scc->scc_base);
+            scc->scc_basetype = sip_get_type_spec(wms, scc->scc_base);
 
             ++scc;
         }
@@ -248,11 +247,11 @@ int sip_api_wrapped_module_init(PyObject *w_mod,
 
 #if defined(SIP_CONFIGURATION_CustomEnums)
     /* Create the module's enum members. */
-    sipEnumMemberDef *emd;
+    sipEnumMemberSpec *emd;
 
     for (emd = wmd->enum_members, i = 0; i < wmd->nr_enum_members; ++i, ++emd)
     {
-        const sipTypeDef *etd = wmd->types[emd->em_enum];
+        const sipTypeSpec *etd = wmd->types[emd->em_enum];
         PyObject *mo;
 
         if (sipTypeIsScopedEnum(etd))
@@ -285,9 +284,8 @@ int sip_api_wrapped_module_init(PyObject *w_mod,
         if (mod == w_mod)
             continue;
 
-        sipWrappedModuleState *ms = (sipWrappedModuleState *)PyModule_GetState(
-                mod);
-        const sipWrappedModuleDef *md = ms->wrapped_module_def;
+        sipModuleState *ms = (sipModuleState *)PyModule_GetState(mod);
+        const sipModuleSpec *md = ms->module_spec;
 
         if (md->external == NULL)
             continue;
@@ -299,17 +297,17 @@ int sip_api_wrapped_module_init(PyObject *w_mod,
             if (etd->et_name == NULL)
                 continue;
 
-            for (i = 0; i < wmd->nr_type_defs; ++i)
+            for (i = 0; i < wmd->nr_type_specs; ++i)
             {
-                sipTypeDef *td = wmd->type_defs[i];
+                sipTypeSpec *td = wmd->type_specs[i];
 
                 if (td != NULL && sipTypeIsClass(td))
                 {
-                    const char *pyname = &((const sipClassTypeDef *)td)->ctd_container.cod_name, td);
+                    const char *pyname = &((const sipClassTypeSpec *)td)->ctd_container.cod_name, td);
 
                     if (strcmp(etd->et_name, pyname) == 0)
                     {
-                        md->type_defs[etd->et_nr] = td;
+                        md->type_specs[etd->et_nr] = td;
                         etd->et_name = NULL;
 
                         break;
@@ -325,14 +323,14 @@ int sip_api_wrapped_module_init(PyObject *w_mod,
 
 
 /* The wrapped module's traverse slot. */
-int sip_api_wrapped_module_traverse(void *ms, visitproc visit, void *arg)
+int sip_api_module_traverse(void *ms, visitproc visit, void *arg)
 {
-    sipWrappedModuleState *wms = (sipWrappedModuleState *)ms;
+    sipModuleState *wms = (sipModuleState *)ms;
 
     /* Visit the types. */
     int i;
 
-    for (i = 0; i < wms->wrapped_module_def->nr_type_defs; i++)
+    for (i = 0; i < wms->module_spec->nr_type_specs; i++)
         Py_VISIT(wms->py_types[i]);
 
     Py_VISIT(wms->extra_refs);

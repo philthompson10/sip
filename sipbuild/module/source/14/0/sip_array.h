@@ -26,7 +26,7 @@ PyObject *sip_api_convert_to_typed_array(PyObject *w_mod, void *data,
         sipTypeID type_id, const char *format, size_t stride, Py_ssize_t len,
         int flags);
 
-int sip_array_can_convert(sipWrappedModuleState *wms, PyObject *obj,
+int sip_array_can_convert(sipModuleState *wms, PyObject *obj,
         sipTypeID type_id);
 void sip_array_convert(PyObject *obj, void **data, Py_ssize_t *size);
 int sip_array_init(PyObject *module, sipSipModuleState *sms);

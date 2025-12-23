@@ -492,8 +492,7 @@ void *sip_api_convert_to_void_ptr(PyObject *obj)
  */
 PyObject *sip_api_convert_from_void_ptr(PyObject *w_mod, void *val)
 {
-    sipWrappedModuleState *wms = (sipWrappedModuleState *)PyModule_GetState(
-            w_mod);
+    sipModuleState *wms = (sipModuleState *)PyModule_GetState(w_mod);
 
     return sip_convert_from_void_ptr(wms->sip_module_state, val);
 }
@@ -513,8 +512,7 @@ PyObject *sip_convert_from_void_ptr(sipSipModuleState *sms, void *val)
  */
 PyObject *sip_api_convert_from_const_void_ptr(PyObject *w_mod, const void *val)
 {
-    sipWrappedModuleState *wms = (sipWrappedModuleState *)PyModule_GetState(
-            w_mod);
+    sipModuleState *wms = (sipModuleState *)PyModule_GetState(w_mod);
 
     return sip_convert_from_const_void_ptr(wms->sip_module_state, val);
 }
@@ -537,8 +535,7 @@ PyObject *sip_convert_from_const_void_ptr(sipSipModuleState *sms,
 PyObject *sip_api_convert_from_void_ptr_and_size(PyObject *w_mod, void *val,
         Py_ssize_t size)
 {
-    sipWrappedModuleState *wms = (sipWrappedModuleState *)PyModule_GetState(
-            w_mod);
+    sipModuleState *wms = (sipModuleState *)PyModule_GetState(w_mod);
 
     return create_voidptr(wms->sip_module_state, val, size, TRUE);
 }
@@ -550,8 +547,7 @@ PyObject *sip_api_convert_from_void_ptr_and_size(PyObject *w_mod, void *val,
 PyObject *sip_api_convert_from_const_void_ptr_and_size(PyObject *w_mod,
         const void *val, Py_ssize_t size)
 {
-    sipWrappedModuleState *wms = (sipWrappedModuleState *)PyModule_GetState(
-            w_mod);
+    sipModuleState *wms = (sipModuleState *)PyModule_GetState(w_mod);
 
     return create_voidptr(wms->sip_module_state, (void *)val, size, FALSE);
 }

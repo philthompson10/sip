@@ -44,12 +44,12 @@ typedef struct
 } sipObjectMap;
 
 
-void sip_om_add_object(sipWrappedModuleState *wms, PyObject *w_inst);
+void sip_om_add_object(sipModuleState *wms, PyObject *w_inst);
 void sip_om_finalise(sipObjectMap *om);
 PyObject *sip_om_find_object(sipObjectMap *om, void *key,
         PyTypeObject *w_type);
 void sip_om_init(sipObjectMap *om);
-int sip_om_remove_object(sipWrappedModuleState *wms, PyObject *w_inst);
+int sip_om_remove_object(sipModuleState *wms, PyObject *w_inst);
 void sip_om_visit_wrappers(sipObjectMap *om, sipWrapperVisitorFunc visitor,
         void *closure);
 

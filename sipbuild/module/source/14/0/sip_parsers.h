@@ -80,14 +80,14 @@ void sip_api_release_type(PyObject *w_mod, void *cpp, sipTypeID type_id,
 void sip_api_release_type_us(PyObject *w_mod, void *cpp, sipTypeID type_id,
         int state, void *user_state);
 
-PyObject *sip_convert_from_type(sipWrappedModuleState *sms, void *cppPtr,
+PyObject *sip_convert_from_type(sipModuleState *sms, void *cppPtr,
         sipTypeID type_id, PyObject *transferObj);
-void *sip_force_convert_to_type_us(sipWrappedModuleState *wms, PyObject *pyObj,
+void *sip_force_convert_to_type_us(sipModuleState *wms, PyObject *pyObj,
         sipTypeID type_id, PyObject *transferObj, int flags, int *statep,
         void **user_statep, int *iserrp);
-PyObject *sip_is_py_method(sipWrappedModuleState *wms, sip_gilstate_t *gil,
+PyObject *sip_is_py_method(sipModuleState *wms, sip_gilstate_t *gil,
         char *pymc, PyObject **self_p, const char *cname, const char *mname);
-void sip_release(void *addr, const sipTypeDef *td, int state,
+void sip_release(void *addr, const sipTypeSpec *td, int state,
         void *user_state);
 int sip_vectorcall_create(PyObject *args, PyObject *kwargs,
         PyObject **small_argv, Py_ssize_t *argv_len_p, PyObject ***argv_p,

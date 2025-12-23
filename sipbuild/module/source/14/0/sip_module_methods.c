@@ -81,12 +81,13 @@ static PyObject *meth_assign(PyObject *mod, PyObject *args)
     /* Get the assignment helper. */
     sipAssignFunc assign_helper;
     PyTypeObject *dst_type = Py_TYPE(dst);
-    const sipTypeDef *td = sip_get_type_def_from_wt((sipWrapperType *)dst_type);
+    const sipTypeSpec *td = sip_get_type_spec_from_wt(
+            (sipWrapperType *)dst_type);
 
     if (sipTypeIsMapped(td))
-        assign_helper = ((const sipMappedTypeDef *)td)->mtd_assign;
+        assign_helper = ((const sipMappedTypeSpec *)td)->mtd_assign;
     else
-        assign_helper = ((const sipClassTypeDef *)td)->ctd_assign;
+        assign_helper = ((const sipClassTypeSpec *)td)->ctd_assign;
 
     if (assign_helper == NULL)
     {
@@ -96,7 +97,7 @@ static PyObject *meth_assign(PyObject *mod, PyObject *args)
     }
 
     /* Check the types are compatible. */
-    const sipTypeDef *super_td;
+    const sipTypeSpec *super_td;
     PyTypeObject *src_type = Py_TYPE(src);
 
     if (src_type == dst_type)
@@ -150,7 +151,7 @@ static PyObject *meth_delete(PyObject *mod, PyObject *args)
     clear_wrapper(sms, w_inst);
 
     sip_release(sw->data,
-            sip_get_type_def_from_wt((sipWrapperType *)Py_TYPE(w_inst)),
+            sip_get_type_spec_from_wt((sipWrapperType *)Py_TYPE(w_inst)),
             sw->flags, NULL);
 
     Py_RETURN_NONE;
@@ -401,7 +402,7 @@ static PyObject *meth_wrapinstance(PyObject *mod, PyObject *args)
         return NULL;
 
     return sip_convert_from_type(sms, (void *)addr,
-            sip_get_type_def_from_wt(wt), NULL);
+            sip_get_type_spec_from_wt(wt), NULL);
 #else
     return NULL;
 #endif
@@ -425,8 +426,7 @@ static void clear_wrapper(sipSipModuleState *sms, PyObject *w_inst)
     sipSimpleWrapper *sw = (sipSimpleWrapper *)w_inst;
     sipResetPyOwned(sw);
 
-    sipWrappedModuleState *wms = (sipWrappedModuleState *)PyModule_GetState(
-            wt->wt_d_mod);
+    sipModuleState *wms = (sipModuleState *)PyModule_GetState(wt->wt_d_mod);
 
     sip_om_remove_object(wms, w_inst);
 }

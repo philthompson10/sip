@@ -46,8 +46,8 @@ class v14Backend(AbstractBackend):
         nr_static_variables, nr_types = static_variables_state
 
         sf.write(
-f'''/* The wrapped module's immutable definition. */
-static const sipWrappedModuleDef sipWrappedModule_{module_name} = {{
+f'''/* The wrapped module's immutable specification. */
+static const sipModuleSpec sipModule_{module_name} = {{
     .abi_major = {target_abi[0]},
     .abi_minor = {target_abi[1]},
     .sip_configuration = 0x{spec.sip_module_configuration:04x},
@@ -59,8 +59,8 @@ static const sipWrappedModuleDef sipWrappedModule_{module_name} = {{
         # TODO Exclude non-local types.  They are needed (ie. I think we need
         # the iface file) but we don't generated definition structures.
         if len(module.needed_types) != 0:
-            sf.write(f'    .nr_type_defs = {len(module.needed_types)},\n')
-            sf.write(f'    .type_defs = sipTypeDefs_{module_name},\n')
+            sf.write(f'    .nr_type_specs = {len(module.needed_types)},\n')
+            sf.write(f'    .type_specs = sipTypeSpecs_{module_name},\n')
 
         if has_external:
             sf.write('    .imports = externalTypesTable,\n')
@@ -81,7 +81,7 @@ static const sipWrappedModuleDef sipWrappedModule_{module_name} = {{
 
         if nr_static_variables != 0:
             sf.write(f'    .attributes.nr_static_variables = {nr_static_variables},\n')
-            sf.write(f'    .attributes.static_variables = sipWrappedModuleVariables_{module_name},\n')
+            sf.write(f'    .attributes.static_variables = sipModuleVariables_{module_name},\n')
 
         if nr_types != 0:
             sf.write(f'    .attributes.nr_types = {nr_types},\n')
@@ -121,17 +121,16 @@ static const sipWrappedModuleDef sipWrappedModule_{module_name} = {{
 
         if spec.sip_module:
             sf.write(
-f'''    const sipWrappedModuleBootstrap *sip_bootstrap = wrapped_module_bootstrap(
-            NULL);
+f'''    const sipModuleBootstrap *sip_bootstrap = module_bootstrap(NULL);
     if (sip_bootstrap == NULL)
         return NULL;
 
     /* Get the wrapped module state size from the sip module. */
-    sipWrappedModuleSlots_{module_name}[1].value = (void *)sip_bootstrap->state_size;
+    sipModuleSlots_{module_name}[1].value = (void *)sip_bootstrap->state_size;
 
 ''')
 
-        sf.write(f'    return sipWrappedModuleSlots_{module_name};\n}}\n')
+        sf.write(f'    return sipModuleSlots_{module_name};\n}}\n')
 
     def g_enum_macros(self, sf, scope=None, imported_module=None):
         """ Generate the type macros for enums. """
@@ -142,7 +141,7 @@ f'''    const sipWrappedModuleBootstrap *sip_bootstrap = wrapped_module_bootstra
     def g_function_support_vars(self, sf):
         """ Generate the variables needed by a function. """
 
-        sf.write('    const sipAPIDef *sipAPI = sipGetAPI(sipModule);\n')
+        sf.write('    const sipAPISpec *sipAPI = sipGetAPI(sipModule);\n')
 
     def g_init_mixin_impl_body(self, sf, klass):
         """ Generate the body of the implementation of a mixin initialisation
@@ -195,7 +194,7 @@ f'''    const sipWrappedModuleBootstrap *sip_bootstrap = wrapped_module_bootstra
         if spec.sip_module:
             state_size = '0'
         else:
-            state_size = '(void *)sizeof (sipWrappedModuleState)'
+            state_size = '(void *)sizeof (sipModuleState)'
             sf.write('\n\n#include "sip_wrapped_module.h"\n')
 
         # Note that the sip module implementation expects Py_mod_name and
@@ -206,16 +205,16 @@ f'''
 /* The wrapped module's immutable slot definitions. */
 PyABIInfo_VAR(sip_abi_info);
 
-PyModuleDef_Slot sipWrappedModuleSlots_{module.py_name}[] = {{
+PyModuleDef_Slot sipModuleSlots_{module.py_name}[] = {{
     {{Py_mod_name, (void *)"{module.fq_py_name}"}},
     {{Py_mod_state_size, {state_size}}},
     {{Py_mod_abi, &sip_abi_info}},
-    {{Py_mod_exec, (void *)wrapped_module_exec}},
+    {{Py_mod_exec, (void *)module_exec}},
     {{Py_mod_gil, {gil_support}}},
     {{Py_mod_multiple_interpreters, {interp_support}}},
-    {{Py_mod_state_clear, (void *)wrapped_module_clear}},
-    {{Py_mod_state_free, (void *)wrapped_module_free}},
-    {{Py_mod_state_traverse, (void *)wrapped_module_traverse}},
+    {{Py_mod_state_clear, (void *)module_clear}},
+    {{Py_mod_state_free, (void *)module_free}},
+    {{Py_mod_state_traverse, (void *)module_traverse}},
 ''')
 
         if module.docstring is not None:
@@ -321,7 +320,7 @@ static PyMethodDef sipMethods_{scope_name}[] = {{
         sf.write(
 f'''
 
-extern PyModuleDef_Slot sipWrappedModuleSlots_{module_name}[];
+extern PyModuleDef_Slot sipModuleSlots_{module_name}[];
 
 #define sipBuildResult              sipAPI->api_build_result
 #define sipFindTypeID               sipAPI->api_find_type_id
@@ -477,8 +476,8 @@ f'''#define sipIsEnumFlag               sipAPI->api_is_enum_flag
         """ Generate the variables needed by a slot function. """
 
         sf.write(
-f'''    PyObject *sipModule = sipGetModule(sipSelf, sipWrappedModuleSlots_{self.spec.module.py_name});
-    const sipAPIDef *sipAPI = sipGetAPI(sipModule);
+f'''    PyObject *sipModule = sipGetModule(sipSelf, sipModuleSlots_{self.spec.module.py_name});
+    const sipAPISpec *sipAPI = sipGetAPI(sipModule);
 
 ''')
 
@@ -625,13 +624,13 @@ static PyType_Slot sip_py_slots_{klass_name}[] = {{
 
         if nr_instance_variables != 0:
             fields.append(
-                    '.ctd_container.cod_instance_variables = sipWrappedInstanceVariables_' + klass_name)
+                    '.ctd_container.cod_instance_variables = sipInstanceVariables_' + klass_name)
 
         if nr_static_variables != 0:
             fields.append(
                     '.ctd_container.cod_attributes.nr_static_variables = ' + str(nr_static_variables))
             fields.append(
-                    '.ctd_container.cod_attributes.static_variables = sipWrappedStaticVariables_' + klass_name)
+                    '.ctd_container.cod_attributes.static_variables = sipStaticVariables_' + klass_name)
 
         if nr_types != 0:
             fields.append(
@@ -721,7 +720,7 @@ static PyType_Slot sip_py_slots_{klass_name}[] = {{
         sf.write(
 f'''
 
-sipClassTypeDef sipTypeDef_{module_name}_{klass_name} = {{
+sipClassTypeSpec sipTypeSpec_{module_name}_{klass_name} = {{
     {fields}
 }};
 ''')
@@ -806,6 +805,12 @@ f'''static void *init_type_{klass_name}(PyObject *sipSelf, PyObject *const *sipA
         return _SLOT_ID_MAP[slot_type]
 
     @staticmethod
+    def get_spec_suffix():
+        """ Return the suffix used for immutable specifications. """
+
+        return 'Spec'
+
+    @staticmethod
     def get_type_ref(wrapped_object):
         """ Return the reference to the type of a wrapped object. """
 
@@ -817,7 +822,7 @@ f'''static void *init_type_{klass_name}(PyObject *sipSelf, PyObject *const *sipA
     def get_types_table_prefix():
         """ Return the prefix in the name of the wrapped types table. """
 
-        return 'static const sipTypeDef *const sipTypeDefs'
+        return 'static const sipTypeSpec *const sipTypeSpecs'
 
     @staticmethod
     def get_wrapped_type_type():
@@ -839,8 +844,7 @@ f'''static void *init_type_{klass_name}(PyObject *sipSelf, PyObject *const *sipA
 f'''
 
 /* Return the bootstrap information from the sip module. */
-static const sipWrappedModuleBootstrap *wrapped_module_bootstrap(
-        PyObject **sip_module_p)
+static const sipModuleBootstrap *module_bootstrap(PyObject **sip_module_p)
 {{
     PyObject *sip_module = PyImport_ImportModule("{spec.sip_module}");
     if (sip_module == NULL)
@@ -880,7 +884,7 @@ static const sipWrappedModuleBootstrap *wrapped_module_bootstrap(
      * stage.  The value returned is something we understand or NULL if the sip
      * module does not support the ABI.
      */
-    const sipWrappedModuleBootstrap *bootstrap = bootstrap_func({spec.target_abi[0]});
+    const sipModuleBootstrap *bootstrap = bootstrap_func({spec.target_abi[0]});
 
     /* Return a reference to the sip module if required. */
     if (sip_module_p != NULL)
@@ -900,11 +904,11 @@ static const sipWrappedModuleBootstrap *wrapped_module_bootstrap(
 '''
 
 /* The wrapped module's clear slot. */
-static int wrapped_module_clear(PyObject *wmod)
+static int module_clear(PyObject *wmod)
 {
     void *ms = PyModule_GetState(wmod);
 
-    return (*(const sipAPIDef *const *)ms)->api_wrapped_module_clear(ms);
+    return (*(const sipAPISpec *const *)ms)->api_module_clear(ms);
 }
 ''')
 
@@ -919,7 +923,7 @@ static int wrapped_module_clear(PyObject *wmod)
 '''
 
 /* The wrapped module's exec function. */
-static int wrapped_module_exec(PyObject *sipModule)
+static int module_exec(PyObject *sipModule)
 {
 ''')
 
@@ -930,14 +934,13 @@ static int wrapped_module_exec(PyObject *sipModule)
             sip_module_ref = 'sip_sip_module'
             sf.write(
 f'''    PyObject *{sip_module_ref};
-    const sipWrappedModuleBootstrap *sip_bootstrap = wrapped_module_bootstrap(
-            &{sip_module_ref});
+    const sipModuleBootstrap *sip_bootstrap = module_bootstrap(&{sip_module_ref});
     if (sip_bootstrap == NULL)
         return -1;
 
 ''')
         else:
-            sip_init_func_ref = 'sip_api_wrapped_module_init';
+            sip_init_func_ref = 'sip_api_module_init';
             sip_module_ref = 'SIP_NULLPTR';
 
         sf.write_code(module.initialisation_code)
@@ -945,7 +948,7 @@ f'''    PyObject *{sip_module_ref};
         g_pyqt_helper_init(sf, spec)
 
         sf.write(
-f'''    if ({sip_init_func_ref}(sipModule, &sipWrappedModule_{module_name}, {sip_module_ref}) < 0)
+f'''    if ({sip_init_func_ref}(sipModule, &sipModule_{module_name}, {sip_module_ref}) < 0)
         return -1;
 ''')
 
@@ -961,18 +964,18 @@ f'''    if ({sip_init_func_ref}(sipModule, &sipWrappedModule_{module_name}, {sip
     def _g_module_free(self, sf):
         """ Generate the module free slot. """
 
-        # Note that this will be called if wrapped_module_exec() fails in any
-        # way, so we can't assume the sip API is available.
+        # Note that this will be called if module_exec() fails in any way, so
+        # we can't assume the sip API is available.
         sf.write(
 '''
 
 /* The wrapped module's free slot. */
-static void wrapped_module_free(void *wmod_ptr)
+static void module_free(void *wmod_ptr)
 {
     void *ms = PyModule_GetState((PyObject *)wmod_ptr);
 
     if (ms != NULL)
-        (*(const sipAPIDef *const *)ms)->api_wrapped_module_free(ms);
+        (*(const sipAPISpec *const *)ms)->api_module_free(ms);
 }
 ''')
 
@@ -1012,12 +1015,12 @@ static void wrapped_module_free(void *wmod_ptr)
 '''
 
 /* The wrapped module's traverse slot. */
-static int wrapped_module_traverse(PyObject *wmod, visitproc visit, void *arg)
+static int module_traverse(PyObject *wmod, visitproc visit, void *arg)
 {
     void *ms = PyModule_GetState(wmod);
 
-    return (*(const sipAPIDef *const *)ms)->api_wrapped_module_traverse(ms,
-            visit, arg);
+    return (*(const sipAPISpec *const *)ms)->api_module_traverse(ms, visit,
+            arg);
 }
 ''')
 
@@ -1248,15 +1251,15 @@ static int wrapped_module_traverse(PyObject *wmod, visitproc visit, void *arg)
                 cpp_name = variable.fq_cpp_name.cpp_stripped(STRIP_GLOBAL)
                 address = '&' + cpp_name
             else:
-                address = 'sipWrappedVariableAddrGetter_' + v_ref
+                address = 'sipVariableAddrGetter_' + v_ref
 
             fields.append('.address = (void *)' + address)
 
             if variable.get_code is not None:
-                fields.append('.get_code = sipWrappedVariableGetCode_' + v_ref)
+                fields.append('.get_code = sipVariableGetCode_' + v_ref)
 
             if variable.set_code is not None:
-                fields.append('.set_code = sipWrappedVariableSetCode_' + v_ref)
+                fields.append('.set_code = sipVariableSetCode_' + v_ref)
 
             table.append(fields)
 
@@ -1269,10 +1272,10 @@ static int wrapped_module_traverse(PyObject *wmod, visitproc visit, void *arg)
                 sf.write('\n')
 
                 if not c_bindings:
-                    sf.write(f'extern "C" {{static PyObject *sipWrappedVariableGetCode_{v_ref}();}}\n')
+                    sf.write(f'extern "C" {{static PyObject *sipVariableGetCode_{v_ref}();}}\n')
 
                 sf.write(
-f'''static PyObject *sipWrappedVariableGetCode_{v_ref}()
+f'''static PyObject *sipVariableGetCode_{v_ref}()
 {{
     PyObject *sipPy;
 
@@ -1293,10 +1296,10 @@ f'''static PyObject *sipWrappedVariableGetCode_{v_ref}()
                 sf.write('\n')
 
                 if not c_bindings:
-                    sf.write(f'extern "C" {{static int sipWrappedVariableSetCode_{v_ref}(PyObject *);}}\n')
+                    sf.write(f'extern "C" {{static int sipVariableSetCode_{v_ref}(PyObject *);}}\n')
 
                 sf.write(
-f'''static int sipWrappedVariableSetCode_{v_ref}(PyObject *sipPy)
+f'''static int sipVariableSetCode_{v_ref}(PyObject *sipPy)
 {{
     int sipErr = 0;
 
@@ -1323,10 +1326,10 @@ f'''static int sipWrappedVariableSetCode_{v_ref}(PyObject *sipPy)
             cast = get_type_from_void(spec, scope_name, 'sipCppV')
 
             if not c_bindings:
-                sf.write(f'extern "C" {{static void *sipWrappedVariableAddrGetter_{v_ref}(void *);}}\n')
+                sf.write(f'extern "C" {{static void *sipVariableAddrGetter_{v_ref}(void *);}}\n')
 
             sf.write(
-f'''static void *sipWrappedVariableAddrGetter_{v_ref}(void *sipCppV)
+f'''static void *sipVariableAddrGetter_{v_ref}(void *sipCppV)
 {{
     return &{cast}->{variable.py_name.name};
 }}
@@ -1347,7 +1350,7 @@ f'''static void *sipWrappedVariableAddrGetter_{v_ref}(void *sipCppV)
             sf.write(
 f'''
 /* Define the {table_type.lower()} variables for the {scope_type}. */
-static const sipWrappedVariableDef sipWrapped{table_type}Variables_{suffix}[] = {{
+static const sipVariableSpec sip{table_type}Variables_{suffix}[] = {{
 ''')
 
             for fields in table:

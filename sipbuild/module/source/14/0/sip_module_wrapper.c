@@ -53,13 +53,13 @@ static int compare_static_variable(const void *key, const void *el,
         const void *context);
 static int compare_type_nr(const void *key, const void *el,
         const void *context);
-static const sipWrappedVariableDef *get_static_variable_def(
-        const char *utf8_name, const sipWrappedAttrsDef *wad);
-static void *get_variable_address(const sipWrappedVariableDef *wvd,
+static const sipVariableSpec *get_static_variable_spec(const char *utf8_name,
+        const sipAttrsSpec *wad);
+static void *get_variable_address(const sipVariableSpec *wvd,
         PyTypeObject *binding_type, PyObject *instance, PyObject *mixin_name);
-static const sipTypeNr *get_wrapped_type_nr_p(const sipWrappedModuleDef *wmd,
-        const char *utf8_name, const sipWrappedAttrsDef *wad);
-static void raise_internal_error(const sipWrappedVariableDef *wvd);
+static const sipTypeNr *get_wrapped_type_nr_p(const sipModuleSpec *wmd,
+        const char *utf8_name, const sipAttrsSpec *wad);
+static void raise_internal_error(const sipVariableSpec *wvd);
 
 
 /*
@@ -67,11 +67,10 @@ static void raise_internal_error(const sipWrappedVariableDef *wvd);
  */
 static PyObject *ModuleWrapper_getattro(PyObject *self, PyObject *name)
 {
-    sipWrappedModuleState *wms = (sipWrappedModuleState *)PyModule_GetState(
-            self);
+    sipModuleState *wms = (sipModuleState *)PyModule_GetState(self);
 
     return sip_mod_con_getattro(wms, self, name,
-            &wms->wrapped_module_def->attributes);
+            &wms->module_spec->attributes);
 }
 
 
@@ -81,19 +80,18 @@ static PyObject *ModuleWrapper_getattro(PyObject *self, PyObject *name)
 static int ModuleWrapper_setattro(PyObject *self, PyObject *name,
         PyObject *value)
 {
-    sipWrappedModuleState *wms = (sipWrappedModuleState *)PyModule_GetState(
-            self);
+    sipModuleState *wms = (sipModuleState *)PyModule_GetState(self);
 
     return sip_mod_con_setattro(wms, self, name, value,
-            &wms->wrapped_module_def->attributes);
+            &wms->module_spec->attributes);
 }
 
 
 /*
  * The getattro handler for modules and containers.
  */
-PyObject *sip_mod_con_getattro(sipWrappedModuleState *wms, PyObject *self,
-        PyObject *name, const sipWrappedAttrsDef *wad)
+PyObject *sip_mod_con_getattro(sipModuleState *wms, PyObject *self,
+        PyObject *name, const sipAttrsSpec *wad)
 {
     const char *utf8_name = PyUnicode_AsUTF8(name);
 
@@ -101,7 +99,7 @@ PyObject *sip_mod_con_getattro(sipWrappedModuleState *wms, PyObject *self,
      * The behaviour of static variables is that of a data descriptor and they
      * take precedence over any attributes set by the user.
      */
-    const sipWrappedVariableDef *wvd = get_static_variable_def(utf8_name, wad);
+    const sipVariableSpec *wvd = get_static_variable_spec(utf8_name, wad);
 
     if (wvd != NULL)
         return sip_variable_get(wms, self, wvd, NULL, NULL);
@@ -116,7 +114,7 @@ PyObject *sip_mod_con_getattro(sipWrappedModuleState *wms, PyObject *self,
         return attr;
 
     /* See if it is a wrapped type. */
-    const sipTypeNr *type_nr_p = get_wrapped_type_nr_p(wms->wrapped_module_def,
+    const sipTypeNr *type_nr_p = get_wrapped_type_nr_p(wms->module_spec,
             utf8_name, wad);
     if (type_nr_p == NULL)
         return NULL;
@@ -130,8 +128,8 @@ PyObject *sip_mod_con_getattro(sipWrappedModuleState *wms, PyObject *self,
 /*
  * Get the value of a variable.
  */
-PyObject *sip_variable_get(sipWrappedModuleState *wms, PyObject *instance,
-        const sipWrappedVariableDef *wvd, PyTypeObject *binding_type,
+PyObject *sip_variable_get(sipModuleState *wms, PyObject *instance,
+        const sipVariableSpec *wvd, PyTypeObject *binding_type,
         PyObject *mixin_name)
 {
     if (wvd->get_code != NULL)
@@ -339,8 +337,8 @@ PyObject *sip_variable_get(sipWrappedModuleState *wms, PyObject *instance,
 /*
  * The setattro handler for modules and containers.
  */
-int sip_mod_con_setattro(sipWrappedModuleState *wms, PyObject *self,
-        PyObject *name, PyObject *value, const sipWrappedAttrsDef *wad)
+int sip_mod_con_setattro(sipModuleState *wms, PyObject *self, PyObject *name,
+        PyObject *value, const sipAttrsSpec *wad)
 {
     const char *utf8_name = PyUnicode_AsUTF8(name);
 
@@ -351,7 +349,7 @@ int sip_mod_con_setattro(sipWrappedModuleState *wms, PyObject *self,
      * Instead it just overwrites the descriptor.
      */
 
-    const sipWrappedVariableDef *wvd = get_static_variable_def(utf8_name, wad);
+    const sipVariableSpec *wvd = get_static_variable_spec(utf8_name, wad);
 
     if (wvd != NULL)
         return sip_variable_set(wms, self, value, wvd, NULL, NULL);
@@ -363,9 +361,9 @@ int sip_mod_con_setattro(sipWrappedModuleState *wms, PyObject *self,
 /*
  * Set the value of a variable.
  */
-int sip_variable_set(sipWrappedModuleState *wms, PyObject *instance,
-        PyObject *value, const sipWrappedVariableDef *wvd,
-        PyTypeObject *binding_type, PyObject *mixin_name)
+int sip_variable_set(sipModuleState *wms, PyObject *instance, PyObject *value,
+        const sipVariableSpec *wvd, PyTypeObject *binding_type,
+        PyObject *mixin_name)
 {
     if (value == NULL)
     {
@@ -901,7 +899,7 @@ static int compare_static_variable(const void *key, const void *el,
 {
     (void)context;
 
-    return strcmp((const char *)key, ((const sipWrappedVariableDef *)el)->name);
+    return strcmp((const char *)key, ((const sipVariableSpec *)el)->name);
 }
 
 
@@ -913,31 +911,31 @@ static int compare_type_nr(const void *key, const void *el,
 {
     const char *s1 = (const char *)key;
     sipTypeNr type_nr = *(const sipTypeNr *)el;
-    const sipWrappedModuleDef *wmd = (const sipWrappedModuleDef *)context;
+    const sipModuleSpec *wmd = (const sipModuleSpec *)context;
 
-    const sipTypeDef *td = wmd->type_defs[type_nr];
-    const char *s2 = strrchr(((const sipClassTypeDef *)td)->ctd_container.cod_name, '.') + 1;
+    const sipTypeSpec *td = wmd->type_specs[type_nr];
+    const char *s2 = strrchr(((const sipClassTypeSpec *)td)->ctd_container.cod_name, '.') + 1;
 
     return strcmp(s1, s2);
 }
 
 
 /*
- * Return the variable definition for a name or NULL if there was none.
+ * Return the variable specification for a name or NULL if there was none.
  */
-static const sipWrappedVariableDef *get_static_variable_def(
-        const char *utf8_name, const sipWrappedAttrsDef *wad)
+static const sipVariableSpec *get_static_variable_spec(const char *utf8_name,
+        const sipAttrsSpec *wad)
 {
-    return (const sipWrappedVariableDef *)bsearch_s((const void *)utf8_name,
+    return (const sipVariableSpec *)bsearch_s((const void *)utf8_name,
             (const void *)wad->static_variables, wad->nr_static_variables,
-            sizeof (sipWrappedVariableDef), compare_static_variable, NULL);
+            sizeof (sipVariableSpec), compare_static_variable, NULL);
 }
 
 
 /*
  * Return the C/C++ address of a variable.
  */
-static void *get_variable_address(const sipWrappedVariableDef *wvd,
+static void *get_variable_address(const sipVariableSpec *wvd,
         PyTypeObject *binding_type, PyObject *instance, PyObject *mixin_name)
 {
     if (binding_type == NULL)
@@ -959,15 +957,15 @@ static void *get_variable_address(const sipWrappedVariableDef *wvd,
     if (instance_addr == NULL)
         return NULL;
 
-    return ((sipWrappedVariableAddrGetFunc)wvd->address)(instance_addr);
+    return ((sipVariableAddrGetFunc)wvd->address)(instance_addr);
 }
 
 
 /*
  * Return the type number for a name or a negative value if there was none.
  */
-static const sipTypeNr *get_wrapped_type_nr_p(const sipWrappedModuleDef *wmd,
-        const char *utf8_name, const sipWrappedAttrsDef *wad)
+static const sipTypeNr *get_wrapped_type_nr_p(const sipModuleSpec *wmd,
+        const char *utf8_name, const sipAttrsSpec *wad)
 {
     return (const sipTypeNr *)bsearch_s((const void *)utf8_name,
             (const void *)wad->type_nrs, wad->nr_types, sizeof (sipTypeNr),
@@ -978,7 +976,7 @@ static const sipTypeNr *get_wrapped_type_nr_p(const sipWrappedModuleDef *wmd,
 /*
  * Raise an exception relating to an invalid type ID.
  */
-static void raise_internal_error(const sipWrappedVariableDef *wvd)
+static void raise_internal_error(const sipVariableSpec *wvd)
 {
     PyErr_Format(PyExc_SystemError, "'%s': unsupported type ID: 0x%04x",
             wvd->name, wvd->type_id);

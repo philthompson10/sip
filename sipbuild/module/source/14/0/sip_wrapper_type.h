@@ -66,12 +66,11 @@ int sip_wrapper_type_init(PyObject *module, sipSipModuleState *sms);
 
 
 /*
- * Return the type definition for a wrapper type.
+ * Return the type specification for a wrapper type.
  */
-static inline const sipTypeDef *sip_get_type_def_from_wt(sipWrapperType *wt)
+static inline const sipTypeSpec *sip_get_type_spec_from_wt(sipWrapperType *wt)
 {
-    return sip_get_type_def(
-            (sipWrappedModuleState *)PyModule_GetState(wt->wt_d_mod),
+    return sip_get_type_spec((sipModuleState *)PyModule_GetState(wt->wt_d_mod),
             wt->wt_type_id);
 }
 

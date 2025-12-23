@@ -20,17 +20,17 @@
 extern "C" {
 #endif
 
-PyObject *sip_mod_con_getattro(sipWrappedModuleState *wms, PyObject *self,
-        PyObject *name, const sipWrappedAttrsDef *wad);
-int sip_mod_con_setattro(sipWrappedModuleState *wms, PyObject *self,
-        PyObject *name, PyObject *value, const sipWrappedAttrsDef *wad);
+PyObject *sip_mod_con_getattro(sipModuleState *wms, PyObject *self,
+        PyObject *name, const sipAttrsSpec *wad);
+int sip_mod_con_setattro(sipModuleState *wms, PyObject *self, PyObject *name,
+        PyObject *value, const sipAttrsSpec *wad);
 int sip_module_wrapper_init(PyObject *module, sipSipModuleState *sms);
-PyObject *sip_variable_get(sipWrappedModuleState *wms, PyObject *instance,
-        const sipWrappedVariableDef *wvd, PyTypeObject *binding_type,
+PyObject *sip_variable_get(sipModuleState *wms, PyObject *instance,
+        const sipVariableSpec *wvd, PyTypeObject *binding_type,
         PyObject *mixin_name);
-int sip_variable_set(sipWrappedModuleState *wms, PyObject *instance,
-        PyObject *value, const sipWrappedVariableDef *wvd,
-        PyTypeObject *binding_type, PyObject *mixin_name);
+int sip_variable_set(sipModuleState *wms, PyObject *instance, PyObject *value,
+        const sipVariableSpec *wvd, PyTypeObject *binding_type,
+        PyObject *mixin_name);
 
 #ifdef __cplusplus
 }
