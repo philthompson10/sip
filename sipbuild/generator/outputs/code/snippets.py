@@ -2482,20 +2482,16 @@ def _try(sf, bindings, throw_args):
 def _types_table(backend, sf, module, needed_enums):
     """ Generate the types table for a module. """
 
-    module_name = module.py_name
-
     sf.write(
 f'''
 
 /*
  * This defines each type in this module.
  */
-{backend.get_types_table_prefix()}_{module_name}[] = {{
+{backend.get_types_table_prefix()}_{module.py_name}[] = {{
 ''')
 
     # TODO Does this exclude types defined in another module?
-    spec_suffix = backend.get_spec_suffix()
-
     for needed_type in module.needed_types:
         if needed_type.type is ArgumentType.CLASS:
             klass = needed_type.definition
@@ -2503,18 +2499,18 @@ f'''
             if klass.external:
                 sf.write('    0,\n')
             elif not klass.is_hidden_namespace:
-                sf.write(f'    &sipType{spec_suffix}_{module_name}_{klass.iface_file.fq_cpp_name.as_word}.ctd_base,\n')
+                sf.write(f'    &{backend.get_spec_for_class(klass)},\n')
 
         elif needed_type.type is ArgumentType.MAPPED:
             mapped_type = needed_type.definition
 
-            sf.write(f'    &sipType{spec_suffix}_{module_name}_{mapped_type.iface_file.fq_cpp_name.as_word}.mtd_base,\n')
+            sf.write(f'    &{backend.get_spec_for_mapped_type(mapped_type)},\n')
 
         elif needed_type.type is ArgumentType.ENUM:
             enum = needed_type.definition
-            enum_index = needed_enums.index(enum)
+            enum_nr = needed_enums.index(enum)
 
-            sf.write(f'    &enumTypes[{enum_index}].etd_base,\n')
+            sf.write(f'    &{backend.get_spec_for_enum(enum_nr)},\n')
 
     sf.write('};\n')
 

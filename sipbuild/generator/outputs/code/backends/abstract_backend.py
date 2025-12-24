@@ -194,6 +194,24 @@ class AbstractBackend(ABC):
 
         ...
 
+    @abstractmethod
+    def get_spec_for_class(self, klass):
+        """ Return the name of the data structure specifying a class. """
+
+        ...
+
+    @abstractmethod
+    def get_spec_for_mapped_type(self, mapped_type):
+        """ Return the name of the data structure specifying a mapped type. """
+
+        ...
+
+    @abstractmethod
+    def get_spec_for_enum(self, enum_nr):
+        """ Return the name of the data structure specifying an enum. """
+
+        ...
+
     @staticmethod
     @abstractmethod
     def get_spec_suffix():
