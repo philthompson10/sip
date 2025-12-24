@@ -910,10 +910,10 @@ static int compare_type_nr(const void *key, const void *el,
 {
     const char *s1 = (const char *)key;
     sipTypeNr type_nr = *(const sipTypeNr *)el;
-    const sipModuleSpec *wmd = (const sipModuleSpec *)context;
+    const sipModuleSpec *m_spec = (const sipModuleSpec *)context;
 
-    const sipTypeSpec *td = wmd->type_specs[type_nr];
-    const char *s2 = strrchr(((const sipClassTypeSpec *)td)->ctd_container.cod_name, '.') + 1;
+    const sipTypeSpec *ts = m_spec->type_specs[type_nr];
+    const char *s2 = strrchr(((const sipClassTypeSpec *)ts)->container.fq_py_name, '.') + 1;
 
     return strcmp(s1, s2);
 }

@@ -86,9 +86,9 @@ static PyObject *meth_assign(PyObject *smod, PyObject *args)
             (sipWrapperType *)dst_type);
 
     if (sipTypeIsMapped(td))
-        assign_helper = ((const sipMappedTypeSpec *)td)->mtd_assign;
+        assign_helper = ((const sipMappedTypeSpec *)td)->assign;
     else
-        assign_helper = ((const sipClassTypeSpec *)td)->ctd_assign;
+        assign_helper = ((const sipClassTypeSpec *)td)->assign;
 
     if (assign_helper == NULL)
     {

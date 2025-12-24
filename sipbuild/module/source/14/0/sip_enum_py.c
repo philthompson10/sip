@@ -24,7 +24,7 @@
 #include "sip_wrapper_type.h"
 
 
-#define IS_UNSIGNED_ENUM(etd)   ((etd)->etd_base_type == SIP_ENUM_UINT_ENUM || (etd)->etd_base_type == SIP_ENUM_INT_FLAG || (etd)->etd_base_type == SIP_ENUM_FLAG)
+#define IS_UNSIGNED_ENUM(etd)   ((etd)->py_base_type == SIP_ENUM_UINT_ENUM || (etd)->py_base_type == SIP_ENUM_INT_FLAG || (etd)->py_base_type == SIP_ENUM_FLAG)
 
 
 /* Forward references. */
@@ -138,7 +138,7 @@ PyTypeObject *sip_enum_create_py_enum(sipModuleState *wms,
         PyObject *dict)
 {
     /* Create an object corresponding to the type name. */
-    PyObject *name = PyUnicode_FromString(etd->etd_name);
+    PyObject *name = PyUnicode_FromString(etd->py_name);
     if (name == NULL)
         return NULL;
 
@@ -249,7 +249,7 @@ static PyObject *create_enum_object(sipModuleState *wms,
     next_int = *next_int_p;
     assert(next_int != NULL);
 
-    for (i = 0; i < etd->etd_nr_members; ++i)
+    for (i = 0; i < etd->nr_members; ++i)
     {
         PyObject *value_obj;
 
@@ -300,11 +300,11 @@ static PyObject *create_enum_object(sipModuleState *wms,
      */
      // TODO Review the need for this.
 #if 0
-     if (etd->etd_scope >= 0)
+     if (etd->scope_nr >= 0)
      {
         PyObject *qualname;
 
-        if ((qualname = sip_get_qualname(wmd->types[etd->etd_scope], name)) == NULL)
+        if ((qualname = sip_get_qualname(wmd->types[etd->scope_nr], name)) == NULL)
             goto rel_kw_args;
 
         PyObject *qualname_s = PyUnicode_InternFromString("qualname");
@@ -326,15 +326,15 @@ static PyObject *create_enum_object(sipModuleState *wms,
 
     missing_md = NULL;
 
-    if (etd->etd_base_type == SIP_ENUM_INT_FLAG)
+    if (etd->py_base_type == SIP_ENUM_INT_FLAG)
     {
         enum_factory = sms->enum_int_flag_type;
     }
-    else if (etd->etd_base_type == SIP_ENUM_FLAG)
+    else if (etd->py_base_type == SIP_ENUM_FLAG)
     {
         enum_factory = sms->enum_flag_type;
     }
-    else if (etd->etd_base_type == SIP_ENUM_INT_ENUM || etd->etd_base_type == SIP_ENUM_UINT_ENUM)
+    else if (etd->py_base_type == SIP_ENUM_INT_ENUM || etd->py_base_type == SIP_ENUM_UINT_ENUM)
     {
         static PyMethodDef missing_int_enum_md = {
             "_missing_", missing_int_enum, METH_O|METH_CLASS, NULL

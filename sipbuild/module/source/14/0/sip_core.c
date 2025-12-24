@@ -444,10 +444,10 @@ static void sip_api_add_delayed_dtor(PyObject *w_inst)
                     return;
 
                 /* Add to the list. */
-                dd->dd_ptr = ptr;
-                dd->dd_name = ctd->ctd_container.cod_name;
-                dd->dd_isderived = sipIsDerived(sw);
-                dd->dd_next = ms->delayed_dtors_list;
+                dd->ptr = ptr;
+                dd->name = ctd->container.fq_py_name;
+                dd->isderived = sipIsDerived(sw);
+                dd->next = ms->delayed_dtors_list;
 
                 ms->delayed_dtors_list = dd;
 
@@ -564,16 +564,16 @@ static PyObject *sip_api_py_slot_extend(PyObject *mod, int slot_id,
             continue;
 
         /* Go through each extender. */
-        for (; ex->pse_func != NULL; ++ex)
+        for (; ex->extender != NULL; ++ex)
         {
             /* Skip if not the right slot type. */
-            if (ex->pse_slot_id != slot_id)
+            if (ex->slot_id != slot_id)
                 continue;
 
             /* Check against the type if one was given. */
             // TODO
 #if 0
-            if (td != NULL && td != sip_get_type_spec(ms, ex->pse_class))
+            if (td != NULL && td != sip_get_type_spec(ms, ex->type_id))
                 continue;
 #else
             (void)type_id;
@@ -583,7 +583,7 @@ static PyObject *sip_api_py_slot_extend(PyObject *mod, int slot_id,
 
             // TODO Handle Py_tp_richcompare separately (which will need an
             // extra arg for the Py_EQ etc. value.
-            PyObject *res = ((binaryfunc)ex->pse_func)(arg0, arg1);
+            PyObject *res = ((binaryfunc)ex->extender)(arg0, arg1);
 
             if (res != Py_NotImplemented)
                 return res;
@@ -824,10 +824,10 @@ static PyTypeObject *create_container_type(sipModuleState *wms,
         PyTypeObject *metatype)
 {
     /* Configure the type. */
-    // TODO At moment cod_py_slots is only populated for classes.  If it turns
-    // out that other containers don't have slots then move to ctd_py_slots
-    // and pass in as an extra argument.
-    const PyType_Slot *slots = cod->cod_py_slots;
+    // TODO At moment py_slots is only populated for classes.  If it turns out
+    // that other containers don't have slots then move to py_slots and pass in
+    // as an extra argument.
+    const PyType_Slot *slots = cod->py_slots;
 
     if (slots == NULL)
     {
@@ -837,7 +837,7 @@ static PyTypeObject *create_container_type(sipModuleState *wms,
     }
 
     PyType_Spec spec = {
-        .name = cod->cod_name,
+        .name = cod->fq_py_name,
         .basicsize = 0,
         .flags = Py_TPFLAGS_DEFAULT|Py_TPFLAGS_BASETYPE,
         .slots = (PyType_Slot *)slots,
@@ -865,16 +865,16 @@ static PyTypeObject *create_container_type(sipModuleState *wms,
     PyObject *type_dict = w_type->tp_dict;
 
     /* Add the descriptors for the instance variables. */
-    if (cod->cod_instance_variables != NULL)
+    if (cod->instance_variables != NULL)
     {
         const sipVariableSpec *wvd;
 
-        for (wvd = cod->cod_instance_variables; wvd->name != NULL; wvd++)
+        for (wvd = cod->instance_variables; wvd->name != NULL; wvd++)
         {
             PyObject *descr;
 
 #if 0
-            if (vd->vd_type == PropertyVariable)
+            if (vd->type == PropertyVariable)
                 descr = create_property(vd);
             else
 #endif
@@ -886,11 +886,11 @@ static PyTypeObject *create_container_type(sipModuleState *wms,
     }
 
     /* Add the descriptors for the methods. */
-    if (cod->cod_methods != NULL)
+    if (cod->methods != NULL)
     {
         const PyMethodDef *pmd;
 
-        for (pmd = cod->cod_methods; pmd->ml_name != NULL; pmd++)
+        for (pmd = cod->methods; pmd->ml_name != NULL; pmd++)
         {
             PyObject *descr = sipMethodDescr_New(sms, pmd, w_type);
 
@@ -902,9 +902,9 @@ static PyTypeObject *create_container_type(sipModuleState *wms,
     /* Add the type to the scope. */
     PyObject *scope;
 
-    if (cod->cod_scope != sipTypeID_Invalid)
+    if (cod->scope_id != sipTypeID_Invalid)
     {
-        scope = (PyObject *)sip_get_py_type(wms, cod->cod_scope);
+        scope = (PyObject *)sip_get_py_type(wms, cod->scope_id);
         if (scope == NULL)
             goto rel_type;
 
@@ -926,7 +926,7 @@ static PyTypeObject *create_container_type(sipModuleState *wms,
             goto rel_type;
 
         const char *mod_name = (const char *)slots[0].value;
-        const char *qualname = cod->cod_name + strlen(mod_name) + 1;
+        const char *qualname = cod->fq_py_name + strlen(mod_name) + 1;
         PyObject *qualname_obj = PyUnicode_FromString(qualname);
 
         PyObject *mod_name_obj = PyModule_GetNameObject(wms->wrapped_module);
@@ -962,7 +962,7 @@ static PyTypeObject *create_container_type(sipModuleState *wms,
     }
 
     /* There is guaranteed to be a dot in the name. */
-    const char *name = strrchr(cod->cod_name, '.') + 1;
+    const char *name = strrchr(cod->fq_py_name, '.') + 1;
 
     if (PyObject_SetAttrString(scope, name, (PyObject *)w_type) < 0)
         goto rel_type;
@@ -989,18 +989,17 @@ static PyTypeObject *create_class_type(sipModuleState *wms, sipTypeID type_id,
 
     PyObject *bases;
 
-    if (ctd->ctd_supers == NULL)
+    if (ctd->supers == NULL)
     {
-        if (ctd->ctd_supertype == NULL)
+        if (ctd->supertype == NULL)
         {
-            bases = sipTypeIsNamespace(&ctd->ctd_base) ?
+            bases = sipTypeIsNamespace(&ctd->base) ?
                 (PyObject *)sms->simple_wrapper_type :
                 (PyObject *)sms->wrapper_type;
         }
         else
         {
-            bases = (PyObject *)find_registered_py_type(sms,
-                    ctd->ctd_supertype);
+            bases = (PyObject *)find_registered_py_type(sms, ctd->supertype);
 
             // TODO Check it is a sub-type of simple_wrapper_type.
 
@@ -1010,10 +1009,10 @@ static PyTypeObject *create_class_type(sipModuleState *wms, sipTypeID type_id,
 
         Py_INCREF(bases);
     }
-    else if (sipTypeIDIsSentinel(ctd->ctd_supers[0]))
+    else if (sipTypeIDIsSentinel(ctd->supers[0]))
     {
         /* There is only one super-type. */
-        bases = (PyObject *)sip_get_py_type(wms, ctd->ctd_supers[0]);
+        bases = (PyObject *)sip_get_py_type(wms, ctd->supers[0]);
 
         if (bases == NULL)
             return NULL;
@@ -1025,7 +1024,7 @@ static PyTypeObject *create_class_type(sipModuleState *wms, sipTypeID type_id,
         const sipTypeID *supers;
         Py_ssize_t nr_supers = 1;
 
-        for (supers = ctd->ctd_supers; !sipTypeIDIsSentinel(*supers); supers++)
+        for (supers = ctd->supers; !sipTypeIDIsSentinel(*supers); supers++)
             nr_supers++;
 
         if ((bases = PyTuple_New(nr_supers)) == NULL)
@@ -1035,8 +1034,7 @@ static PyTypeObject *create_class_type(sipModuleState *wms, sipTypeID type_id,
 
         for (i = 0; i < nr_supers; i++)
         {
-            PyTypeObject *sup_py_type = sip_get_py_type(wms,
-                    ctd->ctd_supers[i]);
+            PyTypeObject *sup_py_type = sip_get_py_type(wms, ctd->supers[i]);
 
             if (sup_py_type == NULL)
                 goto rel_bases;
@@ -1052,9 +1050,9 @@ static PyTypeObject *create_class_type(sipModuleState *wms, sipTypeID type_id,
      */
     PyTypeObject *metatype;
 
-    if (ctd->ctd_metatype != NULL)
+    if (ctd->metatype != NULL)
     {
-        metatype = find_registered_py_type(sms, ctd->ctd_metatype);
+        metatype = find_registered_py_type(sms, ctd->metatype);
 
         if (metatype == NULL)
             goto rel_bases;
@@ -1068,7 +1066,7 @@ static PyTypeObject *create_class_type(sipModuleState *wms, sipTypeID type_id,
     }
 
     PyTypeObject *py_type = create_container_type(wms, type_id,
-            &ctd->ctd_container, bases, metatype);
+            &ctd->container, bases, metatype);
 
     Py_DECREF(bases);
 
@@ -1076,13 +1074,13 @@ static PyTypeObject *create_class_type(sipModuleState *wms, sipTypeID type_id,
         return NULL;
 
 #if 0
-    if (ctd->ctd_pyslots != NULL)
-        sip_fix_slots(py_type, ctd->ctd_pyslots);
+    if (ctd->pyslots != NULL)
+        sip_fix_slots(py_type, ctd->pyslots);
 #endif
 
 #if 0
     /* Handle the pickle function. */
-    if (ctd->ctd_pickle != NULL)
+    if (ctd->pickle != NULL)
     {
         static PyMethodDef md = {
             "_pickle_type", (PyCFunction)pickle_type, METH_METHOD|METH_FASTCALL|METH_KEYWORDS, NULL
@@ -1118,7 +1116,7 @@ PyTypeObject *sip_create_mapped_type(sipSipModuleState *sms,
     if ((type_dict = sip_create_type_dict(wmd)) == NULL)
         return NULL;
 
-    PyTypeObject *container = create_container_type(sms, &mtd->mtd_container,
+    PyTypeObject *container = create_container_type(sms, &mtd->container,
             // TODO Why wrapper_type instead of simple_wrapper_type?
             (const sipTypeSpec *)mtd, sms->wrapper_type,
             (PyObject *)sms->wrapper_type_type, w_mod_dict, type_dict, wmd);
@@ -1249,13 +1247,13 @@ static PyObject *pickle_type(PyObject *self, PyTypeObject *defining_class,
                 {
                     PyObject *init_args;
                     const sipClassTypeSpec *ctd = (const sipClassTypeSpec *)td;
-                    const char *pyname = ctd->ctd_container.cod_name;
+                    const char *pyname = ctd->container.fq_py_name;
 
                     /*
                      * Ask the handwritten pickle code for the tuple of
                      * arguments that will recreate the object.
                      */
-                    init_args = ctd->ctd_pickle(sip_get_cpp_ptr(wms, self, 0));
+                    init_args = ctd->pickle(sip_get_cpp_ptr(wms, self, 0));
 
                     if (init_args == NULL)
                         return NULL;
@@ -1378,20 +1376,20 @@ sipTypeID sip_type_scope(sipModuleState *wms, sipTypeID type_id)
     {
         const sipEnumTypeSpec *etd = (const sipEnumTypeSpec *)td;
 
-        if (etd->etd_scope >= 0)
-            return td->td_module->types[etd->etd_scope];
+        if (etd->scope_nr >= 0)
+            return td->td_module->types[etd->scope_nr];
     }
     else
     {
         const sipContainerSpec *cod;
 
         if (sipTypeIsMapped(td))
-            cod = &((const sipMappedTypeSpec *)td)->mtd_container;
+            cod = &((const sipMappedTypeSpec *)td)->container;
         else
-            cod = &((const sipClassTypeSpec *)td)->ctd_container;
+            cod = &((const sipClassTypeSpec *)td)->container;
 
-        if (cod->cod_scope != sipTypeID_Invalid)
-            return sip_get_type_spec(wms, cod->cod_scope);
+        if (cod->scope_id != sipTypeID_Invalid)
+            return sip_get_type_spec(wms, cod->scope_id);
     }
 #endif
 
@@ -1771,7 +1769,7 @@ void *sip_cast_cpp_ptr(void *ptr, PyTypeObject *src_type,
     sipWrapperType *src_wt = (sipWrapperType *)src_type;
 
     sipCastFunc cast = ((const sipClassTypeSpec *)sip_get_type_spec_from_wt(
-            src_wt))->ctd_cast;
+            src_wt))->cast;
 
     /* C structures and base classes don't have cast functions. */
     if (cast != NULL)
@@ -1887,7 +1885,7 @@ int sip_api_get_state(PyObject *transferObj)
 static int compare_type_spec(const void *key, const void *el)
 {
     const char *s1 = (const char *)key;
-    const char *s2 = (*(const sipTypeSpec **)el)->td_cname;
+    const char *s2 = (*(const sipTypeSpec **)el)->cpp_name;
     char ch1, ch2;
 
     /*
@@ -2134,7 +2132,7 @@ PyTypeObject *sip_get_py_type(sipModuleState *wms, sipTypeID type_id)
  */
 static void *sip_api_get_mixin_address(PyObject *w_inst, const sipTypeSpec *td)
 {
-    PyObject *mixin = PyObject_GetAttrString(w_inst, td->td_cname);
+    PyObject *mixin = PyObject_GetAttrString(w_inst, td->cpp_name);
 
     if (mixin == NULL)
     {
@@ -2201,7 +2199,7 @@ static int sip_api_init_mixin(PyObject *mod, PyObject *self, PyObject *args,
     const sipTypeSpec *td = sip_get_type_spec_from_wt(
             (sipWrapperType *)mixin_wt);
 
-    PyObject *mixin_name = PyUnicode_FromString(td->td_cname);
+    PyObject *mixin_name = PyUnicode_FromString(td->cpp_name);
     if (mixin_name == NULL)
     {
         Py_DECREF(mixin);
@@ -2386,7 +2384,7 @@ static const char *sip_api_resolve_typedef(PyObject *mod, const char *name)
                     compare_typedef_name);
 
             if (tdd != NULL)
-                return tdd->tdd_type_name;
+                return tdd->type_name;
         }
     }
 
@@ -2399,7 +2397,7 @@ static const char *sip_api_resolve_typedef(PyObject *mod, const char *name)
  */
 static int compare_typedef_name(const void *key, const void *el)
 {
-    return strcmp((const char *)key, ((const sipTypedefDef *)el)->tdd_name);
+    return strcmp((const char *)key, ((const sipTypedefDef *)el)->name);
 }
 
 
@@ -2502,7 +2500,7 @@ sipConvertFromFunc sip_get_from_convertor(PyTypeObject *w_type,
         const sipTypeSpec *td)
 {
     if (sipTypeIsMapped(td))
-        return ((const sipMappedTypeSpec *)td)->mtd_cfrom;
+        return ((const sipMappedTypeSpec *)td)->cfrom;
 
     assert(sipTypeIsClass(td) && w_type != NULL);
 
@@ -2511,7 +2509,7 @@ sipConvertFromFunc sip_get_from_convertor(PyTypeObject *w_type,
     if (wt->wt_autoconversion_disabled)
         return NULL;
 
-    return ((const sipClassTypeSpec *)td)->ctd_cfrom;
+    return ((const sipClassTypeSpec *)td)->cfrom;
 }
 
 
@@ -3116,7 +3114,7 @@ int sip_is_subtype(sipModuleState *wms, const sipClassTypeSpec *ctd,
 
     const sipTypeID *supers;
 
-    if ((supers = ctd->ctd_supers) == NULL)
+    if ((supers = ctd->supers) == NULL)
         return FALSE;
 
     /* Search the super-types. */
@@ -3163,9 +3161,9 @@ static PyObject *import_module_attr(const char *module, const char *attr)
 const sipContainerSpec *sip_get_container(const sipTypeSpec *td)
 {
     if (sipTypeIsMapped(td))
-        return &((const sipMappedTypeSpec *)td)->mtd_container;
+        return &((const sipMappedTypeSpec *)td)->container;
 
-    return &((const sipClassTypeSpec *)td)->ctd_container;
+    return &((const sipClassTypeSpec *)td)->container;
 }
 
 
@@ -3214,7 +3212,7 @@ static void sip_api_visit_wrappers(PyObject *mod,
 void sip_raise_no_convert_from(const sipTypeSpec *td)
 {
     PyErr_Format(PyExc_TypeError, "%s cannot be converted to a Python object",
-            td->td_cname);
+            td->cpp_name);
 }
 
 

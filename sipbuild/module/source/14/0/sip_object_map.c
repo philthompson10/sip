@@ -174,7 +174,7 @@ static void add_aliases(sipModuleState *wms, PyObject *w_inst, void *addr,
         const sipTypeSpec *td)
 {
     const sipClassTypeSpec *ctd = (const sipClassTypeSpec *)td;
-    const sipTypeID *supers = ctd->ctd_supers;
+    const sipTypeID *supers = ctd->supers;
 
     /* See if there are any super-classes. */
     if (supers != NULL)
@@ -194,7 +194,7 @@ static void add_aliases(sipModuleState *wms, PyObject *w_inst, void *addr,
          */
         sipWrapperType *wt = (sipWrapperType *)Py_TYPE(w_inst);
         sipCastFunc cast = ((const sipClassTypeSpec *)sip_get_type_spec_from_wt(
-                wt))->ctd_cast;
+                wt))->cast;
 
         while (!sipTypeIDIsSentinel(sup_type_id))
         {
@@ -393,7 +393,7 @@ static void remove_aliases(sipModuleState *wms, PyObject *w_inst, void *addr,
         const sipTypeSpec *td)
 {
     const sipClassTypeSpec *ctd = (const sipClassTypeSpec *)td;
-    const sipTypeID *supers = ctd->ctd_supers;
+    const sipTypeID *supers = ctd->supers;
 
     /* See if there are any super-classes. */
     if (supers != NULL)
@@ -413,7 +413,7 @@ static void remove_aliases(sipModuleState *wms, PyObject *w_inst, void *addr,
          */
         sipWrapperType *wt = (sipWrapperType *)Py_TYPE(w_inst);
         sipCastFunc cast = ((const sipClassTypeSpec *)sip_get_type_spec_from_wt(
-                wt))->ctd_cast;
+                wt))->cast;
 
         while (!sipTypeIDIsSentinel(sup_type_id))
         {

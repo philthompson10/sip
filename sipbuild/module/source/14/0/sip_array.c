@@ -272,7 +272,7 @@ static int Array_ass_subscript(PyObject *self, PyObject *key, PyObject *value)
     {
         const sipTypeSpec *td = sip_get_type_spec(array->ms, array->type_id);
 
-        sipAssignFunc assign = ((const sipClassTypeSpec *)td)->ctd_assign;
+        sipAssignFunc assign = ((const sipClassTypeSpec *)td)->assign;
         if (assign == NULL)
         {
             PyErr_Format(PyExc_TypeError,
@@ -404,7 +404,7 @@ static void Array_dealloc(PyObject *self)
             const sipTypeSpec *td = sip_get_type_spec(array->ms,
                     array->type_id);
 
-            ((const sipClassTypeSpec *)td)->ctd_array_delete(array->data);
+            ((const sipClassTypeSpec *)td)->array_delete(array->data);
         }
     }
 
@@ -444,7 +444,7 @@ static PyObject *Array_new(PyTypeObject *cls, PyObject *args, PyObject *kw)
     const sipClassTypeSpec *ctd = (const sipClassTypeSpec *)sip_get_type_spec(
             ms, wt->wt_type_id);
 
-    if (ctd->ctd_array == NULL || ctd->ctd_sizeof == 0)
+    if (ctd->array == NULL || ctd->sizeof_class == 0)
     {
         PyErr_Format(PyExc_TypeError,
                 "a " _SIP_MODULE_FQ_NAME ".array cannot be created for '%s'",
@@ -460,8 +460,8 @@ static PyObject *Array_new(PyTypeObject *cls, PyObject *args, PyObject *kw)
     }
 
     /* Create the instance. */
-    return create_array(cls, ctd->ctd_array(length), ms, wt->wt_type_id,
-            NULL, ctd->ctd_sizeof, length, SIP_OWNS_MEMORY, NULL);
+    return create_array(cls, ctd->array(length), ms, wt->wt_type_id,
+            NULL, ctd->sizeof_class, length, SIP_OWNS_MEMORY, NULL);
 }
 
 
@@ -751,7 +751,7 @@ static const char *get_type_name(Array *array)
     }
     else
     {
-        type_name = sip_get_type_spec(array->ms, array->type_id)->td_cname;
+        type_name = sip_get_type_spec(array->ms, array->type_id)->cpp_name;
     }
 
     return type_name;

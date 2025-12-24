@@ -60,7 +60,7 @@ void sip_api_module_free(void *ms)
         {
             sipDelayedDtor *dd = wms->delayed_dtors_list;
 
-            wms->delayed_dtors_list = dd->dd_next;
+            wms->delayed_dtors_list = dd->next;
             sip_api_free(dd);
         }
         while (wms->delayed_dtors_list != NULL);
@@ -85,7 +85,7 @@ void sip_api_module_free(void *ms)
  */
 // TODO There are lots of leaks if this fails in any way.
 int sip_api_module_init(PyObject *mod, const sipModuleSpec *m_spec,
-        PyObject *sip_module)
+        PyObject *smod)
 {
     /* Check that we can support it. */
     if (m_spec->abi_major != SIP_ABI_MAJOR_VERSION || m_spec->abi_minor > SIP_ABI_MINOR_VERSION)
@@ -120,12 +120,10 @@ int sip_api_module_init(PyObject *mod, const sipModuleSpec *m_spec,
 
     ms->sip_api = &sip_api;
 #if _SIP_MODULE_SHARED
-    ms->sip_module = sip_module;
-    ms->sip_module_state = sip_get_sip_module_state(sip_module);
+    ms->sip_module = smod;
+    ms->sip_module_state = sip_get_sip_module_state(smod);
 #else
-    ms->sip_module = mod;
-    Py_INCREF(mod);
-
+    ms->sip_module = Py_NewRef(mod);
     ms->sip_module_state = sip_api_malloc(sizeof (sipSipModuleState));
 
     if (sip_sip_module_init(ms->sip_module_state, mod) < 0)
@@ -217,12 +215,12 @@ int sip_api_module_init(PyObject *mod, const sipModuleSpec *m_spec,
     {
         sipInitExtenderDef *ie = m_spec->init_extend;
 
-        while (ie->ie_extender != NULL)
+        while (ie->extender != NULL)
         {
-            const sipTypeSpec *td = sip_get_type_spec(ms, ie->ie_class);
+            const sipTypeSpec *td = sip_get_type_spec(ms, ie->type_id);
             sipWrapperType *wt = (sipWrapperType *)sipTypeAsPyTypeObject(td);
 
-            ie->ie_next = wt->wt_iextend;
+            ie->next = wt->wt_iextend;
             wt->wt_iextend = ie;
 
             ++ie;
@@ -236,9 +234,10 @@ int sip_api_module_init(PyObject *mod, const sipModuleSpec *m_spec,
     {
         sipSubClassConvertorDef *scc = m_spec->convertors;
 
-        while (scc->scc_convertor != NULL)
+        while (scc->convertor != NULL)
         {
-            scc->scc_basetype = sip_get_type_spec(ms, scc->scc_base);
+            // TODO This can't be in the immutable spec.
+            scc->basetype = sip_get_type_spec(ms, scc->base_id);
 
             ++scc;
         }
@@ -251,15 +250,15 @@ int sip_api_module_init(PyObject *mod, const sipModuleSpec *m_spec,
 
     for (emd = m_spec->enum_members, i = 0; i < m_spec->nr_enum_members; ++i, ++emd)
     {
-        const sipTypeSpec *etd = m_spec->types[emd->em_enum];
+        const sipTypeSpec *etd = m_spec->types[emd->enum_nr];
         PyObject *mo;
 
         if (sipTypeIsScopedEnum(etd))
             continue;
 
-        mo = sip_enum_convert_from_enum(sms, emd->em_val, etd);
+        mo = sip_enum_convert_from_enum(sms, emd->value, etd);
 
-        if (sip_dict_set_and_discard(mod_dict, emd->em_name, mo) < 0)
+        if (sip_dict_set_and_discard(mod_dict, emd->name, mo) < 0)
             return -1;
     }
 #endif
@@ -292,9 +291,9 @@ int sip_api_module_init(PyObject *mod, const sipModuleSpec *m_spec,
 
         sipExternalTypeDef *etd;
 
-        for (etd = md->external; etd->et_nr >= 0; ++etd)
+        for (etd = md->external; etd->type_nr >= 0; ++etd)
         {
-            if (etd->et_name == NULL)
+            if (etd->py_name == NULL)
                 continue;
 
             for (i = 0; i < m_spec->nr_type_specs; ++i)
@@ -303,12 +302,13 @@ int sip_api_module_init(PyObject *mod, const sipModuleSpec *m_spec,
 
                 if (td != NULL && sipTypeIsClass(td))
                 {
-                    const char *pyname = &((const sipClassTypeSpec *)td)->ctd_container.cod_name, td);
+                    const char *pyname = &((const sipClassTypeSpec *)td)->container.fq_py_name, td);
 
-                    if (strcmp(etd->et_name, pyname) == 0)
+                    if (strcmp(etd->py_name, pyname) == 0)
                     {
-                        md->type_specs[etd->et_nr] = td;
-                        etd->et_name = NULL;
+                        md->type_specs[etd->type_nr] = td;
+                        // TODO It's immutable.
+                        etd->py_name = NULL;
 
                         break;
                     }
@@ -358,10 +358,10 @@ static int add_license(PyObject *w_mod, const sipLicenseDef *lc)
         return -1;
 
     /* The license type is compulsory, the rest are optional. */
-    if (lc->lc_type == NULL)
+    if (lc->type == NULL)
         goto deldict;
 
-    if ((o = PyUnicode_FromString(lc->lc_type)) == NULL)
+    if ((o = PyUnicode_FromString(lc->type)) == NULL)
         goto deldict;
 
     rc = PyDict_SetItemString(ldict, "Type", o);
@@ -370,9 +370,9 @@ static int add_license(PyObject *w_mod, const sipLicenseDef *lc)
     if (rc < 0)
         goto deldict;
 
-    if (lc->lc_licensee != NULL)
+    if (lc->licensee != NULL)
     {
-        if ((o = PyUnicode_FromString(lc->lc_licensee)) == NULL)
+        if ((o = PyUnicode_FromString(lc->licensee)) == NULL)
             goto deldict;
 
         rc = PyDict_SetItemString(ldict, "Licensee", o);
@@ -382,9 +382,9 @@ static int add_license(PyObject *w_mod, const sipLicenseDef *lc)
             goto deldict;
     }
 
-    if (lc->lc_timestamp != NULL)
+    if (lc->timestamp != NULL)
     {
-        if ((o = PyUnicode_FromString(lc->lc_timestamp)) == NULL)
+        if ((o = PyUnicode_FromString(lc->timestamp)) == NULL)
             goto deldict;
 
         rc = PyDict_SetItemString(ldict, "Timestamp", o);
@@ -394,9 +394,9 @@ static int add_license(PyObject *w_mod, const sipLicenseDef *lc)
             goto deldict;
     }
 
-    if (lc->lc_signature != NULL)
+    if (lc->signature != NULL)
     {
-        if ((o = PyUnicode_FromString(lc->lc_signature)) == NULL)
+        if ((o = PyUnicode_FromString(lc->signature)) == NULL)
             goto deldict;
 
         rc = PyDict_SetItemString(ldict, "Signature", o);

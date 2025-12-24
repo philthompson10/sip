@@ -103,7 +103,7 @@ static int SimpleWrapper_clear(PyObject *self)
      * sipWrapper_dealloc()).  This feels wrong but we retain this historical
      * behaviour as it doesn't seem to have caused problems in the wild.
      */
-    sipClearFunc clear = ((const sipClassTypeSpec *)sip_get_type_spec_from_wt(wt))->ctd_clear;
+    sipClearFunc clear = ((const sipClassTypeSpec *)sip_get_type_spec_from_wt(wt))->clear;
 
     if (clear != NULL)
         vret = clear(sw->data);
@@ -172,7 +172,7 @@ static void SimpleWrapper_dealloc(PyObject *self)
 
     if (sms->interpreter_state != NULL)
     {
-        sipDeallocFunc dealloc = ((const sipClassTypeSpec *)sip_get_type_spec_from_wt(wt))->ctd_dealloc;
+        sipDeallocFunc dealloc = ((const sipClassTypeSpec *)sip_get_type_spec_from_wt(wt))->dealloc;
 
         if (dealloc != NULL)
             dealloc(self);
@@ -203,9 +203,9 @@ static int SimpleWrapper_getbuffer(PyObject *self, Py_buffer *buf, int flags)
     if ((ptr = sip_get_ptr_type_def((sipSimpleWrapper *)self, &ctd)) == NULL)
         return -1;
 
-    if (sipTypeUseLimitedAPI(&ctd->ctd_base))
+    if (sipTypeUseLimitedAPI(&ctd->base))
     {
-        sipGetBufferFuncLimited getbuffer = (sipGetBufferFuncLimited)ctd->ctd_getbuffer;
+        sipGetBufferFuncLimited getbuffer = (sipGetBufferFuncLimited)ctd->getbuffer;
         sipBufferDef bd;
 
         /*
@@ -222,7 +222,7 @@ static int SimpleWrapper_getbuffer(PyObject *self, Py_buffer *buf, int flags)
                 bd.bd_readonly, flags);
     }
 
-    return ctd->ctd_getbuffer(self, ptr, buf, flags);
+    return ctd->getbuffer(self, ptr, buf, flags);
 }
 #endif
 
@@ -281,7 +281,7 @@ static PyObject *SimpleWrapper_new(PyTypeObject *cls, PyObject *args,
          * it's an opaque class.  Some restrictions might be overcome with
          * better SIP support.
          */
-        if (((sipClassTypeSpec *)td)->ctd_init == NULL)
+        if (((sipClassTypeSpec *)td)->init == NULL)
         {
             PyErr_Format(PyExc_TypeError,
                     "%s cannot be instantiated or sub-classed",
@@ -319,16 +319,16 @@ static void SimpleWrapper_releasebuffer(PyObject *self, Py_buffer *buf)
     if ((ptr = sip_get_ptr_type_def((sipSimpleWrapper *)self, &ctd)) == NULL)
         return;
 
-    if (sipTypeUseLimitedAPI(&ctd->ctd_base))
+    if (sipTypeUseLimitedAPI(&ctd->base))
     {
-        sipReleaseBufferFuncLimited releasebuffer = (sipReleaseBufferFuncLimited)ctd->ctd_releasebuffer;
+        sipReleaseBufferFuncLimited releasebuffer = (sipReleaseBufferFuncLimited)ctd->releasebuffer;
 
         releasebuffer(self, ptr);
 
         return;
     }
 
-    ctd->ctd_releasebuffer(self, ptr, buf);
+    ctd->releasebuffer(self, ptr, buf);
 }
 #endif
 
@@ -345,7 +345,7 @@ static int SimpleWrapper_traverse(PyObject *self, visitproc visit,
     Py_VISIT(Py_TYPE(self));
 
     /* Call any handwritten traverse code. */
-    sipTraverseFunc traverse = ((const sipClassTypeSpec *)sip_get_type_spec_from_wt(wt))->ctd_traverse;
+    sipTraverseFunc traverse = ((const sipClassTypeSpec *)sip_get_type_spec_from_wt(wt))->traverse;
 
     if (traverse != NULL)
     {
@@ -483,7 +483,7 @@ static int SimpleWrapper_init(PyObject *self, PyObject *args,
         PyObject *parseErr = NULL, **unused_p = NULL;
 
         /* See if we are interested in any unused keyword arguments. */
-        if (sipTypeCallSuperInit(&ctd->ctd_base) || final_func != NULL)
+        if (sipTypeCallSuperInit(&ctd->base) || final_func != NULL)
             unused_p = &unused;
 
         /* Call the C++ ctor. */
@@ -500,7 +500,7 @@ static int SimpleWrapper_init(PyObject *self, PyObject *args,
         if (sip_vectorcall_create(args, kwargs, small_argv, &argv_len, &argv, &nr_pos_args, &kw_names) < 0)
             return -1;
 
-        sipNew = ctd->ctd_init(self, argv, nr_pos_args, kw_names, unused_p,
+        sipNew = ctd->init(self, argv, nr_pos_args, kw_names, unused_p,
                 (PyObject **)&owner, &parseErr);
 
         sip_vectorcall_dispose(small_argv, argv, argv_len, kw_names);
@@ -528,19 +528,19 @@ static int SimpleWrapper_init(PyObject *self, PyObject *args,
              */
             while (PyList_Check(parseErr) && ie != NULL)
             {
-                sipNew = ie->ie_extender(self, args, kwd_args, &unused,
+                sipNew = ie->extender(self, args, kwd_args, &unused,
                         (PyObject **)&owner, &parseErr);
 
                 if (sipNew != NULL)
                     break;
 
-                ie = ie->ie_next;
+                ie = ie->next;
             }
 #endif
 
             if (sipNew == NULL)
             {
-                const char *docstring = ctd->ctd_docstring;
+                const char *docstring = ctd->docstring;
 
                 /*
                  * Use the docstring for errors if it was automatically
@@ -554,7 +554,7 @@ static int SimpleWrapper_init(PyObject *self, PyObject *args,
                         docstring = NULL;
                 }
 
-                sip_api_no_function(parseErr, ctd->ctd_container.cod_name,
+                sip_api_no_function(parseErr, ctd->container.fq_py_name,
                         docstring);
 
                 return -1;
@@ -664,7 +664,7 @@ static int SimpleWrapper_init(PyObject *self, PyObject *args,
     }
 
     /* See if we should call the equivalent of super().__init__(). */
-    if (sipTypeCallSuperInit(&ctd->ctd_base))
+    if (sipTypeCallSuperInit(&ctd->base))
     {
         PyObject *next;
 
@@ -769,10 +769,10 @@ int sip_simple_wrapper_init(PyObject *module, sipSipModuleState *sms)
 static sipFinalFunc find_finalisation(sipModuleState *wms,
         const sipClassTypeSpec *ctd)
 {
-    if (ctd->ctd_final != NULL)
-        return ctd->ctd_final;
+    if (ctd->final != NULL)
+        return ctd->final;
 
-    const sipTypeID *supers = ctd->ctd_supers;
+    const sipTypeID *supers = ctd->supers;
 
     if (supers != NULL)
     {

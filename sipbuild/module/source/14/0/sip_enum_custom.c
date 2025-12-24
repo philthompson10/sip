@@ -148,7 +148,7 @@ static PyObject *EnumType_getattro(PyObject *self, PyObject *name)
             break;
 
     /* Get the enum members in the same scope. */
-    if (etd->etd_scope < 0)
+    if (etd->scope_nr < 0)
     {
         nr_members = wmd->nr_enum_members;
         enm = wmd->enum_members;
@@ -156,21 +156,21 @@ static PyObject *EnumType_getattro(PyObject *self, PyObject *name)
     else
     {
         const sipContainerSpec *cod = sip_get_container(
-                wmd->types[etd->etd_scope]);
+                wmd->types[etd->scope_nr]);
 
-        nr_members = cod->cod_nrenummembers;
-        enm = cod->cod_enummembers;
+        nr_members = cod->nr_enum_members;
+        enm = cod->enum_members;
     }
 
     /* Find the enum member. */
     for (emd = enm, m = 0; m < nr_members; ++m, ++emd)
-        if (emd->em_enum == enum_nr && strcmp(emd->em_name, name_str) == 0)
-            return sip_enum_convert_from_enum(sms, emd->em_val,
+        if (emd->enum_nr == enum_nr && strcmp(emd->name, name_str) == 0)
+            return sip_enum_convert_from_enum(sms, emd->value,
                     (sipTypeSpec *)etd);
 
     PyErr_Format(PyExc_AttributeError,
             _SIP_MODULE_FQ_NAME ".enumtype object '%s' has no member '%s'",
-            etd->etd_name, name_str);
+            etd->py_name, name_str);
 #endif
 
     return NULL;
@@ -244,21 +244,21 @@ PyTypeObject *sip_enum_create_custom_enum(sipSipModuleState *sms,
     /* Get the dictionary into which the type will be placed. */
     PyObject *dict;
 
-    if (etd->etd_scope < 0)
+    if (etd->scope_nr < 0)
         dict = w_mod_dict;
-    else if ((dict = sip_get_scope_dict(sms, wmd->types[etd->etd_scope], w_mod_dict, wmd)) == NULL)
+    else if ((dict = sip_get_scope_dict(sms, wmd->types[etd->scope_nr], w_mod_dict, wmd)) == NULL)
         return NULL;
 
     /* Create an object corresponding to the type name. */
     PyObject *name;
 
-    if ((name = PyUnicode_FromString(etd->etd_name)) == NULL)
+    if ((name = PyUnicode_FromString(etd->py_name)) == NULL)
         return NULL;
 
     /* Create the enum. */
     PyObject *enum_obj;
 
-    if (sipTypeIsEnum(&etd->etd_base))
+    if (sipTypeIsEnum(&etd->base))
         enum_obj = create_unscoped_enum(sms, wmd, etd, name);
     else
         enum_obj = create_scoped_enum(sms, wmd, etd, enum_nr, name);
@@ -329,7 +329,7 @@ PyObject *sip_enum_pickle_custom_enum(PyObject *self,
     return Py_BuildValue("N(Osi)",
             PyObject_GetAttrString(sip_mod, "_unpickle_enum"),
             td->td_module->nameobj,
-            ((const sipEnumTypeSpec *)td)->etd_name,
+            ((const sipEnumTypeSpec *)td)->py_name,
             (int)PyLong_AS_LONG(self));
 #else
     return NULL;
@@ -462,7 +462,7 @@ static PyObject *create_scoped_enum(sipSipModuleState *sms,
      * as we are re-using the ones used for unscoped enums (which are designed
      * to support lazy implementations).
      */
-    if (etd->etd_scope < 0)
+    if (etd->scope_nr < 0)
     {
         nr_members = wmd->nr_enum_members;
         enm = wmd->enum_members;
@@ -470,19 +470,19 @@ static PyObject *create_scoped_enum(sipSipModuleState *sms,
     else
     {
         const sipContainerSpec *cod = sip_get_container(
-                wmd->types[etd->etd_scope]);
+                wmd->types[etd->scope_nr]);
 
-        nr_members = cod->cod_nrenummembers;
-        enm = cod->cod_enummembers;
+        nr_members = cod->nr_enum_members;
+        enm = cod->enum_members;
     }
 
     for (i = 0; i < nr_members; ++i)
     {
-        if (enm->em_enum == enum_nr)
+        if (enm->enum_nr == enum_nr)
         {
-            PyObject *val = PyLong_FromLong(enm->em_val);
+            PyObject *val = PyLong_FromLong(enm->value);
 
-            if (sip_dict_set_and_discard(members, enm->em_name, val) < 0)
+            if (sip_dict_set_and_discard(members, enm->name, val) < 0)
                 goto rel_members;
         }
 
@@ -511,7 +511,7 @@ static PyObject *create_scoped_enum(sipSipModuleState *sms,
      */
      // TODO Review the need for this.
 #if 0
-     if (etd->etd_scope >= 0)
+     if (etd->scope_nr >= 0)
      {
         PyObject *qualname_arg = PyUnicode_InternFromString("qualname");
 
@@ -520,7 +520,7 @@ static PyObject *create_scoped_enum(sipSipModuleState *sms,
 
         PyObject *qualname;
 
-        if ((qualname = sip_get_qualname(wmd->types[etd->etd_scope], name)) == NULL)
+        if ((qualname = sip_get_qualname(wmd->types[etd->scope_nr], name)) == NULL)
         {
             Py_DECREF(qualname_arg);
             goto rel_kw_args;
@@ -589,7 +589,7 @@ static PyObject *create_unscoped_enum(sipSipModuleState *sms,
 
     /* Pass the type via the back door. */
     assert(sms->current_enum_backdoor == NULL);
-    sms->current_enum_backdoor = &etd->etd_base;
+    sms->current_enum_backdoor = &etd->base;
     eto = (sipEnumTypeObject *)PyObject_Call((PyObject *)sms->custom_enum_type,
             args, NULL);
     sms->current_enum_backdoor = NULL;
@@ -600,8 +600,8 @@ static PyObject *create_unscoped_enum(sipSipModuleState *sms,
         return NULL;
 
 #if 0
-    if (etd->etd_pyslots != NULL)
-        sip_fix_slots((PyTypeObject *)eto, etd->etd_pyslots);
+    if (etd->py_slots != NULL)
+        sip_fix_slots((PyTypeObject *)eto, etd->py_slots);
 #endif
 
     /*
@@ -609,12 +609,12 @@ static PyObject *create_unscoped_enum(sipSipModuleState *sms,
      */
      // TODO Review the need for this.
 #if 0
-     if (etd->etd_scope >= 0)
+     if (etd->scope_nr >= 0)
      {
         /* Append the name of the enum to the scope's __qualname__. */
         Py_CLEAR(eto->super.ht_qualname);
-        eto->super.ht_qualname = sip_get_qualname(
-                wmd->types[etd->etd_scope], name);
+        eto->super.ht_qualname = sip_get_qualname(wmd->types[etd->scope_nr],
+                name);
 
         if (eto->super.ht_qualname == NULL)
         {
@@ -634,7 +634,7 @@ static PyObject *create_unscoped_enum(sipSipModuleState *sms,
 static void enum_expected(PyObject *obj, const sipTypeSpec *td)
 {
     PyErr_Format(PyExc_TypeError, "a member of enum '%s' is expected not '%s'",
-            ((const sipEnumTypeSpec *)td)->etd_name, Py_TYPE(obj)->tp_name);
+            ((const sipEnumTypeSpec *)td)->py_name, Py_TYPE(obj)->tp_name);
 }
 
 

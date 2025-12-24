@@ -407,7 +407,7 @@ f'''#define sipMalloc                   sipAPI->api_malloc
 #define sipConvertFromConstVoidPtr  sipAPI->api_convert_from_const_void_ptr
 #define sipConvertFromVoidPtrAndSize    sipAPI->api_convert_from_void_ptr_and_size
 #define sipConvertFromConstVoidPtrAndSize   sipAPI->api_convert_from_const_void_ptr_and_size
-#define sipWrappedTypeName(wt)      ((wt)->wt_td->td_cname)
+#define sipWrappedTypeName(wt)      ((wt)->wt_td->cpp_name)
 #define sipGetReference             sipAPI->api_get_reference
 #define sipKeepReference            sipAPI->api_keep_reference
 #define sipRegisterPyType           sipAPI->api_register_py_type
@@ -595,125 +595,125 @@ static PyType_Slot sip_py_slots_{klass_name}[] = {{
         fields = []
 
         fields.append(
-                '.ctd_base.td_flags = ' + get_class_flags(spec, klass, py_debug))
+                '.base.flags = ' + get_class_flags(spec, klass, py_debug))
         fields.append(
-                '.ctd_base.td_cname = ' + self.cached_name_ref(klass.iface_file.cpp_name))
+                '.base.cpp_name = ' + self.cached_name_ref(klass.iface_file.cpp_name))
 
         if pyqt5_supported(spec) or pyqt6_supported(spec):
             if g_pyqt_class_plugin(self, sf, bindings, klass):
                 fields.append(
-                        '.ctd_base.td_plugin_data = &plugin_' + klass_name)
+                        '.base.plugin_data = &plugin_' + klass_name)
 
         if klass.real_class is None:
             fields.append(
-                    f'.ctd_container.cod_name = "{fmt_class_as_scoped_py_name(klass)}"')
+                    f'.container.fq_py_name = "{fmt_class_as_scoped_py_name(klass)}"')
 
         if klass.real_class is not None:
-            cod_scope = self.get_type_ref(klass.real_class)
+            scope_id = self.get_type_ref(klass.real_class)
         elif py_scope(klass.scope) is not None:
-            cod_scope = self.get_type_ref(klass.scope)
+            scope_id = self.get_type_ref(klass.scope)
         else:
-            cod_scope = None
+            scope_id = None
 
-        if cod_scope is not None:
-            fields.append('.ctd_container.cod_scope = ' + cod_scope)
+        if scope_id is not None:
+            fields.append('.container.scope_id = ' + scope_id)
 
         if nr_methods != 0:
             fields.append(
-                    '.ctd_container.cod_methods = sipMethods_' + klass_name)
+                    '.container.methods = sipMethods_' + klass_name)
 
         if nr_instance_variables != 0:
             fields.append(
-                    '.ctd_container.cod_instance_variables = sipInstanceVariables_' + klass_name)
+                    '.container.instance_variables = sipInstanceVariables_' + klass_name)
 
         if nr_static_variables != 0:
             fields.append(
-                    '.ctd_container.cod_attributes.nr_static_variables = ' + str(nr_static_variables))
+                    '.container.attributes.nr_static_variables = ' + str(nr_static_variables))
             fields.append(
-                    '.ctd_container.cod_attributes.static_variables = sipStaticVariables_' + klass_name)
+                    '.container.attributes.static_variables = sipStaticVariables_' + klass_name)
 
         if nr_types != 0:
             fields.append(
-                    '.ctd_container.cod_attributes.nr_types = ' + str(nr_types))
+                    '.container.attributes.nr_types = ' + str(nr_types))
             fields.append(
-                    '.ctd_container.cod_attributes.type_nrs = sipTypeNrs_' + klass_name)
+                    '.container.attributes.type_nrs = sipTypeNrs_' + klass_name)
 
 
         if slots:
             fields.append(
-                    '.ctd_container.cod_py_slots = sip_py_slots_' + klass_name)
+                    '.container.py_slots = sip_py_slots_' + klass_name)
 
         # TODO
         #if self.custom_enums_supported() and nrenummembers > 0:
-        #    cod_nrenummembers
-        #    cod_enummembers
+        #    nr_enum_members
+        #    enum_members
 
-        fields.append('.ctd_docstring = ' + docstring_ref)
+        fields.append('.docstring = ' + docstring_ref)
 
         if klass.metatype is not None:
             fields.append(
-                    '.ctd_metatype = ' + self.cached_name_ref(klass.metatype))
+                    '.metatype = ' + self.cached_name_ref(klass.metatype))
 
         if klass.supertype is not None:
             fields.append(
-                    '.ctd_supertype = ' + self.cached_name_ref(klass.supertype))
+                    '.supertype = ' + self.cached_name_ref(klass.supertype))
 
 
         # TODO
         #if len(klass.superclasses) != 0:
-        #    ctd_supers
+        #    supers
 
         if klass.can_create:
-            fields.append('.ctd_init = init_type_' + klass_name)
+            fields.append('.init = init_type_' + klass_name)
 
         if need_dealloc(spec, bindings, klass):
-            fields.append('.ctd_dealloc = dealloc_' + klass_name)
+            fields.append('.dealloc = dealloc_' + klass_name)
 
         if klass.can_create:
             fields.append(
-                    f'.ctd_sizeof = sizeof ({scoped_class_name(self.spec, klass)})')
+                    f'.sizeof_class = sizeof ({scoped_class_name(self.spec, klass)})')
 
         if klass.gc_traverse_code is not None:
-            fields.append('.ctd_traverse = traverse_' + klass_name)
+            fields.append('.traverse = traverse_' + klass_name)
 
         if klass.gc_clear_code is not None:
-            fields.append('.ctd_clear = clear_' + klass_name)
+            fields.append('.clear = clear_' + klass_name)
 
         if klass.bi_get_buffer_code is not None:
-            fields.append('.ctd_getbuffer = getbuffer_' + klass_name)
+            fields.append('.getbuffer = getbuffer_' + klass_name)
 
         if klass.bi_release_buffer_code is not None:
-            fields.append('.ctd_releasebuffer = releasebuffer_' + klass_name)
+            fields.append('.releasebuffer = releasebuffer_' + klass_name)
 
         if spec.c_bindings or klass.needs_copy_helper:
-            fields.append('.ctd_assign = assign_' + klass_name)
+            fields.append('.assign = assign_' + klass_name)
 
         if spec.c_bindings or klass.needs_array_helper:
-            fields.append('.ctd_array = array_' + klass_name)
+            fields.append('.array = array_' + klass_name)
 
         if spec.c_bindings or klass.needs_copy_helper:
-            fields.append('.ctd_copy = copy_' + klass_name)
+            fields.append('.copy = copy_' + klass_name)
 
         if not spec.c_bindings and klass.iface_file.type is not IfaceFileType.NAMESPACE:
-            fields.append('.ctd_release = release_' + klass_name)
+            fields.append('.release = release_' + klass_name)
 
         if len(klass.superclasses) != 0:
-            fields.append('.ctd_cast = cast_' + klass_name)
+            fields.append('.cast = cast_' + klass_name)
 
         if klass.convert_to_type_code is not None and klass.iface_file.type is not IfaceFileType.NAMESPACE:
-            fields.append('.ctd_cto = convertTo_' + klass_name)
+            fields.append('.cto = convertTo_' + klass_name)
 
         if klass.convert_from_type_code is not None and klass.iface_file.type is not IfaceFileType.NAMESPACE:
-            fields.append('.ctd_cfrom = convertFrom_' + klass_name)
+            fields.append('.cfrom = convertFrom_' + klass_name)
 
         if klass.pickle_code is not None:
-            fields.append('.ctd_pickle = pickle_' + klass_name)
+            fields.append('.pickle = pickle_' + klass_name)
 
         if klass.finalisation_code is not None:
-            fields.append('.ctd_final = final_' + klass_name)
+            fields.append('.final = final_' + klass_name)
 
         if spec.c_bindings or klass.needs_array_helper:
-            fields.append('.ctd_array_delete = array_delete_' + klass_name)
+            fields.append('.array_delete = array_delete_' + klass_name)
 
         fields = ',\n    '.join(fields)
 
@@ -803,6 +803,22 @@ f'''static void *init_type_{klass_name}(PyObject *sipSelf, PyObject *const *sipA
             return 'Py_tp_richcompare'
 
         return _SLOT_ID_MAP[slot_type]
+
+    def get_spec_for_class(self, klass):
+        """ Return the name of the data structure specifying a class. """
+
+        return f'sipTypeSpec_{self.spec.module.py_name}_{klass.iface_file.fq_cpp_name.as_word}.base'
+
+    def get_spec_for_mapped_type(self, mapped_type):
+        """ Return the name of the data structure specifying a mapped type. """
+
+        return f'sipTypeSpec_{self.spec.module.py_name}_{mapped_type.iface_file.fq_cpp_name.as_word}.base'
+
+    def get_spec_for_enum(self, enum_nr):
+        """ Return the name of the data structure specifying an enum. """
+
+        # TODO
+        return f'enumTypes[{enum_nr}].etd_base'
 
     @staticmethod
     def get_spec_suffix():

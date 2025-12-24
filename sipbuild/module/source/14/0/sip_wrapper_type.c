@@ -93,7 +93,7 @@ static PyObject *WrapperType_getattro(sipWrapperType *self, PyObject *name)
     const sipClassTypeSpec *cts = (const sipClassTypeSpec *)sip_get_type_spec_from_wt(self);
 
     return sip_mod_con_getattro(ms, (PyObject *)self, name,
-            &cts->ctd_container.cod_attributes);
+            &cts->container.attributes);
 }
 
 
@@ -175,7 +175,7 @@ static int WrapperType_setattro(sipWrapperType *self, PyObject *name,
     const sipClassTypeSpec *cts = (const sipClassTypeSpec *)sip_get_type_spec_from_wt(self);
 
     return sip_mod_con_setattro(ms, (PyObject *)self, name, value,
-            &cts->ctd_container.cod_attributes);
+            &cts->container.attributes);
 }
 
 
