@@ -72,6 +72,19 @@ int sip_api_module_clear(void *ms);
 void sip_api_module_free(void *ms);
 int sip_api_module_traverse(void *ms, visitproc visit, void *arg);
 
+
+/*
+ * Return a wrapped module's state.
+ */
+static inline sipModuleState *sip_get_module_state(PyObject *mod)
+{
+    sipModuleState *ms = (sipModuleState *)PyModule_GetState(mod);
+
+    assert(ms != NULL);
+
+    return ms;
+}
+
 #ifdef __cplusplus
 }
 #endif

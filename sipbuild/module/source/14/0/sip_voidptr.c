@@ -490,11 +490,11 @@ void *sip_api_convert_to_void_ptr(PyObject *obj)
 /*
  * Convert a C/C++ void pointer to a sip.voidptr object.
  */
-PyObject *sip_api_convert_from_void_ptr(PyObject *w_mod, void *val)
+PyObject *sip_api_convert_from_void_ptr(PyObject *mod, void *val)
 {
-    sipModuleState *wms = (sipModuleState *)PyModule_GetState(w_mod);
+    sipSipModuleState *sms = sip_get_module_state(mod)->sip_module_state;
 
-    return sip_convert_from_void_ptr(wms->sip_module_state, val);
+    return sip_convert_from_void_ptr(sms, val);
 }
 
 
@@ -510,11 +510,11 @@ PyObject *sip_convert_from_void_ptr(sipSipModuleState *sms, void *val)
 /*
  * Convert a C/C++ const void pointer to a sip.voidptr object.
  */
-PyObject *sip_api_convert_from_const_void_ptr(PyObject *w_mod, const void *val)
+PyObject *sip_api_convert_from_const_void_ptr(PyObject *mod, const void *val)
 {
-    sipModuleState *wms = (sipModuleState *)PyModule_GetState(w_mod);
+    sipSipModuleState *sms = sip_get_module_state(mod)->sip_module_state;
 
-    return sip_convert_from_const_void_ptr(wms->sip_module_state, val);
+    return sip_convert_from_const_void_ptr(sms, val);
 }
 
 
@@ -532,24 +532,24 @@ PyObject *sip_convert_from_const_void_ptr(sipSipModuleState *sms,
 /*
  * Convert a sized C/C++ void pointer to a sip.voidptr object.
  */
-PyObject *sip_api_convert_from_void_ptr_and_size(PyObject *w_mod, void *val,
+PyObject *sip_api_convert_from_void_ptr_and_size(PyObject *mod, void *val,
         Py_ssize_t size)
 {
-    sipModuleState *wms = (sipModuleState *)PyModule_GetState(w_mod);
+    sipSipModuleState *sms = sip_get_module_state(mod)->sip_module_state;
 
-    return create_voidptr(wms->sip_module_state, val, size, TRUE);
+    return create_voidptr(sms, val, size, TRUE);
 }
 
 
 /*
  * Convert a sized C/C++ const void pointer to a sip.voidptr object.
  */
-PyObject *sip_api_convert_from_const_void_ptr_and_size(PyObject *w_mod,
+PyObject *sip_api_convert_from_const_void_ptr_and_size(PyObject *mod,
         const void *val, Py_ssize_t size)
 {
-    sipModuleState *wms = (sipModuleState *)PyModule_GetState(w_mod);
+    sipSipModuleState *sms = sip_get_module_state(mod)->sip_module_state;
 
-    return create_voidptr(wms->sip_module_state, (void *)val, size, FALSE);
+    return create_voidptr(sms, (void *)val, size, FALSE);
 }
 
 

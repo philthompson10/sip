@@ -191,12 +191,12 @@ static int EnumType_traverse(PyObject *self, visitproc visit, void *arg)
 /*
  * Create a Python object for a member of a named enum.
  */
-PyObject *sip_api_convert_from_enum(PyObject *w_mod, int member,
+PyObject *sip_api_convert_from_enum(PyObject *mod, int member,
         sipTypeID type_id)
 {
-    sipModuleState *wms = (sipModuleState *)PyModule_GetState(w_mod);
+    sipModuleState *ms = sip_get_module_state(mod);
 
-    return sip_enum_convert_from_enum(wms, member, type_id);
+    return sip_enum_convert_from_enum(ms, member, type_id);
 }
 
 
@@ -340,9 +340,9 @@ PyObject *sip_enum_pickle_custom_enum(PyObject *self,
 /*
  * The enum unpickler.
  */
-PyObject *sip_enum_unpickle_custom_enum(PyObject *mod, PyObject *args)
+PyObject *sip_enum_unpickle_custom_enum(PyObject *smod, PyObject *args)
 {
-    sipSipModuleState *sms = (sipSipModuleState *)PyModule_GetState(mod);
+    sipSipModuleState *sms = sip_get_sip_module_state(smod);
     PyObject *mname_obj, *evalue_obj;
     const char *ename;
 
@@ -356,10 +356,10 @@ PyObject *sip_enum_unpickle_custom_enum(PyObject *mod, PyObject *args)
 
     /* Check that it is an enum. */
     // TODO This is an invalid cast.
-    const sipTypeSpec *td = sip_get_type_spec_from_wt(
+    const sipTypeSpec *ts = sip_get_type_spec_from_wt(
             (sipWrapperType *)py_type);
 
-    if (!sipTypeIsEnum(td))
+    if (!sipTypeIsEnum(ts))
     {
         PyErr_Format(PyExc_SystemError, "%U.%s is not an enum", mname_obj,
                 ename);

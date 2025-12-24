@@ -29,7 +29,7 @@
 typedef struct {
     PyObject_HEAD
     void *data;
-    sipModuleState *wms;
+    sipModuleState *ms;
     sipTypeID type_id;
     const char *format;
     size_t stride;
@@ -86,7 +86,7 @@ static void bad_key(PyObject *key);
 static int check_index(Array *array, Py_ssize_t idx);
 static int check_writable(Array *array);
 static PyObject *create_array(PyTypeObject *array_type, void *data,
-        sipModuleState *wms, sipTypeID type_id, const char *format,
+        sipModuleState *ms, sipTypeID type_id, const char *format,
         size_t stride, Py_ssize_t len, int flags, PyObject *owner);
 static void *element(Array *array, Py_ssize_t idx);
 static void *get_slice(Array *array, PyObject *value, Py_ssize_t len);
@@ -159,7 +159,7 @@ static PyObject *Array_item(PyObject *self, Py_ssize_t idx)
     }
     else
     {
-        py_item = sip_convert_from_type(array->wms, data, array->type_id,
+        py_item = sip_convert_from_type(array->ms, data, array->type_id,
                 NULL);
     }
 
@@ -200,7 +200,7 @@ static PyObject *Array_subscript(PyObject *self, PyObject *key)
             return NULL;
         }
 
-        return create_array(Py_TYPE(self), element(array, start), array->wms,
+        return create_array(Py_TYPE(self), element(array, start), array->ms,
                 array->type_id, array->format, array->stride, slicelength,
                 (array->flags & ~SIP_OWNS_MEMORY), array->owner);
     }
@@ -270,7 +270,7 @@ static int Array_ass_subscript(PyObject *self, PyObject *key, PyObject *value)
     }
     else
     {
-        const sipTypeSpec *td = sip_get_type_spec(array->wms, array->type_id);
+        const sipTypeSpec *td = sip_get_type_spec(array->ms, array->type_id);
 
         sipAssignFunc assign = ((const sipClassTypeSpec *)td)->ctd_assign;
         if (assign == NULL)
@@ -401,7 +401,7 @@ static void Array_dealloc(PyObject *self)
         }
         else
         {
-            const sipTypeSpec *td = sip_get_type_spec(array->wms,
+            const sipTypeSpec *td = sip_get_type_spec(array->ms,
                     array->type_id);
 
             ((const sipClassTypeSpec *)td)->ctd_array_delete(array->data);
@@ -440,9 +440,9 @@ static PyObject *Array_new(PyTypeObject *cls, PyObject *args, PyObject *kw)
     if (!PyArg_ParseTupleAndKeywords(args, kw, "O!n:array", kwlist, sms->wrapper_type_type, (PyObject **)&wt, &length))
         return NULL;
 
-    sipModuleState *wms = (sipModuleState *)PyModule_GetState(wt->wt_d_mod);
+    sipModuleState *ms = sip_get_module_state(wt->wt_d_mod);
     const sipClassTypeSpec *ctd = (const sipClassTypeSpec *)sip_get_type_spec(
-            wms, wt->wt_type_id);
+            ms, wt->wt_type_id);
 
     if (ctd->ctd_array == NULL || ctd->ctd_sizeof == 0)
     {
@@ -460,7 +460,7 @@ static PyObject *Array_new(PyTypeObject *cls, PyObject *args, PyObject *kw)
     }
 
     /* Create the instance. */
-    return create_array(cls, ctd->ctd_array(length), wms, wt->wt_type_id,
+    return create_array(cls, ctd->ctd_array(length), ms, wt->wt_type_id,
             NULL, ctd->ctd_sizeof, length, SIP_OWNS_MEMORY, NULL);
 }
 
@@ -468,15 +468,14 @@ static PyObject *Array_new(PyTypeObject *cls, PyObject *args, PyObject *kw)
 /*
  * Return TRUE if an object is a sip.array with elements of a given type.
  */
-int sip_array_can_convert(sipModuleState *wms, PyObject *obj,
-        sipTypeID type_id)
+int sip_array_can_convert(sipModuleState *ms, PyObject *obj, sipTypeID type_id)
 {
-    if (!PyObject_TypeCheck(obj, wms->sip_module_state->array_type))
+    if (!PyObject_TypeCheck(obj, ms->sip_module_state->array_type))
         return FALSE;
 
     Array *array = (Array *)obj;
 
-    return sip_get_type_spec(array->wms, array->type_id) == sip_get_type_spec(wms, type_id);
+    return sip_get_type_spec(array->ms, array->type_id) == sip_get_type_spec(ms, type_id);
 }
 
 
@@ -636,7 +635,7 @@ static void *get_value(Array *array, PyObject *value)
     {
         int iserr = FALSE;
 
-        data = sip_force_convert_to_type_us(array->wms, value, array->type_id,
+        data = sip_force_convert_to_type_us(array->ms, value, array->type_id,
                 NULL, SIP_NOT_NONE|SIP_NO_CONVERTORS, NULL, NULL, &iserr);
     }
 
@@ -668,7 +667,7 @@ static void *get_slice(Array *array, PyObject *value, Py_ssize_t len)
         }
         else if (!sipTypeIDIsPOD(other->type_id))
         {
-            if (sip_get_type_spec(array->wms, array->type_id) == sip_get_type_spec(other->wms, other->type_id))
+            if (sip_get_type_spec(array->ms, array->type_id) == sip_get_type_spec(other->ms, other->type_id))
             {
                 bad_type = FALSE;
             }
@@ -752,7 +751,7 @@ static const char *get_type_name(Array *array)
     }
     else
     {
-        type_name = sip_get_type_spec(array->wms, array->type_id)->td_cname;
+        type_name = sip_get_type_spec(array->ms, array->type_id)->td_cname;
     }
 
     return type_name;
@@ -764,7 +763,7 @@ static const char *get_type_name(Array *array)
  * Create an array.
  */
 static PyObject *create_array(PyTypeObject *array_type, void *data,
-        sipModuleState *wms, sipTypeID type_id, const char *format,
+        sipModuleState *ms, sipTypeID type_id, const char *format,
         size_t stride, Py_ssize_t len, int flags, PyObject *owner)
 {
     Array *array = (Array *)PyType_GenericAlloc(array_type, 0);
@@ -778,7 +777,7 @@ static PyObject *create_array(PyTypeObject *array_type, void *data,
     Py_XINCREF(owner);
 
     array->data = data;
-    array->wms = wms;
+    array->ms = ms;
     array->type_id = type_id;
     array->format = format;
     array->stride = stride;
@@ -795,7 +794,7 @@ static PyObject *create_array(PyTypeObject *array_type, void *data,
  * be either "b" (char), "B" (unsigned char), "h" (short), "H" (unsigned
  * short), "i" (int), "I" (unsigned int), "f" (float) or "d" (double).
  */
-PyObject *sip_api_convert_to_array(PyObject *w_mod, void *data,
+PyObject *sip_api_convert_to_array(PyObject *mod, void *data,
         const char *format, Py_ssize_t len, int flags)
 {
     size_t stride;
@@ -845,9 +844,9 @@ PyObject *sip_api_convert_to_array(PyObject *w_mod, void *data,
         return NULL;
     }
 
-    sipModuleState *wms = (sipModuleState *)PyModule_GetState(w_mod);
+    sipModuleState *ms = sip_get_module_state(mod);
 
-    return create_array(wms->sip_module_state->array_type, data, NULL, 0,
+    return create_array(ms->sip_module_state->array_type, data, NULL, 0,
             format, stride, len, flags, NULL);
 }
 
@@ -855,7 +854,7 @@ PyObject *sip_api_convert_to_array(PyObject *w_mod, void *data,
 /*
  * Wrap an array of instances of a defined type.
  */
-PyObject *sip_api_convert_to_typed_array(PyObject *w_mod, void *data,
+PyObject *sip_api_convert_to_typed_array(PyObject *mod, void *data,
         sipTypeID type_id, const char *format, size_t stride, Py_ssize_t len,
         int flags)
 {
@@ -865,9 +864,9 @@ PyObject *sip_api_convert_to_typed_array(PyObject *w_mod, void *data,
     assert(stride > 0);
     assert(len >= 0);
 
-    sipModuleState *wms = (sipModuleState *)PyModule_GetState(w_mod);
+    sipModuleState *ms = sip_get_module_state(mod);
 
-    return create_array(wms->sip_module_state->array_type, data, wms, type_id,
+    return create_array(ms->sip_module_state->array_type, data, ms, type_id,
             format, stride, len, flags, NULL);
 }
 

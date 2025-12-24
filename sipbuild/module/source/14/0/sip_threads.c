@@ -21,13 +21,13 @@
 /*
  * Handle the termination of a thread.
  */
-void sip_api_end_thread(PyObject *w_mod)
+void sip_api_end_thread(PyObject *mod)
 {
-    sipModuleState *wms = (sipModuleState *)PyModule_GetState(w_mod);
+    sipSipModuleState *sms = sip_get_module_state(mod)->sip_module_state;
 
     PyGILState_STATE gil = PyGILState_Ensure();
 
-    sipThread *thread = sip_get_thread_data(wms->sip_module_state, FALSE);
+    sipThread *thread = sip_get_thread_data(sms, FALSE);
 
     if (thread != NULL)
         thread->thr_ident = 0;

@@ -72,18 +72,18 @@ PyMODEXPORT_FUNC _SIP_MODULE_ENTRY(void)
 /*
  * Implement the exec phase of the module initialisation.
  */
-static int module_exec(PyObject *module)
+static int module_exec(PyObject *smod)
 {
-    sipSipModuleState *sms = (sipSipModuleState *)PyModule_GetState(module);
+    sipSipModuleState *sms = sip_get_sip_module_state(smod);
 
     /* Initialise the module. */
-    if (sip_sip_module_init(sms, module) < 0)
+    if (sip_sip_module_init(sms, smod) < 0)
         return -1;
 
     /* Publish the first stage bootstrap function. */
     PyObject *api_obj = PyCapsule_New((void *)bootstrap, "_C_BOOTSTRAP", NULL);
 
-    int rc = PyModule_AddObjectRef(module, "_C_BOOTSTRAP", api_obj);
+    int rc = PyModule_AddObjectRef(smod, "_C_BOOTSTRAP", api_obj);
     Py_XDECREF(api_obj);
 
     return rc;
@@ -93,9 +93,9 @@ static int module_exec(PyObject *module)
 /*
  * Implement the standalone module clear slot.
  */
-static int module_clear(PyObject *module)
+static int module_clear(PyObject *smod)
 {
-    sipSipModuleState *sms = (sipSipModuleState *)PyModule_GetState(module);
+    sipSipModuleState *sms = sip_get_sip_module_state(smod);
 
     return sip_sip_module_clear(sms);
 }
@@ -104,10 +104,9 @@ static int module_clear(PyObject *module)
 /*
  * Implement the standalone module free slot.
  */
-static void module_free(void *module_ptr)
+static void module_free(void *smod_ptr)
 {
-    sipSipModuleState *sms = (sipSipModuleState *)PyModule_GetState(
-            (PyObject *)module_ptr);
+    sipSipModuleState *sms = sip_get_sip_module_state((PyObject *)smod_ptr);
 
     sip_sip_module_free(sms);
 }
@@ -116,9 +115,9 @@ static void module_free(void *module_ptr)
 /*
  * Implement the standalone module traverse slot.
  */
-static int module_traverse(PyObject *module, visitproc visit, void *arg)
+static int module_traverse(PyObject *smod, visitproc visit, void *arg)
 {
-    sipSipModuleState *sms = (sipSipModuleState *)PyModule_GetState(module);
+    sipSipModuleState *sms = sip_get_sip_module_state(smod);
 
     return sip_sip_module_traverse(sms, visit, arg);
 }
@@ -345,11 +344,11 @@ PyObject *sip_get_sip_module(PyTypeObject *defining_class)
 sipSipModuleState *sip_get_sip_module_state_from_type(PyTypeObject *type)
 {
 #if _SIP_MODULE_SHARED
-    PyObject *mod = PyType_GetModuleByToken(type, module_slots);
-    if (mod == NULL)
+    PyObject *smod = PyType_GetModuleByToken(type, module_slots);
+    if (smod == NULL)
         return NULL;
 
-    return (sipSipModuleState *)PyModule_GetState(mod);
+    return sip_get_sip_module_state(smod);
 #else
     extern PyModuleDef_Slot _SIP_MODULE_SLOTS[];
 
@@ -357,6 +356,6 @@ sipSipModuleState *sip_get_sip_module_state_from_type(PyTypeObject *type)
     if (mod == NULL)
         return NULL;
 
-    return ((sipModuleState *)PyModule_GetState(mod))->sip_module_state;
+    return sip_get_module_state(mod)->sip_module_state;
 #endif
 }

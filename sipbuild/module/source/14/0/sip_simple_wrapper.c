@@ -139,8 +139,8 @@ static void SimpleWrapper_dealloc(PyObject *self)
      * instance.
      */
     sipWrapperType *wt = (sipWrapperType *)Py_TYPE(self);
-    sipModuleState *wms = (sipModuleState *)PyModule_GetState(wt->wt_d_mod);
-    sipSipModuleState *sms = wms->sip_module_state;
+    sipModuleState *ms = sip_get_module_state(wt->wt_d_mod);
+    sipSipModuleState *sms = ms->sip_module_state;
 
 #if 0
     // TODO
@@ -149,7 +149,7 @@ static void SimpleWrapper_dealloc(PyObject *self)
 
     for (eh = sms->event_handlers[sipEventCollectingWrapper]; eh != NULL; eh = eh->next)
     {
-        if (sipTypeIsClass(eh->td) && sip_is_subtype(wms, ctd, (const sipClassTypeSpec *)eh->td))
+        if (sipTypeIsClass(eh->td) && sip_is_subtype(ms, ctd, (const sipClassTypeSpec *)eh->td))
         {
             sipCollectingWrapperEventHandler handler = (sipCollectingWrapperEventHandler)eh->handler;
 
@@ -168,7 +168,7 @@ static void SimpleWrapper_dealloc(PyObject *self)
      * Python.)  By removing it from the map first we ensure that a new Python
      * object is created.
      */
-    sip_om_remove_object(wms, self);
+    sip_om_remove_object(ms, self);
 
     if (sms->interpreter_state != NULL)
     {
@@ -448,8 +448,8 @@ static int SimpleWrapper_init(PyObject *self, PyObject *args,
         PyObject *kwargs)
 {
     sipWrapperType *wt = (sipWrapperType *)Py_TYPE(self);
-    sipModuleState *wms = (sipModuleState *)PyModule_GetState(wt->wt_d_mod);
-    sipSipModuleState *sms = wms->sip_module_state;
+    sipModuleState *ms = sip_get_module_state(wt->wt_d_mod);
+    sipSipModuleState *sms = ms->sip_module_state;
 
     /* Check for an existing C++ instance waiting to be wrapped. */
     sipThread *thread = sip_get_thread_data(sms, FALSE);
@@ -476,7 +476,7 @@ static int SimpleWrapper_init(PyObject *self, PyObject *args,
     int from_cpp = TRUE;
     PyObject *unused = NULL;
     const sipClassTypeSpec *ctd = (const sipClassTypeSpec *)sip_get_type_spec_from_wt(wt);
-    sipFinalFunc final_func = find_finalisation(wms, ctd);
+    sipFinalFunc final_func = find_finalisation(ms, ctd);
 
     if (sipNew == NULL)
     {
@@ -603,7 +603,7 @@ static int SimpleWrapper_init(PyObject *self, PyObject *args,
     sw->data = sipNew;
     sw->flags = sipFlags | SIP_CREATED;
 
-    sip_om_add_object(wms, self);
+    sip_om_add_object(ms, self);
 
     /* If we are wrapping an instance returned from C/C++ then we are done. */
     if (from_cpp)
@@ -614,7 +614,7 @@ static int SimpleWrapper_init(PyObject *self, PyObject *args,
 
         for (eh = sms->event_handlers[sipEventWrappedInstance]; eh != NULL; eh = eh->next)
         {
-            if (sipTypeIsClass(eh->td) && sip_is_subtype(wms, ctd, (const sipClassTypeSpec *)eh->td))
+            if (sipTypeIsClass(eh->td) && sip_is_subtype(ms, ctd, (const sipClassTypeSpec *)eh->td))
             {
                 sipWrappedInstanceEventHandler handler = (sipWrappedInstanceEventHandler)eh->handler;
 

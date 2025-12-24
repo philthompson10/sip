@@ -15,6 +15,7 @@
 #include "sip_module.h"
 #include "sip_module_wrapper.h"
 #include "sip_simple_wrapper.h"
+#include "sip_wrapped_module.h"
 
 
 /* Forward declarations of slots. */
@@ -88,11 +89,11 @@ static PyObject *WrapperType_getattro(sipWrapperType *self, PyObject *name)
     if (self->wt_d_mod == NULL)
         return PyType_Type.tp_getattro((PyObject *)self, name);
 
-    sipModuleState *wms = (sipModuleState *)PyModule_GetState(self->wt_d_mod);
-    const sipClassTypeSpec *ctd = (const sipClassTypeSpec *)sip_get_type_spec_from_wt(self);
+    sipModuleState *ms = sip_get_module_state(self->wt_d_mod);
+    const sipClassTypeSpec *cts = (const sipClassTypeSpec *)sip_get_type_spec_from_wt(self);
 
-    return sip_mod_con_getattro(wms, (PyObject *)self, name,
-            &ctd->ctd_container.cod_attributes);
+    return sip_mod_con_getattro(ms, (PyObject *)self, name,
+            &cts->ctd_container.cod_attributes);
 }
 
 
@@ -170,11 +171,11 @@ static int WrapperType_setattro(sipWrapperType *self, PyObject *name,
     if (self->wt_d_mod == NULL)
         return PyType_Type.tp_setattro((PyObject *)self, name, value);
 
-    sipModuleState *wms = (sipModuleState *)PyModule_GetState(self->wt_d_mod);
-    const sipClassTypeSpec *ctd = (const sipClassTypeSpec *)sip_get_type_spec_from_wt(self);
+    sipModuleState *ms = sip_get_module_state(self->wt_d_mod);
+    const sipClassTypeSpec *cts = (const sipClassTypeSpec *)sip_get_type_spec_from_wt(self);
 
-    return sip_mod_con_setattro(wms, (PyObject *)self, name, value,
-            &ctd->ctd_container.cod_attributes);
+    return sip_mod_con_setattro(ms, (PyObject *)self, name, value,
+            &cts->ctd_container.cod_attributes);
 }
 
 

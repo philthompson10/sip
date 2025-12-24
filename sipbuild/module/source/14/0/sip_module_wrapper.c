@@ -67,10 +67,9 @@ static void raise_internal_error(const sipVariableSpec *wvd);
  */
 static PyObject *ModuleWrapper_getattro(PyObject *self, PyObject *name)
 {
-    sipModuleState *wms = (sipModuleState *)PyModule_GetState(self);
+    sipModuleState *ms = sip_get_module_state(self);
 
-    return sip_mod_con_getattro(wms, self, name,
-            &wms->module_spec->attributes);
+    return sip_mod_con_getattro(ms, self, name, &ms->module_spec->attributes);
 }
 
 
@@ -80,10 +79,10 @@ static PyObject *ModuleWrapper_getattro(PyObject *self, PyObject *name)
 static int ModuleWrapper_setattro(PyObject *self, PyObject *name,
         PyObject *value)
 {
-    sipModuleState *wms = (sipModuleState *)PyModule_GetState(self);
+    sipModuleState *ms = sip_get_module_state(self);
 
-    return sip_mod_con_setattro(wms, self, name, value,
-            &wms->module_spec->attributes);
+    return sip_mod_con_setattro(ms, self, name, value,
+            &ms->module_spec->attributes);
 }
 
 

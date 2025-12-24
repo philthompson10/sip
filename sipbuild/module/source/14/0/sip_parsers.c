@@ -238,7 +238,7 @@ void sip_api_bad_catcher_result(PyObject *method)
 /*
  * Build a result object based on a format string.
  */
-PyObject *sip_api_build_result(PyObject *w_mod, int *is_err_p, const char *fmt,
+PyObject *sip_api_build_result(PyObject *mod, int *is_err_p, const char *fmt,
         ...)
 {
     va_list va;
@@ -276,9 +276,9 @@ PyObject *sip_api_build_result(PyObject *w_mod, int *is_err_p, const char *fmt,
     }
     else if (tupsz < 0 || (res = PyTuple_New(tupsz)) != NULL)
     {
-        sipModuleState *wms = (sipModuleState *)PyModule_GetState(w_mod);
+        sipModuleState *ms = sip_get_module_state(mod);
 
-        res = build_object(wms, res, fmt, va);
+        res = build_object(ms, res, fmt, va);
     }
 
     va_end(va);
@@ -307,16 +307,16 @@ void sip_api_call_error_handler(sipVirtErrorHandlerFunc error_handler,
 /*
  * Call the Python re-implementation of a C++ virtual.
  */
-PyObject *sip_api_call_method(PyObject *w_mod, int *is_err_p, PyObject *method,
+PyObject *sip_api_call_method(PyObject *mod, int *is_err_p, PyObject *method,
         const char *fmt, ...)
 {
-    sipModuleState *wms = (sipModuleState *)PyModule_GetState(w_mod);
+    sipModuleState *ms = sip_get_module_state(mod);
 
     PyObject *res;
     va_list va;
 
     va_start(va, fmt);
-    res = call_method(wms, method, fmt, va);
+    res = call_method(ms, method, fmt, va);
     va_end(va);
 
     if (res == NULL && is_err_p != NULL)
@@ -330,15 +330,15 @@ PyObject *sip_api_call_method(PyObject *w_mod, int *is_err_p, PyObject *method,
  * Call the Python re-implementation of a C++ virtual that does not return a
  * value and handle the result..
  */
-void sip_api_call_procedure_method(PyObject *w_mod, sip_gilstate_t gil_state,
+void sip_api_call_procedure_method(PyObject *mod, sip_gilstate_t gil_state,
         sipVirtErrorHandlerFunc error_handler, PyObject *py_self,
         PyObject *method, const char *fmt, ...)
 {
-    sipModuleState *wms = (sipModuleState *)PyModule_GetState(w_mod);
+    sipModuleState *ms = sip_get_module_state(mod);
     va_list va;
 
     va_start(va, fmt);
-    PyObject *res = call_method(wms, method, fmt, va);
+    PyObject *res = call_method(ms, method, fmt, va);
     va_end(va);
 
     if (res != NULL)
@@ -364,33 +364,33 @@ void sip_api_call_procedure_method(PyObject *w_mod, sip_gilstate_t gil_state,
 /*
  * Check to see if a Python object can be converted to a type.
  */
-int sip_api_can_convert_to_type(PyObject *w_mod, PyObject *pyObj,
+int sip_api_can_convert_to_type(PyObject *mod, PyObject *pyObj,
         sipTypeID type_id, int flags)
 {
-    sipModuleState *wms = (sipModuleState *)PyModule_GetState(w_mod);
+    sipModuleState *ms = sip_get_module_state(mod);
 
-    return can_convert_to_type(wms, pyObj, type_id, flags);
+    return can_convert_to_type(ms, pyObj, type_id, flags);
 }
 
 
 /*
  * Convert a new C/C++ instance to a Python instance of a specific Python type.
  */
-PyObject *sip_api_convert_from_new_pytype(PyObject *w_mod, void *cpp,
+PyObject *sip_api_convert_from_new_pytype(PyObject *mod, void *cpp,
         PyTypeObject *w_type, PyObject *owner, PyObject **self_p,
         const char *fmt, ...)
 {
-    sipModuleState *wms = (sipModuleState *)PyModule_GetState(w_mod);
+    sipModuleState *ms = sip_get_module_state(mod);
 
     PyObject *args, *res;
     va_list va;
 
     va_start(va, fmt);
 
-    if ((args = PyTuple_New(strlen(fmt))) != NULL && build_object(wms, args, fmt, va) != NULL)
+    if ((args = PyTuple_New(strlen(fmt))) != NULL && build_object(ms, args, fmt, va) != NULL)
     {
-        res = sip_wrap_instance(wms->sip_module_state, cpp, w_type, args,
-                owner, (self_p != NULL ? SIP_DERIVED_CLASS : 0));
+        res = sip_wrap_instance(ms->sip_module_state, cpp, w_type, args, owner,
+                (self_p != NULL ? SIP_DERIVED_CLASS : 0));
 
         /* Initialise the rest of an instance of a derived class. */
         if (self_p != NULL)
@@ -412,24 +412,24 @@ PyObject *sip_api_convert_from_new_pytype(PyObject *w_mod, void *cpp,
 /*
  * Convert a new C/C++ instance to a Python instance.
  */
-PyObject *sip_api_convert_from_new_type(PyObject *w_mod, void *cpp,
+PyObject *sip_api_convert_from_new_type(PyObject *mod, void *cpp,
         sipTypeID type_id, PyObject *transferObj)
 {
-    sipModuleState *wms = (sipModuleState *)PyModule_GetState(w_mod);
+    sipModuleState *ms = sip_get_module_state(mod);
 
-    return convert_from_new_type(wms, cpp, type_id, transferObj);
+    return convert_from_new_type(ms, cpp, type_id, transferObj);
 }
 
 
 /*
  * Convert a C/C++ instance to a Python instance.
  */
-PyObject *sip_api_convert_from_type(PyObject *w_mod, void *cpp,
+PyObject *sip_api_convert_from_type(PyObject *mod, void *cpp,
         sipTypeID type_id, PyObject *transferObj)
 {
-    sipModuleState *wms = (sipModuleState *)PyModule_GetState(w_mod);
+    sipModuleState *ms = sip_get_module_state(mod);
 
-    return sip_convert_from_type(wms, cpp, type_id, transferObj);
+    return sip_convert_from_type(ms, cpp, type_id, transferObj);
 }
 
 
@@ -450,13 +450,13 @@ void *sip_api_convert_to_type(PyObject *w_mod, PyObject *pyObj,
  * sip_api_can_convert_to_type() has been successful.  Allow ownership to be
  * transferred and any type convertors to be disabled.
  */
-void *sip_api_convert_to_type_us(PyObject *w_mod, PyObject *pyObj,
+void *sip_api_convert_to_type_us(PyObject *mod, PyObject *pyObj,
         sipTypeID type_id, PyObject *transferObj, int flags, int *statep,
         void **user_statep, int *iserrp)
 {
-    sipModuleState *wms = (sipModuleState *)PyModule_GetState(w_mod);
+    sipModuleState *ms = sip_get_module_state(mod);
 
-    return convert_to_type_us(wms, pyObj, type_id, transferObj, flags, statep,
+    return convert_to_type_us(ms, pyObj, type_id, transferObj, flags, statep,
             user_statep, iserrp);
 }
 
@@ -464,11 +464,11 @@ void *sip_api_convert_to_type_us(PyObject *w_mod, PyObject *pyObj,
 /*
  * sip_api_force_convert_to_type_us() without user state support.
  */
-void *sip_api_force_convert_to_type(PyObject *w_mod, PyObject *pyObj,
+void *sip_api_force_convert_to_type(PyObject *mod, PyObject *pyObj,
         sipTypeID type_id, PyObject *transferObj, int flags, int *statep,
         int *iserrp)
 {
-    return sip_api_force_convert_to_type_us(w_mod, pyObj, type_id, transferObj,
+    return sip_api_force_convert_to_type_us(mod, pyObj, type_id, transferObj,
             flags, statep, NULL, iserrp);
 }
 
@@ -477,13 +477,13 @@ void *sip_api_force_convert_to_type(PyObject *w_mod, PyObject *pyObj,
  * Convert a Python object to a C/C++ pointer and raise an exception if it
  * can't be done.
  */
-void *sip_api_force_convert_to_type_us(PyObject *w_mod, PyObject *pyObj,
+void *sip_api_force_convert_to_type_us(PyObject *mod, PyObject *pyObj,
         sipTypeID type_id, PyObject *transferObj, int flags, int *statep,
         void **user_statep, int *iserrp)
 {
-    sipModuleState *wms = (sipModuleState *)PyModule_GetState(w_mod);
+    sipModuleState *ms = sip_get_module_state(mod);
 
-    return sip_force_convert_to_type_us(wms, pyObj, type_id, transferObj,
+    return sip_force_convert_to_type_us(ms, pyObj, type_id, transferObj,
             flags, statep, user_statep, iserrp);
 }
 
@@ -491,13 +491,12 @@ void *sip_api_force_convert_to_type_us(PyObject *w_mod, PyObject *pyObj,
 /*
  * Convert a C/C++ pointer to the object that wraps it.
  */
-PyObject *sip_api_get_pyobject(PyObject *w_mod, void *cppPtr,
-        sipTypeID type_id)
+PyObject *sip_api_get_pyobject(PyObject *mod, void *cppPtr, sipTypeID type_id)
 {
-    sipModuleState *wms = (sipModuleState *)PyModule_GetState(w_mod);
-    PyTypeObject *w_type = sip_get_py_type(wms, type_id);
+    sipModuleState *ms = sip_get_module_state(mod);
+    PyTypeObject *w_type = sip_get_py_type(ms, type_id);
 
-    return get_pyobject(wms->sip_module_state, cppPtr, w_type);
+    return get_pyobject(ms->sip_module_state, cppPtr, w_type);
 }
 
 
@@ -788,7 +787,7 @@ int sip_api_parse_pair(PyObject *w_mod, PyObject **parse_err_p,
 /*
  * Parse a result object based on a format string.
  */
-int sip_api_parse_result(PyObject *w_mod, sip_gilstate_t gil_state,
+int sip_api_parse_result(PyObject *mod, sip_gilstate_t gil_state,
         sipVirtErrorHandlerFunc error_handler, PyObject *w_inst,
         PyObject *method, PyObject *res, const char *fmt, ...)
 {
@@ -796,11 +795,11 @@ int sip_api_parse_result(PyObject *w_mod, sip_gilstate_t gil_state,
 
     if (res != NULL)
     {
-        sipModuleState *wms = (sipModuleState *)PyModule_GetState(w_mod);
+        sipModuleState *ms = sip_get_module_state(mod);
         va_list va;
 
         va_start(va, fmt);
-        rc = parse_result(wms, method, res, deref_mixin(w_inst), fmt, va);
+        rc = parse_result(ms, method, res, deref_mixin(w_inst), fmt, va);
         va_end(va);
 
         Py_DECREF(res);
@@ -824,22 +823,22 @@ int sip_api_parse_result(PyObject *w_mod, sip_gilstate_t gil_state,
 /*
  * sip_api_release_type_us() without user state support.
  */
-void sip_api_release_type(PyObject *w_mod, void *cpp, sipTypeID type_id,
+void sip_api_release_type(PyObject *mod, void *cpp, sipTypeID type_id,
         int state)
 {
-    sip_api_release_type_us(w_mod, cpp, type_id, state, NULL);
+    sip_api_release_type_us(mod, cpp, type_id, state, NULL);
 }
 
 
 /*
  * Release a possibly temporary C/C++ instance created by a type convertor.
  */
-void sip_api_release_type_us(PyObject *w_mod, void *cpp, sipTypeID type_id,
+void sip_api_release_type_us(PyObject *mod, void *cpp, sipTypeID type_id,
         int state, void *user_state)
 {
-    sipModuleState *wms = (sipModuleState *)PyModule_GetState(w_mod);
+    sipModuleState *ms = sip_get_module_state(mod);
 
-    release_type_us(wms, cpp, type_id, state, user_state);
+    release_type_us(ms, cpp, type_id, state, user_state);
 }
 
 
@@ -1899,7 +1898,7 @@ static int convert_subclass_pass(sipSipModuleState *sms,
     for (i = 0; i < PyList_GET_SIZE(sms->module_list); i++)
     {
         PyObject *mod = PyList_GET_ITEM(sms->module_list, i);
-        sipModuleState *ms = (sipModuleState *)PyModule_GetState(mod);
+        sipModuleState *ms = sip_get_module_state(mod);
         const sipSubClassConvertorDef *scc = ms->module_spec->convertors;
 
         if (scc == NULL)
@@ -1926,7 +1925,7 @@ static int convert_subclass_pass(sipSipModuleState *sms,
 
                 if ((w_mod = (*scc->scc_convertor)(&ptr, &sub_id)) != NULL)
                 {
-                    sipModuleState *wms = (sipModuleState *)PyModule_GetState(w_mod);
+                    sipModuleState *wms = sip_get_module_state(w_mod);
                     PyTypeObject *sub_type;
                     const sipTypeSpec *sub_td = sip_get_type_detail(wms,
                             sub_id, &sub_type, NULL);
@@ -2272,7 +2271,7 @@ static void handle_failed_type_conversion(sipParseFailure *pf, PyObject *arg)
 /*
  * Parse the arguments to a C/C++ function without any side effects.
  */
-static int parse_kwd_args(PyObject *w_mod, PyObject **parse_err_p,
+static int parse_kwd_args(PyObject *mod, PyObject **parse_err_p,
         PyObject *const *args, Py_ssize_t nr_pos_args, PyObject *kwd_names,
         const char **kwd_list, PyObject **unused_p, const char *fmt,
         va_list va_orig)
@@ -2300,14 +2299,14 @@ static int parse_kwd_args(PyObject *w_mod, PyObject **parse_err_p,
      * The first pass checks all the types and does conversions that are cheap
      * and have no side effects.
      */
-    sipModuleState *wms = (sipModuleState *)PyModule_GetState(w_mod);
+    sipModuleState *ms = sip_get_module_state(mod);
     int ok, self_in_args;
     PyObject *self;
     va_list va;
 
     va_copy(va, va_orig);
-    ok = parse_pass_1(wms, parse_err_p, &self, &self_in_args, args,
-            nr_pos_args, kwd_names, nr_kwd_names, kwd_list, unused_p, fmt, va);
+    ok = parse_pass_1(ms, parse_err_p, &self, &self_in_args, args, nr_pos_args,
+            kwd_names, nr_kwd_names, kwd_list, unused_p, fmt, va);
     va_end(va);
 
     if (ok)
@@ -2317,8 +2316,8 @@ static int parse_kwd_args(PyObject *w_mod, PyObject **parse_err_p,
          * have the right signature.
          */
         va_copy(va, va_orig);
-        ok = parse_pass_2(wms, self, self_in_args, args, nr_pos_args,
-                kwd_names, nr_kwd_names, kwd_list, fmt, va);
+        ok = parse_pass_2(ms, self, self_in_args, args, nr_pos_args, kwd_names,
+                nr_kwd_names, kwd_list, fmt, va);
         va_end(va);
 
         /* Remove any previous failed parses. */

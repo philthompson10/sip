@@ -13,6 +13,7 @@
 
 #include "sip_module.h"
 #include "sip_module_wrapper.h"
+#include "sip_wrapped_module.h"
 #include "sip_wrapper_type.h"
 
 
@@ -124,9 +125,9 @@ static PyObject *VariableDescr_descr_get(VariableDescr *self, PyObject *obj,
         PyObject *type)
 {
     sipWrapperType *wt = (sipWrapperType *)self->w_type;
-    sipModuleState *wms = (sipModuleState *)PyModule_GetState(wt->wt_d_mod);
+    sipModuleState *ms = sip_get_module_state(wt->wt_d_mod);
 
-    return sip_variable_get(wms, obj, self->wvd, self->w_type,
+    return sip_variable_get(ms, obj, self->wvd, self->w_type,
             self->mixin_name);
 }
 
@@ -138,9 +139,9 @@ static int VariableDescr_descr_set(VariableDescr *self, PyObject *obj,
         PyObject *value)
 {
     sipWrapperType *wt = (sipWrapperType *)self->w_type;
-    sipModuleState *wms = (sipModuleState *)PyModule_GetState(wt->wt_d_mod);
+    sipModuleState *ms = sip_get_module_state(wt->wt_d_mod);
 
-    return sip_variable_set(wms, obj, value, self->wvd, self->w_type,
+    return sip_variable_set(ms, obj, value, self->wvd, self->w_type,
             self->mixin_name);
 }
 

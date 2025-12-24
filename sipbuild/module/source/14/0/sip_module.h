@@ -125,6 +125,19 @@ int sip_sip_module_init(sipSipModuleState *sms, PyObject *mod);
 int sip_sip_module_traverse(sipSipModuleState *sms, visitproc visit,
         void *arg);
 
+
+/*
+ * Return the sip module's state.
+ */
+static inline sipSipModuleState *sip_get_sip_module_state(PyObject *smod)
+{
+    sipSipModuleState *sms = (sipSipModuleState *)PyModule_GetState(smod);
+
+    assert(sms != NULL);
+
+    return sms;
+}
+
 #ifdef __cplusplus
 }
 #endif
