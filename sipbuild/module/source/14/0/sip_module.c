@@ -329,7 +329,7 @@ int sip_sip_module_traverse(sipSipModuleState *sms, visitproc visit, void *arg)
 /*
  * Return the sip module from a defining (ie. wrapped) class.
  */
-// TODO Review the need for this.
+// TODO Review the need for this.  If still needed add an assert.
 PyObject *sip_get_sip_module(PyTypeObject *defining_class)
 {
     return ((sipModuleState *)PyType_GetModuleState(defining_class))->sip_module;
@@ -342,7 +342,7 @@ PyObject *sip_get_sip_module(PyTypeObject *defining_class)
  * This should never be the case for generated code but might happen if the
  * user passes in an incorrect value via the API.
  */
-sipSipModuleState *sip_get_sip_module_state(PyTypeObject *type)
+sipSipModuleState *sip_get_sip_module_state_from_type(PyTypeObject *type)
 {
 #if _SIP_MODULE_SHARED
     PyObject *mod = PyType_GetModuleByToken(type, module_slots);

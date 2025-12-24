@@ -112,7 +112,8 @@ static int WrapperType_init(sipWrapperType *self, PyObject *args,
      * Disallow this being used as a meta-type for anything other than a
      * wrapped class.
      */
-    sipSipModuleState *sms = sip_get_sip_module_state((PyTypeObject *)self);
+    sipSipModuleState *sms = sip_get_sip_module_state_from_type(
+            (PyTypeObject *)self);
     PyTypeObject *base = ((PyTypeObject *)self)->tp_base;
 
     if (sms == NULL || base == NULL || !PyObject_TypeCheck((PyObject *)base, sms->wrapper_type_type))

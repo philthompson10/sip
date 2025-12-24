@@ -142,8 +142,8 @@ static PyObject *VoidPtr_asarray(VoidPtr *v, PyObject *args, PyObject *kw)
         return NULL;
 
     return sip_array_from_bytes(
-            sip_get_sip_module_state(Py_TYPE((PyObject *)v)), v->voidptr, size,
-            v->rw);
+            sip_get_sip_module_state_from_type(Py_TYPE((PyObject *)v)),
+            v->voidptr, size, v->rw);
 }
 
 
@@ -302,7 +302,7 @@ static PyObject *VoidPtr_subscript(PyObject *self, PyObject *key)
         }
 
         return create_voidptr(
-                sip_get_sip_module_state(Py_TYPE(self)),
+                sip_get_sip_module_state_from_type(Py_TYPE(self)),
                 (char *)v->voidptr + start, slicelength, v->rw);
     }
 
@@ -672,7 +672,7 @@ static PyObject *create_voidptr(sipSipModuleState *sms, void *voidptr,
  */
 static int vp_convertor(PyObject *arg, struct vp_values *vp)
 {
-    sipSipModuleState *sms = sip_get_sip_module_state(Py_TYPE(arg));
+    sipSipModuleState *sms = sip_get_sip_module_state_from_type(Py_TYPE(arg));
     if (sms == NULL)
         PyErr_Clear();
 

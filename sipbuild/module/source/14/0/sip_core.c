@@ -424,7 +424,8 @@ static void sip_api_add_delayed_dtor(PyObject *w_inst)
     if ((ptr = sip_get_ptr_type_def(sw, &ctd)) == NULL)
         return;
 
-    sipSipModuleState *sms = sip_get_sip_module_state(Py_TYPE((PyObject *)sw));
+    sipSipModuleState *sms = sip_get_sip_module_state_from_type(
+            Py_TYPE((PyObject *)sw));
 
     /* Find the defining module. */
     Py_ssize_t i;

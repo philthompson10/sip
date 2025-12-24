@@ -118,7 +118,7 @@ struct _sipSipModuleState {
 
 
 PyObject *sip_get_sip_module(PyTypeObject *defining_class);
-sipSipModuleState *sip_get_sip_module_state(PyTypeObject *type);
+sipSipModuleState *sip_get_sip_module_state_from_type(PyTypeObject *type);
 int sip_sip_module_clear(sipSipModuleState *sms);
 void sip_sip_module_free(sipSipModuleState *sms);
 int sip_sip_module_init(sipSipModuleState *sms, PyObject *mod);

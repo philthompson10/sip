@@ -444,7 +444,8 @@ static PyTypeObject *get_enum_type(sipModuleState *wms, sipTypeID type_id)
  */
 static PyObject *missing(PyObject *cls, PyObject *value, int int_enum)
 {
-    sipSipModuleState *sms = sip_get_sip_module_state((PyTypeObject *)cls);
+    sipSipModuleState *sms = sip_get_sip_module_state_from_type(
+            (PyTypeObject *)cls);
     PyObject *sip_missing, *member, *value_str;
     int rc;
 
