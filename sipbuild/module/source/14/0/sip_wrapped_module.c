@@ -19,73 +19,61 @@
 
 /* Forward references. */
 static int add_license(PyObject *mod, const sipLicenseDef *lc);
+static void module_clear(sipModuleState *ms);
 
 
 /* The wrapped module's clear slot. */
-int sip_api_module_clear(void *ms)
+int sip_api_module_clear(PyObject *mod)
 {
-    sipModuleState *wms = (sipModuleState *)ms;
-
-    /* Clear the wrapped types. */
-    int i;
-
-    for (i = 0; i < wms->module_spec->nr_type_specs; i++)
-        Py_CLEAR(wms->py_types[i]);
-
-    Py_CLEAR(wms->extra_refs);
-    Py_CLEAR(wms->imported_modules);
-    Py_CLEAR(wms->sip_module);
-
-#if !_SIP_MODULE_SHARED
-    sip_sip_module_clear(wms->sip_module_state);
-#endif
+    module_clear(sip_get_module_state(mod));
 
     return 0;
 }
 
 
 /* The wrapped module's free slot. */
-void sip_api_module_free(void *ms)
+void sip_api_module_free(void *mod_ptr)
 {
-    sipModuleState *wms = (sipModuleState *)ms;
+    sipModuleState *ms = sip_get_module_state((PyObject *)mod_ptr);
 
     /* Handle any delayed dtors and free the list. */
-    if (wms->delayed_dtors_list != NULL)
+    if (ms->delayed_dtors_list != NULL)
     {
         /* Call the handler for the list. */
-        wms->module_spec->delayeddtors(wms->delayed_dtors_list);
+        ms->module_spec->delayeddtors(ms->delayed_dtors_list);
 
         /* Free the list. */
         do
         {
-            sipDelayedDtor *dd = wms->delayed_dtors_list;
+            sipDelayedDtor *dd = ms->delayed_dtors_list;
 
-            wms->delayed_dtors_list = dd->next;
+            ms->delayed_dtors_list = dd->next;
             sip_api_free(dd);
         }
-        while (wms->delayed_dtors_list != NULL);
+        while (ms->delayed_dtors_list != NULL);
     }
 
     /* Clear all the Python references. */
-    sip_api_module_clear(wms);
+    module_clear(ms);
 
     /* Free the additional memory related to Python types. */
-    if (wms->py_types != NULL)
-        PyMem_Free(wms->py_types);
+    if (ms->py_types != NULL)
+        PyMem_Free(ms->py_types);
 
 #if !_SIP_MODULE_SHARED
-    sip_sip_module_free(wms->sip_module_state);
-    sip_api_free(wms->sip_module_state);
+    sip_sip_module_free(ms->sip_module_state);
+    sip_api_free(ms->sip_module_state);
 #endif
 }
 
 
 /*
- * Initialise a wrapped module.
+ * The execute phase of a wrapped module initialisation.
  */
-// TODO There are lots of leaks if this fails in any way.
-int sip_api_module_init(PyObject *mod, const sipModuleSpec *m_spec,
-        PyObject *smod)
+// TODO There are lots of leaks if this fails in any way.  However the free
+// slot will be called so make sure things are in a state where it can tidy up
+// after any failure.
+int sip_api_module_exec(PyObject *mod, const sipModuleSpec *m_spec)
 {
     /* Check that we can support it. */
     if (m_spec->abi_major != SIP_ABI_MAJOR_VERSION || m_spec->abi_minor > SIP_ABI_MINOR_VERSION)
@@ -118,10 +106,12 @@ int sip_api_module_init(PyObject *mod, const sipModuleSpec *m_spec,
 
     sipModuleState *ms = sip_get_module_state(mod);
 
-    ms->sip_api = &sip_api;
 #if _SIP_MODULE_SHARED
-    ms->sip_module = smod;
-    ms->sip_module_state = sip_get_sip_module_state(smod);
+    ms->sip_module = PyImport_ImportModule(_SIP_MODULE_FQ_NAME);
+    if (ms->sip_module == NULL)
+        return -1;
+
+    ms->sip_module_state = sip_get_sip_module_state(ms->sip_module);
 #else
     ms->sip_module = Py_NewRef(mod);
     ms->sip_module_state = sip_api_malloc(sizeof (sipSipModuleState));
@@ -323,22 +313,22 @@ int sip_api_module_init(PyObject *mod, const sipModuleSpec *m_spec,
 
 
 /* The wrapped module's traverse slot. */
-int sip_api_module_traverse(void *ms, visitproc visit, void *arg)
+int sip_api_module_traverse(PyObject *mod, visitproc visit, void *arg)
 {
-    sipModuleState *wms = (sipModuleState *)ms;
+    sipModuleState *ms = sip_get_module_state(mod);
 
     /* Visit the types. */
     int i;
 
-    for (i = 0; i < wms->module_spec->nr_type_specs; i++)
-        Py_VISIT(wms->py_types[i]);
+    for (i = 0; i < ms->module_spec->nr_type_specs; i++)
+        Py_VISIT(ms->py_types[i]);
 
-    Py_VISIT(wms->extra_refs);
-    Py_VISIT(wms->imported_modules);
-    Py_VISIT(wms->sip_module);
+    Py_VISIT(ms->extra_refs);
+    Py_VISIT(ms->imported_modules);
+    Py_VISIT(ms->sip_module);
 
 #if !_SIP_MODULE_SHARED
-    sip_sip_module_traverse(wms->sip_module_state, visit, arg);
+    sip_sip_module_traverse(ms->sip_module_state, visit, arg);
 #endif
 
     return 0;
@@ -430,4 +420,23 @@ static int add_license(PyObject *w_mod, const sipLicenseDef *lc)
 deldict:
     Py_DECREF(ldict);
     return -1;
+}
+
+
+/* Clear a wrapped module's Python references. */
+static void module_clear(sipModuleState *ms)
+{
+    /* Clear the wrapped types. */
+    int i;
+
+    for (i = 0; i < ms->module_spec->nr_type_specs; i++)
+        Py_CLEAR(ms->py_types[i]);
+
+    Py_CLEAR(ms->extra_refs);
+    Py_CLEAR(ms->imported_modules);
+    Py_CLEAR(ms->sip_module);
+
+#if !_SIP_MODULE_SHARED
+    sip_sip_module_clear(ms->sip_module_state);
+#endif
 }

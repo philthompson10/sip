@@ -22,12 +22,6 @@ extern "C" {
 
 /* A wrapped module's state. */
 struct _sipModuleState {
-    /*
-     * The pointers to the functions that implement the sip module API.  This
-     * *must* be the first field in order to keep this structure hidden.
-     */
-    const sipAPISpec *sip_api;
-
     /* The list of delayed dtors. */
     sipDelayedDtor *delayed_dtors_list;
 
@@ -68,9 +62,9 @@ struct _sipModuleState {
 };
 
 
-int sip_api_module_clear(void *ms);
-void sip_api_module_free(void *ms);
-int sip_api_module_traverse(void *ms, visitproc visit, void *arg);
+int sip_api_module_clear(PyObject *mod);
+void sip_api_module_free(void *mod_ptr);
+int sip_api_module_traverse(PyObject *mod, visitproc visit, void *arg);
 
 
 /*

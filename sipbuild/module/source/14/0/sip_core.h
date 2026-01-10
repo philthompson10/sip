@@ -65,9 +65,9 @@ typedef struct _sipSymbol {
 
 
 /*
- * The function pointers that implement the API.
+ * The SIP ABI implementation.
  */
-extern const sipAPISpec sip_api;
+extern const sipABISpec sip_abi;
 
 
 /*

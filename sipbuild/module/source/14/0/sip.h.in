@@ -139,8 +139,8 @@ typedef PyGILState_STATE sip_gilstate_t;
 /*
  * Forward declarations of structures.
  */
-struct _sipAPISpec;
-typedef struct _sipAPISpec sipAPISpec;
+struct _sipABISpec;
+typedef struct _sipABISpec sipABISpec;
 
 struct _sipBufferDef;
 typedef struct _sipBufferDef sipBufferDef;
@@ -174,31 +174,8 @@ typedef struct _sipTypeSpec sipTypeSpec;
 
 
 /* The bootstrap API that supports standalone and embedded sip modules. */
-typedef int (*sipModuleInitFunc)(PyObject *mod, const sipModuleSpec *m_spec,
-        PyObject *smod);
-
-/* New fields may be appended, existing fields must remain unchanged. */
-typedef struct {
-    sipModuleInitFunc init;     /* The wrapped module initialiser. */
-    size_t state_size;          /* The sizeof the wrapped module state */
-} sipModuleBootstrap;
-
-typedef const sipModuleBootstrap *(*sipBootstrapFunc)(int abi_major);
-int sip_api_module_init(PyObject *mod, const sipModuleSpec *m_spec,
-        PyObject *smod);
-
-
-/* Return a pointer to the SIP API from a wrapped module. */
-#define sipGetAPI(mod) (*(const sipAPISpec *const *)PyModule_GetState(mod))
-
-/*
- * Return a pointer to the defining wrapped module of a wrapper.  This has to
- * be a macro because we won't have access to the SIP API yet.  (That's
- * probably why we want the module in the first place.)  We could simply use
- * the reference held in the wrapper type but that would mean the wrapper type
- * structure is no longer opaque.
- */
-#define sipGetModule(sw, token)   PyType_GetModuleByToken(Py_TYPE(sw), (token))
+typedef const sipABISpec *(*sipBootstrapFunc)(int abi_major);
+int sip_api_module_exec(PyObject *mod, const sipModuleSpec *m_spec);
 
 
 /*
@@ -908,13 +885,15 @@ typedef struct _sipLicenseDef {
 
 
 /*
- * The immutable API exported by the SIP module, ie. pointers to all the data
+ * The immutable ABI exported by the SIP module, ie. pointers to all the data
  * and functions that can be used by generated code.  Note that the offset of
  * each field doesn't change if the module configuration options do change.
  */
-struct _sipAPISpec {
+struct _sipABISpec {
+    size_t module_state_size;   /* The sizeof the wrapped module state */
+
     /*
-     * The following are part of the public API.
+     * The following are part of the public ABI.
      */
     void (*api_bad_catcher_result)(PyObject *method);
     void (*api_bad_length_for_slice)(Py_ssize_t seqlen, Py_ssize_t slicelen);
@@ -1104,9 +1083,10 @@ struct _sipAPISpec {
     int (*api_is_derived_class)(PyObject *winst);
     sipExceptionHandler (*api_next_exception_handler)(PyObject *mod,
             Py_ssize_t *statep);
-    int (*api_module_clear)(void *ms);
-    void (*api_module_free)(void *ms);
-    int (*api_module_traverse)(void *ms, visitproc visit, void *arg);
+    int (*api_module_clear)(PyObject *mod);
+    int (*api_module_exec)(PyObject *mod, const sipModuleSpec *m_spec);
+    void (*api_module_free)(void *mod_ptr);
+    int (*api_module_traverse)(PyObject *mod, visitproc visit, void *arg);
 };
 
 

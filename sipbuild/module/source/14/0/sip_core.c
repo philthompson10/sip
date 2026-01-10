@@ -122,11 +122,13 @@ static int sip_api_keep_reference(PyObject *w_mod, PyObject *w_inst, int key,
 
 
 /*
- * The immutable data structure that represents the SIP API.
+ * The immutable data structure that implements the SIP ABI.
  */
-const sipAPISpec sip_api = {
+const sipABISpec sip_abi = {
+    sizeof (sipModuleState),
+
     /*
-     * The following are part of the public API.
+     * The following are part of the public ABI.
      */
     sip_api_bad_catcher_result,
     sip_api_bad_length_for_slice,
@@ -221,7 +223,7 @@ const sipAPISpec sip_api = {
     sip_api_py_type_dict_ref,
     sip_api_get_frame,
     /*
-     * The following are not part of the public API.
+     * The following are not part of the public ABI.
      */
     sip_api_parse_args,
     sip_api_parse_kwd_args,
@@ -263,6 +265,7 @@ const sipAPISpec sip_api = {
     sip_api_is_derived_class,
     sip_api_next_exception_handler,
     sip_api_module_clear,
+    sip_api_module_exec,
     sip_api_module_free,
     sip_api_module_traverse,
 };

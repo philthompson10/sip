@@ -45,8 +45,26 @@ class v14Backend(AbstractBackend):
 
         nr_static_variables, nr_types = static_variables_state
 
+        # Generate the pointer to the immutable SIP ABI structure that is
+        # obtained from the sip module.  It is the only static variable used
+        # and is set when the wrapped module is first imported into an
+        # interpreter.  If the module is imported into another interpreter then
+        # it will be overwritten but always by the same value.  It would be
+        # possible to keep this pointer in the module state but it could only
+        # be obtained by first acquiring the GIL and there are calls in the ABI
+        # that don't otherwise need the GIL (and so would be less performant
+        # than older ABIs).
         sf.write(
-f'''/* The wrapped module's immutable specification. */
+f'''
+/* The immutable SIP ABI implementation. */
+const sipABISpec *sipABI_{module_name};
+
+
+''')
+
+        sf.write(
+
+f'''/* The module's immutable specification. */
 static const sipModuleSpec sipModule_{module_name} = {{
     .abi_major = {target_abi[0]},
     .abi_minor = {target_abi[1]},
@@ -107,9 +125,6 @@ static const sipModuleSpec sipModule_{module_name} = {{
         g_module_docstring(sf, module)
         g_pyqt_helper_defns(sf, spec)
 
-        if spec.sip_module:
-            self._g_module_bootstrap(sf)
-
         self._g_module_clear(sf)
         self._g_module_exec(sf)
         self._g_module_free(sf)
@@ -120,15 +135,9 @@ static const sipModuleSpec sipModule_{module_name} = {{
         self.g_module_init_start(sf)
 
         if spec.sip_module:
-            sf.write(
-f'''    const sipModuleBootstrap *sip_bootstrap = module_bootstrap(NULL);
-    if (sip_bootstrap == NULL)
-        return NULL;
-
-    /* Get the wrapped module state size from the sip module. */
-    sipModuleSlots_{module_name}[1].value = (void *)sip_bootstrap->state_size;
-
-''')
+            self._g_module_bootstrap(sf)
+        else:
+            sf.write(f'    sipABI_{module_name} = &sip_abi;\n\n')
 
         sf.write(f'    return sipModuleSlots_{module_name};\n}}\n')
 
@@ -137,11 +146,6 @@ f'''    const sipModuleBootstrap *sip_bootstrap = module_bootstrap(NULL);
 
         # TODO
         pass
-
-    def g_function_support_vars(self, sf):
-        """ Generate the variables needed by a function. """
-
-        sf.write('    const sipAPISpec *sipAPI = sipGetAPI(sipModule);\n')
 
     def g_init_mixin_impl_body(self, sf, klass):
         """ Generate the body of the implementation of a mixin initialisation
@@ -164,7 +168,6 @@ f'''    const sipModuleBootstrap *sip_bootstrap = module_bootstrap(NULL);
         """ Generate the variables needed by a method. """
 
         sf.write('    PyObject *sipModule = PyType_GetModule(sipDefType);\n')
-        self.g_function_support_vars(sf)
 
     # Map GILUse values.
     _MAP_GIL_USED = {
@@ -195,14 +198,19 @@ f'''    const sipModuleBootstrap *sip_bootstrap = module_bootstrap(NULL);
             state_size = '0'
         else:
             state_size = '(void *)sizeof (sipModuleState)'
-            sf.write('\n\n#include "sip_wrapped_module.h"\n')
+            sf.write(
+'''
+
+#include "sip_core.h"
+#include "sip_wrapped_module.h"
+''')
 
         # Note that the sip module implementation expects Py_mod_name and
         # Py_mod_state_size to be the first and second slots respectively.
         sf.write(
 f'''
 
-/* The wrapped module's immutable slot definitions. */
+/* The module's immutable slot definitions. */
 PyABIInfo_VAR(sip_abi_info);
 
 PyModuleDef_Slot sipModuleSlots_{module.py_name}[] = {{
@@ -268,7 +276,7 @@ PyModuleDef_Slot sipModuleSlots_{module.py_name}[] = {{
         sf.write(
 f'''
 
-/* The Python module initialisation function. */
+/* The module's export function. */
 #if defined(SIP_STATIC_MODULE)
 {extern_c}PyObject *PyModExport_{module_name}({arg_type})
 #else
@@ -317,29 +325,40 @@ static PyMethodDef sipMethods_{scope_name}[] = {{
         """ Generate the SIP API as seen by generated code. """
 
         # TODO These have been reviewed as part of the public v14 API.
+        # TODO Make sure sipGetModule() is documented as part of the public
+        # API (if appropriate).
         sf.write(
 f'''
 
-extern PyModuleDef_Slot sipModuleSlots_{module_name}[];
+/* The immutable SIP ABI. */
+extern const sipABISpec *sipABI_{module_name};
 
-#define sipBuildResult              sipAPI->api_build_result
-#define sipFindTypeID               sipAPI->api_find_type_id
-#define sipGetAddress               sipAPI->api_get_address
-#define sipIsOwnedByPython          sipAPI->api_is_owned_by_python
-#define sipGetTypeUserData          sipAPI->api_get_type_user_data
-#define sipSetTypeUserData          sipAPI->api_set_type_user_data
+extern PyModuleDef_Slot sipModuleSlots_{module_name}[];
+#define sipGetModule(self)          PyType_GetModuleByToken(Py_TYPE(self), sipModuleSlots_{module_name})
+
+#define sipModuleClear              sipABI_{module_name}->api_module_clear
+#define sipModuleExec               sipABI_{module_name}->api_module_exec
+#define sipModuleFree               sipABI_{module_name}->api_module_free
+#define sipModuleTraverse           sipABI_{module_name}->api_module_traverse
+
+#define sipBuildResult              sipABI_{module_name}->api_build_result
+#define sipFindTypeID               sipABI_{module_name}->api_find_type_id
+#define sipGetAddress               sipABI_{module_name}->api_get_address
+#define sipIsOwnedByPython          sipABI_{module_name}->api_is_owned_by_python
+#define sipGetTypeUserData          sipABI_{module_name}->api_get_type_user_data
+#define sipSetTypeUserData          sipABI_{module_name}->api_set_type_user_data
 ''')
 
         # TODO These have been reviewed as part of the private v14 API.
         sf.write(
-f'''#define sipInitMixin                sipAPI->api_init_mixin
-#define sipNoFunction               sipAPI->api_no_function
-#define sipNoMethod                 sipAPI->api_no_method
-#define sipParseArgs                sipAPI->api_parse_args
-#define sipParseKwdArgs             sipAPI->api_parse_kwd_args
-#define sipParseVectorcallArgs      sipAPI->api_parse_vectorcall_args
-#define sipParseVectorcallKwdArgs   sipAPI->api_parse_vectorcall_kwd_args
-#define sipParsePair                sipAPI->api_parse_pair
+f'''#define sipInitMixin                sipABI_{module_name}->api_init_mixin
+#define sipNoFunction               sipABI_{module_name}->api_no_function
+#define sipNoMethod                 sipABI_{module_name}->api_no_method
+#define sipParseArgs                sipABI_{module_name}->api_parse_args
+#define sipParseKwdArgs             sipABI_{module_name}->api_parse_kwd_args
+#define sipParseVectorcallArgs      sipABI_{module_name}->api_parse_vectorcall_args
+#define sipParseVectorcallKwdArgs   sipABI_{module_name}->api_parse_vectorcall_kwd_args
+#define sipParsePair                sipABI_{module_name}->api_parse_pair
 ''')
 
         # TODO These have yet to be reviewed.
@@ -475,11 +494,7 @@ f'''#define sipIsEnumFlag               sipAPI->api_is_enum_flag
     def g_slot_support_vars(self, sf):
         """ Generate the variables needed by a slot function. """
 
-        sf.write(
-f'''    PyObject *sipModule = sipGetModule(sipSelf, sipModuleSlots_{self.spec.module.py_name});
-    const sipAPISpec *sipAPI = sipGetAPI(sipModule);
-
-''')
+        sf.write('    PyObject *sipModule = sipGetModule(sipSelf);\n')
 
     def g_static_variables_table(self, sf, scope=None):
         """ Generate the tables of static variables and types for a scope and
@@ -852,17 +867,13 @@ f'''static void *init_type_{klass_name}(PyObject *sipSelf, PyObject *const *sipA
         return SipModuleConfiguration.PyEnums in self.spec.sip_module_configuration
 
     def _g_module_bootstrap(self, sf):
-        """ Generate the module bootstrap helper. """
+        """ Generate the module bootstrap code. """
 
         spec = self.spec
+        module_name = spec.module.py_name
 
         sf.write(
-f'''
-
-/* Return the bootstrap information from the sip module. */
-static const sipModuleBootstrap *module_bootstrap(PyObject **sip_module_p)
-{{
-    PyObject *sip_module = PyImport_ImportModule("{spec.sip_module}");
+f'''    PyObject *sip_module = PyImport_ImportModule("{spec.sip_module}");
     if (sip_module == NULL)
         return NULL;
 
@@ -882,34 +893,30 @@ static const sipModuleBootstrap *module_bootstrap(PyObject **sip_module_p)
 
     /*
      * The first stage of the bootstrap is to get a function that will be
-     * called with the ABI version as its only argument.
+     * called with the ABI version as its only argument and will return the
+     * corresponding SIP ABI implementation.
      */
     sipBootstrapFunc bootstrap_func = (sipBootstrapFunc)PyCapsule_GetPointer(
             capsule, "_C_BOOTSTRAP");
 
     Py_DECREF(capsule);
+    Py_DECREF(sip_module);
 
     if (bootstrap_func == NULL)
-    {{
-        Py_DECREF(sip_module);
         return NULL;
-    }}
 
     /*
      * The second stage of the bootstrap is to call the function from the first
-     * stage.  The value returned is something we understand or NULL if the sip
-     * module does not support the ABI.
+     * stage to get the SIP ABI implementation (or NULL if it is not
+     * supported).
      */
-    const sipModuleBootstrap *bootstrap = bootstrap_func({spec.target_abi[0]});
+    sipABI_{module_name} = bootstrap_func({spec.target_abi[0]});
+    if (sipABI_{module_name} == NULL)
+        return NULL;
 
-    /* Return a reference to the sip module if required. */
-    if (sip_module_p != NULL)
-        *sip_module_p = sip_module;
-    else
-        Py_DECREF(sip_module);
+    /* Set the wrapped module state size from the sip module. */
+    sipModuleSlots_{module_name}[1].value = (void *)sipABI_{module_name}->module_state_size;
 
-    return bootstrap;
-}}
 ''')
 
     @staticmethod
@@ -919,12 +926,10 @@ static const sipModuleBootstrap *module_bootstrap(PyObject **sip_module_p)
         sf.write(
 '''
 
-/* The wrapped module's clear slot. */
-static int module_clear(PyObject *wmod)
+/* The module's clear slot. */
+static int module_clear(PyObject *mod)
 {
-    void *ms = PyModule_GetState(wmod);
-
-    return (*(const sipAPISpec *const *)ms)->api_module_clear(ms);
+    return sipModuleClear(mod);
 }
 ''')
 
@@ -938,7 +943,7 @@ static int module_clear(PyObject *wmod)
         sf.write(
 '''
 
-/* The wrapped module's exec function. */
+/* The module's exec function. */
 static int module_exec(PyObject *sipModule)
 {
 ''')
@@ -946,25 +951,16 @@ static int module_exec(PyObject *sipModule)
         sf.write_code(module.preinitialisation_code)
 
         if spec.sip_module:
-            sip_init_func_ref = 'sip_bootstrap->init'
-            sip_module_ref = 'sip_sip_module'
-            sf.write(
-f'''    PyObject *{sip_module_ref};
-    const sipModuleBootstrap *sip_bootstrap = module_bootstrap(&{sip_module_ref});
-    if (sip_bootstrap == NULL)
-        return -1;
-
-''')
+            sip_init_func_ref = 'sipModuleExec'
         else:
-            sip_init_func_ref = 'sip_api_module_init';
-            sip_module_ref = 'SIP_NULLPTR';
+            sip_init_func_ref = 'sip_api_module_exec';
 
         sf.write_code(module.initialisation_code)
 
         g_pyqt_helper_init(sf, spec)
 
         sf.write(
-f'''    if ({sip_init_func_ref}(sipModule, &sipModule_{module_name}, {sip_module_ref}) < 0)
+f'''    if ({sip_init_func_ref}(sipModule, &sipModule_{module_name}) < 0)
         return -1;
 ''')
 
@@ -980,18 +976,13 @@ f'''    if ({sip_init_func_ref}(sipModule, &sipModule_{module_name}, {sip_module
     def _g_module_free(self, sf):
         """ Generate the module free slot. """
 
-        # Note that this will be called if module_exec() fails in any way, so
-        # we can't assume the sip API is available.
         sf.write(
 '''
 
-/* The wrapped module's free slot. */
-static void module_free(void *wmod_ptr)
+/* The module's free slot. */
+static void module_free(void *mod_ptr)
 {
-    void *ms = PyModule_GetState((PyObject *)wmod_ptr);
-
-    if (ms != NULL)
-        (*(const sipAPISpec *const *)ms)->api_module_free(ms);
+    sipModuleFree(mod_ptr);
 }
 ''')
 
@@ -1030,13 +1021,10 @@ static void module_free(void *wmod_ptr)
         sf.write(
 '''
 
-/* The wrapped module's traverse slot. */
-static int module_traverse(PyObject *wmod, visitproc visit, void *arg)
+/* The module's traverse slot. */
+static int module_traverse(PyObject *mod, visitproc visit, void *arg)
 {
-    void *ms = PyModule_GetState(wmod);
-
-    return (*(const sipAPISpec *const *)ms)->api_module_traverse(ms, visit,
-            arg);
+    return sipModuleTraverse(mod, visit, arg);
 }
 ''')
 

@@ -31,7 +31,7 @@
 #if _SIP_MODULE_SHARED
 
 /* Forward declarations specific to a standalone sip module. */
-static const sipModuleBootstrap *bootstrap(int abi_major);
+static const sipABISpec *bootstrap(int abi_major);
 static int module_clear(PyObject *module);
 static int module_exec(PyObject *module);
 static void module_free(void *module_ptr);
@@ -126,15 +126,11 @@ static int module_traverse(PyObject *smod, visitproc visit, void *arg)
 /*
  * The first stage bootstrap function.
  */
-static const sipModuleBootstrap *bootstrap(int abi_major)
+static const sipABISpec *bootstrap(int abi_major)
 {
-    static sipModuleBootstrap bootstrap_def = {
-        .init = sip_api_module_init,
-        .state_size = sizeof (sipModuleState),
-    };
-
     // TODO Verify abi_major.
-    return &bootstrap_def;
+
+    return &sip_abi;
 }
 #endif
 
