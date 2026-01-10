@@ -2700,9 +2700,7 @@ def _static_function(backend, sf, bindings, member, scope=None):
             break
 
         if need_intro:
-            if scope is None:
-                backend.g_function_support_vars(sf)
-            else:
+            if scope is not None:
                 backend.g_method_support_vars(sf)
 
             sf.write('    PyObject *sipParseErr = SIP_NULLPTR;\n')
@@ -3815,8 +3813,6 @@ f'''    return new {scope_s}(reinterpret_cast<const {scope_s} *>(sipSrc)[sipSrcI
             sf.write(f'extern "C" {{static void dealloc_{as_word}({wrapped_type_type});}}\n')
 
         sf.write(f'static void dealloc_{as_word}({wrapped_type_type}sipSelf)\n{{\n')
-
-        backend.g_slot_support_vars(sf)
 
         if bindings.tracing:
             sf.write(f'    sipTrace(SIP_TRACE_DEALLOCS, "dealloc_{as_word}()\\n");\n\n')
