@@ -874,7 +874,7 @@ void sip_release(void *addr, const sipTypeSpec *td, int state,
 /*
  * Implement the conversion of a C/C++ instance to a Python instance.
  */
-PyObject *sip_convert_from_type(sipModuleState *wms, void *cpp,
+PyObject *sip_convert_from_type(sipModuleState *ms, void *cpp,
         sipTypeID type_id, PyObject *transferObj)
 {
     /* Handle None. */
@@ -883,10 +883,10 @@ PyObject *sip_convert_from_type(sipModuleState *wms, void *cpp,
 
     assert(sipTypeIDIsClass(type_id) || sipTypeIDIsMapped(type_id));
 
-    sipSipModuleState *sms = wms->sip_module_state;
+    sipSipModuleState *sms = ms->sip_module_state;
     PyTypeObject *w_type;
 
-    const sipTypeSpec *td = sip_get_type_detail(wms, type_id, &w_type, NULL);
+    const sipTypeSpec *td = sip_get_type_detail(ms, type_id, &w_type, NULL);
     if (td == NULL)
         return NULL;
 

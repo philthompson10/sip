@@ -43,6 +43,7 @@ static Py_ssize_t sip_api_convert_from_sequence_index(Py_ssize_t idx,
         Py_ssize_t len);
 static int sip_api_convert_to_enum(PyObject *w_mod, PyObject *obj,
         sipTypeID type_id);
+static PyTypeObject *sip_api_get_py_type(PyObject *mod, sipTypeID type_id);
 static int sip_api_get_state(PyObject *transferObj);
 static void sip_api_trace(PyObject *w_mod, unsigned mask, const char *fmt,
         ...);
@@ -149,6 +150,7 @@ const sipABISpec sip_abi = {
     sip_api_get_state,
     sip_api_free,
     sip_api_get_pyobject,
+    sip_api_get_py_type,
     sip_api_malloc,
     sip_api_trace,
     sip_api_transfer_back,
@@ -626,42 +628,40 @@ void sip_instance_destroyed(sipModuleState *wms, PyObject **self_p)
     SIP_BLOCK_THREADS
 
     PyObject *self = *self_p;
+    assert(self != NULL);
 
-    if (self != NULL)
+    PyObject *xtype, *xvalue, *xtb;
+
+    /* We may be tidying up after an exception so preserve it. */
+    PyErr_Fetch(&xtype, &xvalue, &xtb);
+    call_py_dtor(wms, self);
+    PyErr_Restore(xtype, xvalue, xtb);
+
+    sip_om_remove_object(wms, self);
+
+    /*
+     * If C/C++ has a reference (and therefore no parent) then remove it.
+     * Otherwise remove the object from any parent.
+     */
+    sipSimpleWrapper *sw = (sipSimpleWrapper *)self;
+
+    if (sipCppHasRef(sw))
     {
-        PyObject *xtype, *xvalue, *xtb;
-
-        /* We may be tidying up after an exception so preserve it. */
-        PyErr_Fetch(&xtype, &xvalue, &xtb);
-        call_py_dtor(wms, self);
-        PyErr_Restore(xtype, xvalue, xtb);
-
-        sip_om_remove_object(wms, self);
-
-        /*
-         * If C/C++ has a reference (and therefore no parent) then remove it.
-         * Otherwise remove the object from any parent.
-         */
-        sipSimpleWrapper *sw = (sipSimpleWrapper *)self;
-
-        if (sipCppHasRef(sw))
-        {
-            sipResetCppHasRef(sw);
-            Py_DECREF(self);
-        }
-        else if (((sipWrapperType *)Py_TYPE(self))->wt_is_wrapper)
-        {
-            sip_remove_from_parent(self);
-        }
-
-        /*
-         * Normally this is done in the generated dealloc function.  However
-         * this is only called if the pointer/access function has not been
-         * reset (which it has).  It acts as a guard to prevent any further
-         * invocations of reimplemented virtuals.
-         */
-        *self_p = NULL;
+        sipResetCppHasRef(sw);
+        Py_DECREF(self);
     }
+    else if (((sipWrapperType *)Py_TYPE(self))->wt_is_wrapper)
+    {
+        sip_remove_from_parent(self);
+    }
+
+    /*
+     * Normally this is done in the generated dealloc function.  However this
+     * is only called if the pointer/access function has not been reset (which
+     * it has).  It acts as a guard to prevent any further invocations of
+     * reimplemented virtuals.
+     */
+    *self_p = NULL;
 
     SIP_UNBLOCK_THREADS
 }
@@ -2119,11 +2119,22 @@ PyTypeObject *sip_get_local_py_type(sipModuleState *wms, sipTypeNr type_nr)
  * Return a borrowed reference to the Python type object for a type ID,
  * creating it if necessary.
  */
-PyTypeObject *sip_get_py_type(sipModuleState *wms, sipTypeID type_id)
+static PyTypeObject *sip_api_get_py_type(PyObject *mod, sipTypeID type_id)
+{
+    sipModuleState *ms = sip_get_module_state(mod);
+
+    return sip_get_py_type(ms, type_id);
+}
+
+
+/*
+ * Implement the the return of a borrowed reference to the Python type object.
+ */
+PyTypeObject *sip_get_py_type(sipModuleState *ms, sipTypeID type_id)
 {
     PyTypeObject *py_type;
 
-    if (sip_get_type_detail(wms, type_id, &py_type, NULL) == NULL)
+    if (sip_get_type_detail(ms, type_id, &py_type, NULL) == NULL)
         return NULL;
 
     return py_type;
@@ -2598,22 +2609,24 @@ PyObject *sip_wrap_instance(sipSipModuleState *sms, void *cpp,
  */
 // TODO Review what should be passed to event handlers, either a wrapped module
 // and a relative type ID or an absolute type ID.
-void *sip_get_final_address(sipSipModuleState *sms, const sipTypeSpec *td,
+void *sip_get_final_address(sipSipModuleState *sms, const sipTypeSpec *ts,
         void *cpp)
 {
+#if 0
     sipEventHandler *eh;
 
     /* Invoke any event handlers. */
     for (eh = sms->event_handlers[sipEventWrappingInstance]; eh != NULL; eh = eh->next)
     {
-        if (eh->td == td)
+        if (eh->td == ts)
         {
             sipWrappingInstanceEventHandler handler = (sipWrappingInstanceEventHandler)eh->handler;
 
-            if ((cpp = handler(td, cpp)) == NULL)
+            if ((cpp = handler(ts, cpp)) == NULL)
                 return NULL;
         }
     }
+#endif
 
     return cpp;
 }

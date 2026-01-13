@@ -15,6 +15,7 @@
 #include "sip.h"
 #include "sip_decls.h"
 #include "sip_object_map.h"
+#include "sip_wrapped_module.h"
 
 
 #ifdef __cplusplus
@@ -131,11 +132,18 @@ int sip_sip_module_traverse(sipSipModuleState *sms, visitproc visit,
  */
 static inline sipSipModuleState *sip_get_sip_module_state(PyObject *smod)
 {
+#if _SIP_MODULE_SHARED
     sipSipModuleState *sms = (sipSipModuleState *)PyModule_GetState(smod);
 
     assert(sms != NULL);
 
     return sms;
+#else
+    /* The module is actually the wrapped module. */
+    sipModuleState *ms = sip_get_module_state(smod);
+
+    return ms->sip_module_state;
+#endif
 }
 
 #ifdef __cplusplus

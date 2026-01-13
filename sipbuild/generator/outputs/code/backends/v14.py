@@ -25,6 +25,14 @@ from .abstract_backend import AbstractBackend
 class v14Backend(AbstractBackend):
     """ The backend code generator for v14 of the ABI. """
 
+    def g_cpp_dtor(self, sf):
+        """ Generate the body of the dtor of a generated shadow class. """
+
+        sf.write(
+'''    if (sipPySelf)
+        sipInstanceDestroyed(sipGetModule(sipPySelf), &sipPySelf);
+''')
+
     def g_create_wrapped_module(self, sf, bindings,
         # TODO These will probably be generated here at some point.
         has_sip_strings,
@@ -146,6 +154,37 @@ static const sipModuleSpec sipModule_{module_name} = {{
 
         # TODO
         pass
+
+    def g_get_py_reimpl(self, sf, klass, overload, virt_nr):
+        """ Generate the code to get the Python reimplementation of a C++
+        virtual.
+        """
+
+        if overload.is_const:
+            const_cast_char = 'const_cast<char *>('
+            const_cast_po = 'const_cast<PyObject **>('
+            const_cast_tail = ')'
+        else:
+            const_cast_char = ''
+            const_cast_po = ''
+            const_cast_tail = ''
+
+        klass_py_name_ref = self.cached_name_ref(klass.py_name) if overload.is_abstract else 'SIP_NULLPTR'
+        member_py_name_ref = self.cached_name_ref(overload.common.py_name)
+
+        sf.write(
+f'''    PyObject *sipModule;
+
+    if (sipPySelf)
+    {{
+        sipModule = sipGetModule(sipPySelf);
+        sipMeth = sipIsPyMethod(sipModule, &sipGILState, {const_cast_char}&sipPyMethods[{virt_nr}]{const_cast_tail}, {const_cast_po}&sipPySelf{const_cast_tail}, {klass_py_name_ref}, {member_py_name_ref});
+    }}
+    else
+    {{
+        sipModule = sipMeth = SIP_NULLPTR;
+    }}
+''')
 
     def g_init_mixin_impl_body(self, sf, klass):
         """ Generate the body of the implementation of a mixin initialisation
@@ -342,16 +381,24 @@ extern PyModuleDef_Slot sipModuleSlots_{module_name}[];
 #define sipModuleTraverse           sipABI_{module_name}->api_module_traverse
 
 #define sipBuildResult              sipABI_{module_name}->api_build_result
+#define sipCallMethod               sipABI_{module_name}->api_call_method
+#define sipCallProcedureMethod      sipABI_{module_name}->api_call_procedure_method
+#define sipConvertFromType          sipABI_{module_name}->api_convert_from_type
 #define sipFindTypeID               sipABI_{module_name}->api_find_type_id
 #define sipGetAddress               sipABI_{module_name}->api_get_address
-#define sipIsOwnedByPython          sipABI_{module_name}->api_is_owned_by_python
+#define sipGetPyType                sipABI_{module_name}->api_get_py_type
 #define sipGetTypeUserData          sipABI_{module_name}->api_get_type_user_data
+#define sipIsOwnedByPython          sipABI_{module_name}->api_is_owned_by_python
+#define sipParseResult              sipABI_{module_name}->api_parse_result
 #define sipSetTypeUserData          sipABI_{module_name}->api_set_type_user_data
 ''')
 
         # TODO These have been reviewed as part of the private v14 API.
         sf.write(
 f'''#define sipInitMixin                sipABI_{module_name}->api_init_mixin
+#define sipInstanceDestroyed        sipABI_{module_name}->api_instance_destroyed
+#define sipIsDerivedClass           sipABI_{module_name}->api_is_derived_class
+#define sipIsPyMethod               sipABI_{module_name}->api_is_py_method
 #define sipNoFunction               sipABI_{module_name}->api_no_function
 #define sipNoMethod                 sipABI_{module_name}->api_no_method
 #define sipParseArgs                sipABI_{module_name}->api_parse_args
@@ -365,13 +412,7 @@ f'''#define sipInitMixin                sipABI_{module_name}->api_init_mixin
         sf.write(
 f'''#define sipMalloc                   sipAPI->api_malloc
 #define sipFree                     sipAPI->api_free
-#define sipCallMethod               sipAPI->api_call_method
-#define sipCallProcedureMethod      sipAPI->api_call_procedure_method
 #define sipCallErrorHandler         sipAPI->api_call_error_handler
-#define sipParseResultEx            sipAPI->api_parse_result_ex
-#define sipParseResult              sipAPI->api_parse_result
-#define sipInstanceDestroyed        sipAPI->api_instance_destroyed
-#define sipInstanceDestroyedEx      sipAPI->api_instance_destroyed_ex
 #define sipConvertFromSequenceIndex sipAPI->api_convert_from_sequence_index
 #define sipConvertFromSliceObject   sipAPI->api_convert_from_slice_object
 #define sipConvertFromVoidPtr       sipAPI->api_convert_from_void_ptr
@@ -406,7 +447,6 @@ f'''#define sipMalloc                   sipAPI->api_malloc
 #define sipConvertToEnum            sipAPI->api_convert_to_enum
 #define sipConvertToBool            sipAPI->api_convert_to_bool
 #define sipReleaseType              sipAPI->api_release_type
-#define sipConvertFromType          sipAPI->api_convert_from_type
 #define sipConvertFromNewType       sipAPI->api_convert_from_new_type
 #define sipConvertFromNewPyType     sipAPI->api_convert_from_new_pytype
 #define sipConvertFromEnum          sipAPI->api_convert_from_enum
@@ -454,7 +494,6 @@ f'''#define sipMalloc                   sipAPI->api_malloc
 #define sipUnicodeData              sipAPI->api_unicode_data
 #define sipGetBufferInfo            sipAPI->api_get_buffer_info
 #define sipReleaseBufferInfo        sipAPI->api_release_buffer_info
-#define sipIsDerivedClass           sipAPI->api_is_derived_class
 #define sipGetUserObject            sipAPI->api_get_user_object
 #define sipSetUserObject            sipAPI->api_set_user_object
 #define sipRegisterEventHandler     sipAPI->api_register_event_handler
@@ -483,7 +522,6 @@ f'''#define sipMalloc                   sipAPI->api_malloc
 #define sipConvertToTypeUS          sipAPI->api_convert_to_type_us
 #define sipForceConvertToTypeUS     sipAPI->api_force_convert_to_type_us
 #define sipReleaseTypeUS            sipAPI->api_release_type_us
-#define sipIsPyMethod               sipAPI->api_is_py_method
 ''')
 
         if self.py_enums_supported():
@@ -781,6 +819,22 @@ f'''static void *init_type_{klass_name}(PyObject *sipSelf, PyObject *const *sipA
 
         return f'SIP_TYPE_ID_TYPE_CLASS|SIP_TYPE_ID_CURRENT_MODULE|{klass.iface_file.type_nr}'
 
+    @staticmethod
+    def get_module_context():
+        """ Return the value of a module context passed as the first argument
+        to many ABI calls.
+        """
+
+        return 'sipModule, '
+
+    @staticmethod
+    def get_module_context_decl():
+        """ Return the declaration of the value of a module context passed as
+        the first argument to many ABI calls.
+        """
+
+        return 'PyObject *sipModule, '
+
     def get_py_method_args(self, *, is_impl, is_module_fn, need_self=False,
             need_args=True):
         """ Return the part of a Python method signature that are ABI
@@ -809,6 +863,19 @@ f'''static void *init_type_{klass_name}(PyObject *sipSelf, PyObject *const *sipA
             args += ' sipNrArgs'
 
         return args
+
+    @staticmethod
+    def get_result_parser():
+        """ Return the name of the Python reimplementation result parser. """
+
+        return 'sipParseResult'
+
+    def get_sipself_test(self, klass):
+        """ Return the code that checks if 'sipSelf' was bound or passed as an
+        argument.
+        """
+
+        return f'(!PyObject_TypeCheck(sipSelf, sipGetPyType(sipModule, {self.get_type_ref(klass)})) || sipIsDerivedClass(sipSelf))'
 
     @staticmethod
     def get_slot_ref(slot_type):
@@ -856,10 +923,18 @@ f'''static void *init_type_{klass_name}(PyObject *sipSelf, PyObject *const *sipA
         return 'static const sipTypeSpec *const sipTypeSpecs'
 
     @staticmethod
-    def get_wrapped_type_type():
+    def get_wrapper_type():
         """ Return the type of the C representation of a wrapped object. """
 
         return 'PyObject *'
+
+    @staticmethod
+    def get_wrapper_type_cast():
+        """ Return the cast from a PyObject* of the C representation of a
+        wrapped object.
+        """
+
+        return ''
 
     def py_enums_supported(self):
         """ Return True if Python enums are supported. """

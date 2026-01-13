@@ -934,6 +934,7 @@ struct _sipABISpec {
     void (*api_free)(void *mem);
     PyObject *(*api_get_pyobject)(PyObject *mod, void *cppPtr,
             sipTypeID type_id);
+    PyTypeObject *(*api_get_py_type)(PyObject *mod, sipTypeID type_id);
     void *(*api_malloc)(size_t nbytes);
     void (*api_trace)(PyObject *mod, unsigned mask, const char *fmt, ...);
     void (*api_transfer_back)(PyObject *mod, PyObject *self);

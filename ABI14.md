@@ -74,6 +74,8 @@ modified.
 
 `sipFindType()` has been replaced with `sipFindTypeID()`.
 
+`sipTypeAsPyTypeObject()` has been replaced with `sipGetPyType()`.
+
 The signatures of the following public API calls have changed:
 
     `sipBuildResult()`
@@ -144,7 +146,6 @@ These are the remaining broad areas of work.
 - Mapped types.
 - Python enums.
 - Custom enums.
-- Virtuals.
 - Abstract classes.
 - Imports.
 - Events.

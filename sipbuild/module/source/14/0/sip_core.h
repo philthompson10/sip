@@ -106,14 +106,14 @@ const sipContainerSpec *sip_get_container(const sipTypeSpec *td);
 void *sip_get_complex_cpp_ptr(sipModuleState *wms, PyObject *w_inst,
         sipTypeID type_id);
 void *sip_get_cpp_ptr(PyObject *w_inst, PyTypeObject *target_type);
-void *sip_get_final_address(sipSipModuleState *sms, const sipTypeSpec *td,
+void *sip_get_final_address(sipSipModuleState *sms, const sipTypeSpec *ts,
         void *cpp);
 sipConvertFromFunc sip_get_from_convertor(PyTypeObject *py_type,
         const sipTypeSpec *td);
 PyTypeObject *sip_get_local_py_type(sipModuleState *wms, sipTypeNr type_nr);
 const sipTypeSpec *sip_get_type_detail(sipModuleState *wms, sipTypeID type_id,
         PyTypeObject **py_type_p, sipModuleState **defining_wms_p);
-PyTypeObject *sip_get_py_type(sipModuleState *wms, sipTypeID type_id);
+PyTypeObject *sip_get_py_type(sipModuleState *ms, sipTypeID type_id);
 PyTypeObject *sip_get_py_type_from_name(sipSipModuleState *sms,
         PyObject *target_module_name_obj, const char *target_type_name);
 PyObject *sip_get_qualname(PyTypeObject *scope_py_type, PyObject *name);
