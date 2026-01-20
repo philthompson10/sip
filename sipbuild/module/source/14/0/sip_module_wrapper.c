@@ -89,7 +89,7 @@ static int ModuleWrapper_setattro(PyObject *self, PyObject *name,
 /*
  * The getattro handler for modules and containers.
  */
-PyObject *sip_mod_con_getattro(sipModuleState *wms, PyObject *self,
+PyObject *sip_mod_con_getattro(sipModuleState *ms, PyObject *self,
         PyObject *name, const sipAttrsSpec *wad)
 {
     const char *utf8_name = PyUnicode_AsUTF8(name);
@@ -101,7 +101,7 @@ PyObject *sip_mod_con_getattro(sipModuleState *wms, PyObject *self,
     const sipVariableSpec *wvd = get_static_variable_spec(utf8_name, wad);
 
     if (wvd != NULL)
-        return sip_variable_get(wms, self, wvd, NULL, NULL);
+        return sip_variable_get(ms, self, wvd, NULL, NULL);
 
     /*
      * Revert to the super-class behaviour.  This will pick up any wrapped
@@ -113,14 +113,29 @@ PyObject *sip_mod_con_getattro(sipModuleState *wms, PyObject *self,
         return attr;
 
     /* See if it is a wrapped type. */
-    const sipTypeNr *type_nr_p = get_wrapped_type_nr_p(wms->module_spec,
+    const sipTypeNr *type_nr_p = get_wrapped_type_nr_p(ms->module_spec,
             utf8_name, wad);
     if (type_nr_p == NULL)
         return NULL;
 
     PyErr_Clear();
 
-    return Py_XNewRef((PyObject *)sip_get_local_py_type(wms, *type_nr_p));
+    // TODO Pass the name object so that it doesn't need to be recreated from
+    // the spec when creating a new type.
+    PyTypeObject *py_type = sip_get_local_py_type(ms, *type_nr_p);
+    if (py_type == NULL)
+        return NULL;
+
+    /*
+     * Save the type in the scope's dict.  If it was already there we wouldn't
+     * have reached this point.  Note that the type may may have been created
+     * some time ago (using a type ID from generated code) and this is just the
+     * first time it has been accessed as an attribute.
+     */
+    if (PyObject_SetAttr(self, name, (PyObject *)py_type) < 0)
+        return NULL;
+
+    return Py_NewRef(py_type);
 }
 
 

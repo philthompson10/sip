@@ -3,7 +3,7 @@
 /*
  * This file defines the core sip module internal interfaces.
  *
- * Copyright (c) 2025 Phil Thompson <phil@riverbankcomputing.com>
+ * Copyright (c) 2026 Phil Thompson <phil@riverbankcomputing.com>
  */
 
 
@@ -81,8 +81,7 @@ int sip_api_deprecated(const char *classname, const char *method,
 int sip_api_enable_autoconversion(PyTypeObject *w_type, int enable);
 void sip_api_free(void *mem);
 void *sip_api_get_address(PyObject *w_inst);
-void *sip_api_get_cpp_ptr(PyObject *w_mod, PyObject *w_inst,
-        sipTypeID type_id);
+void *sip_api_get_cpp_ptr(PyObject *mod, PyObject *w_inst, sipTypeID type_id);
 void *sip_api_malloc(size_t nbytes);
 
 

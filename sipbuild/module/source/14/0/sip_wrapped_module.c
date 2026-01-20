@@ -183,23 +183,6 @@ int sip_api_module_exec(PyObject *mod, const sipModuleSpec *m_spec)
         return -1;
 
 #if 0
-// Need to specify the enums in a different way.
-#if defined(SIP_CONFIGURATION_PyEnums)
-    const sipIntInstanceDef *next_int = m_spec->instances.id_int;
-#endif
-#endif
-
-#if defined(SIP_CONFIGURATION_PyEnums)
-#if 0
-// Need to do this a different way if still needed.  Anon enums?
-    /* Add any ints that aren't name enum members. */
-    if (next_int != NULL)
-        if (sip_container_add_int_instances(mod_dict, next_int) < 0)
-            return -1;
-#endif
-#endif
-
-#if 0
     /* Append any initialiser extenders to the relevant classes. */
     if (m_spec->init_extend != NULL)
     {

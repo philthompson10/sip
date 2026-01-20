@@ -3,7 +3,7 @@
 /*
  * The core sip module code.
  *
- * Copyright (c) 2025 Phil Thompson <phil@riverbankcomputing.com>
+ * Copyright (c) 2026 Phil Thompson <phil@riverbankcomputing.com>
  */
 
 
@@ -37,7 +37,7 @@
 
 static void sip_api_bad_length_for_slice(Py_ssize_t seqlen,
         Py_ssize_t slicelen);
-static PyObject *sip_api_convert_from_enum(PyObject *w_mod, int member,
+static PyObject *sip_api_convert_from_enum(PyObject *mod, int member,
         sipTypeID type_id);
 static Py_ssize_t sip_api_convert_from_sequence_index(Py_ssize_t idx,
         Py_ssize_t len);
@@ -274,11 +274,11 @@ const sipABISpec sip_abi = {
 
 
 /* Forward references. */
-static void call_py_dtor(sipModuleState *wms, PyObject *self);
+static void call_py_dtor(sipModuleState *ms, PyObject *self);
 static int compare_typedef_name(const void *key, const void *el);
-static PyTypeObject *create_class_type(sipModuleState *wms, sipTypeID type_id,
+static PyTypeObject *create_class_type(sipModuleState *ms, sipTypeNr type_nr,
         const sipClassTypeSpec *ctd);
-static PyTypeObject *create_container_type(sipModuleState *wms,
+static PyTypeObject *create_container_type(sipModuleState *ms,
         sipTypeID type_id, const sipContainerSpec *cod, PyObject *bases,
         PyTypeObject *metatype);
 static PyTypeObject *find_registered_py_type(sipSipModuleState *sms,
@@ -478,7 +478,7 @@ static int sip_api_keep_reference(PyObject *mod, PyObject *w_inst, int key,
  * Implement the keeping of an extra reference to an object (which may be NULL
  * if the object was optional).
  */
-int sip_keep_reference(sipModuleState *wms, PyObject *w_inst, int key,
+int sip_keep_reference(sipModuleState *ms, PyObject *w_inst, int key,
         PyObject *obj)
 {
     /* Get a pointer to the dict of extra references. */
@@ -492,7 +492,7 @@ int sip_keep_reference(sipModuleState *wms, PyObject *w_inst, int key,
     }
     else
     {
-        extra_refs_p = &wms->extra_refs;
+        extra_refs_p = &ms->extra_refs;
     }
 
     /* Create the dict if it doesn't already exist. */
@@ -616,10 +616,10 @@ static void sip_api_instance_destroyed(PyObject *mod, PyObject **self_p)
 /*
  * Implement the actions common to all dtors.
  */
-void sip_instance_destroyed(sipModuleState *wms, PyObject **self_p)
+void sip_instance_destroyed(sipModuleState *ms, PyObject **self_p)
 {
     /* If there is no interpreter just do the minimum and get out. */
-    if (wms->sip_module_state->interpreter_state == NULL)
+    if (ms->sip_module_state->interpreter_state == NULL)
     {
         *self_p = NULL;
         return;
@@ -634,10 +634,10 @@ void sip_instance_destroyed(sipModuleState *wms, PyObject **self_p)
 
     /* We may be tidying up after an exception so preserve it. */
     PyErr_Fetch(&xtype, &xvalue, &xtb);
-    call_py_dtor(wms, self);
+    call_py_dtor(ms, self);
     PyErr_Restore(xtype, xvalue, xtb);
 
-    sip_om_remove_object(wms, self);
+    sip_om_remove_object(ms, self);
 
     /*
      * If C/C++ has a reference (and therefore no parent) then remove it.
@@ -670,12 +670,12 @@ void sip_instance_destroyed(sipModuleState *wms, PyObject **self_p)
 /*
  * Call self.__dtor__() if it is implemented.
  */
-static void call_py_dtor(sipModuleState *wms, PyObject *self)
+static void call_py_dtor(sipModuleState *ms, PyObject *self)
 {
     sip_gilstate_t sipGILState;
     char pymc = 0;
 
-    PyObject *method = sip_is_py_method(wms, &sipGILState, &pymc, &self, NULL,
+    PyObject *method = sip_is_py_method(ms, &sipGILState, &pymc, &self, NULL,
             "__dtor__");
 
     if (method != NULL)
@@ -822,7 +822,7 @@ PyObject *sip_get_scope_dict(sipSipModuleState *sms, const sipTypeSpec *td,
 /*
  * Create a container type and return a strong reference to it.
  */
-static PyTypeObject *create_container_type(sipModuleState *wms,
+static PyTypeObject *create_container_type(sipModuleState *ms,
         sipTypeID type_id, const sipContainerSpec *cod, PyObject *bases,
         PyTypeObject *metatype)
 {
@@ -847,18 +847,18 @@ static PyTypeObject *create_container_type(sipModuleState *wms,
     };
 
     PyTypeObject *w_type = (PyTypeObject *)PyType_FromMetaclass(metatype,
-            wms->wrapped_module, &spec, bases);
+            ms->wrapped_module, &spec, bases);
 
     if (w_type == NULL)
         goto ret_error;
 
     /* Configure the type. */
-    sipSipModuleState *sms = wms->sip_module_state;
+    sipSipModuleState *sms = ms->sip_module_state;
 
     sipWrapperType *wt = (sipWrapperType *)w_type;
 
     wt->wt_is_wrapper = PyType_IsSubtype(w_type, sms->wrapper_type);
-    wt->wt_d_mod = Py_NewRef(wms->wrapped_module);
+    wt->wt_d_mod = Py_NewRef(ms->wrapped_module);
     wt->wt_type_id = type_id;
 
     /*
@@ -903,13 +903,19 @@ static PyTypeObject *create_container_type(sipModuleState *wms,
     }
 
     /* Add the type to the scope. */
+    // TODO Note that we no longer add it to the scope here.  We may not need
+    // the scope_id any more - maybe just a 'broken __qualname__' flag.
+#if 0
     PyObject *scope;
+#endif
 
     if (cod->scope_id != sipTypeID_Invalid)
     {
-        scope = (PyObject *)sip_get_py_type(wms, cod->scope_id);
+#if 0
+        scope = (PyObject *)sip_get_py_type(ms, cod->scope_id);
         if (scope == NULL)
             goto rel_type;
+#endif
 
         /*
          * The fully qualified name (ie. including fully qualified module name
@@ -925,14 +931,14 @@ static PyTypeObject *create_container_type(sipModuleState *wms,
          * __qualname__ for types with a scope.
          */
         PyModuleDef_Slot *slots;
-        if (PyModule_GetToken(wms->wrapped_module, (void **)&slots) < 0 || slots == NULL)
+        if (PyModule_GetToken(ms->wrapped_module, (void **)&slots) < 0 || slots == NULL)
             goto rel_type;
 
         const char *mod_name = (const char *)slots[0].value;
         const char *qualname = cod->fq_py_name + strlen(mod_name) + 1;
         PyObject *qualname_obj = PyUnicode_FromString(qualname);
 
-        PyObject *mod_name_obj = PyModule_GetNameObject(wms->wrapped_module);
+        PyObject *mod_name_obj = PyModule_GetNameObject(ms->wrapped_module);
         PyObject *dunder_module = PyUnicode_InternFromString("__module__");
         PyObject *dunder_qualname = PyUnicode_InternFromString("__qualname__");
 
@@ -959,9 +965,10 @@ static PyTypeObject *create_container_type(sipModuleState *wms,
         if (module_rc < 0 || qualname_rc < 0)
             goto rel_type;
     }
+#if 0
     else
     {
-        scope = wms->wrapped_module;
+        scope = ms->wrapped_module;
     }
 
     /* There is guaranteed to be a dot in the name. */
@@ -969,6 +976,7 @@ static PyTypeObject *create_container_type(sipModuleState *wms,
 
     if (PyObject_SetAttrString(scope, name, (PyObject *)w_type) < 0)
         goto rel_type;
+#endif
 
     return w_type;
 
@@ -985,10 +993,10 @@ ret_error:
 /*
  * Create a single class type object.
  */
-static PyTypeObject *create_class_type(sipModuleState *wms, sipTypeID type_id,
+static PyTypeObject *create_class_type(sipModuleState *ms, sipTypeNr type_nr,
         const sipClassTypeSpec *ctd)
 {
-    sipSipModuleState *sms = wms->sip_module_state;
+    sipSipModuleState *sms = ms->sip_module_state;
 
     PyObject *bases;
 
@@ -1015,7 +1023,7 @@ static PyTypeObject *create_class_type(sipModuleState *wms, sipTypeID type_id,
     else if (sipTypeIDIsSentinel(ctd->supers[0]))
     {
         /* There is only one super-type. */
-        bases = (PyObject *)sip_get_py_type(wms, ctd->supers[0]);
+        bases = (PyObject *)sip_get_py_type(ms, ctd->supers[0]);
 
         if (bases == NULL)
             return NULL;
@@ -1037,7 +1045,7 @@ static PyTypeObject *create_class_type(sipModuleState *wms, sipTypeID type_id,
 
         for (i = 0; i < nr_supers; i++)
         {
-            PyTypeObject *sup_py_type = sip_get_py_type(wms, ctd->supers[i]);
+            PyTypeObject *sup_py_type = sip_get_py_type(ms, ctd->supers[i]);
 
             if (sup_py_type == NULL)
                 goto rel_bases;
@@ -1068,8 +1076,10 @@ static PyTypeObject *create_class_type(sipModuleState *wms, sipTypeID type_id,
         metatype = Py_TYPE(first);
     }
 
-    PyTypeObject *py_type = create_container_type(wms, type_id,
-            &ctd->container, bases, metatype);
+    sipTypeID type_id = SIP_TYPE_ID_TYPE_CLASS | SIP_TYPE_ID_CURRENT_MODULE | type_nr;
+
+    PyTypeObject *py_type = create_container_type(ms, type_id, &ctd->container,
+            bases, metatype);
 
     Py_DECREF(bases);
 
@@ -1256,7 +1266,7 @@ static PyObject *pickle_type(PyObject *self, PyTypeObject *defining_class,
                      * Ask the handwritten pickle code for the tuple of
                      * arguments that will recreate the object.
                      */
-                    init_args = ctd->pickle(sip_get_cpp_ptr(wms, self, 0));
+                    init_args = ctd->pickle(sip_get_cpp_ptr(ms, self, 0));
 
                     if (init_args == NULL)
                         return NULL;
@@ -1372,7 +1382,7 @@ static sipTypeID sip_api_type_scope(PyObject *mod, sipTypeID type_id)
  * Implement the returning of the type ID corresponding to the scope of the
  * given type.
  */
-sipTypeID sip_type_scope(sipModuleState *wms, sipTypeID type_id)
+sipTypeID sip_type_scope(sipModuleState *ms, sipTypeID type_id)
 {
 #if 0
     if (sipTypeIsEnum(td))
@@ -1392,7 +1402,7 @@ sipTypeID sip_type_scope(sipModuleState *wms, sipTypeID type_id)
             cod = &((const sipClassTypeSpec *)td)->container;
 
         if (cod->scope_id != sipTypeID_Invalid)
-            return sip_get_type_spec(wms, cod->scope_id);
+            return sip_get_type_spec(ms, cod->scope_id);
     }
 #endif
 
@@ -1706,7 +1716,7 @@ void *sip_api_get_address(PyObject *w_inst)
  * Get the C/C++ pointer for a complex object and optionally cast it to the
  * required type.
  */
-void *sip_get_complex_cpp_ptr(sipModuleState *wms, PyObject *w_inst,
+void *sip_get_complex_cpp_ptr(sipModuleState *ms, PyObject *w_inst,
         sipTypeID type_id)
 {
     sipSimpleWrapper *sw = (sipSimpleWrapper *)w_inst;
@@ -1719,7 +1729,7 @@ void *sip_get_complex_cpp_ptr(sipModuleState *wms, PyObject *w_inst,
         return NULL;
     }
 
-    PyTypeObject *py_type = sip_get_py_type(wms, type_id);
+    PyTypeObject *py_type = sip_get_py_type(ms, type_id);
 
     return sip_get_cpp_ptr(w_inst, py_type);
 }
@@ -1943,7 +1953,7 @@ static sipTypeID sip_api_find_type_id(PyObject *mod, const char *type)
 
             /*
              * Return an absolute ID of a generated type.  Absolute types mean
-             * that a type that this module known nothing about can still be
+             * that a type that this module knows nothing about can still be
              * referenced.
              */
             return type_type | SIP_TYPE_ID_ABSOLUTE | (i << 16) | type_nr;
@@ -2057,10 +2067,10 @@ static sipModuleState *get_defining_module_state(sipModuleState *ms,
  */
 // TODO This can be called by traverse slots and it can create new types.
 // Doing both is not allowed so check that that can never happen.
-const sipTypeSpec *sip_get_type_detail(sipModuleState *wms, sipTypeID type_id,
-        PyTypeObject **py_type_p, sipModuleState **defining_wms_p)
+const sipTypeSpec *sip_get_type_detail(sipModuleState *ms, sipTypeID type_id,
+        PyTypeObject **py_type_p, sipModuleState **defining_ms_p)
 {
-    if ((wms = get_defining_module_state(wms, type_id)) == NULL)
+    if ((ms = get_defining_module_state(ms, type_id)) == NULL)
         return NULL;
 
     // TODO Handle unresolved external types.
@@ -2069,9 +2079,11 @@ const sipTypeSpec *sip_get_type_detail(sipModuleState *wms, sipTypeID type_id,
 
     if (py_type_p != NULL)
     {
-        if (sipTypeIDIsClass(type_id))
+        // TODO Why do these checks.  When is a NULL Py type a legitimate value
+        // rather than an error?
+        if (sipTypeIDIsClass(type_id) || sipTypeIDIsEnumPy(type_id) || sipTypeIDIsEnumCustom(type_id))
         {
-            if ((*py_type_p = sip_get_local_py_type(wms, type_nr)) == NULL)
+            if ((*py_type_p = sip_get_local_py_type(ms, type_nr)) == NULL)
                 return NULL;
         }
         else
@@ -2080,36 +2092,46 @@ const sipTypeSpec *sip_get_type_detail(sipModuleState *wms, sipTypeID type_id,
         }
     }
 
-    if (defining_wms_p != NULL)
-        *defining_wms_p = wms;
+    if (defining_ms_p != NULL)
+        *defining_ms_p = ms;
 
-    return wms->module_spec->type_specs[type_nr];
+    return ms->module_spec->type_specs[type_nr];
 }
 
 
 /*
  * Return a borrowed reference to the Python type object for a type number in
- * the current module, creating it if necessary.
+ * the current module, creating it if necessary.  This is were new type objects
+ * are created from the corresponding type numbers.
  */
-PyTypeObject *sip_get_local_py_type(sipModuleState *wms, sipTypeNr type_nr)
+PyTypeObject *sip_get_local_py_type(sipModuleState *ms, sipTypeNr type_nr)
 {
-    PyTypeObject *py_type = wms->py_types[type_nr];
+    PyTypeObject *py_type = ms->py_types[type_nr];
     if (py_type != NULL)
         return py_type;
 
-    const sipTypeSpec *td = wms->module_spec->type_specs[type_nr];
+    const sipTypeSpec *ts = ms->module_spec->type_specs[type_nr];
 
-    // TODO Handle enums.
-    assert(sipTypeIsClass(td) || sipTypeIsNamespace(td));
+    if (sipTypeIsEnum(ts)
+#if defined(SIP_CONFIGURATION_CustomEnums)
+        || sipTypeIsScopedEnum(ts)
+#endif
+        )
+    {
+        py_type = sip_create_enum_type(ms, type_nr,
+                (const sipEnumTypeSpec *)ts);
+    }
+    else
+    {
+        assert(sipTypeIsClass(ts) || sipTypeIsNamespace(ts));
 
-    /* Create the type. */
-    sipTypeID type_id = SIP_TYPE_ID_TYPE_CLASS | SIP_TYPE_ID_CURRENT_MODULE | type_nr;
+        py_type = create_class_type(ms, type_nr, (const sipClassTypeSpec *)ts);
+    }
 
-    py_type = create_class_type(wms, type_id, (const sipClassTypeSpec *)td);
     if (py_type == NULL)
         return NULL;
 
-    wms->py_types[type_nr] = py_type;
+    ms->py_types[type_nr] = py_type;
 
     return py_type;
 }
@@ -3121,7 +3143,7 @@ static int sip_api_register_event_handler(PyObject *mod, sipEventType type,
  * class type.
  */
 // TODO Use the Python type objects?
-int sip_is_subtype(sipModuleState *wms, const sipClassTypeSpec *ctd,
+int sip_is_subtype(sipModuleState *ms, const sipClassTypeSpec *ctd,
         const sipClassTypeSpec *base_ctd)
 {
     /* Handle the trivial cases. */
@@ -3140,11 +3162,11 @@ int sip_is_subtype(sipModuleState *wms, const sipClassTypeSpec *ctd,
     {
         sup_type_id = *supers++;
 
-        sipModuleState *defining_wms;
-        const sipTypeSpec *sup_td = sip_get_type_detail(wms, sup_type_id, NULL,
-                &defining_wms);
+        sipModuleState *defining_ms;
+        const sipTypeSpec *sup_td = sip_get_type_detail(ms, sup_type_id, NULL,
+                &defining_ms);
 
-        if (sip_is_subtype(defining_wms, (const sipClassTypeSpec *)sup_td, base_ctd))
+        if (sip_is_subtype(defining_ms, (const sipClassTypeSpec *)sup_td, base_ctd))
             return TRUE;
     }
     while (!sipTypeIDIsSentinel(sup_type_id));

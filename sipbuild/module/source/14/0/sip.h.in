@@ -3,7 +3,7 @@
 /*
  * The SIP module interface.
  *
- * Copyright (c) 2025 Phil Thompson <phil@riverbankcomputing.com>
+ * Copyright (c) 2026 Phil Thompson <phil@riverbankcomputing.com>
  */
 
 
@@ -157,6 +157,9 @@ typedef struct _sipDelayedDtor sipDelayedDtor;
 struct _sipDateDef;
 typedef struct _sipDateDef sipDateDef;
 
+struct _sipEnumTypeSpec;
+typedef struct _sipEnumTypeSpec sipEnumTypeSpec;
+
 struct _sipImportedModule;
 typedef struct _sipImportedModule sipImportedModule;
 
@@ -248,9 +251,8 @@ typedef void *(*sipVariableAddrGetterFunc)(void *);
 typedef void (*sipWrapperVisitorFunc)(PyObject *, void *);
 
 
-#if defined(SIP_CONFIGURATION_CustomEnums)
 /*
- * The immutable specification of a custom enum member.
+ * The immutable specification of a wrapped named enum member.
  */
 typedef struct _sipEnumMemberSpec {
     /* The member name. */
@@ -259,10 +261,12 @@ typedef struct _sipEnumMemberSpec {
     /* The member value. */
     int value;
 
+#if defined(SIP_CONFIGURATION_CustomEnums)
+    // TODO Is this still needed?
     /* The number of the containing enum, -ve if anonymous. */
     int enum_nr;
-} sipEnumMemberSpec;
 #endif
+} sipEnumMemberSpec;
 
 
 /*
@@ -573,7 +577,8 @@ typedef struct _sipContainerSpec {
     // TODO This should be a sipTypeNr but it depends on how namespace
     // extenders are implemented (ie. is it a direct reference to an external
     // type or a reference to a local type that then redirects to the external
-    // type?
+    // type?  Also do we need to represent a global with a -ve scope nr, so
+    // so needs to be an int?
     sipTypeID scope_id;
 
     /* The table of instance variables. */
@@ -587,14 +592,6 @@ typedef struct _sipContainerSpec {
 
     /* The table of methods. */
     const PyMethodDef *methods;
-
-#if defined(SIP_CONFIGURATION_CustomEnums)
-    /* The number of lazy enum members. */
-    int nr_enum_members;
-
-    /* The table of lazy enum members. */
-    const sipEnumMemberSpec *enum_members;
-#endif
 } sipContainerSpec;
 
 
@@ -721,9 +718,12 @@ typedef struct _sipMappedTypeSpec {
 /*
  * The immutable specification of a named enum.
  */
-typedef struct _sipEnumTypeSpec {
+struct _sipEnumTypeSpec {
     /* The base type information. */
     sipTypeSpec base;
+
+    /* The table of members. */
+    const sipEnumMemberSpec *members;
 
 #if defined(SIP_CONFIGURATION_PyEnums)
     /* The Python base type. */
@@ -733,17 +733,9 @@ typedef struct _sipEnumTypeSpec {
     /* The Python name of the enum. */
     const char *py_name;
 
-    /* The scoping type, -1 if it is defined at the module level. */
-    int scope_nr;
-
-#if defined(SIP_CONFIGURATION_PyEnums)
-    /* The number of members. */
-    int nr_members;
-#endif
-
     /* The table of Python slots. */
     const PyType_Slot *py_slots;
-} sipEnumTypeSpec;
+};
 
 
 /*
@@ -820,14 +812,6 @@ struct _sipModuleSpec {
     /* The table of external types. */
     // TODO This probably goes.
     const sipExternalTypeDef *const external;
-
-#if defined(SIP_CONFIGURATION_CustomEnums)
-    /* The number of members in global enums. */
-    int nr_enum_members;
-
-    /* The table of members in global enums. */
-    const sipEnumMemberSpec *const enum_members;
-#endif
 
     /* The number of typedefs. */
     int nr_typedefs;

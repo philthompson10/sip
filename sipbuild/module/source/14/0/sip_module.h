@@ -49,21 +49,13 @@ struct _sipSipModuleState {
     /* The empty tuple. */
     PyObject *empty_tuple;
 
-#if defined(SIP_CONFIGURATION_CustomEnums)
     /* The enum.Enum type object. */
     PyObject *enum_enum_type;
 
     /* The enum.IntEnum type object. */
     PyObject *enum_int_enum_type;
-#endif
 
 #if defined(SIP_CONFIGURATION_PyEnums)
-    /* The enum.Enum type object. */
-    PyObject *enum_enum_type;
-
-    /* The enum.IntEnum type object. */
-    PyObject *enum_int_enum_type;
-
     /* The enum.Flag type object. */
     PyObject *enum_flag_type;
 
