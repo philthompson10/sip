@@ -928,7 +928,12 @@ static int compare_type_nr(const void *key, const void *el,
     const sipModuleSpec *m_spec = (const sipModuleSpec *)context;
 
     const sipTypeSpec *ts = m_spec->type_specs[type_nr];
-    const char *s2 = strrchr(((const sipClassTypeSpec *)ts)->container.fq_py_name, '.') + 1;
+    const char *s2;
+
+    if (sipTypeIsClass(ts))
+        s2 = strrchr(((const sipClassTypeSpec *)ts)->container.fq_py_name, '.') + 1;
+    else
+        s2 = ((const sipEnumTypeSpec *)ts)->py_name;
 
     return strcmp(s1, s2);
 }

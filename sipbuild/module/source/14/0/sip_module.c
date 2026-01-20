@@ -296,13 +296,9 @@ int sip_sip_module_traverse(sipSipModuleState *sms, visitproc visit, void *arg)
     Py_VISIT(sms->custom_enum_type);
 #endif
     Py_VISIT(sms->empty_tuple);
-#if defined(SIP_CONFIGURATION_CustomEnums)
     Py_VISIT(sms->enum_enum_type);
     Py_VISIT(sms->enum_int_enum_type);
-#endif
 #if defined(SIP_CONFIGURATION_PyEnums)
-    Py_VISIT(sms->enum_enum_type);
-    Py_VISIT(sms->enum_int_enum_type);
     Py_VISIT(sms->enum_flag_type);
     Py_VISIT(sms->enum_int_flag_type);
 #endif

@@ -327,6 +327,18 @@ int sip_enum_convert_to_enum(sipModuleState *ms, PyObject *obj,
  */
 int sip_enum_init(PyObject *mod, sipSipModuleState *sms)
 {
+#if defined(SIP_CONFIGURATION_PyEnums)
+    sms->builtin_int_type = NULL;
+    sms->builtin_object_type = NULL;
+#endif
+
+    sms->enum_enum_type = NULL;
+    sms->enum_int_enum_type = NULL;
+#if defined(SIP_CONFIGURATION_PyEnums)
+    sms->enum_flag_type = NULL;
+    sms->enum_int_flag_type = NULL;
+#endif
+
 #if defined(SIP_CONFIGURATION_CustomEnums)
     sms->custom_enum_type = (PyTypeObject *)PyType_FromModuleAndSpec(mod,
             &EnumType_TypeSpec, NULL);
@@ -564,6 +576,27 @@ static int init_enum_module_types(sipSipModuleState *sms)
     if (sms->enum_enum_type != NULL)
         return 0;
 
+#if defined(SIP_CONFIGURATION_PyEnums)
+    /* Get the builtin types. */
+    PyObject *builtins = PyEval_GetFrameBuiltins();
+    if (builtins == NULL)
+        return -1;
+
+    sms->builtin_int_type = PyDict_GetItemString(builtins, "int");
+    sms->builtin_object_type = PyDict_GetItemString(builtins, "object");
+
+    Py_DECREF(builtins);
+
+    if (sms->builtin_int_type == NULL || sms->builtin_object_type == NULL)
+    {
+        Py_CLEAR(sms->builtin_int_type);
+        Py_CLEAR(sms->builtin_object_type);
+
+        return -1;
+    }
+#endif
+
+    /* Get the enum types. */
     PyObject *enum_module = PyImport_ImportModule("enum");
     if (enum_module == NULL)
         return -1;

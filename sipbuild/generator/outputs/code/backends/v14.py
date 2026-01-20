@@ -213,6 +213,8 @@ static const sipModuleSpec sipModule_{module_name} = {{
             cpp_name = self.cached_name_ref(enum.cached_fq_cpp_name)
             py_name = self.cached_name_ref(enum.py_name)
 
+            # TODO We might need the py_name ot be fully qualified fi we need
+            # fix __qualname__.
             sf.write(
 f'''const sipEnumTypeSpec sipEnumTypeSpec_{enum_name} = {{
     .base.flags = {flags},
@@ -223,7 +225,7 @@ f'''const sipEnumTypeSpec sipEnumTypeSpec_{enum_name} = {{
 
             if self.py_enums_supported():
                 sf.write(
-f'''        .py_base_type = SIP_ENUM_{enum.base_type.name},
+f'''    .py_base_type = SIP_ENUM_{enum.base_type.name},
 ''')
 
             if enum.slots:
