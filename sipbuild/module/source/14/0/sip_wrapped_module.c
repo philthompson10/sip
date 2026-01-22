@@ -218,6 +218,7 @@ int sip_api_module_exec(PyObject *mod, const sipModuleSpec *m_spec)
 #endif
 
 #if defined(SIP_CONFIGURATION_CustomEnums)
+#if 0
     /* Create the module's enum members. */
     sipEnumMemberSpec *emd;
 
@@ -234,6 +235,7 @@ int sip_api_module_exec(PyObject *mod, const sipModuleSpec *m_spec)
         if (sip_dict_set_and_discard(mod_dict, emd->name, mo) < 0)
             return -1;
     }
+#endif
 #endif
 
 #if 0

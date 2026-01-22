@@ -213,12 +213,19 @@ static const sipModuleSpec sipModule_{module_name} = {{
             cpp_name = self.cached_name_ref(enum.cached_fq_cpp_name)
             py_name = self.cached_name_ref(enum.py_name)
 
-            # TODO We might need the py_name ot be fully qualified fi we need
-            # fix __qualname__.
+            if enum.enum_base_type is None:
+                cpp_base_type_suffix = 'int'
+            else:
+                cpp_base_type = enum.enum_base_type.type.name.tolower()
+
+            # TODO We might need the py_name ot be fully qualified if we need
+            # to fix __qualname__.
             sf.write(
-f'''const sipEnumTypeSpec sipEnumTypeSpec_{enum_name} = {{
+f'''
+const sipEnumTypeSpec sipEnumTypeSpec_{enum_name} = {{
     .base.flags = {flags},
     .base.cpp_name = {cpp_name},
+    .cpp_base_type = sipTypeID_{cpp_base_type_suffix},
     .members = sipEnumMembers_{module_name}_{enum.fq_cpp_name.as_word},
     .py_name = {py_name},
 ''')
@@ -931,6 +938,15 @@ f'''static void *init_type_{klass_name}(PyObject *sipSelf, PyObject *const *sipA
 
         return f'SIP_TYPE_ID_TYPE_CLASS|SIP_TYPE_ID_CURRENT_MODULE|{klass.iface_file.type_nr}'
 
+    def get_enum_to_py_conversion(self, enum, value_name):
+        """ Return the code to convert a C/C++ enum to a Python object. """
+
+        if enum.fq_cpp_name is None:
+            # TODO: This needs to support larger types and unsigned types.
+            return f'PyLong_FromLong({value_name})'
+
+        return f'sipConvertFromEnum(sipModule, &{value_name}, {self.get_type_ref(enum)})'
+
     def get_enum_ref_value(self, enum):
         """ Return the value of an enum's reference. """
 
@@ -1258,10 +1274,13 @@ static int module_traverse(PyObject *mod, visitproc visit, void *arg)
             not_settable = False
             might_need_key = False
 
-            # TODO Unnamed enums, custom enums, Python enums and classes/mapped
-            # types.
-            if v_type.type is ArgumentType.CLASS or (v_type.type is ArgumentType.ENUM and v_type.definition.fq_cpp_name is not None):
+            # TODO Unnamed enums and classes/mapped types.
+            if v_type.type is ArgumentType.CLASS or (v_type.type is ArgumentType.ENUM and v_type.definition.fq_cpp_name is None):
                 pass
+
+            elif v_type.type is ArgumentType.ENUM and v_type.definition.fq_cpp_name is not None:
+                type_id = self.get_type_ref(v_type.definition)
+                not_settable = v_type.is_const
 
             elif v_type.type is ArgumentType.BYTE:
                 type_id = 'sipTypeID_byte'

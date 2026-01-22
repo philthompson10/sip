@@ -45,11 +45,11 @@ int sip_api_is_enum_flag(PyObject *mod, PyObject *obj);
 
 PyTypeObject *sip_create_enum_type(sipModuleState *ms, sipTypeNr type_nr,
         const sipEnumTypeSpec *ets);
-PyObject *sip_enum_convert_from_enum(sipModuleState *ms, int member,
+PyObject *sip_enum_convert_from_enum(sipModuleState *ms, void *addr,
         sipTypeID type_id);
 int sip_enum_convert_to_constrained_enum(sipModuleState *ms, PyObject *obj,
-        sipTypeID type_id);
-int sip_enum_convert_to_enum(sipModuleState *ms, PyObject *obj,
+        void *addr, sipTypeID type_id);
+int sip_enum_convert_to_enum(sipModuleState *ms, PyObject *obj, void *addr,
         sipTypeID type_id);
 int sip_enum_init(PyObject *mod, sipSipModuleState *sms);
 int sip_enum_is_enum(sipSipModuleState *sms, PyObject *obj);

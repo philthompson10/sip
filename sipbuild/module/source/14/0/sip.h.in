@@ -259,6 +259,7 @@ typedef struct _sipEnumMemberSpec {
     const char *name;
 
     /* The member value. */
+    // TODO Needs to be a union of integer types.
     int value;
 
 #if defined(SIP_CONFIGURATION_CustomEnums)
@@ -722,6 +723,9 @@ struct _sipEnumTypeSpec {
     /* The base type information. */
     sipTypeSpec base;
 
+    /* The C/C++ base type. */
+    sipTypeID cpp_base_type;
+
     /* The table of members. */
     const sipEnumMemberSpec *members;
 
@@ -912,7 +916,7 @@ struct _sipABISpec {
             sipTypeID type_id, PyObject *transferObj);
     PyObject *(*api_convert_from_new_type)(PyObject *mod, void *cpp,
             sipTypeID type_id, PyObject *transferObj);
-    PyObject *(*api_convert_from_enum)(PyObject *mod, int eval,
+    PyObject *(*api_convert_from_enum)(PyObject *mod, void *addr,
             sipTypeID type_id);
     int (*api_get_state)(PyObject *transferObj);
     void (*api_free)(void *mem);
@@ -978,7 +982,7 @@ struct _sipABISpec {
     void (*api_print_object)(PyObject *o);
     int (*api_register_event_handler)(PyObject *mod, sipEventType type,
             sipTypeID type_id, void *handler);
-    int (*api_convert_to_enum)(PyObject *mod, PyObject *obj,
+    int (*api_convert_to_enum)(PyObject *mod, PyObject *obj, void *addr,
             sipTypeID type_id);
     _Bool (*api_convert_to_bool)(PyObject *obj);
     char (*api_long_as_char)(PyObject *o);

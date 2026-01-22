@@ -76,6 +76,12 @@ modified.
 
 `sipTypeAsPyTypeObject()` has been replaced with `sipGetPyType()`.
 
+`sipConvertFromEnum()` now takes the address of the enum value to convert
+rather than its value.
+
+`sipConvertToEnum()` now takes the address of the enum value to convert as an
+argument rather than return its value.
+
 The signatures of the following public API calls have changed:
 
     `sipBuildResult()`

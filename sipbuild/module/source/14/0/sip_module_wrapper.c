@@ -3,7 +3,7 @@
 /*
  * This is the implementation of the sip module wrapper type.
  *
- * Copyright (c) 2025 Phil Thompson <phil@riverbankcomputing.com>
+ * Copyright (c) 2026 Phil Thompson <phil@riverbankcomputing.com>
  */
 
 
@@ -15,6 +15,7 @@
 #include "sip_module_wrapper.h"
 
 #include "sip_core.h"
+#include "sip_enum.h"
 #include "sip_int_convertors.h"
 #include "sip_module.h"
 #include "sip_string_convertors.h"
@@ -142,7 +143,7 @@ PyObject *sip_mod_con_getattro(sipModuleState *ms, PyObject *self,
 /*
  * Get the value of a variable.
  */
-PyObject *sip_variable_get(sipModuleState *wms, PyObject *instance,
+PyObject *sip_variable_get(sipModuleState *ms, PyObject *instance,
         const sipVariableSpec *wvd, PyTypeObject *binding_type,
         PyObject *mixin_name)
 {
@@ -295,11 +296,11 @@ PyObject *sip_variable_get(sipModuleState *wms, PyObject *instance,
             return PyBool_FromLong(*(_Bool *)addr);
 
         case sipTypeID_voidptr:
-            return sip_convert_from_void_ptr(wms->sip_module_state,
+            return sip_convert_from_void_ptr(ms->sip_module_state,
                     *(void **)addr);
 
         case sipTypeID_voidptr_const:
-            return sip_convert_from_const_void_ptr(wms->sip_module_state,
+            return sip_convert_from_const_void_ptr(ms->sip_module_state,
                     *(const void **)addr);
 
         case sipTypeID_pyobject:
@@ -340,6 +341,12 @@ PyObject *sip_variable_get(sipModuleState *wms, PyObject *instance,
             return PyCapsule_New(*(void **)addr, NULL, NULL);
 
         default:
+            // TODO Review if it is necessary to distinguish between the types
+            // of enum in type IDs.
+            if (sipTypeIDIsEnumPy(wvd->type_id) || sipTypeIDIsEnumCustom(wvd->type_id))
+                return sip_enum_convert_from_enum(ms, addr, wvd->type_id);
+
+            // TODO Handle classes and mapped types.
             break;
     }
 
@@ -351,7 +358,7 @@ PyObject *sip_variable_get(sipModuleState *wms, PyObject *instance,
 /*
  * The setattro handler for modules and containers.
  */
-int sip_mod_con_setattro(sipModuleState *wms, PyObject *self, PyObject *name,
+int sip_mod_con_setattro(sipModuleState *ms, PyObject *self, PyObject *name,
         PyObject *value, const sipAttrsSpec *wad)
 {
     const char *utf8_name = PyUnicode_AsUTF8(name);
@@ -366,7 +373,7 @@ int sip_mod_con_setattro(sipModuleState *wms, PyObject *self, PyObject *name,
     const sipVariableSpec *wvd = get_static_variable_spec(utf8_name, wad);
 
     if (wvd != NULL)
-        return sip_variable_set(wms, self, value, wvd, NULL, NULL);
+        return sip_variable_set(ms, self, value, wvd, NULL, NULL);
 
     return Py_TYPE(self)->tp_base->tp_setattro(self, name, value);
 }
@@ -375,7 +382,7 @@ int sip_mod_con_setattro(sipModuleState *wms, PyObject *self, PyObject *name,
 /*
  * Set the value of a variable.
  */
-int sip_variable_set(sipModuleState *wms, PyObject *instance, PyObject *value,
+int sip_variable_set(sipModuleState *ms, PyObject *instance, PyObject *value,
         const sipVariableSpec *wvd, PyTypeObject *binding_type,
         PyObject *mixin_name)
 {
@@ -688,7 +695,7 @@ int sip_variable_set(sipModuleState *wms, PyObject *instance, PyObject *value,
             if (PyErr_Occurred())
                 return -1;
 
-            if (sip_keep_reference(wms, NULL, wvd->key, value) < 0)
+            if (sip_keep_reference(ms, NULL, wvd->key, value) < 0)
                 return -1;
 
             *(const char **)addr = c_value;
@@ -703,7 +710,7 @@ int sip_variable_set(sipModuleState *wms, PyObject *instance, PyObject *value,
             if (PyErr_Occurred())
                 return -1;
 
-            if (sip_keep_reference(wms, NULL, wvd->key, value) < 0)
+            if (sip_keep_reference(ms, NULL, wvd->key, value) < 0)
                 return -1;
 
             *(const char **)addr = c_value;
@@ -718,7 +725,7 @@ int sip_variable_set(sipModuleState *wms, PyObject *instance, PyObject *value,
             if (PyErr_Occurred())
                 return -1;
 
-            if (sip_keep_reference(wms, NULL, wvd->key, value) < 0)
+            if (sip_keep_reference(ms, NULL, wvd->key, value) < 0)
                 return -1;
 
             *(const char **)addr = c_value;
@@ -733,7 +740,7 @@ int sip_variable_set(sipModuleState *wms, PyObject *instance, PyObject *value,
             if (PyErr_Occurred())
                 return -1;
 
-            if (sip_keep_reference(wms, NULL, wvd->key, value) < 0)
+            if (sip_keep_reference(ms, NULL, wvd->key, value) < 0)
                 return -1;
 
             *(const char **)addr = c_value;
@@ -748,7 +755,7 @@ int sip_variable_set(sipModuleState *wms, PyObject *instance, PyObject *value,
             if (PyErr_Occurred())
                 return -1;
 
-            if (sip_keep_reference(wms, NULL, wvd->key, value) < 0)
+            if (sip_keep_reference(ms, NULL, wvd->key, value) < 0)
                 return -1;
 
             *(const signed char **)addr = c_value;
@@ -763,7 +770,7 @@ int sip_variable_set(sipModuleState *wms, PyObject *instance, PyObject *value,
             if (PyErr_Occurred())
                 return -1;
 
-            if (sip_keep_reference(wms, NULL, wvd->key, value) < 0)
+            if (sip_keep_reference(ms, NULL, wvd->key, value) < 0)
                 return -1;
 
             *(const unsigned char **)addr = c_value;
@@ -778,7 +785,7 @@ int sip_variable_set(sipModuleState *wms, PyObject *instance, PyObject *value,
             if (PyErr_Occurred())
                 return -1;
 
-            if (sip_keep_reference(wms, NULL, wvd->key, value) < 0)
+            if (sip_keep_reference(ms, NULL, wvd->key, value) < 0)
                 return -1;
 
             *(wchar_t **)addr = c_value;
@@ -837,6 +844,10 @@ int sip_variable_set(sipModuleState *wms, PyObject *instance, PyObject *value,
             break;
 
         default:
+            if (sipTypeIDIsEnumPy(wvd->type_id) || sipTypeIDIsEnumCustom(wvd->type_id))
+                return sip_enum_convert_to_enum(ms, value, addr, wvd->type_id);
+
+            // TODO Handle classes and mapped types.
             break;
     }
 

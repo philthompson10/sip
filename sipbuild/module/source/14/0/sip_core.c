@@ -37,11 +37,11 @@
 
 static void sip_api_bad_length_for_slice(Py_ssize_t seqlen,
         Py_ssize_t slicelen);
-static PyObject *sip_api_convert_from_enum(PyObject *mod, int member,
+static PyObject *sip_api_convert_from_enum(PyObject *mod, void *addr,
         sipTypeID type_id);
 static Py_ssize_t sip_api_convert_from_sequence_index(Py_ssize_t idx,
         Py_ssize_t len);
-static int sip_api_convert_to_enum(PyObject *w_mod, PyObject *obj,
+static int sip_api_convert_to_enum(PyObject *w_mod, PyObject *obj, void *addr,
         sipTypeID type_id);
 static PyTypeObject *sip_api_get_py_type(PyObject *mod, sipTypeID type_id);
 static int sip_api_get_state(PyObject *transferObj);
@@ -343,25 +343,25 @@ static void sip_api_trace(PyObject *mod, unsigned mask, const char *fmt, ...)
 /*
  * Create a Python object for a member of a named enum.
  */
-static PyObject *sip_api_convert_from_enum(PyObject *mod, int member,
+static PyObject *sip_api_convert_from_enum(PyObject *mod, void *addr,
         sipTypeID type_id)
 {
     sipModuleState *ms = sip_get_module_state(mod);
 
-    return sip_enum_convert_from_enum(ms, member, type_id);
+    return sip_enum_convert_from_enum(ms, addr, type_id);
 }
 
 
 /*
- * Convert a Python object implementing an enum to an integer value.  An
+ * Convert a Python object implementing an enum to a member value.  An
  * exception is raised if there was an error.
  */
-static int sip_api_convert_to_enum(PyObject *mod, PyObject *obj,
+static int sip_api_convert_to_enum(PyObject *mod, PyObject *obj, void *addr,
         sipTypeID type_id)
 {
     sipModuleState *ms = sip_get_module_state(mod);
 
-    return sip_enum_convert_to_enum(ms, obj, type_id);
+    return sip_enum_convert_to_enum(ms, obj, addr, type_id);
 }
 
 
@@ -1656,7 +1656,7 @@ static int sip_api_add_type_instance(PyObject *mod, PyObject *dict,
 
     if (sipTypeIDIsEnumCustom(type_id) || sipTypeIDIsEnumPy(type_id))
     {
-        obj = sip_enum_convert_from_enum(ms, *(int *)cppPtr, type_id);
+        obj = sip_enum_convert_from_enum(ms, cppPtr, type_id);
     }
     else
     {

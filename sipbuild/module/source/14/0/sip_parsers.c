@@ -3,7 +3,7 @@
 /*
  * This file implements the API for the argument parsers support.
  *
- * Copyright (c) 2025 Phil Thompson <phil@riverbankcomputing.com>
+ * Copyright (c) 2026 Phil Thompson <phil@riverbankcomputing.com>
  */
 
 
@@ -1403,10 +1403,10 @@ static PyObject *build_object(sipModuleState *wms, PyObject *obj,
 
         case 'F':
             {
-                int ev = va_arg(va, int);
+                void *addr = va_arg(va, void *);
                 sipTypeID type_id = va_arg(va, sipTypeID);
 
-                el = sip_enum_convert_from_enum(wms, ev, type_id);
+                el = sip_enum_convert_from_enum(wms, addr, type_id);
             }
 
             break;
@@ -3075,16 +3075,12 @@ static int parse_pass_1(sipModuleState *wms, PyObject **parse_err_p,
                 /* Named or scoped enum. */
 
                 sipTypeID type_id = va_arg(va, sipTypeID);
-                int *p = va_arg(va, int *);
+                void *p = va_arg(va, void *);
 
                 if (arg != NULL)
                 {
-                    int v = sip_enum_convert_to_enum(wms, arg, type_id);
-
-                    if (PyErr_Occurred())
+                    if (sip_enum_convert_to_enum(wms, arg, p, type_id) < 0)
                         handle_failed_type_conversion(&failure, arg);
-                    else
-                        *p = v;
                 }
             }
 
@@ -3365,14 +3361,11 @@ static int parse_pass_1(sipModuleState *wms, PyObject **parse_err_p,
                 if (sub_fmt == 'E')
                 {
                     sipTypeID type_id = va_arg(va, sipTypeID);
-                    int *p = va_arg(va, int *);
+                    void *p = va_arg(va, void *);
 
                     if (arg != NULL)
                     {
-                        *p = sip_enum_convert_to_constrained_enum(wms, arg,
-                                type_id);
-
-                        if (PyErr_Occurred())
+                        if (sip_enum_convert_to_constrained_enum(wms, arg, p, type_id) < 0)
                             handle_failed_type_conversion(&failure, arg);
                     }
                 }
@@ -4159,13 +4152,11 @@ static int parse_result(sipModuleState *wms, PyObject *method, PyObject *res,
             case 'F':
                 {
                     sipTypeID type_id = va_arg(va, sipTypeID);
-                    int *p = va_arg(va, int *);
-                    int v = sip_enum_convert_to_enum(wms, arg, type_id);
+                    void *p = va_arg(va, void *);
 
-                    if (PyErr_Occurred())
+                    // TODO When can p be NULL?
+                    if (sip_enum_convert_to_enum(wms, arg, p, type_id) < 0)
                         invalid = TRUE;
-                    else if (p != NULL)
-                        *p = v;
                 }
 
                 break;

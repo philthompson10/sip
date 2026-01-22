@@ -194,6 +194,7 @@ static PyObject *missing(PyObject *cls, PyObject *value, int int_enum);
 static PyObject *missing_enum(PyObject *cls, PyObject *value);
 static PyObject *missing_int_enum(PyObject *cls, PyObject *value);
 #endif
+static void raise_internal_error(sipTypeID type_id);
 
 
 #if defined(SIP_CONFIGURATION_PyEnums)
@@ -245,18 +246,62 @@ PyTypeObject *sip_create_enum_type(sipModuleState *ms, sipTypeNr type_nr,
 /*
  * Implement the creation of a Python object for a member of a named enum.
  */
-PyObject *sip_enum_convert_from_enum(sipModuleState *ms, int member,
+PyObject *sip_enum_convert_from_enum(sipModuleState *ms, void *addr,
         sipTypeID type_id)
 {
     // TODO Custom support.
     assert(sipTypeIDIsEnumPy(type_id));
 
-    PyTypeObject *py_type;
-    const sipTypeSpec *ets = sip_get_type_detail(ms, type_id, &py_type, NULL);
+    PyObject *py_type;
+    const sipEnumTypeSpec *ets = (const sipEnumTypeSpec *)sip_get_type_detail(
+            ms, type_id, (PyTypeObject **)&py_type, NULL);
 
-    return PyObject_CallFunction((PyObject *)py_type,
-            IS_UNSIGNED_ENUM((const sipEnumTypeSpec *)ets) ? "(I)" : "(i)",
-            member);
+    switch (ets->cpp_base_type)
+    {
+        case sipTypeID_byte:
+            return PyObject_CallFunction(py_type, "(b)", *(char *)addr);
+
+        case sipTypeID_sbyte:
+            return PyObject_CallFunction(py_type, "(b)", *(signed char *)addr);
+
+        case sipTypeID_ubyte:
+            return PyObject_CallFunction(py_type, "(B)",
+                    *(unsigned char *)addr);
+
+        case sipTypeID_short:
+            return PyObject_CallFunction(py_type, "(h)", *(short *)addr);
+
+        case sipTypeID_ushort:
+            return PyObject_CallFunction(py_type, "(H)",
+                    *(unsigned short *)addr);
+
+        case sipTypeID_int:
+            return PyObject_CallFunction(py_type, "(i)", *(int *)addr);
+
+        case sipTypeID_uint:
+            return PyObject_CallFunction(py_type, "(I)", *(unsigned *)addr);
+
+        case sipTypeID_long:
+            return PyObject_CallFunction(py_type, "(l)", *(long *)addr);
+
+        case sipTypeID_ulong:
+            return PyObject_CallFunction(py_type, "(k)",
+                    *(unsigned long *)addr);
+
+        case sipTypeID_longlong:
+            return PyObject_CallFunction(py_type, "(L)", *(long long *)addr);
+
+        case sipTypeID_ulonglong:
+            return PyObject_CallFunction(py_type, "(K)",
+                    *(unsigned long long *)addr);
+
+        default:
+            break;
+    }
+
+    raise_internal_error(ets->cpp_base_type);
+
+    return NULL;
 }
 
 
@@ -264,26 +309,27 @@ PyObject *sip_enum_convert_from_enum(sipModuleState *ms, int member,
  * Convert a Python object implementing a constrained enum to an integer value.
  */
 int sip_enum_convert_to_constrained_enum(sipModuleState *ms, PyObject *obj,
-        sipTypeID type_id)
+        void *addr, sipTypeID type_id)
 {
     // TODO Custom support.
     /* There is no difference between constrained and unconstrained enums. */
-    return sip_enum_convert_to_enum(ms, obj, type_id);
+    return sip_enum_convert_to_enum(ms, obj, addr, type_id);
 }
 
 
 /*
- * Implement the conversion from a Python object implementing an enum to an
- * integer value.
+ * Implement the conversion from a Python object implementing an enum to a
+ * member value.
  */
-int sip_enum_convert_to_enum(sipModuleState *ms, PyObject *obj,
+int sip_enum_convert_to_enum(sipModuleState *ms, PyObject *obj, void *addr,
         sipTypeID type_id)
 {
     // TODO Custom support.
     assert(sipTypeIDIsEnumPy(type_id));
 
     PyTypeObject *py_type;
-    const sipTypeSpec *ets = sip_get_type_detail(ms, type_id, &py_type, NULL);
+    const sipEnumTypeSpec *ets = (const sipEnumTypeSpec *)sip_get_type_detail(
+            ms, type_id, &py_type, NULL);
 
     /* Check the type of the Python object. */
     if (PyObject_IsInstance(obj, (PyObject *)py_type) <= 0)
@@ -307,17 +353,63 @@ int sip_enum_convert_to_enum(sipModuleState *ms, PyObject *obj,
     if (val_obj == NULL)
         return -1;
 
-    /* Flags are implicitly unsigned. */
-    int val;
+    /* Convert the value. */
+    PyErr_Clear();
 
-    if (IS_UNSIGNED_ENUM((sipEnumTypeSpec *)ets))
-        val = (int)sip_api_long_as_unsigned_int(val_obj);
-    else
-        val = sip_api_long_as_int(val_obj);
+    switch (ets->cpp_base_type)
+    {
+        case sipTypeID_byte:
+            *(char *)addr = sip_api_long_as_char(val_obj);
+            break;
+
+        case sipTypeID_sbyte:
+            *(signed char *)addr = sip_api_long_as_signed_char(val_obj);
+            break;
+
+        case sipTypeID_ubyte:
+            *(unsigned char *)addr = sip_api_long_as_unsigned_char(val_obj);
+            break;
+
+        case sipTypeID_short:
+            *(short *)addr = sip_api_long_as_short(val_obj);
+            break;
+
+        case sipTypeID_ushort:
+            *(unsigned short *)addr = sip_api_long_as_unsigned_short(val_obj);
+            break;
+
+        case sipTypeID_int:
+            *(int *)addr = sip_api_long_as_int(val_obj);
+            break;
+
+        case sipTypeID_uint:
+            *(unsigned *)addr = sip_api_long_as_unsigned_int(val_obj);
+            break;
+
+        case sipTypeID_long:
+            *(long *)addr = sip_api_long_as_long(val_obj);
+            break;
+
+        case sipTypeID_ulong:
+            *(unsigned long *)addr = sip_api_long_as_unsigned_long(val_obj);
+            break;
+
+        case sipTypeID_longlong:
+            *(long long *)addr = sip_api_long_as_long_long(val_obj);
+            break;
+
+        case sipTypeID_ulonglong:
+            *(unsigned long long *)addr = sip_api_long_as_unsigned_long_long(
+                    val_obj);
+            break;
+
+        default:
+            raise_internal_error(ets->cpp_base_type);
+    }
 
     Py_DECREF(val_obj);
 
-    return val;
+    return PyErr_Occurred() ? -1 : 0;
 }
 
 
@@ -798,3 +890,13 @@ static PyObject *missing_int_enum(PyObject *cls, PyObject *value)
     return missing(cls, value, TRUE);
 }
 #endif
+
+
+/*
+ * Raise an exception relating to an invalid type ID.
+ */
+static void raise_internal_error(sipTypeID type_id)
+{
+    PyErr_Format(PyExc_SystemError, "unsupported enum type ID: 0x%04x",
+            type_id);
+}
