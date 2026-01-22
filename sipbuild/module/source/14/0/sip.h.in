@@ -259,8 +259,20 @@ typedef struct _sipEnumMemberSpec {
     const char *name;
 
     /* The member value. */
-    // TODO Needs to be a union of integer types.
-    int value;
+    // TODO Is the union only for Py enums?
+    union {
+        char byte_t;
+        signed char sbyte_t;
+        unsigned char ubyte_t;
+        short short_t;
+        unsigned short ushort_t;
+        int int_t;
+        unsigned uint_t;
+        long long_t;
+        unsigned long ulong_t;
+        long long longlong_t;
+        unsigned long long ulonglong_t;
+    } value;
 
 #if defined(SIP_CONFIGURATION_CustomEnums)
     // TODO Is this still needed?

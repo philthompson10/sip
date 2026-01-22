@@ -492,9 +492,9 @@ static PyTypeObject *create_py_enum_type(sipModuleState *ms,
 #if defined(SIP_CONFIGURATION_PyEnums)
         /* Flags are implicitly unsigned. */
         if (IS_UNSIGNED_ENUM(spec))
-            value_obj = PyLong_FromUnsignedLong((unsigned)member->value);
+            value_obj = PyLong_FromUnsignedLong(member->value.uint_t);
         else
-            value_obj = PyLong_FromLong(member->value);
+            value_obj = PyLong_FromLong(member->value.int_t);
 #endif
 
 #if defined(SIP_CONFIGURATION_CustomEnums)

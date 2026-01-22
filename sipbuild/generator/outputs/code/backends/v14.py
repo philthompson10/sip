@@ -197,8 +197,8 @@ static const sipModuleSpec sipModule_{module_name} = {{
 
             for member in enum.members:
                 name = str(member.py_name)
-                value = get_enum_member(spec, member)
-                sf.write(f'    {{.name = "{name}", .value = {value}}},\n')
+                value_field = self._get_enum_member_value_field(enum, member)
+                sf.write(f'    {{.name = "{name}", {value_field}}},\n')
 
             sf.write('    {}\n};\n')
 
@@ -1598,6 +1598,34 @@ static const sipVariableSpec sip{table_type}Variables_{suffix}[] = {{
         # __len__ is placed in two slots.
         if py_slot is PySlot.LEN:
             slots.append(('Py_sq_length', f'slot_{scope_name}_{py_name}'))
+
+    def _get_enum_member_value_field(self, enum, member):
+        """ Return the initialisation of the value field of an enum member
+        specification.
+        """
+
+        # TODO Should this only be for Py enums?
+        base_type = enum.enum_base_type or ArgumentType.INT
+        field, cast = _ENUM_MEMBER_TYPE_MAP[base_type]
+
+        return f'.value.{field} = static_cast<{cast}>({get_enum_member(self.spec, member)})'
+
+
+# The mapping of an enum base type to the details needed to initialise a member
+# specification.
+_ENUM_MEMBER_TYPE_MAP = {
+    ArgumentType.BYTE: ('byte_t', 'char'),
+    ArgumentType.SBYTE: ('sbyte_t', 'signed char'),
+    ArgumentType.UBYTE: ('ubyte_t', 'unsigned char'),
+    ArgumentType.SHORT: ('short_t', 'short'),
+    ArgumentType.USHORT: ('ushort_t', 'unsigned short'),
+    ArgumentType.INT: ('int_t', 'int'),
+    ArgumentType.UINT: ('uint_t', 'unsigned'),
+    ArgumentType.LONG: ('long_t', 'long'),
+    ArgumentType.ULONG: ('ulong_t', 'unsigned long'),
+    ArgumentType.LONGLONG: ('longlong_t', 'long long'),
+    ArgumentType.ULONGLONG: ('ulonglong_t', 'unsigned long long'),
+}
 
 
 # The mapping of slots to Python slot IDs.
