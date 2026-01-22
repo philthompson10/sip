@@ -18,11 +18,6 @@
 #include "sip_wrapped_module.h"
 
 
-#if defined(SIP_CONFIGURATION_PyEnums)
-#define IS_UNSIGNED_ENUM(ets)   ((ets)->py_base_type == SIP_ENUM_UINT_ENUM || (ets)->py_base_type == SIP_ENUM_INT_FLAG || (ets)->py_base_type == SIP_ENUM_FLAG)
-#endif
-
-
 #if defined(SIP_CONFIGURATION_CustomEnums)
 
 /* Forward declarations of slots. */
@@ -183,11 +178,11 @@ static int EnumType_traverse(PyObject *self, visitproc visit, void *arg)
 
 /* Forward declarations. */
 #if defined(SIP_CONFIGURATION_CustomEnums)
-static PyTypeObject *create_custom_enum_type(const sipEnumTypeSpec *spec,
+static PyTypeObject *create_custom_enum_type(const sipEnumTypeSpec *ets,
         PyObject *name);
 #endif
 static PyTypeObject *create_py_enum_type(sipModuleState *ms,
-        const sipEnumTypeSpec *spec, PyObject *name);
+        const sipEnumTypeSpec *ets, PyObject *name);
 static int init_enum_module_types(sipSipModuleState *sms);
 #if defined(SIP_CONFIGURATION_PyEnums)
 static PyObject *missing(PyObject *cls, PyObject *value, int int_enum);
@@ -461,7 +456,7 @@ int sip_enum_is_enum(sipSipModuleState *sms, PyObject *obj)
 /*
  * Create a custom enum type.
  */
-static PyTypeObject *create_custom_enum_type(const sipEnumTypeSpec *spec,
+static PyTypeObject *create_custom_enum_type(const sipEnumTypeSpec *ets,
         PyObject *name)
 {
     // TODO
@@ -474,7 +469,7 @@ static PyTypeObject *create_custom_enum_type(const sipEnumTypeSpec *spec,
  * Create a Python enum type.
  */
 static PyTypeObject *create_py_enum_type(sipModuleState *ms,
-        const sipEnumTypeSpec *spec, PyObject *name)
+        const sipEnumTypeSpec *ets, PyObject *name)
 {
     sipSipModuleState *sms = ms->sip_module_state;
 
@@ -483,18 +478,64 @@ static PyTypeObject *create_py_enum_type(sipModuleState *ms,
     if (members == NULL)
         goto ret_err;
 
-    const sipEnumMemberSpec *member = spec->members;
+    const sipEnumMemberSpec *member = ets->members;
 
     while (member->name != NULL)
     {
         PyObject *value_obj;
 
 #if defined(SIP_CONFIGURATION_PyEnums)
-        /* Flags are implicitly unsigned. */
-        if (IS_UNSIGNED_ENUM(spec))
-            value_obj = PyLong_FromUnsignedLong(member->value.uint_t);
-        else
-            value_obj = PyLong_FromLong(member->value.int_t);
+        switch (ets->cpp_base_type)
+        {
+            case sipTypeID_byte:
+                value_obj = PyLong_FromLong(member->value.byte_t);
+                break;
+
+            case sipTypeID_sbyte:
+                value_obj = PyLong_FromLong(member->value.sbyte_t);
+                break;
+
+            case sipTypeID_ubyte:
+                value_obj = PyLong_FromUnsignedLong(member->value.ubyte_t);
+                break;
+
+            case sipTypeID_short:
+                value_obj = PyLong_FromLong(member->value.short_t);
+                break;
+
+            case sipTypeID_ushort:
+                value_obj = PyLong_FromUnsignedLong(member->value.ushort_t);
+                break;
+
+            case sipTypeID_int:
+                value_obj = PyLong_FromLong(member->value.int_t);
+                break;
+
+            case sipTypeID_uint:
+                value_obj = PyLong_FromUnsignedLong(member->value.uint_t);
+                break;
+
+            case sipTypeID_long:
+                value_obj = PyLong_FromLong(member->value.long_t);
+                break;
+
+            case sipTypeID_ulong:
+                value_obj = PyLong_FromUnsignedLong(member->value.ulong_t);
+                break;
+
+            case sipTypeID_longlong:
+                value_obj = PyLong_FromLongLong(member->value.longlong_t);
+                break;
+
+            case sipTypeID_ulonglong:
+                value_obj = PyLong_FromUnsignedLongLong(
+                        member->value.ulonglong_t);
+                break;
+
+            default:
+                raise_internal_error(ets->cpp_base_type);
+                value_obj = NULL;
+        }
 #endif
 
 #if defined(SIP_CONFIGURATION_CustomEnums)
@@ -538,11 +579,11 @@ static PyTypeObject *create_py_enum_type(sipModuleState *ms,
      */
      // TODO Review the need for this.
 #if 0
-     if (spec->scope_nr >= 0)
+     if (ets->scope_nr >= 0)
      {
         PyObject *qualname;
 
-        if ((qualname = sip_get_qualname(wmd->types[spec->scope_nr], name)) == NULL)
+        if ((qualname = sip_get_qualname(wmd->types[ets->scope_nr], name)) == NULL)
             goto rel_kw_args;
 
         PyObject *qualname_s = PyUnicode_InternFromString("qualname");
@@ -567,15 +608,15 @@ static PyTypeObject *create_py_enum_type(sipModuleState *ms,
 #if defined(SIP_CONFIGURATION_PyEnums)
     PyMethodDef *missing_md = NULL;
 
-    if (spec->py_base_type == SIP_ENUM_INT_FLAG)
+    if (ets->py_base_type == SIP_ENUM_INT_FLAG)
     {
         enum_factory = sms->enum_int_flag_type;
     }
-    else if (spec->py_base_type == SIP_ENUM_FLAG)
+    else if (ets->py_base_type == SIP_ENUM_FLAG)
     {
         enum_factory = sms->enum_flag_type;
     }
-    else if (spec->py_base_type == SIP_ENUM_INT_ENUM || spec->py_base_type == SIP_ENUM_UINT_ENUM)
+    else if (ets->py_base_type == SIP_ENUM_INT_ENUM || ets->py_base_type == SIP_ENUM_UINT_ENUM)
     {
         static PyMethodDef missing_int_enum_md = {
             "_missing_", missing_int_enum, METH_O|METH_CLASS, NULL
