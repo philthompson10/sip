@@ -150,45 +150,58 @@ PyObject *sip_variable_get(sipModuleState *ms, PyObject *instance,
     if (wvd->get_code != NULL)
         return wvd->get_code();
 
-    void *addr = get_variable_address(wvd, binding_type, instance, mixin_name);
-    if (addr == NULL)
+    void *addr;
+
+    if (wvd->key == SIP_WV_LITERAL)
+        addr = NULL;
+    else if ((addr = get_variable_address(wvd, binding_type, instance, mixin_name)) == NULL)
         return NULL;
 
     switch (wvd->type_id)
     {
         case sipTypeID_byte:
-            return PyLong_FromLong(*(char *)addr);
+            return PyLong_FromLong(
+                    addr != NULL ? *(char *)addr : wvd->value.byte_t);
 
         case sipTypeID_sbyte:
-            return PyLong_FromLong(*(signed char *)addr);
+            return PyLong_FromLong(
+                    addr != NULL ? *(signed char *)addr : wvd->value.sbyte_t);
 
         case sipTypeID_ubyte:
-            return PyLong_FromUnsignedLong(*(unsigned char *)addr);
+            return PyLong_FromUnsignedLong(
+                    addr != NULL ? *(unsigned char *)addr : wvd->value.ubyte_t);
 
         case sipTypeID_short:
-            return PyLong_FromLong(*(short *)addr);
+            return PyLong_FromLong(
+                    addr != NULL ? *(short *)addr : wvd->value.short_t);
 
         case sipTypeID_ushort:
-            return PyLong_FromUnsignedLong(*(unsigned short *)addr);
+            return PyLong_FromUnsignedLong(
+                    addr != NULL ? *(unsigned short *)addr : wvd->value.ushort_t);
 
         case sipTypeID_int:
-            return PyLong_FromLong(*(int *)addr);
+            return PyLong_FromLong(
+                    addr != NULL ? *(int *)addr : wvd->value.int_t);
 
         case sipTypeID_uint:
-            return PyLong_FromUnsignedLong(*(unsigned *)addr);
+            return PyLong_FromUnsignedLong(
+                    addr != NULL ? *(unsigned *)addr : wvd->value.uint_t);
 
         case sipTypeID_long:
-            return PyLong_FromLong(*(long *)addr);
+            return PyLong_FromLong(
+                    addr != NULL ? *(long *)addr : wvd->value.long_t);
 
         case sipTypeID_ulong:
-            return PyLong_FromUnsignedLong(*(unsigned long *)addr);
+            return PyLong_FromUnsignedLong(
+                    addr != NULL ? *(unsigned long *)addr : wvd->value.ulong_t);
 
         case sipTypeID_longlong:
-            return PyLong_FromLongLong(*(long long *)addr);
+            return PyLong_FromLongLong(
+                    addr != NULL ? *(long long *)addr : wvd->value.longlong_t);
 
         case sipTypeID_ulonglong:
             return PyLong_FromUnsignedLongLong(
-                    *(unsigned long long *)addr);
+                    addr != NULL ?  *(unsigned long long *)addr : wvd->value.ulonglong_t);
 
         case sipTypeID_Py_hash_t:
             return PyLong_FromLong(*(Py_hash_t *)addr);
@@ -396,7 +409,7 @@ int sip_variable_set(sipModuleState *ms, PyObject *instance, PyObject *value,
     if (wvd->set_code != NULL)
         return wvd->set_code(value);
 
-    if (wvd->key == SIP_WV_RO)
+    if (wvd->key == SIP_WV_RO || wvd->key == SIP_WV_LITERAL)
     {
         PyErr_Format(PyExc_ValueError,
                 "'%s' is a constant and cannot be modified", wvd->name);
@@ -969,7 +982,7 @@ static void *get_variable_address(const sipVariableSpec *wvd,
         PyTypeObject *binding_type, PyObject *instance, PyObject *mixin_name)
 {
     if (binding_type == NULL)
-        return wvd->address;
+        return wvd->value.ptr_t;
 
     /* Check that access was via an instance. */
     if (instance == NULL || instance == Py_None)
@@ -987,7 +1000,7 @@ static void *get_variable_address(const sipVariableSpec *wvd,
     if (instance_addr == NULL)
         return NULL;
 
-    return ((sipVariableAddrGetFunc)wvd->address)(instance_addr);
+    return ((sipVariableAddrGetFunc)wvd->value.ptr_t)(instance_addr);
 }
 
 

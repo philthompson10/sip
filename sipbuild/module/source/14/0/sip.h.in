@@ -252,6 +252,27 @@ typedef void (*sipWrapperVisitorFunc)(PyObject *, void *);
 
 
 /*
+ * The storage for a pointer and all integer values (as used as enum base
+ * types).
+ */
+// TODO Is the union only for Py enums?
+typedef union {
+    void *ptr_t;
+    char byte_t;
+    signed char sbyte_t;
+    unsigned char ubyte_t;
+    short short_t;
+    unsigned short ushort_t;
+    int int_t;
+    unsigned uint_t;
+    long long_t;
+    unsigned long ulong_t;
+    long long longlong_t;
+    unsigned long long ulonglong_t;
+} sipTypedValue;
+
+
+/*
  * The immutable specification of a wrapped named enum member.
  */
 typedef struct _sipEnumMemberSpec {
@@ -259,20 +280,7 @@ typedef struct _sipEnumMemberSpec {
     const char *name;
 
     /* The member value. */
-    // TODO Is the union only for Py enums?
-    union {
-        char byte_t;
-        signed char sbyte_t;
-        unsigned char ubyte_t;
-        short short_t;
-        unsigned short ushort_t;
-        int int_t;
-        unsigned uint_t;
-        long long_t;
-        unsigned long ulong_t;
-        long long longlong_t;
-        unsigned long long ulonglong_t;
-    } value;
+    sipTypedValue value;
 
 #if defined(SIP_CONFIGURATION_CustomEnums)
     // TODO Is this still needed?
@@ -286,6 +294,7 @@ typedef struct _sipEnumMemberSpec {
  * The immutable specification of a wrapped variable.
  */
 #define SIP_WV_RO           INT_MIN     /* The value is read only. */
+#define SIP_WV_LITERAL      INT_MIN+1   /* The value is literal. */
 
 typedef void *(*sipVariableAddrGetFunc)(void *);
 
@@ -299,14 +308,15 @@ typedef struct {
     /* The type of the variable's value. */
     sipTypeID type_id;
 
-    /* The key or SIP_WV_RO. */
+    /* The key or SIP_WV_*. */
     int key;
 
     /*
-     * The address of the variable if the variable is unbound or the address
-     * getter if the variable is bound.
+     * The value of the variable.  If it is an enum member then this is the
+     * fixed value.  If it is unbound then it is the address of the variable.
+     * If the variable is bound then it is the address of a getter.
      */
-    void *address;
+    sipTypedValue value;
 
     /* The optional %GetCode wrapper. */
     sipVariableGetCodeFunc get_code;

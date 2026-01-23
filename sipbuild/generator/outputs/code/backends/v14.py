@@ -6,9 +6,9 @@
 from .....sip_module_configuration import SipModuleConfiguration
 
 from ....python_slots import is_rich_compare_slot
-from ....scoped_name import STRIP_GLOBAL
-from ....specification import (ArgumentType, GILUse, IfaceFileType,
-        MultiInterpreterSupport, PySlot, WrappedEnum)
+from ....scoped_name import ScopedName, STRIP_GLOBAL
+from ....specification import (Argument, ArgumentType, GILUse, IfaceFileType,
+        MultiInterpreterSupport, PySlot, WrappedEnum, WrappedVariable)
 
 from ...formatters import fmt_class_as_scoped_py_name
 
@@ -197,7 +197,7 @@ static const sipModuleSpec sipModule_{module_name} = {{
 
             for member in enum.members:
                 name = str(member.py_name)
-                value_field = self._get_enum_member_value_field(enum, member)
+                value_field = self._get_enum_member_value_field(member)
                 sf.write(f'    {{.name = "{name}", {value_field}}},\n')
 
             sf.write('    {}\n};\n')
@@ -1244,13 +1244,38 @@ static int module_traverse(PyObject *mod, visitproc visit, void *arg)
         and return the length of the table.
         """
 
-        # TODO Do members of anon enums.  Also members of custom enums.
+        # TODO Do members of custom enums.
         spec = self.spec
         c_bindings = spec.c_bindings
         module = spec.module
 
         # Get the sorted list of variables.
         variables = list(variables_in_scope(spec, scope, check_handler=False))
+
+        # Add the members of any anonymous enums.  Note that this would be
+        # be better handled by the parser but that would require refactoring of
+        # the legacy backend.
+        # TODO Also add the members of custom enums.
+        for enum in spec.enums:
+            if enum.fq_cpp_name is not None:
+                continue
+
+            if py_scope(enum.scope) is not scope:
+                continue
+
+            for member in enum.members:
+                fq_cpp_name = ScopedName.parse(get_enum_member(spec, member))
+                base_type = enum.enum_base_type or Argument(ArgumentType.INT)
+
+                pseudo_var = WrappedVariable(fq_cpp_name, enum.module,
+                        member.py_name, scope, base_type)
+
+                # This is a bit of a hack.
+                pseudo_var._enum_member = self._get_enum_member_value_field(
+                        member, base_type=base_type)
+
+                variables.append(pseudo_var)
+
         variables.sort(key=lambda k: k.py_name.name)
 
         table = []
@@ -1274,7 +1299,9 @@ static int module_traverse(PyObject *mod, visitproc visit, void *arg)
             not_settable = False
             might_need_key = False
 
-            # TODO Unnamed enums and classes/mapped types.
+            enum_member_value = getattr(variable, '_enum_member', None)
+
+            # TODO Classes and mapped types.
             if v_type.type is ArgumentType.CLASS or (v_type.type is ArgumentType.ENUM and v_type.definition.fq_cpp_name is None):
                 pass
 
@@ -1459,20 +1486,24 @@ static int module_traverse(PyObject *mod, visitproc visit, void *arg)
             fields.append(f'.name = "{variable.py_name.name}"')
             fields.append('.type_id = ' + type_id)
 
-            if read_only:
-                fields.append('.key = SIP_WV_RO')
-            elif might_need_key:
-                fields.append('.key = ' + str(module.next_key))
-                module.next_key -= 1
-
-            if scope is None or variable.is_static:
-                # TODO Why STRIP_GLOBAL here in particular?
-                cpp_name = variable.fq_cpp_name.cpp_stripped(STRIP_GLOBAL)
-                address = '&' + cpp_name
+            if enum_member_value is not None:
+                fields.append('.key = SIP_WV_LITERAL')
+                fields.append(enum_member_value)
             else:
-                address = 'sipVariableAddrGetter_' + v_ref
+                if read_only:
+                    fields.append('.key = SIP_WV_RO')
+                elif might_need_key:
+                    fields.append('.key = ' + str(module.next_key))
+                    module.next_key -= 1
 
-            fields.append('.address = (void *)' + address)
+                if scope is None or variable.is_static:
+                    # TODO Why STRIP_GLOBAL here in particular?
+                    cpp_name = variable.fq_cpp_name.cpp_stripped(STRIP_GLOBAL)
+                    address = '&' + cpp_name
+                else:
+                    address = 'sipVariableAddrGetter_' + v_ref
+
+                fields.append('.value.ptr_t = (void *)' + address)
 
             if variable.get_code is not None:
                 fields.append('.get_code = sipVariableGetCode_' + v_ref)
@@ -1534,7 +1565,7 @@ f'''static int sipVariableSetCode_{v_ref}(PyObject *sipPy)
 ''')
 
             # See if we need a descriptor address getter.
-            if scope is None or variable.is_static:
+            if scope is None or variable.is_static or enum_member_value is not None:
                 continue
 
             sf.write('\n\n')
@@ -1599,14 +1630,19 @@ static const sipVariableSpec sip{table_type}Variables_{suffix}[] = {{
         if py_slot is PySlot.LEN:
             slots.append(('Py_sq_length', f'slot_{scope_name}_{py_name}'))
 
-    def _get_enum_member_value_field(self, enum, member):
+    def _get_enum_member_value_field(self, member, base_type=None):
         """ Return the initialisation of the value field of an enum member
         specification.
         """
 
-        # TODO Should this only be for Py enums?
-        base_type = enum.enum_base_type or ArgumentType.INT
-        field, cast = _ENUM_MEMBER_TYPE_MAP[base_type]
+        if base_type is not None:
+            arg_type = base_type.type
+        elif member.scope.enum_base_type is not None:
+            arg_type = member.scope.enum_base_type.type
+        else:
+            arg_type = ArgumentType.INT
+
+        field, cast = _ENUM_MEMBER_TYPE_MAP[arg_type]
 
         return f'.value.{field} = static_cast<{cast}>({get_enum_member(self.spec, member)})'
 
