@@ -3,7 +3,7 @@
 /*
  * This file defines the API of the Python object to C/C++ integer convertors.
  *
- * Copyright (c) 2025 Phil Thompson <phil@riverbankcomputing.com>
+ * Copyright (c) 2026 Phil Thompson <phil@riverbankcomputing.com>
  */
 
 
@@ -19,7 +19,7 @@
 extern "C" {
 #endif
 
-_Bool sip_api_convert_to_bool(PyObject *o);
+bool sip_api_convert_to_bool(PyObject *o);
 char sip_api_long_as_char(PyObject *o);
 signed char sip_api_long_as_signed_char(PyObject *o);
 unsigned char sip_api_long_as_unsigned_char(PyObject *o);

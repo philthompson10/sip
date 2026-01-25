@@ -215,7 +215,7 @@ PyTypeObject *sip_create_enum_type(sipModuleState *ms, sipTypeNr type_nr,
     if (init_enum_module_types(ms->sip_module_state) < 0)
         return NULL;
 
-    PyObject *name = PyUnicode_FromString(ets->py_name);
+    PyObject *name = PyUnicode_FromString(strrchr(ets->fq_py_name, '.') + 1);
     if (name == NULL)
         return NULL;
 
@@ -487,6 +487,10 @@ static PyTypeObject *create_py_enum_type(sipModuleState *ms,
 #if defined(SIP_CONFIGURATION_PyEnums)
         switch (ets->cpp_base_type)
         {
+            case sipTypeID_bool:
+                value_obj = PyBool_FromLong(member->value.bool_t);
+                break;
+
             case sipTypeID_byte:
                 value_obj = PyLong_FromLong(member->value.byte_t);
                 break;
@@ -574,35 +578,6 @@ static PyTypeObject *create_py_enum_type(sipModuleState *ms,
     if (rc < 0)
         goto rel_kw_args;
 
-    /*
-     * If the enum has a scope then the default __qualname__ will be incorrect.
-     */
-     // TODO Review the need for this.
-#if 0
-     if (ets->scope_nr >= 0)
-     {
-        PyObject *qualname;
-
-        if ((qualname = sip_get_qualname(wmd->types[ets->scope_nr], name)) == NULL)
-            goto rel_kw_args;
-
-        PyObject *qualname_s = PyUnicode_InternFromString("qualname");
-
-        if (qualname_s == NULL)
-        {
-            Py_DECREF(qualname);
-            goto rel_kw_args;
-        }
-
-        rc = PyDict_SetItem(kw_args, qualname_s, qualname);
-        Py_DECREF(qualname_s);
-        Py_DECREF(qualname);
-
-        if (rc < 0)
-            goto rel_kw_args;
-    }
-#endif
-
     PyObject *enum_factory;
 
 #if defined(SIP_CONFIGURATION_PyEnums)
@@ -647,6 +622,13 @@ static PyTypeObject *create_py_enum_type(sipModuleState *ms,
     Py_DECREF(kw_args);
     Py_DECREF(args);
     Py_DECREF(members);
+
+    if (ets->scope_nr >= 0)
+        if (sip_fix_type_attrs(ms, ets->fq_py_name, enum_obj) < 0)
+        {
+            Py_DECREF(enum_obj);
+            return NULL;
+        }
 
 #if defined(SIP_CONFIGURATION_PyEnums)
     /* Inject _missing_. */

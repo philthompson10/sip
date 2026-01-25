@@ -902,81 +902,10 @@ static PyTypeObject *create_container_type(sipModuleState *ms,
         }
     }
 
-    /* Add the type to the scope. */
-    // TODO Note that we no longer add it to the scope here.  We may not need
-    // the scope_id any more - maybe just a 'broken __qualname__' flag.
-#if 0
-    PyObject *scope;
-#endif
-
+    /* Fix the type's name attributes. */
     if (cod->scope_id != sipTypeID_Invalid)
-    {
-#if 0
-        scope = (PyObject *)sip_get_py_type(ms, cod->scope_id);
-        if (scope == NULL)
+        if (sip_fix_type_attrs(ms, cod->fq_py_name, (PyObject *)w_type) < 0)
             goto rel_type;
-#endif
-
-        /*
-         * The fully qualified name (ie. including fully qualified module name
-         * and any scope names) is specified in tp_name.  The name (taken as a
-         * whole) seems mainly to be used for error messages.  It is also used
-         * to derive the default values of __module__, __qualname__ and
-         * __name__.  The way __name__ is derived means that it is always
-         * correct and so we don't need to worry about it.  __module__ seems to
-         * be set to the value of tp_name up to the last dot and __qualname__
-         * seems to be set to the value of tp_name after the last dot (ie. the
-         * same as __name__).  This is correct for top-level types but is wrong
-         * for nested types.  Therefore we need to fix __module__ and
-         * __qualname__ for types with a scope.
-         */
-        PyModuleDef_Slot *slots;
-        if (PyModule_GetToken(ms->wrapped_module, (void **)&slots) < 0 || slots == NULL)
-            goto rel_type;
-
-        const char *mod_name = (const char *)slots[0].value;
-        const char *qualname = cod->fq_py_name + strlen(mod_name) + 1;
-        PyObject *qualname_obj = PyUnicode_FromString(qualname);
-
-        PyObject *mod_name_obj = PyModule_GetNameObject(ms->wrapped_module);
-        PyObject *dunder_module = PyUnicode_InternFromString("__module__");
-        PyObject *dunder_qualname = PyUnicode_InternFromString("__qualname__");
-
-        if (qualname_obj == NULL || mod_name_obj == NULL || dunder_module == NULL || dunder_qualname == NULL)
-        {
-            Py_XDECREF(qualname_obj);
-            Py_XDECREF(mod_name_obj);
-            Py_XDECREF(dunder_module);
-            Py_XDECREF(dunder_qualname);
-
-            goto rel_type;
-        }
-
-        int module_rc = PyObject_SetAttr((PyObject *)w_type, dunder_module,
-                mod_name_obj);
-        int qualname_rc = PyObject_SetAttr((PyObject *)w_type, dunder_qualname,
-                qualname_obj);
-
-        Py_DECREF(qualname_obj);
-        Py_DECREF(mod_name_obj);
-        Py_DECREF(dunder_module);
-        Py_DECREF(dunder_qualname);
-
-        if (module_rc < 0 || qualname_rc < 0)
-            goto rel_type;
-    }
-#if 0
-    else
-    {
-        scope = ms->wrapped_module;
-    }
-
-    /* There is guaranteed to be a dot in the name. */
-    const char *name = strrchr(cod->fq_py_name, '.') + 1;
-
-    if (PyObject_SetAttrString(scope, name, (PyObject *)w_type) < 0)
-        goto rel_type;
-#endif
 
     return w_type;
 
@@ -987,6 +916,61 @@ rel_type:
 
 ret_error:
     return NULL;
+}
+
+
+/*
+ * Fix the __module__ and __qualname__ attributes of a wrapped type.
+ */
+int sip_fix_type_attrs(sipModuleState *ms, const char *fq_py_name,
+        PyObject *py_type)
+{
+    /*
+     * The fully qualified name (ie. including fully qualified module name and
+     * any scope names) is specified in tp_name.  The name (taken as a whole)
+     * seems mainly to be used for error messages.  It is also used to derive
+     * the default values of __module__, __qualname__ and __name__.  The way
+     * __name__ is derived means that it is always correct and so we don't need
+     * to worry about it.  __module__ seems to be set to the value of tp_name
+     * up to the last dot and __qualname__ seems to be set to the value of
+     * tp_name after the last dot (ie. the same as __name__).  This is correct
+     * for top-level types but is wrong for nested types.  Therefore we need to
+     * fix __module__ and __qualname__ for types with a scope.
+     */
+    PyModuleDef_Slot *slots;
+    if (PyModule_GetToken(ms->wrapped_module, (void **)&slots) < 0 || slots == NULL)
+        return -1;
+
+    const char *mod_name = (const char *)slots[0].value;
+    const char *qualname = fq_py_name + strlen(mod_name) + 1;
+    PyObject *qualname_obj = PyUnicode_FromString(qualname);
+
+    PyObject *mod_name_obj = PyModule_GetNameObject(ms->wrapped_module);
+    PyObject *dunder_module = PyUnicode_InternFromString("__module__");
+    PyObject *dunder_qualname = PyUnicode_InternFromString("__qualname__");
+
+    if (qualname_obj == NULL || mod_name_obj == NULL || dunder_module == NULL || dunder_qualname == NULL)
+    {
+        Py_XDECREF(qualname_obj);
+        Py_XDECREF(mod_name_obj);
+        Py_XDECREF(dunder_module);
+        Py_XDECREF(dunder_qualname);
+
+        return -1;
+    }
+
+    int module_rc = PyObject_SetAttr(py_type, dunder_module, mod_name_obj);
+    int qualname_rc = PyObject_SetAttr(py_type, dunder_qualname, qualname_obj);
+
+    Py_DECREF(qualname_obj);
+    Py_DECREF(mod_name_obj);
+    Py_DECREF(dunder_module);
+    Py_DECREF(dunder_qualname);
+
+    if (module_rc < 0 || qualname_rc < 0)
+        return -1;
+
+    return 0;
 }
 
 
@@ -3202,16 +3186,6 @@ const sipContainerSpec *sip_get_container(const sipTypeSpec *td)
         return &((const sipMappedTypeSpec *)td)->container;
 
     return &((const sipClassTypeSpec *)td)->container;
-}
-
-
-/*
- * Get the __qualname__ of an object based on its enclosing scope.
- */
-PyObject *sip_get_qualname(PyTypeObject *scope_py_type, PyObject *name)
-{
-    return PyUnicode_FromFormat("%U.%U",
-            ((PyHeapTypeObject *)scope_py_type)->ht_qualname, name);
 }
 
 

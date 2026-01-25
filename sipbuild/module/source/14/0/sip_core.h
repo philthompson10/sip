@@ -101,6 +101,8 @@ int sip_dict_set_and_discard(PyObject *dict, const char *name, PyObject *obj);
 #if 0
 void sip_fix_slots(PyTypeObject *py_type, sipPySlotDef *psd);
 #endif
+int sip_fix_type_attrs(sipModuleState *ms, const char *fq_py_name,
+        PyObject *py_type);
 const sipContainerSpec *sip_get_container(const sipTypeSpec *td);
 void *sip_get_complex_cpp_ptr(sipModuleState *wms, PyObject *w_inst,
         sipTypeID type_id);
@@ -115,7 +117,6 @@ const sipTypeSpec *sip_get_type_detail(sipModuleState *wms, sipTypeID type_id,
 PyTypeObject *sip_get_py_type(sipModuleState *ms, sipTypeID type_id);
 PyTypeObject *sip_get_py_type_from_name(sipSipModuleState *sms,
         PyObject *target_module_name_obj, const char *target_type_name);
-PyObject *sip_get_qualname(PyTypeObject *scope_py_type, PyObject *name);
 PyObject *sip_get_scope_dict(sipSipModuleState *sms, const sipTypeSpec *td,
         PyObject *mod_dict, const sipModuleSpec *wmd);
 void sip_instance_destroyed(sipModuleState *wms, PyObject **self_p);

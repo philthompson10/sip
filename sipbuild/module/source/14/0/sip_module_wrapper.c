@@ -159,6 +159,10 @@ PyObject *sip_variable_get(sipModuleState *ms, PyObject *instance,
 
     switch (wvd->type_id)
     {
+        case sipTypeID_bool:
+            return PyBool_FromLong(
+                    addr != NULL ? *(bool *)addr : wvd->value.bool_t);
+
         case sipTypeID_byte:
             return PyLong_FromLong(
                     addr != NULL ? *(char *)addr : wvd->value.byte_t);
@@ -304,9 +308,6 @@ PyObject *sip_variable_get(sipModuleState *ms, PyObject *instance,
             return PyUnicode_FromWideChar(c_value,
                     (Py_ssize_t)wcslen(c_value));
         }
-
-        case sipTypeID_bool:
-            return PyBool_FromLong(*(_Bool *)addr);
 
         case sipTypeID_voidptr:
             return sip_convert_from_void_ptr(ms->sip_module_state,
@@ -808,12 +809,12 @@ int sip_variable_set(sipModuleState *ms, PyObject *instance, PyObject *value,
 
         case sipTypeID_bool:
         {
-            _Bool c_value = sip_api_convert_to_bool(value);
+            bool c_value = sip_api_convert_to_bool(value);
 
             if (PyErr_Occurred())
                 return -1;
 
-            *(_Bool *)addr = c_value;
+            *(bool *)addr = c_value;
 
             return 0;
         }
@@ -955,11 +956,11 @@ static int compare_type_nr(const void *key, const void *el,
     const char *s2;
 
     if (sipTypeIsClass(ts) || sipTypeIsNamespace(ts))
-        s2 = strrchr(((const sipClassTypeSpec *)ts)->container.fq_py_name, '.') + 1;
+        s2 = ((const sipClassTypeSpec *)ts)->container.fq_py_name;
     else
-        s2 = ((const sipEnumTypeSpec *)ts)->py_name;
+        s2 = ((const sipEnumTypeSpec *)ts)->fq_py_name;
 
-    return strcmp(s1, s2);
+    return strcmp(s1, strrchr(s2, '.') + 1);
 }
 
 

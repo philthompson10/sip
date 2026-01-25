@@ -258,6 +258,7 @@ typedef void (*sipWrapperVisitorFunc)(PyObject *, void *);
 // TODO Is the union only for Py enums?
 typedef union {
     void *ptr_t;
+    bool bool_t;
     char byte_t;
     signed char sbyte_t;
     unsigned char ubyte_t;
@@ -748,6 +749,9 @@ struct _sipEnumTypeSpec {
     /* The C/C++ base type. */
     sipTypeID cpp_base_type;
 
+    /* The fully qualified Python name of the enum. */
+    const char *fq_py_name;
+
     /* The table of members. */
     const sipEnumMemberSpec *members;
 
@@ -756,11 +760,12 @@ struct _sipEnumTypeSpec {
     int py_base_type;
 #endif
 
-    /* The Python name of the enum. */
-    const char *py_name;
-
     /* The table of Python slots. */
     const PyType_Slot *py_slots;
+
+    /* The type number of the scope or -1 if at the module level. */
+    // TODO May need to be a type ID if the scope is a namespace extender.
+    int scope_nr;
 };
 
 
@@ -1006,7 +1011,7 @@ struct _sipABISpec {
             sipTypeID type_id, void *handler);
     int (*api_convert_to_enum)(PyObject *mod, PyObject *obj, void *addr,
             sipTypeID type_id);
-    _Bool (*api_convert_to_bool)(PyObject *obj);
+    bool (*api_convert_to_bool)(PyObject *obj);
     char (*api_long_as_char)(PyObject *o);
     signed char (*api_long_as_signed_char)(PyObject *o);
     unsigned char (*api_long_as_unsigned_char)(PyObject *o);

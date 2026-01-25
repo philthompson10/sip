@@ -211,23 +211,28 @@ static const sipModuleSpec sipModule_{module_name} = {{
                 flags = 'SIP_TYPE_SCOPED_ENUM' if enum.is_scoped else 'SIP_TYPE_ENUM'
 
             cpp_name = self.cached_name_ref(enum.cached_fq_cpp_name)
-            py_name = self.cached_name_ref(enum.py_name)
 
             if enum.enum_base_type is None:
                 cpp_base_type_suffix = 'int'
             else:
-                cpp_base_type = enum.enum_base_type.type.name.tolower()
+                cpp_base_type_suffix = enum.enum_base_type.type.name.lower().replace('string', 'byte')
 
-            # TODO We might need the py_name ot be fully qualified if we need
-            # to fix __qualname__.
+            if py_scope(enum.scope) is None:
+                scope_nr = -1
+                scope_name = module_name
+            else:
+                scope_nr = enum.scope.iface_file.type_nr
+                scope_name = fmt_class_as_scoped_py_name(enum.scope)
+
             sf.write(
 f'''
 const sipEnumTypeSpec sipEnumTypeSpec_{enum_name} = {{
     .base.flags = {flags},
     .base.cpp_name = {cpp_name},
     .cpp_base_type = sipTypeID_{cpp_base_type_suffix},
+    .fq_py_name = "{scope_name}.{enum.py_name}",
     .members = sipEnumMembers_{module_name}_{enum.fq_cpp_name.as_word},
-    .py_name = {py_name},
+    .scope_nr = {scope_nr},
 ''')
 
             if self.py_enums_supported():
@@ -1650,9 +1655,13 @@ static const sipVariableSpec sip{table_type}Variables_{suffix}[] = {{
 # The mapping of an enum base type to the details needed to initialise a member
 # specification.
 _ENUM_MEMBER_TYPE_MAP = {
+    ArgumentType.BOOL: ('bool_t', 'bool'),
     ArgumentType.BYTE: ('byte_t', 'char'),
+    ArgumentType.STRING: ('byte_t', 'char'),
     ArgumentType.SBYTE: ('sbyte_t', 'signed char'),
+    ArgumentType.SSTRING: ('sbyte_t', 'signed char'),
     ArgumentType.UBYTE: ('ubyte_t', 'unsigned char'),
+    ArgumentType.USTRING: ('ubyte_t', 'unsigned char'),
     ArgumentType.SHORT: ('short_t', 'short'),
     ArgumentType.USHORT: ('ushort_t', 'unsigned short'),
     ArgumentType.INT: ('int_t', 'int'),

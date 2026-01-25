@@ -3,7 +3,7 @@
 /*
  * The implementation of the Python object to C/C++ integer convertors.
  *
- * Copyright (c) 2025 Phil Thompson <phil@riverbankcomputing.com>
+ * Copyright (c) 2026 Phil Thompson <phil@riverbankcomputing.com>
  */
 
 
@@ -25,7 +25,7 @@ static void raise_unsigned_overflow(unsigned long long max);
 /*
  * Convert a Python object to a C bool.
  */
-_Bool sip_api_convert_to_bool(PyObject *o)
+bool sip_api_convert_to_bool(PyObject *o)
 {
     /* Handle the actual values explictly. */
     if (o == Py_True)
@@ -35,7 +35,7 @@ _Bool sip_api_convert_to_bool(PyObject *o)
         return 0;
 
     /* Convert the object while checking for overflow. */
-    _Bool v = sip_api_long_as_int(o);
+    bool v = sip_api_long_as_int(o);
 
     if (PyErr_Occurred())
     {

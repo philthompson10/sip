@@ -3055,11 +3055,11 @@ static int parse_pass_1(sipModuleState *wms, PyObject **parse_err_p,
             {
                 /* Bool. */
 
-                _Bool *p = va_arg(va, _Bool *);
+                bool *p = va_arg(va, bool *);
 
                 if (arg != NULL)
                 {
-                    _Bool v = sip_api_convert_to_bool(arg);
+                    bool v = sip_api_convert_to_bool(arg);
 
                     if (PyErr_Occurred())
                         handle_failed_type_conversion(&failure, arg);
@@ -3382,7 +3382,7 @@ static int parse_pass_1(sipModuleState *wms, PyObject **parse_err_p,
                                 /* Boolean. */
 
                                 if (PyBool_Check(arg))
-                                    *(_Bool *)p = (arg == Py_True);
+                                    *(bool *)p = (arg == Py_True);
                                 else
                                     handle_failed_type_conversion(&failure,
                                             arg);
@@ -4068,9 +4068,9 @@ static int parse_result(sipModuleState *wms, PyObject *method, PyObject *res,
 
             case 'b':
                 {
-                    _Bool *p = va_arg(va, _Bool *);
+                    bool *p = va_arg(va, bool *);
 
-                    _Bool v = sip_api_convert_to_bool(arg);
+                    bool v = sip_api_convert_to_bool(arg);
 
                     if (PyErr_Occurred())
                         invalid = TRUE;
