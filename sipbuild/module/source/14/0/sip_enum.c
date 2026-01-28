@@ -185,6 +185,7 @@ static PyTypeObject *create_py_enum_type(sipModuleState *ms,
         const sipEnumTypeSpec *ets, PyObject *name);
 static int init_enum_module_types(sipSipModuleState *sms);
 #if defined(SIP_CONFIGURATION_PyEnums)
+static void add_operator_slots(PyObject *enum_obj, const PyType_Slot *pts);
 static PyObject *missing(PyObject *cls, PyObject *value, int int_enum);
 static PyObject *missing_enum(PyObject *cls, PyObject *value);
 static PyObject *missing_int_enum(PyObject *cls, PyObject *value);
@@ -661,6 +662,9 @@ static PyTypeObject *create_py_enum_type(sipModuleState *ms,
             return NULL;
         }
     }
+
+    if (ets->py_slots != NULL)
+        add_operator_slots(enum_obj, ets->py_slots);
 #endif
 
     return (PyTypeObject *)enum_obj;
@@ -679,6 +683,250 @@ rel_members:
 ret_err:
     return NULL;
 }
+
+
+#if defined(SIP_CONFIGURATION_PyEnums)
+/*
+ * Add any Python slots that implement C++ operators to an enum type.
+ */
+static void add_operator_slots(PyObject *enum_obj, const PyType_Slot *pts)
+{
+    PyAsyncMethods *am = &((PyHeapTypeObject *)enum_obj)->as_async;
+    PyMappingMethods *mp = &((PyHeapTypeObject *)enum_obj)->as_mapping;
+    PyNumberMethods *nb = &((PyHeapTypeObject *)enum_obj)->as_number;
+    PySequenceMethods *sq = &((PyHeapTypeObject *)enum_obj)->as_sequence;
+    PyTypeObject *tp = &((PyHeapTypeObject *)enum_obj)->ht_type;
+
+    while (pts->slot != 0)
+    {
+        void *f = pts->pfunc;
+
+        switch (pts->slot)
+        {
+        case Py_am_aiter:
+            am->am_aiter = (unaryfunc)f;
+            break;
+
+        case Py_am_anext:
+            am->am_anext = (unaryfunc)f;
+            break;
+
+        case Py_am_await:
+            am->am_await = (unaryfunc)f;
+            break;
+
+        case Py_mp_ass_subscript:
+            mp->mp_ass_subscript = (objobjargproc)f;
+            break;
+
+        case Py_mp_length:
+            mp->mp_length = (lenfunc)f;
+            break;
+
+        case Py_mp_subscript:
+            mp->mp_subscript = (binaryfunc)f;
+            break;
+
+        case Py_nb_absolute:
+            nb->nb_absolute = (unaryfunc)f;
+            break;
+
+        case Py_nb_add:
+            nb->nb_add = (binaryfunc)f;
+            break;
+
+        case Py_nb_and:
+            nb->nb_and = (binaryfunc)f;
+            break;
+
+        case Py_nb_bool:
+            nb->nb_bool = (inquiry)f;
+            break;
+
+        case Py_nb_float:
+            nb->nb_float = (unaryfunc)f;
+            break;
+
+        case Py_nb_floor_divide:
+            nb->nb_floor_divide = (binaryfunc)f;
+            break;
+
+        case Py_nb_index:
+            nb->nb_index = (unaryfunc)f;
+            break;
+
+        case Py_nb_inplace_add:
+            nb->nb_inplace_add = (binaryfunc)f;
+            break;
+
+        case Py_nb_inplace_and:
+            nb->nb_inplace_and = (binaryfunc)f;
+            break;
+
+        case Py_nb_inplace_floor_divide:
+            nb->nb_inplace_floor_divide = (binaryfunc)f;
+            break;
+
+        case Py_nb_inplace_lshift:
+            nb->nb_inplace_lshift = (binaryfunc)f;
+            break;
+
+        case Py_nb_inplace_matrix_multiply:
+            nb->nb_inplace_matrix_multiply = (binaryfunc)f;
+            break;
+
+        case Py_nb_inplace_multiply:
+            nb->nb_inplace_multiply = (binaryfunc)f;
+            break;
+
+        case Py_nb_inplace_or:
+            nb->nb_inplace_or = (binaryfunc)f;
+            break;
+
+        case Py_nb_inplace_remainder:
+            nb->nb_inplace_remainder = (binaryfunc)f;
+            break;
+
+        case Py_nb_inplace_rshift:
+            nb->nb_inplace_rshift = (binaryfunc)f;
+            break;
+
+        case Py_nb_inplace_subtract:
+            nb->nb_inplace_subtract = (binaryfunc)f;
+            break;
+
+        case Py_nb_inplace_true_divide:
+            nb->nb_inplace_true_divide = (binaryfunc)f;
+            break;
+
+        case Py_nb_inplace_xor:
+            nb->nb_inplace_xor = (binaryfunc)f;
+            break;
+
+        case Py_nb_int:
+            nb->nb_int = (unaryfunc)f;
+            break;
+
+        case Py_nb_invert:
+            nb->nb_invert = (unaryfunc)f;
+            break;
+
+        case Py_nb_lshift:
+            nb->nb_lshift = (binaryfunc)f;
+            break;
+
+        case Py_nb_matrix_multiply:
+            nb->nb_matrix_multiply = (binaryfunc)f;
+            break;
+
+        case Py_nb_multiply:
+            nb->nb_multiply = (binaryfunc)f;
+            break;
+
+        case Py_nb_negative:
+            nb->nb_negative = (unaryfunc)f;
+            break;
+
+        case Py_nb_or:
+            nb->nb_or = (binaryfunc)f;
+            break;
+
+        case Py_nb_positive:
+            nb->nb_positive = (unaryfunc)f;
+            break;
+
+        case Py_nb_remainder:
+            nb->nb_remainder = (binaryfunc)f;
+            break;
+
+        case Py_nb_rshift:
+            nb->nb_rshift = (binaryfunc)f;
+            break;
+
+        case Py_nb_subtract:
+            nb->nb_subtract = (binaryfunc)f;
+            break;
+
+        case Py_nb_true_divide:
+            nb->nb_true_divide = (binaryfunc)f;
+            break;
+
+        case Py_nb_xor:
+            nb->nb_xor = (binaryfunc)f;
+            break;
+
+        case Py_sq_ass_item:
+            sq->sq_ass_item = (ssizeobjargproc)f;
+            break;
+
+        case Py_sq_concat:
+            sq->sq_concat = (binaryfunc)f;
+            break;
+
+        case Py_sq_contains:
+            sq->sq_contains = (objobjproc)f;
+            break;
+
+        case Py_sq_inplace_concat:
+            sq->sq_inplace_concat = (binaryfunc)f;
+            break;
+
+        case Py_sq_inplace_repeat:
+            sq->sq_inplace_repeat = (ssizeargfunc)f;
+            break;
+
+        case Py_sq_item:
+            sq->sq_item = (ssizeargfunc)f;
+            break;
+
+        case Py_sq_length:
+            sq->sq_length = (lenfunc)f;
+            break;
+
+        case Py_sq_repeat:
+            sq->sq_repeat = (ssizeargfunc)f;
+            break;
+
+        case Py_tp_call:
+            tp->tp_call = (ternaryfunc)f;
+            break;
+
+        case Py_tp_hash:
+            tp->tp_hash = (hashfunc)f;
+            break;
+
+        case Py_tp_iter:
+            tp->tp_iter = (getiterfunc)f;
+            break;
+
+        case Py_tp_iternext:
+            tp->tp_iternext = (iternextfunc)f;
+            break;
+
+        case Py_tp_repr:
+            tp->tp_repr = (reprfunc)f;
+            break;
+
+        case Py_tp_richcompare:
+            tp->tp_richcompare = (richcmpfunc)f;
+            break;
+
+        case Py_tp_setattro:
+            tp->tp_setattro = (setattrofunc)f;
+            break;
+
+        case Py_tp_str:
+            tp->tp_str = (reprfunc)f;
+            break;
+
+        default:
+            break;
+        }
+
+        pts++;
+    }
+}
+#endif
 
 
 /*

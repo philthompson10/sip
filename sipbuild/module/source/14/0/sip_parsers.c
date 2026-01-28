@@ -771,9 +771,7 @@ int sip_api_parse_pair(PyObject *w_mod, PyObject **parse_err_p,
     int ok;
     va_list va;
 
-    PyObject *args[2];
-    args[0] = arg_0;
-    args[1] = arg_1;
+    PyObject *args[] = {arg_0, arg_1};
 
     va_start(va, fmt);
     ok = parse_kwd_args(w_mod, parse_err_p, args,

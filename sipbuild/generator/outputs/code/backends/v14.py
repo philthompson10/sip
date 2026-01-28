@@ -5,7 +5,7 @@
 
 from .....sip_module_configuration import SipModuleConfiguration
 
-from ....python_slots import is_rich_compare_slot
+from ....python_slots import is_number_slot, is_rich_compare_slot
 from ....scoped_name import ScopedName, STRIP_GLOBAL
 from ....specification import (Argument, ArgumentType, GILUse, IfaceFileType,
         MultiInterpreterSupport, PySlot, WrappedEnum, WrappedVariable)
@@ -13,8 +13,9 @@ from ....specification import (Argument, ArgumentType, GILUse, IfaceFileType,
 from ...formatters import fmt_class_as_scoped_py_name
 
 from ..snippets import (g_class_docstring, g_class_method_table,
-        g_module_docstring, g_type_init_body, g_pyqt_class_plugin,
-        g_pyqt_helper_defns, g_pyqt_helper_init)
+        g_module_docstring, g_py_slot, g_pyqt_class_plugin,
+        g_pyqt_helper_defns, g_pyqt_helper_init, g_static_function,
+        g_type_init_body)
 from ..utils import (get_class_flags, get_enum_member, get_optional_ptr,
         get_type_from_void, has_method_docstring, need_dealloc, py_scope,
         pyqt5_supported, pyqt6_supported, scoped_class_name,
@@ -25,6 +26,20 @@ from .abstract_backend import AbstractBackend
 
 class v14Backend(AbstractBackend):
     """ The backend code generator for v14 of the ABI. """
+
+    def g_conversion_to_enum(self, sf, enum):
+        """ Generate the code to convert a Python enum (sipSelf) to a C/C++
+        enum (sipCpp).
+        """
+
+        type_ref = self.get_type_ref(enum)
+        cpp_name = enum.fq_cpp_name.as_cpp
+
+        sf.write(
+f'''
+    {cpp_name} sipCpp;
+    if (sipConvertToEnum(sipModule, sipSelf, &sipCpp, {type_ref}) < 0)
+''')
 
     def g_cpp_dtor(self, sf):
         """ Generate the body of the dtor of a generated shadow class. """
@@ -150,7 +165,7 @@ static const sipModuleSpec sipModule_{module_name} = {{
 
         return enums_state
 
-    def g_enums_specifications(self, sf, scope=None):
+    def g_enums_specifications(self, sf, bindings, scope=None):
         """ Generate the specifications for the wrapped enums in a scope and
         return the optional dict of all enums defined in the module.
         """
@@ -203,7 +218,12 @@ static const sipModuleSpec sipModule_{module_name} = {{
             sf.write('    {}\n};\n')
 
         for enum in enums_in_scope:
-            enum_name = module_name + '_' + enum.fq_cpp_name.as_word
+            enum_name = enum.fq_cpp_name.as_word
+
+            # Generate any enum slot tables.
+            self.g_slot_implementations(sf, bindings, enum, enum.slots)
+
+            slots_table = self._g_slots_table(sf, enum_name, enum.slots)
 
             if self.py_enums_supported():
                 flags = 'SIP_TYPE_ENUM'
@@ -226,7 +246,7 @@ static const sipModuleSpec sipModule_{module_name} = {{
 
             sf.write(
 f'''
-const sipEnumTypeSpec sipEnumTypeSpec_{enum_name} = {{
+const sipEnumTypeSpec sipEnumTypeSpec_{module_name}_{enum_name} = {{
     .base.flags = {flags},
     .base.cpp_name = {cpp_name},
     .cpp_base_type = sipTypeID_{cpp_base_type_suffix},
@@ -240,9 +260,8 @@ const sipEnumTypeSpec sipEnumTypeSpec_{enum_name} = {{
 f'''    .py_base_type = SIP_ENUM_{enum.base_type.name},
 ''')
 
-            if enum.slots:
-                # TODO
-                sf.write(f'        .py_slots = TODO,\n')
+            if slots_table is not None:
+                sf.write(f'    .py_slots = {slots_table},\n')
 
             sf.write('};\n')
 
@@ -284,7 +303,7 @@ f'''    PyObject *sipModule;
         function.
         """
 
-        self.g_slot_support_vars(sf)
+        self.g_slot_support_vars(sf, klass, None)
 
         type_ref = self.get_type_ref(klass)
 
@@ -417,6 +436,19 @@ PyMODEXPORT_FUNC PyModExport_{module_name}({arg_type})
 {{
 ''')
 
+    @staticmethod
+    def g_not_implemented(sf):
+        """ Generate the code to clear any exception and return
+        Py_NotImplemented.
+        """
+
+        sf.write(
+'''
+    PyErr_Clear();
+
+    return Py_NewRef(Py_NotImplemented);
+''')
+
     def g_py_method_table(self, sf, bindings, members, scope):
         """ Generate a Python method table for a class or mapped type and
         return the number of entries.
@@ -478,6 +510,7 @@ extern PyModuleDef_Slot sipModuleSlots_{module_name}[];
 #define sipCallProcedureMethod      sipABI_{module_name}->api_call_procedure_method
 #define sipConvertFromEnum          sipABI_{module_name}->api_convert_from_enum
 #define sipConvertFromType          sipABI_{module_name}->api_convert_from_type
+#define sipConvertToEnum            sipABI_{module_name}->api_convert_to_enum
 #define sipFindTypeID               sipABI_{module_name}->api_find_type_id
 #define sipGetAddress               sipABI_{module_name}->api_get_address
 #define sipGetPyType                sipABI_{module_name}->api_get_py_type
@@ -489,7 +522,8 @@ extern PyModuleDef_Slot sipModuleSlots_{module_name}[];
 
         # TODO These have been reviewed as part of the private v14 API.
         sf.write(
-f'''#define sipInitMixin                sipABI_{module_name}->api_init_mixin
+f'''#define sipGetCppPtr                sipABI_{module_name}->api_get_cpp_ptr
+#define sipInitMixin                sipABI_{module_name}->api_init_mixin
 #define sipInstanceDestroyed        sipABI_{module_name}->api_instance_destroyed
 #define sipIsDerivedClass           sipABI_{module_name}->api_is_derived_class
 #define sipIsPyMethod               sipABI_{module_name}->api_is_py_method
@@ -500,6 +534,7 @@ f'''#define sipInitMixin                sipABI_{module_name}->api_init_mixin
 #define sipParseVectorcallArgs      sipABI_{module_name}->api_parse_vectorcall_args
 #define sipParseVectorcallKwdArgs   sipABI_{module_name}->api_parse_vectorcall_kwd_args
 #define sipParsePair                sipABI_{module_name}->api_parse_pair
+#define sipPySlotExtend             sipABI_{module_name}->api_py_slot_extend
 ''')
 
         # TODO These have yet to be reviewed.
@@ -526,19 +561,16 @@ f'''#define sipMalloc                   sipAPI->api_malloc
 #define sipVoidPtr_Type             sipAPI->api_voidptr_type
 #define sipGetPyObject              sipAPI->api_get_pyobject
 #define sipGetMixinAddress          sipAPI->api_get_mixin_address
-#define sipGetCppPtr                sipAPI->api_get_cpp_ptr
 #define sipCallHook                 sipAPI->api_call_hook
 #define sipEndThread                sipAPI->api_end_thread
 #define sipRaiseUnknownException    sipAPI->api_raise_unknown_exception
 #define sipRaiseTypeException       sipAPI->api_raise_type_exception
 #define sipBadLengthForSlice        sipAPI->api_bad_length_for_slice
 #define sipAddTypeInstance          sipAPI->api_add_type_instance
-#define sipPySlotExtend             sipAPI->api_py_slot_extend
 #define sipAddDelayedDtor           sipAPI->api_add_delayed_dtor
 #define sipCanConvertToType         sipAPI->api_can_convert_to_type
 #define sipConvertToType            sipAPI->api_convert_to_type
 #define sipForceConvertToType       sipAPI->api_force_convert_to_type
-#define sipConvertToEnum            sipAPI->api_convert_to_enum
 #define sipConvertToBool            sipAPI->api_convert_to_bool
 #define sipReleaseType              sipAPI->api_release_type
 #define sipConvertFromNewType       sipAPI->api_convert_from_new_type
@@ -638,10 +670,146 @@ f'''#define sipIsEnumFlag               sipAPI->api_is_enum_flag
 
             sf.write(f'extern const sipEnumTypeSpec sipEnumTypeSpec_{module_name}_{enum.fq_cpp_name.as_word};\n')
 
-    def g_slot_support_vars(self, sf):
+    def g_slot_implementations(self, sf, bindings, scope, members):
+        """ Generate the slot implementations for a scope. """
+
+        if isinstance(scope, WrappedEnum):
+            is_ns = False
+            as_word = scope.fq_cpp_name.as_word
+        else:
+            is_ns = scope.iface_file.type is IfaceFileType.NAMESPACE
+            as_word = scope.iface_file.fq_cpp_name.as_word
+
+        has_getitem_slot = has_setitem_slot = has_delitem_slot = False
+        rich_comparison_members = []
+
+        for member in members:
+            if is_ns:
+                g_static_function(self, sf, bindings, member, scope=scope)
+            elif member.py_slot is not None:
+                g_py_slot(self, sf, bindings, member, scope=scope)
+
+                if member.py_slot is PySlot.GETITEM:
+                    has_getitem_slot = True
+
+                if member.py_slot is PySlot.SETITEM:
+                    has_setitem_slot = True
+
+                if member.py_slot is PySlot.DELITEM:
+                    has_delitem_slot = True
+
+                if is_rich_compare_slot(member.py_slot):
+                    rich_comparison_members.append(member)
+
+        # Generate item dispatchers if required.
+        if has_getitem_slot:
+            sf.write(
+f'''
+
+extern "C" {{static PyObject *slot_{as_word}___sq_item__(PyObject *, Py_ssize_t);}}
+static PyObject *slot_{as_word}___sq_item__(PyObject *self, Py_ssize_t n)
+{{
+    PyObject *arg = PyLong_FromSsize_t(n);
+    if (arg == NULL)
+        return NULL;
+
+    PyObject *res = slot_{as_word}___getitem__(self, arg);
+    Py_DECREF(arg);
+
+    return res;
+}}
+''')
+
+        if has_setitem_slot or has_delitem_slot:
+            sf.write(
+f'''
+
+extern "C" {{static int slot_{as_word}___mp_ass_subscript__(PyObject *, PyObject *, PyObject *);}}
+static int slot_{as_word}___mp_ass_subscript__(PyObject *self, PyObject *key, PyObject *value)
+{{
+    if (value != NULL)
+''')
+
+            if has_setitem_slot:
+                sf.write(
+f'''        return slot_{as_word}___setitem__(self, key, value);
+''')
+            else:
+                sf.write(
+'''    {
+        PyErr_SetNone(PyExc_NotImplementedError);
+        return -1;
+    }
+''')
+
+            sf.write('\n');
+
+            if has_delitem_slot:
+                sf.write(
+f'''    return slot_{as_word}___delitem__(self, key);
+''')
+            else:
+                sf.write(
+'''    PyErr_SetNone(PyExc_NotImplementedError);
+    return -1;
+''')
+
+            sf.write('}\n');
+
+            sf.write(
+f'''
+
+extern "C" {{static int slot_{as_word}___sq_ass_item__(PyObject *, Py_ssize_t, PyObject *);}}
+static int slot_{as_word}___sq_ass_item__(PyObject *self, Py_ssize_t index, PyObject *value)
+{{
+    PyObject *key = PyLong_FromSsize_t(index);
+    if (key == NULL)
+        return -1;
+
+    int res = slot_{as_word}___mp_ass_subscript__(self, key, value);
+
+    Py_DECREF(key);
+
+    return res;
+}}
+''');
+
+        # Generate a rich comparision dispatcher if required.
+        if rich_comparison_members:
+            sf.write(
+f'''
+
+extern "C" {{static PyObject *slot_{as_word}___richcompare__(PyObject *, PyObject *, int);}}
+static PyObject *slot_{as_word}___richcompare__(PyObject *self, PyObject *arg, int op)
+{{
+    switch (op)
+    {{
+''')
+
+            for rc_member in rich_comparison_members:
+                sf.write(f'    case Py_{rc_member.py_slot.name}: return slot_{as_word}_{rc_member.py_name}(self, arg);\n')
+
+            sf.write(
+f'''    }}
+
+    return Py_NewRef(Py_NotImplemented);
+}}
+''')
+
+    def g_slot_support_vars(self, sf, scope, member):
         """ Generate the variables needed by a slot function. """
 
-        sf.write('    PyObject *sipModule = sipGetModule(sipSelf);\n')
+        if isinstance(scope, WrappedEnum) and self.py_enums_supported:
+            # Python enums are not extension types and so the defining module
+            # has to be obtained from sys.modules.  This use case is very rare
+            # and so we don't bother about the efficiency or otherwise.
+            sf.write(
+f'''    PyObject *sipModule = PyDict_GetItemString(PySys_GetObject("modules"), "{self.spec.module.py_name}");
+    Py_DECREF(sipModule);
+''')
+        else:
+            name = 'sipArg0' if member is not None and is_number_slot(member.py_slot) else 'sipSelf'
+            sf.write(f'    PyObject *sipModule = sipGetModule({name});\n')
 
     def g_static_variables_table(self, sf, scope=None):
         """ Generate the tables of static variables and types for a scope and
@@ -702,57 +870,11 @@ f'''#define sipIsEnumFlag               sipAPI->api_is_enum_flag
         klass_name = klass.iface_file.fq_cpp_name.as_word
 
         # Generate the enums table.
-        self.g_enums_specifications(sf, scope=klass)
+        self.g_enums_specifications(sf, bindings, scope=klass)
 
         # Generate the slots table.
-        slots = []
-        has_setdelitem_slots = False
-        has_rich_compare_slots = False
-
-        if klass.mixin:
-            slots.append(('Py_tp_init', 'mixin_' + klass_name))
-
-        for member in klass.members:
-            if member.py_slot is None:
-                continue
-
-            if member.py_slot in (PySlot.SETITEM, PySlot.DELITEM):
-                has_setdelitem_slots = True
-                continue
-
-            if is_rich_compare_slot(member.py_slot):
-                has_rich_compare_slots = True
-                continue
-
-            if member.py_slot is PySlot.GETITEM:
-                slots.append(('Py_sq_item', f'slot_{klass_name}___sq_item__'))
-
-            self._append_slot_table_entry(slots, klass_name, member)
-
-        if has_rich_compare_slots:
-            slots.append(
-                    ('Py_tp_richcompare',
-                            f'slot_{klass_name}___richcompare__'))
-
-        if has_setdelitem_slots:
-            slots.append(
-                    ('Py_mp_ass_subscript',
-                            f'slot_{klass_name}___mp_ass_subscript__'))
-            slots.append(
-                    ('Py_sq_ass_item', f'slot_{klass_name}___sq_ass_item__'))
-
-        if slots:
-            sf.write(
-f'''
-
-/* Define this type's Python slots. */
-static PyType_Slot sip_py_slots_{klass_name}[] = {{
-''')
-
-            for slot_id, slot_impl in slots:
-                sf.write(f'    {{{slot_id}, (void *){slot_impl}}},\n')
-
-            sf.write('    {}\n};\n')
+        slots_table = self._g_slots_table(sf, klass_name, klass.members,
+                mixin=klass.mixin)
 
         # Generate the methods table.
         nr_methods = g_class_method_table(self, sf, bindings, klass)
@@ -816,14 +938,8 @@ static PyType_Slot sip_py_slots_{klass_name}[] = {{
                     '.container.attributes.type_nrs = sipTypeNrs_' + klass_name)
 
 
-        if slots:
-            fields.append(
-                    '.container.py_slots = sip_py_slots_' + klass_name)
-
-        # TODO
-        #if self.custom_enums_supported() and nrenummembers > 0:
-        #    nr_enum_members
-        #    enum_members
+        if slots_table is not None:
+            fields.append('.container.py_slots = ' + slots_table)
 
         fields.append('.docstring = ' + docstring_ref)
 
@@ -918,7 +1034,7 @@ f'''static void *init_type_{klass_name}(PyObject *sipSelf, PyObject *const *sipA
 {{
 ''')
 
-        self.g_slot_support_vars(sf)
+        self.g_slot_support_vars(sf, klass, None)
 
         g_type_init_body(self, sf, bindings, klass)
 
@@ -1243,6 +1359,66 @@ static int module_traverse(PyObject *mod, visitproc visit, void *arg)
     return sipModuleTraverse(mod, visit, arg);
 }
 ''')
+
+    def _g_slots_table(self, sf, type_name, members, mixin=False):
+        """ Generate the slots table for a type.  Return the name of the table
+        or None if nothing was generated.
+        """
+
+        slots = []
+        has_setdelitem_slots = False
+        has_rich_compare_slots = False
+
+        if mixin:
+            slots.append(('Py_tp_init', 'mixin_' + type_name))
+
+        for member in members:
+            if member.py_slot is None:
+                continue
+
+            if member.py_slot in (PySlot.SETITEM, PySlot.DELITEM):
+                has_setdelitem_slots = True
+                continue
+
+            if is_rich_compare_slot(member.py_slot):
+                has_rich_compare_slots = True
+                continue
+
+            if member.py_slot is PySlot.GETITEM:
+                slots.append(('Py_sq_item', f'slot_{type_name}___sq_item__'))
+
+            self._append_slot_table_entry(slots, type_name, member)
+
+        if has_rich_compare_slots:
+            slots.append(
+                    ('Py_tp_richcompare',
+                            f'slot_{type_name}___richcompare__'))
+
+        if has_setdelitem_slots:
+            slots.append(
+                    ('Py_mp_ass_subscript',
+                            f'slot_{type_name}___mp_ass_subscript__'))
+            slots.append(
+                    ('Py_sq_ass_item', f'slot_{type_name}___sq_ass_item__'))
+
+        if slots:
+            table_name = 'sipSlots_' + type_name
+
+            sf.write(
+f'''
+
+/* Define this type's Python slots. */
+static PyType_Slot {table_name}[] = {{
+''')
+
+            for slot_id, slot_impl in slots:
+                sf.write(f'    {{{slot_id}, (void *){slot_impl}}},\n')
+
+            sf.write('    {}\n};\n')
+        else:
+            table_name = None
+
+        return table_name
 
     def _g_variables_table(self, sf, scope, *, for_unbound):
         """ Generate the table of either bound or unbound variables for a scope
