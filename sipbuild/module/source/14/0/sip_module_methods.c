@@ -55,8 +55,11 @@ PyMethodDef sipModuleMethods[] = {
     {"wrapinstance", meth_wrapinstance, METH_VARARGS, NULL},
     {"unwrapinstance", meth_unwrapinstance, METH_VARARGS, NULL},
     {"_unpickle_type", sip_unpickle_type, METH_VARARGS, NULL},
+#if 0
+    // TODO
 #if defined(SIP_CONFIGURATION_CustomEnums)
     {"_unpickle_enum", sip_enum_unpickle_custom_enum, METH_VARARGS, NULL},
+#endif
 #endif
     {NULL, NULL, 0, NULL}
 };

@@ -40,8 +40,7 @@ extern "C" {
 #define sipTypeIDIsPOD(id)              (((id) & SIP_TYPE_ID_TYPE_MASK) == SIP_TYPE_ID_TYPE_POD)
 #define sipTypeIDIsClass(id)            (((id) & SIP_TYPE_ID_TYPE_MASK) == SIP_TYPE_ID_TYPE_CLASS)
 #define sipTypeIDIsMapped(id)           (((id) & SIP_TYPE_ID_TYPE_MASK) == SIP_TYPE_ID_TYPE_MAPPED)
-#define sipTypeIDIsEnumPy(id)           (((id) & SIP_TYPE_ID_TYPE_MASK) == SIP_TYPE_ID_TYPE_ENUM_PY)
-#define sipTypeIDIsEnumCustom(id)       (((id) & SIP_TYPE_ID_TYPE_MASK) == SIP_TYPE_ID_TYPE_ENUM_CUSTOM)
+#define sipTypeIDIsEnum(id)             (((id) & SIP_TYPE_ID_TYPE_MASK) == SIP_TYPE_ID_TYPE_ENUM)
 #define sipTypeIDIsCurrentModule(id)    (((id) & SIP_TYPE_ID_CURRENT_MODULE) == SIP_TYPE_ID_CURRENT_MODULE)
 
 /*
@@ -98,9 +97,6 @@ PyTypeObject *sip_create_mapped_type(sipSipModuleState *sms,
         PyObject *w_mod_dict);
 PyObject *sip_create_type_dict(const sipModuleSpec *wmd);
 int sip_dict_set_and_discard(PyObject *dict, const char *name, PyObject *obj);
-#if 0
-void sip_fix_slots(PyTypeObject *py_type, sipPySlotDef *psd);
-#endif
 int sip_fix_type_attrs(sipModuleState *ms, const char *fq_py_name,
         PyObject *py_type);
 const sipContainerSpec *sip_get_container(const sipTypeSpec *td);

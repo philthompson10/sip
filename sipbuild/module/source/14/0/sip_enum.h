@@ -31,8 +31,8 @@ typedef struct {
      */
     PyHeapTypeObject super;
 
-    /* The wrapped type specification. */
-    const sipTypeSpec *type;
+    /* The enum specification. */
+    const sipEnumTypeSpec *spec;
 } sipEnumTypeObject;
 #endif
 
@@ -47,37 +47,10 @@ PyTypeObject *sip_create_enum_type(sipModuleState *ms, sipTypeNr type_nr,
         const sipEnumTypeSpec *ets);
 PyObject *sip_enum_convert_from_enum(sipModuleState *ms, void *addr,
         sipTypeID type_id);
-int sip_enum_convert_to_constrained_enum(sipModuleState *ms, PyObject *obj,
-        void *addr, sipTypeID type_id);
 int sip_enum_convert_to_enum(sipModuleState *ms, PyObject *obj, void *addr,
-        sipTypeID type_id);
+        sipTypeID type_id, int unconstrained);
 int sip_enum_init(PyObject *mod, sipSipModuleState *sms);
 int sip_enum_is_enum(sipSipModuleState *sms, PyObject *obj);
-
-
-// TODO All of the following need review.
-#if 0
-
-/* These are internal. */
-#if defined(SIP_CONFIGURATION_PyEnums)
-#if 0
-PyTypeObject *sip_enum_create_py_enum(sipModuleState *wms,
-        const sipEnumTypeSpec *etd, const sipIntInstanceDef **next_int_p,
-        PyObject *dict);
-#endif
-#endif
-
-
-#if defined(SIP_CONFIGURATION_CustomEnums)
-PyTypeObject *sip_enum_create_custom_enum(sipSipModuleState *sms,
-        const sipModuleSpec *wmd, const sipEnumTypeSpec *etd, int enum_nr,
-                PyObject *w_mod_dict);
-PyObject *sip_enum_pickle_custom_enum(PyObject *self,
-        PyTypeObject *defining_class, PyObject *const *args, Py_ssize_t nargs,
-        PyObject *kwd_args);
-PyObject *sip_enum_unpickle_custom_enum(PyObject *mod, PyObject *args);
-#endif
-#endif
 
 
 #ifdef __cplusplus

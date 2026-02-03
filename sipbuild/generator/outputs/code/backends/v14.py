@@ -1071,11 +1071,9 @@ f'''static void *init_type_{klass_name}(PyObject *sipSelf, PyObject *const *sipA
     def get_enum_ref_value(self, enum):
         """ Return the value of an enum's reference. """
 
-        enum_style = 'PY' if self.py_enums_supported() or enum.is_scoped else 'CUSTOM'
-
         module_nr = 'SIP_TYPE_ID_CURRENT_MODULE' if enum.module is self.spec.module else enum.module.module_nr
 
-        return f'SIP_TYPE_ID_TYPE_ENUM_{enum_style}|{module_nr}|{enum.type_nr}'
+        return f'SIP_TYPE_ID_TYPE_ENUM|{module_nr}|{enum.type_nr}'
 
     @staticmethod
     def get_module_context():
@@ -1425,7 +1423,6 @@ static PyType_Slot {table_name}[] = {{
         and return the length of the table.
         """
 
-        # TODO Do members of custom enums.
         spec = self.spec
         c_bindings = spec.c_bindings
         module = spec.module
@@ -1436,13 +1433,15 @@ static PyType_Slot {table_name}[] = {{
         # Add the members of any anonymous enums.  Note that this would be
         # be better handled by the parser but that would require refactoring of
         # the legacy backend.
-        # TODO Also add the members of custom enums.
         for enum in spec.enums:
-            if enum.fq_cpp_name is not None:
-                continue
-
             if py_scope(enum.scope) is not scope:
                 continue
+
+            if enum.fq_cpp_name is not None:
+                # Add the legacy support for members of custom enums to be
+                # visible in the same scope as the enum.
+                if not self.custom_enums_supported() or enum.is_scoped:
+                    continue
 
             for member in enum.members:
                 fq_cpp_name = ScopedName.parse(get_enum_member(spec, member))

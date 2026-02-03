@@ -21,8 +21,6 @@
 #if defined(SIP_CONFIGURATION_CustomEnums)
 
 /* Forward declarations of slots. */
-static PyObject *EnumType_alloc(PyTypeObject *self, Py_ssize_t nitems);
-static void EnumType_dealloc(PyObject *self);
 static PyObject *EnumType_getattro(PyObject *self, PyObject *name);
 static int EnumType_traverse(PyObject *self, visitproc visit, void *arg);
 
@@ -33,8 +31,6 @@ static int EnumType_traverse(PyObject *self, visitproc visit, void *arg);
  * the extra information we associate with a named enum type.
  */
 static PyType_Slot EnumType_slots[] = {
-    {Py_tp_alloc, EnumType_alloc},
-    {Py_tp_dealloc, EnumType_dealloc},
     {Py_tp_getattro, EnumType_getattro},
     {Py_tp_traverse, EnumType_traverse},
     {0, NULL}
@@ -44,54 +40,11 @@ static PyType_Spec EnumType_TypeSpec = {
     .name = _SIP_MODULE_FQ_NAME ".enumtype",
     .basicsize = sizeof (sipEnumTypeObject),
     .flags = Py_TPFLAGS_DEFAULT |
-             Py_TPFLAGS_DISALLOW_INSTANTIATION |
              Py_TPFLAGS_IMMUTABLETYPE |
-             Py_TPFLAGS_HAVE_GC,
+             Py_TPFLAGS_HAVE_GC |
+             Py_TPFLAGS_TYPE_SUBCLASS,
     .slots = EnumType_slots,
 };
-
-
-/*
- * The custom enum type's alloc slot.
- */
-static PyObject *EnumType_alloc(PyTypeObject *self, Py_ssize_t nitems)
-{
-    sipSipModuleState *sms = sip_get_sip_module_state_from_type(self);
-    sipEnumTypeObject *py_type;
-
-    // TODO Review if this is necessary with the current TP_FLAGS.
-    if (sms->current_enum_backdoor == NULL)
-    {
-        PyErr_SetString(PyExc_TypeError, "enums cannot be sub-classed");
-        return NULL;
-    }
-
-    assert(sipTypeIsEnum(sms->current_enum_backdoor));
-
-    /* Call the standard super-metatype alloc. */
-    if ((py_type = (sipEnumTypeObject *)PyType_Type.tp_alloc(self, nitems)) == NULL)
-        return NULL;
-
-    /*
-     * Set the links between the Python type object and the generated type
-     * structure.  Strictly speaking this doesn't need to be done here.
-     */
-    py_type->type = sms->current_enum_backdoor;
-
-    return (PyObject *)py_type;
-}
-
-
-/*
- * The custom enum type's dealloc slot.
- */
-static void EnumType_dealloc(PyObject *self)
-{
-    PyObject_GC_UnTrack(self);
-    PyTypeObject *type = Py_TYPE(self);
-    type->tp_free(self);
-    Py_DECREF(type);
-}
 
 
 /*
@@ -99,21 +52,12 @@ static void EnumType_dealloc(PyObject *self)
  */
 static PyObject *EnumType_getattro(PyObject *self, PyObject *name)
 {
-    // TODO
-#if 0
-    sipSipModuleState *sms = sip_get_sip_module_state_from_type(Py_TYPE(self));
-    PyObject *res;
-    sipEnumTypeSpec *etd;
-    const sipModuleSpec *wmd;
-    const sipEnumMemberSpec *enm, *emd;
-    int enum_nr, nr_members, m;
-    const char *name_str;
-
     /*
      * Try a generic lookup first.  This has the side effect of checking the
      * type of the name object.
      */
-    if ((res = PyObject_GenericGetAttr(self, name)) != NULL)
+    PyObject *res = PyObject_GenericGetAttr(self, name);
+    if (res != NULL)
         return res;
 
     if (!PyErr_ExceptionMatches(PyExc_AttributeError))
@@ -122,42 +66,23 @@ static PyObject *EnumType_getattro(PyObject *self, PyObject *name)
     PyErr_Clear();
 
     /* Get the member name. */
-    if ((name_str = PyUnicode_AsUTF8(name)) == NULL)
+    const char *name_s = PyUnicode_AsUTF8(name);
+    if (name_s == NULL)
         return NULL;
 
-    etd = (sipEnumTypeSpec *)((sipEnumTypeObject *)self)->type;
-    wmd = ((sipTypeSpec *)etd)->td_module;
+    const sipEnumTypeSpec *ets = ((sipEnumTypeObject *)self)->spec;
+    const sipEnumMemberSpec *member = ets->members;
 
-    /* Find the number of this enum. */
-    for (enum_nr = 0; enum_nr < wmd->nr_types; ++enum_nr)
-        if (wmd->types[enum_nr] == (sipTypeSpec *)etd)
-            break;
-
-    /* Get the enum members in the same scope. */
-    if (etd->scope_nr < 0)
+    while (member->name != NULL)
     {
-        nr_members = wmd->nr_enum_members;
-        enm = wmd->enum_members;
-    }
-    else
-    {
-        const sipContainerSpec *cod = sip_get_container(
-                wmd->types[etd->scope_nr]);
+        if (strcmp(member->name, name_s) == 0)
+            return PyObject_CallFunction(self, "(i)", member->value.int_t);
 
-        nr_members = cod->nr_enum_members;
-        enm = cod->enum_members;
+        member++;
     }
 
-    /* Find the enum member. */
-    for (emd = enm, m = 0; m < nr_members; ++m, ++emd)
-        if (emd->enum_nr == enum_nr && strcmp(emd->name, name_str) == 0)
-            return sip_enum_convert_from_enum(sms, emd->value,
-                    (sipTypeSpec *)etd);
-
-    PyErr_Format(PyExc_AttributeError,
-            _SIP_MODULE_FQ_NAME ".enumtype object '%s' has no member '%s'",
-            etd->py_name, name_str);
-#endif
+    PyErr_Format(PyExc_AttributeError, "enum '%s' has no member '%s'",
+            ((PyTypeObject *)self)->tp_name, name_s);
 
     return NULL;
 }
@@ -177,15 +102,16 @@ static int EnumType_traverse(PyObject *self, visitproc visit, void *arg)
 
 
 /* Forward declarations. */
+static void add_operator_slots(PyObject *enum_obj, const PyType_Slot *pts);
 #if defined(SIP_CONFIGURATION_CustomEnums)
-static PyTypeObject *create_custom_enum_type(const sipEnumTypeSpec *ets,
-        PyObject *name);
+static PyTypeObject *create_custom_enum_type(sipModuleState *ms,
+        const sipEnumTypeSpec *ets, PyObject *name);
 #endif
 static PyTypeObject *create_py_enum_type(sipModuleState *ms,
         const sipEnumTypeSpec *ets, PyObject *name);
+static void enum_expected(PyObject *obj, const sipEnumTypeSpec *ets);
 static int init_enum_module_types(sipSipModuleState *sms);
 #if defined(SIP_CONFIGURATION_PyEnums)
-static void add_operator_slots(PyObject *enum_obj, const PyType_Slot *pts);
 static PyObject *missing(PyObject *cls, PyObject *value, int int_enum);
 static PyObject *missing_enum(PyObject *cls, PyObject *value);
 static PyObject *missing_int_enum(PyObject *cls, PyObject *value);
@@ -230,7 +156,7 @@ PyTypeObject *sip_create_enum_type(sipModuleState *ms, sipTypeNr type_nr,
     if (sipTypeIsScopedEnum((const sipTypeSpec *)ets))
         enum_type = create_py_enum_type(ms, ets, name);
     else
-        enum_type = create_custom_enum_type(ets, name);
+        enum_type = create_custom_enum_type(ms, ets, name);
 #endif
 
     Py_DECREF(name);
@@ -245,8 +171,7 @@ PyTypeObject *sip_create_enum_type(sipModuleState *ms, sipTypeNr type_nr,
 PyObject *sip_enum_convert_from_enum(sipModuleState *ms, void *addr,
         sipTypeID type_id)
 {
-    // TODO Custom support.
-    assert(sipTypeIDIsEnumPy(type_id));
+    assert(sipTypeIDIsEnum(type_id));
 
     PyObject *py_type;
     const sipEnumTypeSpec *ets = (const sipEnumTypeSpec *)sip_get_type_detail(
@@ -302,38 +227,53 @@ PyObject *sip_enum_convert_from_enum(sipModuleState *ms, void *addr,
 
 
 /*
- * Convert a Python object implementing a constrained enum to an integer value.
- */
-int sip_enum_convert_to_constrained_enum(sipModuleState *ms, PyObject *obj,
-        void *addr, sipTypeID type_id)
-{
-    // TODO Custom support.
-    /* There is no difference between constrained and unconstrained enums. */
-    return sip_enum_convert_to_enum(ms, obj, addr, type_id);
-}
-
-
-/*
  * Implement the conversion from a Python object implementing an enum to a
  * member value.
  */
 int sip_enum_convert_to_enum(sipModuleState *ms, PyObject *obj, void *addr,
-        sipTypeID type_id)
+        sipTypeID type_id, int unconstrained)
 {
-    // TODO Custom support.
-    assert(sipTypeIDIsEnumPy(type_id));
+    assert(sipTypeIDIsEnum(type_id));
 
     PyTypeObject *py_type;
     const sipEnumTypeSpec *ets = (const sipEnumTypeSpec *)sip_get_type_detail(
             ms, type_id, &py_type, NULL);
 
-    /* Check the type of the Python object. */
+#if defined(SIP_CONFIGURATION_CustomEnums)
+    if (sipTypeIsEnum((const sipTypeSpec *)ets))
+    {
+        int val;
+
+        if (PyObject_TypeCheck((PyObject *)Py_TYPE(obj), ms->sip_module_state->custom_enum_type))
+        {
+            if (!PyObject_TypeCheck(obj, py_type))
+            {
+                enum_expected(obj, ets);
+                return -1;
+            }
+
+            /* This will never overflow. */
+            val = sip_api_long_as_int(obj);
+        }
+        else if (unconstrained && PyLong_Check(obj))
+        {
+            val = sip_api_long_as_int(obj);
+        }
+        else
+        {
+            enum_expected(obj, ets);
+            return -1;
+        }
+
+        *(int *)addr = val;
+
+        return 0;
+    }
+#endif
+
     if (PyObject_IsInstance(obj, (PyObject *)py_type) <= 0)
     {
-        PyErr_Format(PyExc_TypeError,
-                "a member of enum '%s' is expected not '%s'", py_type->tp_name,
-                Py_TYPE(obj)->tp_name);
-
+        enum_expected(obj, ets);
         return -1;
     }
 
@@ -429,12 +369,10 @@ int sip_enum_init(PyObject *mod, sipSipModuleState *sms)
 
 #if defined(SIP_CONFIGURATION_CustomEnums)
     sms->custom_enum_type = (PyTypeObject *)PyType_FromModuleAndSpec(mod,
-            &EnumType_TypeSpec, NULL);
+            &EnumType_TypeSpec, (PyObject *)&PyType_Type);
 
     if (sms->custom_enum_type == NULL)
         return -1;
-
-    sms->current_enum_backdoor = NULL;
 #endif
 
     return 0;
@@ -457,11 +395,52 @@ int sip_enum_is_enum(sipSipModuleState *sms, PyObject *obj)
 /*
  * Create a custom enum type.
  */
-static PyTypeObject *create_custom_enum_type(const sipEnumTypeSpec *ets,
-        PyObject *name)
+static PyTypeObject *create_custom_enum_type(sipModuleState *ms,
+        const sipEnumTypeSpec *ets, PyObject *name)
 {
-    // TODO
-    return NULL;
+    PyObject *bases = PyTuple_Pack(1, (PyObject *)&PyLong_Type);
+    if (bases == NULL)
+        return NULL;
+
+    PyObject *dict = PyDict_New();
+    if (dict == NULL)
+    {
+        Py_DECREF(bases);
+        return NULL;
+    }
+
+    PyObject *args = PyTuple_Pack(3, name, bases, dict);
+
+    Py_DECREF(bases);
+    Py_DECREF(dict);
+
+    if (args == NULL)
+        return NULL;
+
+    PyObject *enum_obj = PyObject_Call(
+            (PyObject *)ms->sip_module_state->custom_enum_type, args, NULL);
+
+    Py_DECREF(args);
+
+    if (enum_obj == NULL)
+        return NULL;
+
+    ((sipEnumTypeObject *)enum_obj)->spec = ets;
+
+    /*
+     * Note that we have to do this for all enums including those at the module
+     * level.
+     */
+    if (sip_fix_type_attrs(ms, ets->fq_py_name, enum_obj) < 0)
+    {
+        Py_DECREF(enum_obj);
+        return NULL;
+    }
+
+    if (ets->py_slots != NULL)
+        add_operator_slots(enum_obj, ets->py_slots);
+
+    return (PyTypeObject *)enum_obj;
 }
 #endif
 
@@ -485,7 +464,6 @@ static PyTypeObject *create_py_enum_type(sipModuleState *ms,
     {
         PyObject *value_obj;
 
-#if defined(SIP_CONFIGURATION_PyEnums)
         switch (ets->cpp_base_type)
         {
             case sipTypeID_bool:
@@ -541,11 +519,6 @@ static PyTypeObject *create_py_enum_type(sipModuleState *ms,
                 raise_internal_error(ets->cpp_base_type);
                 value_obj = NULL;
         }
-#endif
-
-#if defined(SIP_CONFIGURATION_CustomEnums)
-        value_obj = PyLong_FromLong(member->value);
-#endif
 
         if (sip_dict_set_and_discard(members, member->name, value_obj) < 0)
             goto rel_members;
@@ -685,7 +658,6 @@ ret_err:
 }
 
 
-#if defined(SIP_CONFIGURATION_PyEnums)
 /*
  * Add any Python slots that implement C++ operators to an enum type.
  */
@@ -926,7 +898,16 @@ static void add_operator_slots(PyObject *enum_obj, const PyType_Slot *pts)
         pts++;
     }
 }
-#endif
+
+
+/*
+ * Raise an exception when failing to convert an enum because of its type.
+ */
+static void enum_expected(PyObject *obj, const sipEnumTypeSpec *ets)
+{
+    PyErr_Format(PyExc_TypeError, "a member of enum '%s' is expected not '%s'",
+            ets->fq_py_name, Py_TYPE(obj)->tp_name);
+}
 
 
 /*

@@ -3077,7 +3077,7 @@ static int parse_pass_1(sipModuleState *wms, PyObject **parse_err_p,
 
                 if (arg != NULL)
                 {
-                    if (sip_enum_convert_to_enum(wms, arg, p, type_id) < 0)
+                    if (sip_enum_convert_to_enum(wms, arg, p, type_id, TRUE) < 0)
                         handle_failed_type_conversion(&failure, arg);
                 }
             }
@@ -3363,7 +3363,7 @@ static int parse_pass_1(sipModuleState *wms, PyObject **parse_err_p,
 
                     if (arg != NULL)
                     {
-                        if (sip_enum_convert_to_constrained_enum(wms, arg, p, type_id) < 0)
+                        if (sip_enum_convert_to_enum(wms, arg, p, type_id, FALSE) < 0)
                             handle_failed_type_conversion(&failure, arg);
                     }
                 }
@@ -4153,7 +4153,7 @@ static int parse_result(sipModuleState *wms, PyObject *method, PyObject *res,
                     void *p = va_arg(va, void *);
 
                     // TODO When can p be NULL?
-                    if (sip_enum_convert_to_enum(wms, arg, p, type_id) < 0)
+                    if (sip_enum_convert_to_enum(wms, arg, p, type_id, TRUE) < 0)
                         invalid = TRUE;
                 }
 

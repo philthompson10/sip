@@ -361,7 +361,7 @@ static int sip_api_convert_to_enum(PyObject *mod, PyObject *obj, void *addr,
 {
     sipModuleState *ms = sip_get_module_state(mod);
 
-    return sip_enum_convert_to_enum(ms, obj, addr, type_id);
+    return sip_enum_convert_to_enum(ms, obj, addr, type_id, TRUE);
 }
 
 
@@ -1071,11 +1071,6 @@ static PyTypeObject *create_class_type(sipModuleState *ms, sipTypeNr type_nr,
         return NULL;
 
 #if 0
-    if (ctd->pyslots != NULL)
-        sip_fix_slots(py_type, ctd->pyslots);
-#endif
-
-#if 0
     /* Handle the pickle function. */
     if (ctd->pickle != NULL)
     {
@@ -1638,7 +1633,7 @@ static int sip_api_add_type_instance(PyObject *mod, PyObject *dict,
 
     PyObject *obj;
 
-    if (sipTypeIDIsEnumCustom(type_id) || sipTypeIDIsEnumPy(type_id))
+    if (sipTypeIDIsEnum(type_id))
     {
         obj = sip_enum_convert_from_enum(ms, cppPtr, type_id);
     }
@@ -2065,7 +2060,7 @@ const sipTypeSpec *sip_get_type_detail(sipModuleState *ms, sipTypeID type_id,
     {
         // TODO Why do these checks.  When is a NULL Py type a legitimate value
         // rather than an error?
-        if (sipTypeIDIsClass(type_id) || sipTypeIDIsEnumPy(type_id) || sipTypeIDIsEnumCustom(type_id))
+        if (sipTypeIDIsClass(type_id) || sipTypeIDIsEnum(type_id))
         {
             if ((*py_type_p = sip_get_local_py_type(ms, type_nr)) == NULL)
                 return NULL;
@@ -2546,29 +2541,6 @@ int sip_api_enable_autoconversion(PyTypeObject *w_type, int enable)
 
     return was_enabled;
 }
-
-
-/*
- * Python copies the nb_inplace_add slot to the sq_inplace_concat slot and vice
- * versa if either are missing.  This is a bug because they don't have the same
- * API.  We therefore reverse this.
- */
-// TODO Review if something like this is still required.
-#if 0
-void sip_fix_slots(PyTypeObject *py_type, sipPySlotDef *psd)
-{
-    while (psd->psd_func != NULL)
-    {
-        if (psd->psd_type == iadd_slot && py_type->tp_as_sequence != NULL)
-            py_type->tp_as_sequence->sq_inplace_concat = NULL;
-
-        if (psd->psd_type == iconcat_slot && py_type->tp_as_number != NULL)
-            py_type->tp_as_number->nb_inplace_add = NULL;
-
-        ++psd;
-    }
-}
-#endif
 
 
 /*

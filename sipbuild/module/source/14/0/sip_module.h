@@ -40,12 +40,6 @@ struct _sipSipModuleState {
     PyObject *builtin_object_type;
 #endif
 
-#if defined(SIP_CONFIGURATION_CustomEnums)
-    /* The type definition used in creating the current custom enum. */
-    // TODO Try and get rid of this.  Might need to be in thread storage.
-    const sipTypeSpec *current_enum_backdoor;
-#endif
-
     /* The empty tuple. */
     PyObject *empty_tuple;
 

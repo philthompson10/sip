@@ -1172,8 +1172,7 @@ struct _sipABISpec {
 #define SIP_TYPE_ID_TYPE_POD            0x00000000      /* This must be 0. */
 #define SIP_TYPE_ID_TYPE_CLASS          0x20000000
 #define SIP_TYPE_ID_TYPE_MAPPED         0x40000000
-#define SIP_TYPE_ID_TYPE_ENUM_PY        0x60000000
-#define SIP_TYPE_ID_TYPE_ENUM_CUSTOM    0x80000000
+#define SIP_TYPE_ID_TYPE_ENUM           0x60000000
 
 /* The flags part of a type ID. */
 #define SIP_TYPE_ID_SENTINEL            0x01000000

@@ -355,9 +355,7 @@ PyObject *sip_variable_get(sipModuleState *ms, PyObject *instance,
             return PyCapsule_New(*(void **)addr, NULL, NULL);
 
         default:
-            // TODO Review if it is necessary to distinguish between the types
-            // of enum in type IDs.
-            if (sipTypeIDIsEnumPy(wvd->type_id) || sipTypeIDIsEnumCustom(wvd->type_id))
+            if (sipTypeIDIsEnum(wvd->type_id))
                 return sip_enum_convert_from_enum(ms, addr, wvd->type_id);
 
             // TODO Handle classes and mapped types.
@@ -858,8 +856,9 @@ int sip_variable_set(sipModuleState *ms, PyObject *instance, PyObject *value,
             break;
 
         default:
-            if (sipTypeIDIsEnumPy(wvd->type_id) || sipTypeIDIsEnumCustom(wvd->type_id))
-                return sip_enum_convert_to_enum(ms, value, addr, wvd->type_id);
+            if (sipTypeIDIsEnum(wvd->type_id))
+                return sip_enum_convert_to_enum(ms, value, addr, wvd->type_id,
+                        FALSE);
 
             // TODO Handle classes and mapped types.
             break;

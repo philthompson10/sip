@@ -147,14 +147,13 @@ of its purpose.
 
 These are the remaining broad areas of work.
 
-- Resolve issue #100 (`const` enforcement).
-- Use `tp_token` instead of `wt_td`.
 - Mapped types.
-- Custom enums.
+- Port any remaining tests.
+- Resolve issue #100 (`const` enforcement).
+- Use `tp_token` instead of `wt_td`?
 - Abstract classes.
 - Imports.
 - Events.
 - Buffer protocol.
 - Pickling.
 - Implement and test the BrokenTypeNames sip module configuration option.
-- Port any remaining tests.
