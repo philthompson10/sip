@@ -279,8 +279,10 @@ static int compare_typedef_name(const void *key, const void *el);
 static PyTypeObject *create_class_type(sipModuleState *ms, sipTypeNr type_nr,
         const sipClassTypeSpec *ctd);
 static PyTypeObject *create_container_type(sipModuleState *ms,
-        sipTypeID type_id, const sipContainerSpec *cod, PyObject *bases,
+        sipTypeID type_id, const sipContainerSpec *cs, PyObject *bases,
         PyTypeObject *metatype);
+static PyTypeObject *create_mapped_type(sipModuleState *ms, sipTypeNr type_nr,
+        const sipMappedTypeSpec *mts);
 static PyTypeObject *find_registered_py_type(sipSipModuleState *sms,
         const char *name);
 static sipModuleState *get_defining_module_state(sipModuleState *ms,
@@ -609,61 +611,66 @@ static PyObject *sip_api_py_slot_extend(PyObject *mod, int slot_id,
  */
 static void sip_api_instance_destroyed(PyObject *mod, PyObject **self_p)
 {
-    sip_instance_destroyed(sip_get_module_state(mod), self_p);
+    PyObject *self = *self_p;
+
+    assert(self != NULL);
+
+    SIP_BLOCK_THREADS
+
+    sipModuleState *ms = sip_get_module_state(mod);
+
+    // TODO Is there a chicken/egg situtation, ie. we couldn't have got the
+    // module state if there was no interpreter state?
+    if (ms->sip_module_state->interpreter_state != NULL)
+    {
+        PyObject *xtype, *xvalue, *xtb;
+
+        /* We may be tidying up after an exception so preserve it. */
+        PyErr_Fetch(&xtype, &xvalue, &xtb);
+        call_py_dtor(ms, self);
+        PyErr_Restore(xtype, xvalue, xtb);
+
+        sip_unwrap_instance(ms, (sipSimpleWrapper *)self);
+    }
+
+    *self_p = NULL;
+
+    SIP_UNBLOCK_THREADS
 }
 
 
 /*
- * Implement the actions common to all dtors.
+ * Unwrap an instance, ie. break the connection between a C/C++ instance and
+ * its wrapper.
  */
-void sip_instance_destroyed(sipModuleState *ms, PyObject **self_p)
+void sip_unwrap_instance(sipModuleState *ms, sipSimpleWrapper *sw)
 {
-    /* If there is no interpreter just do the minimum and get out. */
-    if (ms->sip_module_state->interpreter_state == NULL)
-    {
-        *self_p = NULL;
-        return;
-    }
+    sip_om_remove_object(ms, sw);
 
-    SIP_BLOCK_THREADS
+    /* Remove the link from the C/C++ instance to the wrapper. */
+    // TODO sipPySelf in the derived instance should be set to NULL.  This
+    // needs a new generated function (reset_*()) which will have the instance
+    // address its argument.  The similar code in the current dealloc_()
+    // function can be moved.
+    //if (sipIsDerived(sw))
+    //    ZZZ
 
-    PyObject *self = *self_p;
-    assert(self != NULL);
-
-    PyObject *xtype, *xvalue, *xtb;
-
-    /* We may be tidying up after an exception so preserve it. */
-    PyErr_Fetch(&xtype, &xvalue, &xtb);
-    call_py_dtor(ms, self);
-    PyErr_Restore(xtype, xvalue, xtb);
-
-    sip_om_remove_object(ms, self);
+    /* Remove the link from the wrapper to the C/C++ instance. */
+    sw->data = NULL;
 
     /*
      * If C/C++ has a reference (and therefore no parent) then remove it.
      * Otherwise remove the object from any parent.
      */
-    sipSimpleWrapper *sw = (sipSimpleWrapper *)self;
-
     if (sipCppHasRef(sw))
     {
         sipResetCppHasRef(sw);
-        Py_DECREF(self);
+        Py_DECREF((PyObject *)sw);
     }
-    else if (((sipWrapperType *)Py_TYPE(self))->wt_is_wrapper)
+    else if (((sipWrapperType *)Py_TYPE((PyObject *)sw))->wt_is_wrapper)
     {
-        sip_remove_from_parent(self);
+        sip_remove_from_parent((sipWrapper *)sw);
     }
-
-    /*
-     * Normally this is done in the generated dealloc function.  However this
-     * is only called if the pointer/access function has not been reset (which
-     * it has).  It acts as a guard to prevent any further invocations of
-     * reimplemented virtuals.
-     */
-    *self_p = NULL;
-
-    SIP_UNBLOCK_THREADS
 }
 
 
@@ -700,68 +707,50 @@ static void call_py_dtor(sipModuleState *ms, PyObject *self)
  * Add a wrapper to it's parent owner.  The wrapper must not currently have a
  * parent and, therefore, no siblings.
  */
-void sip_add_to_parent(PyObject *self, PyObject *owner)
+void sip_add_to_parent(sipWrapper *self, sipWrapper *owner)
 {
-    sipWrapper *self_w = (sipWrapper *)self;
-    sipWrapper *owner_w = (sipWrapper *)owner;
-
-    if (owner_w->first_child != NULL)
+    if (owner->first_child != NULL)
     {
-        self_w->sibling_next = owner_w->first_child;
-        sipWrapper *first_child_w = (sipWrapper *)owner_w->first_child;
-        first_child_w->sibling_prev = self;
+        self->sibling_next = owner->first_child;
+        owner->first_child->sibling_prev = self;
     }
 
-    owner_w->first_child = self;
-    self_w->parent = owner;
+    owner->first_child = self;
+    self->parent = owner;
 
     /*
      * The owner holds a real reference so that the cyclic garbage collector
      * works properly.
      */
-    Py_INCREF(self);
+    Py_INCREF((PyObject *)self);
 }
 
 
 /*
  * Remove a wrapper from it's parent if it has one.
  */
-void sip_remove_from_parent(PyObject *self)
+void sip_remove_from_parent(sipWrapper *self)
 {
-    sipWrapper *w = (sipWrapper *)self;
-
-    if (w->parent != NULL)
+    if (self->parent != NULL)
     {
-        sipWrapper *parent_w = (sipWrapper *)w->parent;
+        if (self->parent->first_child == self)
+            self->parent->first_child = self->sibling_next;
 
-        if (parent_w->first_child == self)
-            parent_w->first_child = w->sibling_next;
+        if (self->sibling_next != NULL)
+            self->sibling_next->sibling_prev = self->sibling_prev;
 
-        if (w->sibling_next != NULL)
-        {
-            sipWrapper *sibling_next_w = (sipWrapper *)w->sibling_next;
-            PyObject *next_prev = sibling_next_w->sibling_prev;
-            sipWrapper *next_prev_w = (sipWrapper *)next_prev;
-            next_prev_w->sibling_prev = w->sibling_prev;
-        }
+        if (self->sibling_prev != NULL)
+            self->sibling_prev->sibling_next = self->sibling_next;
 
-        if (w->sibling_prev != NULL)
-        {
-            sipWrapper *sibling_prev_w = (sipWrapper *)w->sibling_prev;
-            PyObject *prev_next = sibling_prev_w->sibling_next;
-            sipWrapper *prev_next_w = (sipWrapper *)prev_next;
-            prev_next_w->sibling_next = w->sibling_next;
-        }
-
-        w->parent = NULL;
-        w->sibling_next = NULL;
-        w->sibling_prev = NULL;
+        self->parent = NULL;
+        self->sibling_next = NULL;
+        self->sibling_prev = NULL;
 
         /*
          * We must do this last, after all the pointers are correct, because
          * this is used by the clear slot.
          */
-        Py_DECREF(self);
+        Py_DECREF((PyObject *)self);
     }
 }
 
@@ -788,49 +777,14 @@ static Py_ssize_t sip_api_convert_from_sequence_index(Py_ssize_t idx,
 
 
 /*
- * Return the dictionary of a type.
- */
-PyObject *sip_get_scope_dict(sipSipModuleState *sms, const sipTypeSpec *td,
-        PyObject *w_mod_dict, const sipModuleSpec *wmd)
-{
-#if 0
-    /*
-     * Initialise the scoping type if necessary.  It will always be in the
-     * same module if it needs doing.
-     */
-    if (sipTypeIsMapped(td))
-    {
-        if (sip_create_mapped_type(sms, wmd, (const sipMappedTypeSpec *)td, w_mod_dict) == NULL)
-            return NULL;
-
-        /* Check that the mapped type can act as a container. */
-        assert(sipTypeAsPyTypeObject(td) != NULL);
-    }
-    else
-    {
-        if (sip_create_class_type(sms, wmd, (const sipClassTypeSpec *)td, w_mod_dict) < 0)
-            return NULL;
-    }
-
-    return (sipTypeAsPyTypeObject(td))->tp_dict;
-#else
-    return NULL;
-#endif
-}
-
-
-/*
  * Create a container type and return a strong reference to it.
  */
 static PyTypeObject *create_container_type(sipModuleState *ms,
-        sipTypeID type_id, const sipContainerSpec *cod, PyObject *bases,
+        sipTypeID type_id, const sipContainerSpec *cs, PyObject *bases,
         PyTypeObject *metatype)
 {
     /* Configure the type. */
-    // TODO At moment py_slots is only populated for classes.  If it turns out
-    // that other containers don't have slots then move to py_slots and pass in
-    // as an extra argument.
-    const PyType_Slot *slots = cod->py_slots;
+    const PyType_Slot *slots = cs->py_slots;
 
     if (slots == NULL)
     {
@@ -840,7 +794,7 @@ static PyTypeObject *create_container_type(sipModuleState *ms,
     }
 
     PyType_Spec spec = {
-        .name = cod->fq_py_name,
+        .name = cs->fq_py_name,
         .basicsize = 0,
         .flags = Py_TPFLAGS_DEFAULT|Py_TPFLAGS_BASETYPE,
         .slots = (PyType_Slot *)slots,
@@ -868,11 +822,11 @@ static PyTypeObject *create_container_type(sipModuleState *ms,
     PyObject *type_dict = w_type->tp_dict;
 
     /* Add the descriptors for the instance variables. */
-    if (cod->instance_variables != NULL)
+    if (cs->instance_variables != NULL)
     {
         const sipVariableSpec *wvd;
 
-        for (wvd = cod->instance_variables; wvd->name != NULL; wvd++)
+        for (wvd = cs->instance_variables; wvd->name != NULL; wvd++)
         {
             PyObject *descr;
 
@@ -889,11 +843,11 @@ static PyTypeObject *create_container_type(sipModuleState *ms,
     }
 
     /* Add the descriptors for the methods. */
-    if (cod->methods != NULL)
+    if (cs->methods != NULL)
     {
         const PyMethodDef *pmd;
 
-        for (pmd = cod->methods; pmd->ml_name != NULL; pmd++)
+        for (pmd = cs->methods; pmd->ml_name != NULL; pmd++)
         {
             PyObject *descr = sipMethodDescr_New(sms, pmd, w_type);
 
@@ -903,8 +857,8 @@ static PyTypeObject *create_container_type(sipModuleState *ms,
     }
 
     /* Fix the type's name attributes. */
-    if (cod->scope_id != sipTypeID_Invalid)
-        if (sip_fix_type_attrs(ms, cod->fq_py_name, (PyObject *)w_type) < 0)
+    if (cs->scope_id != sipTypeID_Invalid)
+        if (sip_fix_type_attrs(ms, cs->fq_py_name, (PyObject *)w_type) < 0)
             goto rel_type;
 
     return w_type;
@@ -1097,27 +1051,16 @@ rel_bases:
 /*
  * Create a single mapped type object.
  */
-#if 0
-PyTypeObject *sip_create_mapped_type(sipSipModuleState *sms,
-        const sipModuleSpec *wmd, const sipMappedTypeSpec *mtd,
-        PyObject *w_mod_dict)
+PyTypeObject *create_mapped_type(sipModuleState *ms, sipTypeNr type_nr,
+        const sipMappedTypeSpec *mts)
 {
-    PyObject *type_dict;
+    sipSipModuleState *sms = ms->sip_module_state;
 
-    /* Create the type dictionary. */
-    if ((type_dict = sip_create_type_dict(wmd)) == NULL)
-        return NULL;
-
-    PyTypeObject *container = create_container_type(sms, &mtd->container,
-            // TODO Why wrapper_type instead of simple_wrapper_type?
-            (const sipTypeSpec *)mtd, sms->wrapper_type,
-            (PyObject *)sms->wrapper_type_type, w_mod_dict, type_dict, wmd);
-
-    Py_DECREF(type_dict);
-
-    return container;
+    return create_container_type(ms,
+            SIP_TYPE_ID_TYPE_MAPPED | SIP_TYPE_ID_CURRENT_MODULE | type_nr,
+            &mts->container, (PyObject *)sms->simple_wrapper_type,
+            sms->wrapper_type_type);
 }
-#endif
 
 
 /*
@@ -1520,7 +1463,7 @@ void sip_transfer_back(PyObject *self)
     }
     else
     {
-        sip_remove_from_parent(self);
+        sip_remove_from_parent((sipWrapper *)sw);
     }
 
     sipSetPyOwned(sw);
@@ -1569,7 +1512,7 @@ void sip_transfer_to(sipSipModuleState *sms, PyObject *self,
         else
         {
             Py_INCREF(self);
-            sip_remove_from_parent(self);
+            sip_remove_from_parent((sipWrapper *)sw);
             sipResetPyOwned(sw);
         }
 
@@ -1587,7 +1530,7 @@ void sip_transfer_to(sipSipModuleState *sms, PyObject *self,
         if (!sipCppHasRef(sw))
         {
             Py_INCREF(self);
-            sip_remove_from_parent(self);
+            sip_remove_from_parent((sipWrapper *)sw);
             sipResetPyOwned(sw);
 
             sipSetCppHasRef(sw);
@@ -1607,11 +1550,11 @@ void sip_transfer_to(sipSipModuleState *sms, PyObject *self,
         else
         {
             Py_INCREF(self);
-            sip_remove_from_parent(self);
+            sip_remove_from_parent((sipWrapper *)sw);
             sipResetPyOwned(sw);
         }
 
-        sip_add_to_parent(self, owner);
+        sip_add_to_parent((sipWrapper *)sw, (sipWrapper *)owner);
 
         Py_DECREF(self);
     }
@@ -1653,7 +1596,7 @@ static int sip_api_add_type_instance(PyObject *mod, PyObject *dict,
 
         if (cfrom != NULL)
         {
-            obj = cfrom(cppPtr, NULL);
+            obj = cfrom(mod, cppPtr, NULL);
         }
         else if (sipTypeIsMapped(td))
         {
@@ -1927,8 +1870,15 @@ static sipTypeID sip_api_find_type_id(PyObject *mod, const char *type)
             sipTypeID type_nr = ts_p - m_spec->type_specs;
 
             /* Determine the type of the type. */
-            // TODO
-            sipTypeID type_type = SIP_TYPE_ID_TYPE_CLASS;
+            const sipTypeSpec *ts = *ts_p;
+            sipTypeID type_type;
+
+            if (sipTypeIsClass(ts) || sipTypeIsNamespace(ts))
+                type_type = SIP_TYPE_ID_TYPE_CLASS;
+            else if (sipTypeIsMapped(ts))
+                type_type = SIP_TYPE_ID_TYPE_MAPPED;
+            else
+                type_type = SIP_TYPE_ID_TYPE_ENUM;
 
             /*
              * Return an absolute ID of a generated type.  Absolute types mean
@@ -2023,9 +1973,6 @@ static sipModuleState *get_defining_module_state(sipModuleState *ms,
     // If the cached type def is NULL then the number is the index of a table
     // of strings in the wrapped module definition that are the corresponding
     // names of external types.
-    // Add support for absolute IDs where the module number is the index into
-    // the list of all modules held in the sip module state.  Absolute IDs can
-    // only be created by sip_api_find_type_id().
     // Check for non-generated types.
     if (type_id == sipTypeID_Invalid)
         return NULL;
@@ -2033,9 +1980,11 @@ static sipModuleState *get_defining_module_state(sipModuleState *ms,
     if (sipTypeIDIsCurrentModule(type_id))
         return ms;
 
+    PyObject *modules = sipTypeIDIsAbsolute(type_id) ?
+            ms->sip_module_state->module_list : ms->imported_modules;
+
     return sip_get_module_state(
-            PyList_GET_ITEM(ms->imported_modules,
-                    sipTypeIDModuleNr(type_id)));
+            PyList_GET_ITEM(modules, sipTypeIDModuleNr(type_id)));
 }
 
 
@@ -2058,17 +2007,8 @@ const sipTypeSpec *sip_get_type_detail(sipModuleState *ms, sipTypeID type_id,
 
     if (py_type_p != NULL)
     {
-        // TODO Why do these checks.  When is a NULL Py type a legitimate value
-        // rather than an error?
-        if (sipTypeIDIsClass(type_id) || sipTypeIDIsEnum(type_id))
-        {
-            if ((*py_type_p = sip_get_local_py_type(ms, type_nr)) == NULL)
-                return NULL;
-        }
-        else
-        {
-            *py_type_p = NULL;
-        }
+        if (sip_get_local_py_type(ms, type_nr, py_type_p) < 0)
+            return NULL;
     }
 
     if (defining_ms_p != NULL)
@@ -2080,39 +2020,56 @@ const sipTypeSpec *sip_get_type_detail(sipModuleState *ms, sipTypeID type_id,
 
 /*
  * Return a borrowed reference to the Python type object for a type number in
- * the current module, creating it if necessary.  This is were new type objects
- * are created from the corresponding type numbers.
+ * the current module, creating it if necessary.  This is where new type
+ * objects are created from the corresponding type numbers.
  */
-PyTypeObject *sip_get_local_py_type(sipModuleState *ms, sipTypeNr type_nr)
+int sip_get_local_py_type(sipModuleState *ms, sipTypeNr type_nr,
+        PyTypeObject **py_type_p)
 {
     PyTypeObject *py_type = ms->py_types[type_nr];
-    if (py_type != NULL)
-        return py_type;
-
-    const sipTypeSpec *ts = ms->module_spec->type_specs[type_nr];
-
-    if (sipTypeIsEnum(ts)
-#if defined(SIP_CONFIGURATION_CustomEnums)
-        || sipTypeIsScopedEnum(ts)
-#endif
-        )
-    {
-        py_type = sip_create_enum_type(ms, type_nr,
-                (const sipEnumTypeSpec *)ts);
-    }
-    else
-    {
-        assert(sipTypeIsClass(ts) || sipTypeIsNamespace(ts));
-
-        py_type = create_class_type(ms, type_nr, (const sipClassTypeSpec *)ts);
-    }
 
     if (py_type == NULL)
-        return NULL;
+    {
+        const sipTypeSpec *ts = ms->module_spec->type_specs[type_nr];
 
-    ms->py_types[type_nr] = py_type;
+        if (sipTypeIsEnum(ts)
+#if defined(SIP_CONFIGURATION_CustomEnums)
+            || sipTypeIsScopedEnum(ts)
+#endif
+            )
+        {
+            py_type = sip_create_enum_type(ms, type_nr,
+                    (const sipEnumTypeSpec *)ts);
 
-    return py_type;
+            if (py_type == NULL)
+                return -1;
+        }
+        else if (sipTypeIsMapped(ts))
+        {
+            if (((const sipMappedTypeSpec *)ts)->container.fq_py_name != NULL)
+            {
+                py_type = create_mapped_type(ms, type_nr,
+                        (const sipMappedTypeSpec *)ts);
+
+                if (py_type == NULL)
+                    return -1;
+            }
+        }
+        else
+        {
+            py_type = create_class_type(ms, type_nr,
+                    (const sipClassTypeSpec *)ts);
+
+            if (py_type == NULL)
+                return -1;
+        }
+
+        ms->py_types[type_nr] = py_type;
+    }
+
+    *py_type_p = py_type;
+
+    return 0;
 }
 
 
@@ -2120,6 +2077,7 @@ PyTypeObject *sip_get_local_py_type(sipModuleState *ms, sipTypeNr type_nr)
  * Return a borrowed reference to the Python type object for a type ID,
  * creating it if necessary.
  */
+// TODO NULL is a legitimate value for certain mapped types.
 static PyTypeObject *sip_api_get_py_type(PyObject *mod, sipTypeID type_id)
 {
     sipModuleState *ms = sip_get_module_state(mod);

@@ -123,9 +123,16 @@ PyObject *sip_mod_con_getattro(sipModuleState *ms, PyObject *self,
 
     // TODO Pass the name object so that it doesn't need to be recreated from
     // the spec when creating a new type.
-    PyTypeObject *py_type = sip_get_local_py_type(ms, *type_nr_p);
-    if (py_type == NULL)
+    PyTypeObject *py_type;
+
+    if (sip_get_local_py_type(ms, *type_nr_p, &py_type) < 0)
         return NULL;
+
+    /*
+     * The type would be NULL for mapped types with no attributes but that
+     * should never happen in this context.
+     */
+    assert(py_type != NULL);
 
     /*
      * Save the type in the scope's dict.  If it was already there we wouldn't

@@ -81,10 +81,10 @@ void sip_api_release_type_us(PyObject *mod, void *cpp, sipTypeID type_id,
 
 PyObject *sip_convert_from_type(sipModuleState *ms, void *cppPtr,
         sipTypeID type_id, PyObject *transferObj);
-void *sip_force_convert_to_type_us(sipModuleState *wms, PyObject *pyObj,
+void *sip_force_convert_to_type_us(sipModuleState *ms, PyObject *pyObj,
         sipTypeID type_id, PyObject *transferObj, int flags, int *statep,
         void **user_statep, int *iserrp);
-PyObject *sip_is_py_method(sipModuleState *wms, sip_gilstate_t *gil,
+PyObject *sip_is_py_method(sipModuleState *ms, sip_gilstate_t *gil,
         char *pymc, PyObject **self_p, const char *cname, const char *mname);
 void sip_release(void *addr, const sipTypeSpec *td, int state,
         void *user_state);

@@ -234,9 +234,9 @@ typedef void (*sipReleaseBufferFunc)(PyObject *, void *, Py_buffer *);
 typedef void (*sipDeallocFunc)(PyObject *);
 typedef void *(*sipCastFunc)(void *, const sipTypeSpec *);
 typedef PyObject *(*sipSubClassConvertFunc)(void **, sipTypeID *);
-typedef int (*sipConvertToFunc)(PyObject *, void **, int *, PyObject *,
-        void **);
-typedef PyObject *(*sipConvertFromFunc)(void *, PyObject *);
+typedef int (*sipConvertToFunc)(PyObject *, PyObject *, void **, int *,
+        PyObject *, void **);
+typedef PyObject *(*sipConvertFromFunc)(PyObject *, void *, PyObject *);
 typedef void (*sipVirtErrorHandlerFunc)(PyObject *, sip_gilstate_t);
 typedef int (*sipVirtHandlerFunc)(sip_gilstate_t, sipVirtErrorHandlerFunc,
         PyObject *, PyObject *, ...);

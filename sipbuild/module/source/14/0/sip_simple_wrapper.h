@@ -22,7 +22,7 @@ extern "C" {
 
 /* These are held in flags. */
 #define SIP_PY_OWNED        0x0010  /* If owned by Python. */
-#define SIP_SHARE_MAP       0x0020  /* If the map slot might be occupied. */
+#define SIP_SHARE_MAP       0x0020  /* Allow the map slot to be shared. */
 #define SIP_CPP_HAS_REF     0x0040  /* If C/C++ has a reference. */
 #define SIP_POSSIBLE_PROXY  0x0080  /* If there might be a proxy slot. */
 #define SIP_ALIAS           0x0100  /* If it is an alias. */
@@ -63,7 +63,7 @@ struct _sipSimpleWrapper {
     PyObject *mixin_main;
 
     /* Next object at this address. */
-    PyObject *next;
+    struct _sipSimpleWrapper *next;
 
     /* For the user to use. */
     PyObject *user;

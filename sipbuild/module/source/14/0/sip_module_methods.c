@@ -415,20 +415,18 @@ static PyObject *meth_wrapinstance(PyObject *smod, PyObject *args)
 static void clear_wrapper(sipSipModuleState *sms, PyObject *w_inst)
 {
     sipWrapperType *wt = (sipWrapperType *)Py_TYPE(w_inst);
+    sipSimpleWrapper *sw = (sipSimpleWrapper *)w_inst;
 
     if (wt->wt_is_wrapper)
-        sip_remove_from_parent(w_inst);
+        sip_remove_from_parent((sipWrapper *)sw);
 
     /*
      * Transfer ownership to C++ so we don't try to release it when the
      * Python object is garbage collected.
      */
-    sipSimpleWrapper *sw = (sipSimpleWrapper *)w_inst;
     sipResetPyOwned(sw);
 
-    sipModuleState *ms = sip_get_module_state(wt->wt_d_mod);
-
-    sip_om_remove_object(ms, w_inst);
+    sip_om_remove_object(sip_get_module_state(wt->wt_d_mod), sw);
 }
 
 

@@ -168,7 +168,7 @@ static void SimpleWrapper_dealloc(PyObject *self)
      * Python.)  By removing it from the map first we ensure that a new Python
      * object is created.
      */
-    sip_om_remove_object(ms, self);
+    sip_om_remove_object(ms, (sipSimpleWrapper *)self);
 
     if (sms->interpreter_state != NULL)
     {
@@ -363,7 +363,7 @@ static int SimpleWrapper_traverse(PyObject *self, visitproc visit,
     /* Handle any children if the type supports the concept. */
     if (wt->wt_is_wrapper)
     {
-        PyObject *w = ((sipWrapper *)self)->first_child;
+        sipWrapper *w = ((sipWrapper *)sw)->first_child;
 
         while (w != NULL)
         {
@@ -374,15 +374,15 @@ static int SimpleWrapper_traverse(PyObject *self, visitproc visit,
              * means that plugins implemented in Python have a chance of
              * working.
              */
-            if (w != self)
+            if (w != (sipWrapper *)sw)
             {
-                int vret = visit(w, arg);
+                int vret = visit((PyObject *)w, arg);
 
                 if (vret != 0)
                     return vret;
             }
 
-            w = ((sipWrapper *)w)->sibling_next;
+            w = w->sibling_next;
         }
     }
 
@@ -587,7 +587,7 @@ static int SimpleWrapper_init(PyObject *self, PyObject *args,
          * calling __init__() for a second time), so make sure we don't already
          * have a parent.
          */
-        sip_remove_from_parent(self);
+        sip_remove_from_parent((sipWrapper *)self);
 
         if (owner != NULL)
         {
@@ -595,7 +595,7 @@ static int SimpleWrapper_init(PyObject *self, PyObject *args,
             // hasn't already been checked) then check properly (and earlier).
             assert(PyObject_TypeCheck(owner, sms->wrapper_type));
 
-            sip_add_to_parent(self, owner);
+            sip_add_to_parent((sipWrapper *)self, (sipWrapper *)owner);
         }
     }
 
@@ -603,7 +603,7 @@ static int SimpleWrapper_init(PyObject *self, PyObject *args,
     sw->data = sipNew;
     sw->flags = sipFlags | SIP_CREATED;
 
-    sip_om_add_object(ms, self);
+    sip_om_add_object(ms, sw);
 
     /* If we are wrapping an instance returned from C/C++ then we are done. */
     if (from_cpp)

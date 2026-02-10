@@ -16,10 +16,10 @@ from ..snippets import (g_class_docstring, g_class_method_table,
         g_module_docstring, g_py_slot, g_pyqt_class_plugin,
         g_pyqt_helper_defns, g_pyqt_helper_init, g_static_function,
         g_type_init_body)
-from ..utils import (get_class_flags, get_enum_member, get_optional_ptr,
-        get_type_from_void, has_method_docstring, need_dealloc, py_scope,
-        pyqt5_supported, pyqt6_supported, scoped_class_name,
-        variables_in_scope)
+from ..utils import (get_class_flags, get_enum_member, get_function_table,
+        get_mapped_type_flags, get_optional_ptr, get_type_from_void,
+        has_method_docstring, need_dealloc, py_scope, pyqt5_supported,
+        pyqt6_supported, scoped_class_name, variables_in_scope)
 
 from .abstract_backend import AbstractBackend
 
@@ -312,8 +312,101 @@ f'''    PyObject *sipModule;
     def g_mapped_type_api(self, sf, mapped_type):
         """ Generate the API details for a mapped type. """
 
-        # TODO
-        pass
+        module_name = self.spec.module.py_name
+        iface_file = mapped_type.iface_file
+        mapped_type_name = iface_file.fq_cpp_name.as_word
+
+        sf.write(
+f'''
+#define {self.get_type_ref(mapped_type)} SIP_TYPE_ID_TYPE_MAPPED|SIP_TYPE_ID_CURRENT_MODULE|{iface_file.type_nr}
+
+extern sipMappedTypeSpec sipTypeSpec_{module_name}_{mapped_type_name};
+''')
+
+    def g_mapped_type_definition(self, sf, bindings, mapped_type):
+        """ Generate the type structure that contains all the information
+        needed by a mapped type.
+        """
+
+        spec = self.spec
+        module_name = mapped_type.iface_file.module.py_name
+        mapped_type_name = mapped_type.iface_file.fq_cpp_name.as_word
+
+        fields = []
+
+        # Generate the slots table.
+        slots_table = self._g_slots_table(sf, mapped_type_name,
+                mapped_type.members)
+
+        # Generate the methods table.
+        nr_methods = self.g_py_method_table(sf, bindings,
+                get_function_table(mapped_type.members), mapped_type)
+
+        # Generate the static variables table.
+        nr_static_variables, nr_types = self.g_static_variables_table(sf,
+                scope=mapped_type)
+
+        # Generate the instance variables table.
+        nr_instance_variables = self._g_variables_table(sf, scope=mapped_type,
+                for_unbound=True)
+
+        fields.append('.base.flags = ' + get_mapped_type_flags(mapped_type))
+        fields.append('.base.cpp_name = ' + self.cached_name_ref(mapped_type.cpp_name))
+
+        if pyqt6_supported(spec) and mapped_type.pyqt_flags != 0:
+            # TODO
+            #sf.write(f'\n\nstatic pyqt6MappedTypePluginDef plugin_{mapped_type_name} = {{{mapped_type.pyqt_flags}}};\n')
+
+            fields.append('.base.plugin_data = &plugin_' + mapped_type_name)
+
+        if nr_instance_variables != 0 or nr_methods != 0:
+            fields.append(
+                    '.container.fq_py_name = ' + str(mapped_type.py_name))
+
+        if nr_instance_variables != 0:
+            fields.append(
+                    '.container.instance_variables = sipInstanceVariables_' + mapped_type_name)
+
+        if nr_static_variables != 0:
+            fields.append(
+                    '.container.attributes.nr_static_variables = ' + str(nr_static_variables))
+            fields.append(
+                    '.container.attributes.static_variables = sipStaticVariables_' + mapped_type_name)
+
+        if slots_table is not None:
+            fields.append('.container.py_slots = ' + slots_table)
+
+        if nr_methods != 0:
+            fields.append(
+                    '.container.methods = sipMethods_' + mapped_type_name)
+
+        if not mapped_type.no_assignment_operator:
+            fields.append('.assign = assign_' + mapped_type_name)
+
+        if not mapped_type.no_default_ctor:
+            fields.append('.array = array_' + mapped_type_name)
+
+        if not mapped_type.no_copy_ctor:
+            fields.append('.copy = copy_' + mapped_type_name)
+
+        if not mapped_type.no_release:
+            fields.append('.release = release_' + mapped_type_name)
+
+        if mapped_type.convert_to_type_code is not None:
+            fields.append('.cto = convertTo_' + mapped_type_name)
+
+        if mapped_type.convert_from_type_code is not None:
+            fields.append('.cfrom = convertFrom_' + mapped_type_name)
+
+        fields = ',\n    '.join(fields)
+
+        sf.write(
+f'''
+
+sipMappedTypeSpec sipTypeSpec_{module_name}_{mapped_type_name} = {{
+    {fields}
+}};
+''')
 
     def g_method_support_vars(self, sf):
         """ Generate the variables needed by a method. """
@@ -508,15 +601,22 @@ extern PyModuleDef_Slot sipModuleSlots_{module_name}[];
 #define sipBuildResult              sipABI_{module_name}->api_build_result
 #define sipCallMethod               sipABI_{module_name}->api_call_method
 #define sipCallProcedureMethod      sipABI_{module_name}->api_call_procedure_method
+#define sipCanConvertToType         sipABI_{module_name}->api_can_convert_to_type
 #define sipConvertFromEnum          sipABI_{module_name}->api_convert_from_enum
+#define sipConvertFromNewType       sipABI_{module_name}->api_convert_from_new_type
 #define sipConvertFromType          sipABI_{module_name}->api_convert_from_type
 #define sipConvertToEnum            sipABI_{module_name}->api_convert_to_enum
+#define sipConvertToType            sipABI_{module_name}->api_convert_to_type
 #define sipFindTypeID               sipABI_{module_name}->api_find_type_id
+#define sipForceConvertToType       sipABI_{module_name}->api_force_convert_to_type
 #define sipGetAddress               sipABI_{module_name}->api_get_address
 #define sipGetPyType                sipABI_{module_name}->api_get_py_type
+#define sipGetState                 sipABI_{module_name}->api_get_state
 #define sipGetTypeUserData          sipABI_{module_name}->api_get_type_user_data
 #define sipIsOwnedByPython          sipABI_{module_name}->api_is_owned_by_python
 #define sipParseResult              sipABI_{module_name}->api_parse_result
+#define sipReleaseType              sipABI_{module_name}->api_release_type
+#define sipReleaseTypeUS            sipABI_{module_name}->api_release_type_us
 #define sipSetTypeUserData          sipABI_{module_name}->api_set_type_user_data
 ''')
 
@@ -568,14 +668,8 @@ f'''#define sipMalloc                   sipAPI->api_malloc
 #define sipBadLengthForSlice        sipAPI->api_bad_length_for_slice
 #define sipAddTypeInstance          sipAPI->api_add_type_instance
 #define sipAddDelayedDtor           sipAPI->api_add_delayed_dtor
-#define sipCanConvertToType         sipAPI->api_can_convert_to_type
-#define sipConvertToType            sipAPI->api_convert_to_type
-#define sipForceConvertToType       sipAPI->api_force_convert_to_type
 #define sipConvertToBool            sipAPI->api_convert_to_bool
-#define sipReleaseType              sipAPI->api_release_type
-#define sipConvertFromNewType       sipAPI->api_convert_from_new_type
 #define sipConvertFromNewPyType     sipAPI->api_convert_from_new_pytype
-#define sipGetState                 sipAPI->api_get_state
 #define sipExportSymbol             sipAPI->api_export_symbol
 #define sipImportSymbol             sipAPI->api_import_symbol
 #define sipBytes_AsChar             sipAPI->api_bytes_as_char
@@ -646,7 +740,6 @@ f'''#define sipMalloc                   sipAPI->api_malloc
 #define sipNextExceptionHandler     sipAPI->api_next_exception_handler
 #define sipConvertToTypeUS          sipAPI->api_convert_to_type_us
 #define sipForceConvertToTypeUS     sipAPI->api_force_convert_to_type_us
-#define sipReleaseTypeUS            sipAPI->api_release_type_us
 ''')
 
         if self.py_enums_supported():
@@ -826,7 +919,6 @@ f'''    PyObject *sipModule = PyDict_GetItemString(PySys_GetObject("modules"), "
         type_nrs = []
 
         for needed_type in module.needed_types:
-            # TODO Mapped types?
             if needed_type.type is ArgumentType.CLASS:
                 klass = needed_type.definition
 
@@ -835,6 +927,13 @@ f'''    PyObject *sipModule = PyDict_GetItemString(PySys_GetObject("modules"), "
 
                 py_name = str(klass.py_name)
                 type_nr = klass.iface_file.type_nr
+
+            elif needed_type.type is ArgumentType.MAPPED:
+                mapped_type = needed_type.definition
+                # TODO
+                py_name = 'TODO'
+                #py_name = str(klass.py_name)
+                type_nr = mapped_type.iface_file.type_nr
 
             elif needed_type.type is ArgumentType.ENUM:
                 enum = needed_type.definition

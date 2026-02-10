@@ -30,16 +30,16 @@ struct _sipWrapper {
     sipSimpleWrapper super;
 
     /* First child object. */
-    PyObject *first_child;
+    struct _sipWrapper *first_child;
 
     /* Next sibling. */
-    PyObject *sibling_next;
+    struct _sipWrapper *sibling_next;
 
     /* Previous sibling. */
-    PyObject *sibling_prev;
+    struct _sipWrapper *sibling_prev;
 
     /* Owning object. */
-    PyObject *parent;
+    struct _sipWrapper *parent;
 };
 
 
