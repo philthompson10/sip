@@ -73,20 +73,6 @@ some functionality that can be used by applications.
         the Python object being assigned.
 
 
-.. py:function:: @SIP_MODULE_FQ_NAME@.cast(obj, type)
-
-    This does the Python equivalent of casting a C++ instance to one of its
-    sub or super-class types.
-
-    :param obj:
-        the Python object.
-    :param type type:
-        the type.
-    :return:
-        a new Python object is that wraps the same C++ instance as *obj*, but
-        has the type *type*.
-
-
 .. py:function:: @SIP_MODULE_FQ_NAME@.delete(obj)
 
     For C++ instances this calls the C++ destructor.  For C structures it
