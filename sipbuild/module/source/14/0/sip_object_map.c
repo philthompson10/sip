@@ -247,7 +247,7 @@ static void add_object(sipModuleState *ms, sipSimpleWrapper *obj, void *addr)
     if (he->first != NULL)
     {
         /*
-         * This can happen for three reasons.  A variable of one class can be
+         * This can happen for four reasons.  A variable of one class can be
          * declared at the start of another class.  Therefore there are two
          * objects, of different classes, with the same address.  The second
          * reason is that the old C/C++ object has been deleted by C/C++ but we
@@ -255,11 +255,14 @@ static void add_object(sipModuleState *ms, sipSimpleWrapper *obj, void *addr)
          * been created at the same address.  The third reason is if we are in
          * the process of deleting a Python object but the C++ object gets
          * wrapped again because the C++ dtor called a method that has been
-         * re-implemented in Python.  The presence of the SIP_SHARE_MAP flag
-         * (set by sipConvertFromType()) means that we are OK with this and we
-         * just add this one to the list of existing objects at this address.
-         * Otherwise we uncouple the C/C++ object and its wrapper and let them
-         * die a natural death.
+         * re-implemented in Python.  The fourth reason is that the user has
+         * called sipConvertFromNewType() for a C/C++ object that isn't
+         * actually new.  The presence of the SIP_SHARE_MAP flag (set by
+         * sipConvertFromType()) means that we are OK with this and we just add
+         * this one to the list of existing objects at this address.
+         * Otherwise there is no right way of handling the situation so (for
+         * historical reasons) we choose to isolate the wrapper and let it die
+         * a natural death.
          */
         if (!(obj->flags & SIP_SHARE_MAP))
         {
@@ -274,7 +277,7 @@ static void add_object(sipModuleState *ms, sipSimpleWrapper *obj, void *addr)
                 if (sipIsAlias(sw))
                     sip_api_free(sw);
                 else
-                    sip_unwrap_instance(ms, sw);
+                    sip_isolate_wrapper(ms, sw);
 
                 sw = next;
             }

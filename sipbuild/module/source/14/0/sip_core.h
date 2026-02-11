@@ -116,6 +116,7 @@ PyTypeObject *sip_get_py_type_from_name(sipSipModuleState *sms,
         PyObject *target_module_name_obj, const char *target_type_name);
 int sip_is_subtype(sipModuleState *wms, const sipClassTypeSpec *ctd,
         const sipClassTypeSpec *base_ctd);
+void sip_isolate_wrapper(sipModuleState *ms, sipSimpleWrapper *sw);
 int sip_keep_reference(sipModuleState *wms, PyObject *w_inst, int key,
         PyObject *obj);
 PyObject *sip_next_in_mro(PyObject *self, PyObject *after);
@@ -128,7 +129,6 @@ void sip_transfer_back(PyObject *self);
 void sip_transfer_to(sipSipModuleState *sms, PyObject *self, PyObject *owner);
 sipTypeID sip_type_scope(sipModuleState *wms, sipTypeID type_id);
 PyObject *sip_unpickle_type(PyObject *mod, PyObject *args);
-void sip_unwrap_instance(sipModuleState *ms, sipSimpleWrapper *sw);
 PyObject *sip_wrap_instance(sipSipModuleState *sms, void *cpp,
         PyTypeObject *py_type, PyObject *args, PyObject *owner, int flags);
 

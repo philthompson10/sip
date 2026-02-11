@@ -630,7 +630,10 @@ static void sip_api_instance_destroyed(PyObject *mod, PyObject **self_p)
         call_py_dtor(ms, self);
         PyErr_Restore(xtype, xvalue, xtb);
 
-        sip_unwrap_instance(ms, (sipSimpleWrapper *)self);
+        /* Remove the link from the wrapper to the C/C++ instance. */
+        ((sipSimpleWrapper *)self)->data = NULL;
+
+        sip_isolate_wrapper(ms, (sipSimpleWrapper *)self);
     }
 
     *self_p = NULL;
@@ -640,23 +643,12 @@ static void sip_api_instance_destroyed(PyObject *mod, PyObject **self_p)
 
 
 /*
- * Unwrap an instance, ie. break the connection between a C/C++ instance and
- * its wrapper.
+ * Isolate a wrapper, ie. clear any relationships with other wrappers.  This
+ * may mean it gets garbage collected.
  */
-void sip_unwrap_instance(sipModuleState *ms, sipSimpleWrapper *sw)
+void sip_isolate_wrapper(sipModuleState *ms, sipSimpleWrapper *sw)
 {
     sip_om_remove_object(ms, sw);
-
-    /* Remove the link from the C/C++ instance to the wrapper. */
-    // TODO sipPySelf in the derived instance should be set to NULL.  This
-    // needs a new generated function (reset_*()) which will have the instance
-    // address its argument.  The similar code in the current dealloc_()
-    // function can be moved.
-    //if (sipIsDerived(sw))
-    //    ZZZ
-
-    /* Remove the link from the wrapper to the C/C++ instance. */
-    sw->data = NULL;
 
     /*
      * If C/C++ has a reference (and therefore no parent) then remove it.
