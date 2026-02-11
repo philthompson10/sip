@@ -8,7 +8,8 @@ from .....sip_module_configuration import SipModuleConfiguration
 from ....python_slots import is_number_slot, is_rich_compare_slot
 from ....scoped_name import ScopedName, STRIP_GLOBAL
 from ....specification import (Argument, ArgumentType, GILUse, IfaceFileType,
-        MultiInterpreterSupport, PySlot, WrappedEnum, WrappedVariable)
+        MappedType, MultiInterpreterSupport, PySlot, WrappedEnum,
+        WrappedVariable)
 
 from ...formatters import fmt_class_as_scoped_py_name
 
@@ -242,7 +243,11 @@ static const sipModuleSpec sipModule_{module_name} = {{
                 scope_name = module_name
             else:
                 scope_nr = enum.scope.iface_file.type_nr
-                scope_name = fmt_class_as_scoped_py_name(enum.scope)
+
+                if isinstance(enum.scope, MappedType):
+                    scope_name = f'{module_name}.{enum.scope.py_name}'
+                else:
+                    scope_name = fmt_class_as_scoped_py_name(enum.scope)
 
             sf.write(
 f'''
@@ -334,6 +339,9 @@ extern sipMappedTypeSpec sipTypeSpec_{module_name}_{mapped_type_name};
 
         fields = []
 
+        # Generate the enums table.
+        self.g_enums_specifications(sf, bindings, scope=mapped_type)
+
         # Generate the slots table.
         slots_table = self._g_slots_table(sf, mapped_type_name,
                 mapped_type.members)
@@ -342,13 +350,8 @@ extern sipMappedTypeSpec sipTypeSpec_{module_name}_{mapped_type_name};
         nr_methods = self.g_py_method_table(sf, bindings,
                 get_function_table(mapped_type.members), mapped_type)
 
-        # Generate the static variables table.
-        nr_static_variables, nr_types = self.g_static_variables_table(sf,
-                scope=mapped_type)
-
-        # Generate the instance variables table.
-        nr_instance_variables = self._g_variables_table(sf, scope=mapped_type,
-                for_unbound=True)
+        # Generate the static variables (ie. enum types) table.
+        _, nr_types = self.g_static_variables_table(sf, scope=mapped_type)
 
         fields.append('.base.flags = ' + get_mapped_type_flags(mapped_type))
         fields.append('.base.cpp_name = ' + self.cached_name_ref(mapped_type.cpp_name))
@@ -359,22 +362,18 @@ extern sipMappedTypeSpec sipTypeSpec_{module_name}_{mapped_type_name};
 
             fields.append('.base.plugin_data = &plugin_' + mapped_type_name)
 
-        if nr_instance_variables != 0 or nr_methods != 0:
+        if nr_types != 0 or nr_methods != 0:
             fields.append(
-                    '.container.fq_py_name = ' + str(mapped_type.py_name))
-
-        if nr_instance_variables != 0:
-            fields.append(
-                    '.container.instance_variables = sipInstanceVariables_' + mapped_type_name)
-
-        if nr_static_variables != 0:
-            fields.append(
-                    '.container.attributes.nr_static_variables = ' + str(nr_static_variables))
-            fields.append(
-                    '.container.attributes.static_variables = sipStaticVariables_' + mapped_type_name)
+                    f'.container.fq_py_name = "{module_name}.{mapped_type.py_name}"')
 
         if slots_table is not None:
             fields.append('.container.py_slots = ' + slots_table)
+
+        if nr_types != 0:
+            fields.append(
+                    '.container.attributes.nr_types = ' + str(nr_types))
+            fields.append(
+                    '.container.attributes.type_nrs = sipTypeNrs_' + mapped_type_name)
 
         if nr_methods != 0:
             fields.append(
@@ -930,9 +929,11 @@ f'''    PyObject *sipModule = PyDict_GetItemString(PySys_GetObject("modules"), "
 
             elif needed_type.type is ArgumentType.MAPPED:
                 mapped_type = needed_type.definition
-                # TODO
-                py_name = 'TODO'
-                #py_name = str(klass.py_name)
+
+                if scope is not None or mapped_type.py_name is None:
+                    continue
+
+                py_name = str(mapped_type.py_name)
                 type_nr = mapped_type.iface_file.type_nr
 
             elif needed_type.type is ArgumentType.ENUM:
@@ -1035,7 +1036,6 @@ f'''    PyObject *sipModule = PyDict_GetItemString(PySys_GetObject("modules"), "
                     '.container.attributes.nr_types = ' + str(nr_types))
             fields.append(
                     '.container.attributes.type_nrs = sipTypeNrs_' + klass_name)
-
 
         if slots_table is not None:
             fields.append('.container.py_slots = ' + slots_table)

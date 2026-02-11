@@ -147,7 +147,6 @@ of its purpose.
 
 These are the remaining broad areas of work.
 
-- Mapped type attributes.
 - Port any remaining tests.
 - Resolve issue #100 (`const` enforcement).
 - Use `tp_token` instead of `wt_td`?

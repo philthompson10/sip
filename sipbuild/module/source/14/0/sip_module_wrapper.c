@@ -136,8 +136,8 @@ PyObject *sip_mod_con_getattro(sipModuleState *ms, PyObject *self,
 
     /*
      * Save the type in the scope's dict.  If it was already there we wouldn't
-     * have reached this point.  Note that the type may may have been created
-     * some time ago (using a type ID from generated code) and this is just the
+     * have reached this point.  Note that the type may have been created some
+     * time ago (using a type ID from generated code) and this is just the
      * first time it has been accessed as an attribute.
      */
     if (PyObject_SetAttr(self, name, (PyObject *)py_type) < 0)
@@ -963,6 +963,8 @@ static int compare_type_nr(const void *key, const void *el,
 
     if (sipTypeIsClass(ts) || sipTypeIsNamespace(ts))
         s2 = ((const sipClassTypeSpec *)ts)->container.fq_py_name;
+    else if (sipTypeIsMapped(ts))
+        s2 = ((const sipMappedTypeSpec *)ts)->container.fq_py_name;
     else
         s2 = ((const sipEnumTypeSpec *)ts)->fq_py_name;
 
