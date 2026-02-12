@@ -69,12 +69,14 @@ static int sip_api_export_symbol(PyObject *w_mod, const char *name, void *sym);
 static void *sip_api_import_symbol(PyObject *w_mod, const char *name);
 static sipTypeID sip_api_find_type_id(PyObject *w_mod, const char *type);
 static int sip_api_register_py_type(PyObject *w_mod, PyTypeObject *supertype);
-static const char *sip_api_resolve_typedef(PyObject *w_mod, const char *name);
+static const char *sip_api_resolve_typedef(PyObject *mod, const char *name);
 static PyObject *sip_api_get_reference(PyObject *self, int key);
 static int sip_api_is_owned_by_python(PyObject *w_inst);
 static int sip_api_is_derived_class(PyObject *w_inst);
 static int sip_api_init_mixin(PyObject *w_mod, PyObject *self, PyObject *args,
         PyObject *kwds, sipTypeID type_id);
+static const sipClassTypeSpec *sip_api_get_class_type_spec(void *context,
+        sipTypeID type_id, void **cts_context_p);
 static void *sip_api_get_mixin_address(PyObject *w_inst,
         const sipTypeSpec *td);
 static PyInterpreterState *sip_api_get_interpreter(PyObject *w_mod);
@@ -236,6 +238,7 @@ const sipABISpec sip_abi = {
     sip_api_no_method,
     sip_api_abstract_method,
     sip_api_bad_class,
+    sip_api_get_class_type_spec,
     sip_api_get_cpp_ptr,
     sip_api_is_py_method,
     sip_api_call_hook,
@@ -1694,6 +1697,7 @@ void *sip_cast_cpp_ptr(void *ptr, PyTypeObject *src_type,
         PyTypeObject *target_type)
 {
     sipWrapperType *src_wt = (sipWrapperType *)src_type;
+    sipWrapperType *target_wt = (sipWrapperType *)target_type;
 
     sipCastFunc cast = ((const sipClassTypeSpec *)sip_get_type_spec_from_wt(
             src_wt))->cast;
@@ -1701,9 +1705,12 @@ void *sip_cast_cpp_ptr(void *ptr, PyTypeObject *src_type,
     /* C structures and base classes don't have cast functions. */
     if (cast != NULL)
     {
-        sipWrapperType *target_wt = (sipWrapperType *)target_type;
+        void *context = PyModule_GetState(target_wt->wt_d_mod);
+        const sipTypeSpec *target_ts = sip_get_type_spec(
+                (sipModuleState *)context,
+                target_wt->wt_type_id);
 
-        ptr = (*cast)(ptr, sip_get_type_spec_from_wt(target_wt));
+        ptr = cast(context, ptr, (const sipClassTypeSpec *)target_ts);
     }
 
     return ptr;
@@ -1949,6 +1956,20 @@ static void sip_api_raise_type_exception(PyObject *mod, sipTypeID type_id,
     Py_XDECREF(self);
 
     SIP_UNBLOCK_THREADS
+}
+
+
+/*
+ * This is a thin wrapper around sip_get_type_detail() provided for generated
+ * cast functions.  Its use of void* contexts is to hide the sipModule data
+ * type from the ABI.
+ */
+static const sipClassTypeSpec *sip_api_get_class_type_spec(void *context,
+        sipTypeID type_id, void **cts_context_p)
+{
+    return (const sipClassTypeSpec *)sip_get_type_detail(
+            (sipModuleState *)context, type_id, NULL,
+            (sipModuleState **)cts_context_p);
 }
 
 
@@ -2322,8 +2343,8 @@ int sip_super_init(PyObject *self, PyObject *args, PyObject *kwds,
 
 
 /*
- * If the given name is that of a typedef then the corresponding type is
- * returned.
+ * If the given name is that of a typedef then the name of the corresponding
+ * type is returned.
  */
 static const char *sip_api_resolve_typedef(PyObject *mod, const char *name)
 {
@@ -2342,14 +2363,12 @@ static const char *sip_api_resolve_typedef(PyObject *mod, const char *name)
 
         if (m_spec->nr_typedefs > 0)
         {
-            const sipTypedefDef *tdd;
+            const sipTypedefSpec *tds = (const sipTypedefSpec *)bsearch(name,
+                    m_spec->typedefs, m_spec->nr_typedefs,
+                    sizeof (sipTypedefSpec), compare_typedef_name);
 
-            tdd = (const sipTypedefDef *)bsearch(name, m_spec->typedefs,
-                    m_spec->nr_typedefs, sizeof (sipTypedefDef),
-                    compare_typedef_name);
-
-            if (tdd != NULL)
-                return tdd->type_name;
+            if (tds != NULL)
+                return tds->type_name;
         }
     }
 
@@ -2362,7 +2381,7 @@ static const char *sip_api_resolve_typedef(PyObject *mod, const char *name)
  */
 static int compare_typedef_name(const void *key, const void *el)
 {
-    return strcmp((const char *)key, ((const sipTypedefDef *)el)->name);
+    return strcmp((const char *)key, ((const sipTypedefSpec *)el)->name);
 }
 
 

@@ -151,6 +151,9 @@ typedef struct _sipBufferInfoDef sipBufferInfoDef;
 struct _sipCFunctionDef;
 typedef struct _sipCFunctionDef sipCFunctionDef;
 
+struct _sipClassTypeSpec;
+typedef struct _sipClassTypeSpec sipClassTypeSpec;
+
 struct _sipDelayedDtor;
 typedef struct _sipDelayedDtor sipDelayedDtor;
 
@@ -232,7 +235,7 @@ typedef int (*sipGetBufferFunc)(PyObject *, void *, Py_buffer *, int);
 typedef void (*sipReleaseBufferFunc)(PyObject *, void *, Py_buffer *);
 #endif
 typedef void (*sipDeallocFunc)(PyObject *);
-typedef void *(*sipCastFunc)(void *, const sipTypeSpec *);
+typedef void *(*sipCastFunc)(void *, void *, const sipClassTypeSpec *);
 typedef PyObject *(*sipSubClassConvertFunc)(void **, sipTypeID *);
 typedef int (*sipConvertToFunc)(PyObject *, PyObject *, void **, int *,
         PyObject *, void **);
@@ -488,14 +491,13 @@ typedef struct _sipPySlotExtenderDef {
 /*
  * The immutable specification of a typedef.
  */
-// TODO Rename to Spec
-typedef struct _sipTypedefDef {
+typedef struct _sipTypedefSpec {
     /* The typedef name. */
     const char *name;
 
     /* The typedef value. */
     const char *type_name;
-} sipTypedefDef;
+} sipTypedefSpec;
 
 
 /*
@@ -622,7 +624,7 @@ typedef struct _sipContainerSpec {
 /*
  * The immutable specification of a C++ class (or C struct) or a C++ namespace.
  */
-typedef struct _sipClassTypeSpec {
+struct _sipClassTypeSpec {
     /* The base type information. */
     sipTypeSpec base;
 
@@ -706,7 +708,7 @@ typedef struct _sipClassTypeSpec {
 
     /* The sizeof the class. */
     size_t sizeof_class;
-} sipClassTypeSpec;
+};
 
 
 /*
@@ -848,7 +850,7 @@ struct _sipModuleSpec {
     int nr_typedefs;
 
     /* The table of typedefs. */
-    const sipTypedefDef *const typedefs;
+    const sipTypedefSpec *const typedefs;
 
     /* The table of virtual error handlers. */
     const sipVirtErrorHandlerDef *const virt_error_handlers;
@@ -1056,6 +1058,8 @@ struct _sipABISpec {
             const char *method, const char *doc);
     void (*api_abstract_method)(const char *classname, const char *method);
     void (*api_bad_class)(const char *classname);
+    const sipClassTypeSpec *(*api_get_class_type_spec)(void *context,
+            sipTypeID type_id, void **cts_context_p);
     void *(*api_get_cpp_ptr)(PyObject *mod, PyObject *w_inst,
             sipTypeID type_id);
     PyObject *(*api_is_py_method)(PyObject *mod, sip_gilstate_t *gil,

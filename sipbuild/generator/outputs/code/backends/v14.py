@@ -17,16 +17,72 @@ from ..snippets import (g_class_docstring, g_class_method_table,
         g_module_docstring, g_py_slot, g_pyqt_class_plugin,
         g_pyqt_helper_defns, g_pyqt_helper_init, g_static_function,
         g_type_init_body)
-from ..utils import (get_class_flags, get_enum_member, get_function_table,
-        get_mapped_type_flags, get_optional_ptr, get_type_from_void,
-        has_method_docstring, need_dealloc, py_scope, pyqt5_supported,
-        pyqt6_supported, scoped_class_name, variables_in_scope)
+from ..utils import (get_class_flags, get_class_from_void, get_enum_member,
+        get_function_table, get_mapped_type_flags, get_optional_ptr,
+        get_type_from_void, has_method_docstring, need_dealloc, py_scope,
+        pyqt5_supported, pyqt6_supported, scoped_class_name,
+        variables_in_scope)
 
 from .abstract_backend import AbstractBackend
 
 
 class v14Backend(AbstractBackend):
     """ The backend code generator for v14 of the ABI. """
+
+    def g_cast_function(self, sf, klass):
+        """ Generate the function that casts a C++ pointer to a target type.
+        """
+
+        spec = self.spec
+        as_word = klass.iface_file.fq_cpp_name.as_word
+
+        sf.write(
+f'''
+
+/* Cast a pointer to a type somewhere in its inheritance hierarchy. */
+extern "C" {{static void *cast_{as_word}(void *, void *, const sipClassTypeSpec *);}}
+static void *cast_{as_word}(void *context, void *sipCppV, const sipClassTypeSpec *target_cts)
+{{
+    {get_class_from_void(spec, klass)};
+
+    if (target_cts == &sipTypeSpec_{spec.module.py_name}_{as_word})
+        return sipCppV;
+
+''')
+
+        needs_new_context = True
+
+        for superclass in klass.superclasses:
+            sc_fq_cpp_name = superclass.iface_file.fq_cpp_name
+            sc_scope_s = scoped_class_name(spec, superclass)
+            sc_type_ref = self.get_type_ref(superclass)
+
+            if len(superclass.superclasses) != 0:
+                if needs_new_context:
+                    sf.write('    void *sc_context;\n\n')
+                    needs_new_context = False
+
+                # Delegate to the super-class's cast function.  This will
+                # handle virtual and non-virtual diamonds.
+                sf.write(
+f'''    sipCppV = sipGetClassTypeSpec(context, {sc_type_ref}, &sc_context)->cast(sc_context, static_cast<{sc_scope_s} *>(sipCpp), target_cts);
+    if (sipCppV)
+        return sipCppV;
+
+''')
+            else:
+                # The super-class is a base class and so doesn't have a cast
+                # function.  It also means that a simple check will do instead.
+                sf.write(
+f'''    if (target_cts == sipGetClassTypeSpec(context, {sc_type_ref}, NULL))
+        return static_cast<{sc_scope_s} *>(sipCpp);
+
+''')
+
+        sf.write(
+'''    return SIP_NULLPTR;
+}
+''')
 
     def g_conversion_to_enum(self, sf, enum):
         """ Generate the code to convert a Python enum (sipSelf) to a C/C++
@@ -616,12 +672,14 @@ extern PyModuleDef_Slot sipModuleSlots_{module_name}[];
 #define sipParseResult              sipABI_{module_name}->api_parse_result
 #define sipReleaseType              sipABI_{module_name}->api_release_type
 #define sipReleaseTypeUS            sipABI_{module_name}->api_release_type_us
+#define sipResolveTypedef           sipABI_{module_name}->api_resolve_typedef
 #define sipSetTypeUserData          sipABI_{module_name}->api_set_type_user_data
 ''')
 
         # TODO These have been reviewed as part of the private v14 API.
         sf.write(
-f'''#define sipGetCppPtr                sipABI_{module_name}->api_get_cpp_ptr
+f'''#define sipGetClassTypeSpec         sipABI_{module_name}->api_get_class_type_spec
+#define sipGetCppPtr                sipABI_{module_name}->api_get_cpp_ptr
 #define sipInitMixin                sipABI_{module_name}->api_init_mixin
 #define sipInstanceDestroyed        sipABI_{module_name}->api_instance_destroyed
 #define sipIsDerivedClass           sipABI_{module_name}->api_is_derived_class
@@ -690,7 +748,6 @@ f'''#define sipMalloc                   sipAPI->api_malloc
 #define sipRegisterPyType           sipAPI->api_register_py_type
 #define sipTypeFromPyTypeObject     sipAPI->api_type_from_py_type_object
 #define sipTypeScope                sipAPI->api_type_scope
-#define sipResolveTypedef           sipAPI->api_resolve_typedef
 #define sipEnableAutoconversion     sipAPI->api_enable_autoconversion
 #define sipExportModule             sipAPI->api_export_module
 #define sipInitModule               sipAPI->api_init_module
@@ -987,6 +1044,13 @@ f'''    PyObject *sipModule = PyDict_GetItemString(PySys_GetObject("modules"), "
         nr_instance_variables = self._g_variables_table(sf, scope=klass,
                 for_unbound=False)
 
+        # Generate the array of super-class type IDs.
+        if len(klass.superclasses) != 0:
+            supers = ', '.join(
+                    [self.get_type_ref(s) for s in klass.superclasses])
+
+            sf.write(f'\nstatic const sipTypeID supers_{klass_name}[] = {{{supers}|SIP_TYPE_ID_SENTINEL}};\n')
+
         # Generate the docstring.
         docstring_ref = g_class_docstring(sf, spec, bindings, klass)
 
@@ -1051,9 +1115,8 @@ f'''    PyObject *sipModule = PyDict_GetItemString(PySys_GetObject("modules"), "
                     '.supertype = ' + self.cached_name_ref(klass.supertype))
 
 
-        # TODO
-        #if len(klass.superclasses) != 0:
-        #    supers
+        if len(klass.superclasses) != 0:
+            fields.append('.supers = supers_' + klass_name)
 
         if klass.can_create:
             fields.append('.init = init_type_' + klass_name)

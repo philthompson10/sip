@@ -179,12 +179,12 @@ static void add_aliases(sipModuleState *ms, sipSimpleWrapper *obj, void *addr,
     {
         sipTypeID sup_type_id = *supers++;
 
-        sipModuleState *defining_ms;
+        sipModuleState *sup_ms;
         const sipTypeSpec *sup_ts = sip_get_type_detail(ms, sup_type_id, NULL,
-                &defining_ms);
+                &sup_ms);
 
         /* Recurse up the hierachy for the first super-class. */
-        add_aliases(defining_ms, obj, addr, sup_ts);
+        add_aliases(sup_ms, obj, addr, sup_ts);
 
         /*
          * We only check for aliases for subsequent super-classes because the
@@ -198,19 +198,21 @@ static void add_aliases(sipModuleState *ms, sipSimpleWrapper *obj, void *addr,
         {
             sup_type_id = *supers++;
 
-            sup_ts = sip_get_type_detail(ms, sup_type_id, NULL, &defining_ms);
+            sup_ts = sip_get_type_detail(ms, sup_type_id, NULL, &sup_ms);
 
             /* Recurse up the hierachy for the remaining super-classes. */
-            add_aliases(defining_ms, obj, addr, sup_ts);
+            add_aliases(sup_ms, obj, addr, sup_ts);
 
-            void *sup_addr = cast(addr, sup_ts);
+            void *sup_addr = cast(sup_ms, addr,
+                    (const sipClassTypeSpec *)sup_ts);
 
             if (sup_addr != addr)
             {
-                sipSimpleWrapper *alias;
+                sipSimpleWrapper *alias = sip_api_malloc(
+                        sizeof (sipSimpleWrapper));
 
                 /* Note that we silently ignore errors. */
-                if ((alias = sip_api_malloc(sizeof (sipSimpleWrapper))) != NULL)
+                if (alias != NULL)
                 {
                     /*
                      * An alias is basically a bit-wise copy of the Python
@@ -383,12 +385,12 @@ static void remove_aliases(sipModuleState *ms, sipSimpleWrapper *obj,
     {
         sipTypeID sup_type_id = *supers++;
 
-        sipModuleState *defining_ms;
+        sipModuleState *sup_ms;
         const sipTypeSpec *sup_ts = sip_get_type_detail(ms, sup_type_id, NULL,
-                &defining_ms);
+                &sup_ms);
 
         /* Recurse up the hierachy for the first super-class. */
-        remove_aliases(defining_ms, obj, addr, sup_ts);
+        remove_aliases(sup_ms, obj, addr, sup_ts);
 
         /*
          * We only check for aliases for subsequent super-classes because the
@@ -402,13 +404,13 @@ static void remove_aliases(sipModuleState *ms, sipSimpleWrapper *obj,
         {
             sup_type_id = *supers++;
 
-            sup_ts = sip_get_type_detail(ms, sup_type_id, NULL,
-                    &defining_ms);
+            sup_ts = sip_get_type_detail(ms, sup_type_id, NULL, &sup_ms);
 
             /* Recurse up the hierachy for the remaining super-classes. */
-            remove_aliases(defining_ms, obj, addr, sup_ts);
+            remove_aliases(sup_ms, obj, addr, sup_ts);
 
-            void *sup_addr = cast(addr, sup_ts);
+            void *sup_addr = cast(sup_ms, addr,
+                    (const sipClassTypeSpec *)sup_ts);
 
             if (sup_addr != addr)
                 remove_object(ms, obj, sup_addr);
