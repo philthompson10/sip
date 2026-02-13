@@ -2344,7 +2344,7 @@ int sip_super_init(PyObject *self, PyObject *args, PyObject *kwds,
 
 /*
  * If the given name is that of a typedef then the name of the corresponding
- * type is returned.
+ * type is returned.  If not then the original name is returned.
  */
 static const char *sip_api_resolve_typedef(PyObject *mod, const char *name)
 {
@@ -2372,7 +2372,7 @@ static const char *sip_api_resolve_typedef(PyObject *mod, const char *name)
         }
     }
 
-    return NULL;
+    return name;
 }
 
 

@@ -42,7 +42,7 @@ entirely) but the underlying value would not change.
 This is an ad-hoc list of changes when ABI v14 is used.  These will be
 reflected in the documentation.
 
-Python v3.15 or later will be required.
+Python v3.15 or later is required.
 
 `sip-module` now takes any number of `--option` arguments to specify the
 configuration of the module.
@@ -74,6 +74,9 @@ modified.
 
 `sipFindType()` has been replaced with `sipFindTypeID()`.
 
+`sipResolveTypedef()` returns a pointer to the name being resolved (rather than
+`NULL`) if the name doesn't correspond to the name of a typedef.
+
 `sipTypeAsPyTypeObject()` has been replaced with `sipGetPyType()`.
 
 `sipConvertFromEnum()` now takes the address of the enum value to convert
@@ -82,11 +85,8 @@ rather than its value.
 `sipConvertToEnum()` now takes the address of the enum value to convert as an
 argument rather than return its value.
 
-The signatures of the following public API calls have changed:
-
-    `sipBuildResult()`
-    `sipConvertToBool()`
-    `sipKeepReference()`
+The signatures of many public API calls have changed to include the module
+object as the first argument.
 
 The user data that can be attached to a wrapped type is now a `PyObject`
 instead of an arbitrary pointer.  `sipSetTypeUserData()` will take a strong
