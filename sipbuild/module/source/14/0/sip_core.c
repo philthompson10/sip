@@ -811,33 +811,9 @@ static PyTypeObject *create_container_type(sipModuleState *ms,
     wt->wt_type_id = type_id;
 
     /*
-     * The dict is created by the PyType_Ready() call in
-     * PyType_FromMetaclass().
+     * Add the descriptors for the methods.  The dict is created by the
+     * PyType_Ready() call in PyType_FromMetaclass().
      */
-    PyObject *type_dict = w_type->tp_dict;
-
-    /* Add the descriptors for the instance variables. */
-    if (cs->instance_variables != NULL)
-    {
-        const sipVariableSpec *wvd;
-
-        for (wvd = cs->instance_variables; wvd->name != NULL; wvd++)
-        {
-            PyObject *descr;
-
-#if 0
-            if (vd->type == PropertyVariable)
-                descr = create_property(vd);
-            else
-#endif
-                descr = sipVariableDescr_New(sms, w_type, wvd);
-
-            if (sip_dict_set_and_discard(type_dict, wvd->name, descr) < 0)
-                goto rel_type;
-        }
-    }
-
-    /* Add the descriptors for the methods. */
     if (cs->methods != NULL)
     {
         const PyMethodDef *pmd;
@@ -846,7 +822,7 @@ static PyTypeObject *create_container_type(sipModuleState *ms,
         {
             PyObject *descr = sipMethodDescr_New(sms, pmd, w_type);
 
-            if (sip_dict_set_and_discard(type_dict, pmd->ml_name, descr) < 0)
+            if (sip_dict_set_and_discard(w_type->tp_dict, pmd->ml_name, descr) < 0)
                 goto rel_type;
         }
     }
@@ -927,23 +903,23 @@ int sip_fix_type_attrs(sipModuleState *ms, const char *fq_py_name,
  * Create a single class type object.
  */
 static PyTypeObject *create_class_type(sipModuleState *ms, sipTypeNr type_nr,
-        const sipClassTypeSpec *ctd)
+        const sipClassTypeSpec *cts)
 {
     sipSipModuleState *sms = ms->sip_module_state;
 
     PyObject *bases;
 
-    if (ctd->supers == NULL)
+    if (cts->supers == NULL)
     {
-        if (ctd->supertype == NULL)
+        if (cts->supertype == NULL)
         {
-            bases = sipTypeIsNamespace(&ctd->base) ?
+            bases = sipTypeIsNamespace(&cts->base) ?
                 (PyObject *)sms->simple_wrapper_type :
                 (PyObject *)sms->wrapper_type;
         }
         else
         {
-            bases = (PyObject *)find_registered_py_type(sms, ctd->supertype);
+            bases = (PyObject *)find_registered_py_type(sms, cts->supertype);
 
             // TODO Check it is a sub-type of simple_wrapper_type.
 
@@ -953,10 +929,10 @@ static PyTypeObject *create_class_type(sipModuleState *ms, sipTypeNr type_nr,
 
         Py_INCREF(bases);
     }
-    else if (sipTypeIDIsSentinel(ctd->supers[0]))
+    else if (sipTypeIDIsSentinel(cts->supers[0]))
     {
         /* There is only one super-type. */
-        bases = (PyObject *)sip_get_py_type(ms, ctd->supers[0]);
+        bases = (PyObject *)sip_get_py_type(ms, cts->supers[0]);
 
         if (bases == NULL)
             return NULL;
@@ -968,7 +944,7 @@ static PyTypeObject *create_class_type(sipModuleState *ms, sipTypeNr type_nr,
         const sipTypeID *supers;
         Py_ssize_t nr_supers = 1;
 
-        for (supers = ctd->supers; !sipTypeIDIsSentinel(*supers); supers++)
+        for (supers = cts->supers; !sipTypeIDIsSentinel(*supers); supers++)
             nr_supers++;
 
         if ((bases = PyTuple_New(nr_supers)) == NULL)
@@ -978,10 +954,13 @@ static PyTypeObject *create_class_type(sipModuleState *ms, sipTypeNr type_nr,
 
         for (i = 0; i < nr_supers; i++)
         {
-            PyTypeObject *sup_py_type = sip_get_py_type(ms, ctd->supers[i]);
+            PyTypeObject *sup_py_type = sip_get_py_type(ms, cts->supers[i]);
 
             if (sup_py_type == NULL)
-                goto rel_bases;
+            {
+                Py_DECREF(bases);
+                return NULL;
+            }
 
             Py_INCREF(sup_py_type);
             PyTuple_SET_ITEM(bases, i, sup_py_type);
@@ -994,12 +973,15 @@ static PyTypeObject *create_class_type(sipModuleState *ms, sipTypeNr type_nr,
      */
     PyTypeObject *metatype;
 
-    if (ctd->metatype != NULL)
+    if (cts->metatype != NULL)
     {
-        metatype = find_registered_py_type(sms, ctd->metatype);
+        metatype = find_registered_py_type(sms, cts->metatype);
 
         if (metatype == NULL)
-            goto rel_bases;
+        {
+            Py_DECREF(bases);
+            return NULL;
+        }
 
         // TODO Check it is a sub-type of wrapper_type_type.
     }
@@ -1011,7 +993,7 @@ static PyTypeObject *create_class_type(sipModuleState *ms, sipTypeNr type_nr,
 
     sipTypeID type_id = SIP_TYPE_ID_TYPE_CLASS | SIP_TYPE_ID_CURRENT_MODULE | type_nr;
 
-    PyTypeObject *py_type = create_container_type(ms, type_id, &ctd->container,
+    PyTypeObject *py_type = create_container_type(ms, type_id, &cts->container,
             bases, metatype);
 
     Py_DECREF(bases);
@@ -1019,9 +1001,32 @@ static PyTypeObject *create_class_type(sipModuleState *ms, sipTypeNr type_nr,
     if (py_type == NULL)
         return NULL;
 
+    /* Add the descriptors for the instance variables. */
+    if (cts->instance_variables != NULL)
+    {
+        const sipVariableSpec *wvd;
+
+        for (wvd = cts->instance_variables; wvd->name != NULL; wvd++)
+        {
+            PyObject *descr = sipVariableDescr_New(sms, py_type, wvd);
+
+            if (sip_dict_set_and_discard(py_type->tp_dict, wvd->name, descr) < 0)
+            {
+                Py_DECREF(py_type);
+                return NULL;
+            }
+        }
+    }
+
+    /* Add the properties. */
+    if (cts->properties != NULL)
+    {
+        // TODO
+    }
+
 #if 0
     /* Handle the pickle function. */
-    if (ctd->pickle != NULL)
+    if (cts->pickle != NULL)
     {
         static PyMethodDef md = {
             "_pickle_type", (PyCFunction)pickle_type, METH_METHOD|METH_FASTCALL|METH_KEYWORDS, NULL
@@ -1033,13 +1038,6 @@ static PyTypeObject *create_class_type(sipModuleState *ms, sipTypeNr type_nr,
 #endif
 
     return py_type;
-
-    /* Unwind after an error. */
-
-rel_bases:
-    Py_DECREF(bases);
-
-    return NULL;
 }
 
 

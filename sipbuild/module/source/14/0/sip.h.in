@@ -501,49 +501,29 @@ typedef struct _sipTypedefSpec {
 
 
 /*
- * The immutable specification of a variable or property.
+ * The immutable specification of a property.
  */
-// TODO This would only be used for properties - still needed?
-// TODO Rename to Spec
-
-typedef enum
-{
-    PropertyVariable,       /* A property. */
-    InstanceVariable,       /* An instance variable. */
-    ClassVariable           /* A class (i.e. static) variable. */
-} sipVariableType;
-
-typedef struct _sipVariableDef {
-    /* The type of variable. */
-    sipVariableType type;
-
+typedef struct _sipPropertySpec {
     /* The name. */
     const char *name;
 
-    /*
-     * The getter.  If this is a variable (rather than a property) then the
-     * actual type is sipVariableGetterFunc.
-     */
+    /* The getter. */
     const PyMethodDef *getter;
 
-    /*
-     * The setter.  If this is a variable (rather than a property) then the
-     * actual type is sipVariableSetterFunc.  It is NULL if the property cannot
-     * be set or the variable is const.
-     */
+    /* The setter. */
     const PyMethodDef *setter;
 
-    /* The property deleter. */
+    /* The deleter. */
     const PyMethodDef *deleter;
 
-    /* The docstring.  This is only used for properties. */
+    /* The docstring. */
     const char *docstring;
-} sipVariableDef;
+} sipPropertySpec;
 
 
 /*
- * The immutable specification of the wrapped attributes of either a module or
- * a type.
+ * The immutable specification of the unbound wrapped attributes of either a
+ * module or a type.
  */
 typedef struct {
     /* The number of static variables. */
@@ -607,9 +587,6 @@ typedef struct _sipContainerSpec {
     // so needs to be an int?
     sipTypeID scope_id;
 
-    /* The table of instance variables. */
-    const sipVariableSpec *const instance_variables;
-
     /* The unbound wrapped attributes. */
     sipAttrsSpec attributes;
 
@@ -633,6 +610,12 @@ struct _sipClassTypeSpec {
 
     /* The docstring. */
     const char *docstring;
+
+    /* The table of instance variables. */
+    const sipVariableSpec *const instance_variables;
+
+    /* The table of properties. */
+    const sipPropertySpec *const properties;
 
     /*
      * The meta-type name, NULL to use the meta-type of the first super-type

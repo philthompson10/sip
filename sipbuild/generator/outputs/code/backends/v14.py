@@ -1085,10 +1085,6 @@ f'''    PyObject *sipModule = PyDict_GetItemString(PySys_GetObject("modules"), "
             fields.append(
                     '.container.methods = sipMethods_' + klass_name)
 
-        if nr_instance_variables != 0:
-            fields.append(
-                    '.container.instance_variables = sipInstanceVariables_' + klass_name)
-
         if nr_static_variables != 0:
             fields.append(
                     '.container.attributes.nr_static_variables = ' + str(nr_static_variables))
@@ -1105,6 +1101,10 @@ f'''    PyObject *sipModule = PyDict_GetItemString(PySys_GetObject("modules"), "
             fields.append('.container.py_slots = ' + slots_table)
 
         fields.append('.docstring = ' + docstring_ref)
+
+        if nr_instance_variables != 0:
+            fields.append(
+                    '.instance_variables = sipInstanceVariables_' + klass_name)
 
         if klass.metatype is not None:
             fields.append(
