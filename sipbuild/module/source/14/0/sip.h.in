@@ -513,9 +513,6 @@ typedef struct _sipPropertySpec {
     /* The setter. */
     const PyMethodDef *setter;
 
-    /* The deleter. */
-    const PyMethodDef *deleter;
-
     /* The docstring. */
     const char *docstring;
 } sipPropertySpec;

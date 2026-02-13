@@ -284,8 +284,12 @@ static PyTypeObject *create_class_type(sipModuleState *ms, sipTypeNr type_nr,
 static PyTypeObject *create_container_type(sipModuleState *ms,
         sipTypeID type_id, const sipContainerSpec *cs, PyObject *bases,
         PyTypeObject *metatype);
+static PyObject *create_function(const PyMethodDef *ml,
+        PyTypeObject *defining_class);
 static PyTypeObject *create_mapped_type(sipModuleState *ms, sipTypeNr type_nr,
         const sipMappedTypeSpec *mts);
+static PyObject *create_property(const sipPropertySpec *ps,
+        PyTypeObject *defining_class);
 static PyTypeObject *find_registered_py_type(sipSipModuleState *sms,
         const char *name);
 static sipModuleState *get_defining_module_state(sipModuleState *ms,
@@ -1004,13 +1008,13 @@ static PyTypeObject *create_class_type(sipModuleState *ms, sipTypeNr type_nr,
     /* Add the descriptors for the instance variables. */
     if (cts->instance_variables != NULL)
     {
-        const sipVariableSpec *wvd;
+        const sipVariableSpec *vs;
 
-        for (wvd = cts->instance_variables; wvd->name != NULL; wvd++)
+        for (vs = cts->instance_variables; vs->name != NULL; vs++)
         {
-            PyObject *descr = sipVariableDescr_New(sms, py_type, wvd);
+            PyObject *descr = sipVariableDescr_New(sms, py_type, vs);
 
-            if (sip_dict_set_and_discard(py_type->tp_dict, wvd->name, descr) < 0)
+            if (sip_dict_set_and_discard(py_type->tp_dict, vs->name, descr) < 0)
             {
                 Py_DECREF(py_type);
                 return NULL;
@@ -1021,7 +1025,18 @@ static PyTypeObject *create_class_type(sipModuleState *ms, sipTypeNr type_nr,
     /* Add the properties. */
     if (cts->properties != NULL)
     {
-        // TODO
+        const sipPropertySpec *ps;
+
+        for (ps = cts->properties; ps->name != NULL; ps++)
+        {
+            PyObject *prop = create_property(ps, py_type);
+
+            if (sip_dict_set_and_discard(py_type->tp_dict, ps->name, prop) < 0)
+            {
+                Py_DECREF(py_type);
+                return NULL;
+            }
+        }
     }
 
 #if 0
@@ -1053,6 +1068,55 @@ PyTypeObject *create_mapped_type(sipModuleState *ms, sipTypeNr type_nr,
             SIP_TYPE_ID_TYPE_MAPPED | SIP_TYPE_ID_CURRENT_MODULE | type_nr,
             &mts->container, (PyObject *)sms->simple_wrapper_type,
             sms->wrapper_type_type);
+}
+
+
+/*
+ * Create and return a Python property.
+ */
+static PyObject *create_property(const sipPropertySpec *ps,
+        PyTypeObject *defining_class)
+{
+    PyObject *prop, *fget, *fset, *doc;
+
+    prop = fget = fset = doc = NULL;
+
+    if ((fget = create_function(ps->getter, defining_class)) == NULL)
+        goto done;
+
+    if ((fset = create_function(ps->setter, defining_class)) == NULL)
+        goto done;
+
+    if (ps->docstring == NULL)
+    {
+        doc = Py_NewRef(Py_None);
+    }
+    else if ((doc = PyUnicode_FromString(ps->docstring)) == NULL)
+    {
+        goto done;
+    }
+
+    prop = PyObject_CallFunctionObjArgs((PyObject *)&PyProperty_Type, fget,
+            fset, Py_None, doc, NULL);
+
+done:
+    Py_XDECREF(fget);
+    Py_XDECREF(fset);
+    Py_XDECREF(doc);
+
+    return prop;
+}
+
+
+/*
+ * Return a PyCFunction as an object or Py_None if there isn't one.
+ */
+static PyObject *create_function(const PyMethodDef *ml,
+        PyTypeObject *defining_class)
+{
+    return ml != NULL ?
+            PyCMethod_New((PyMethodDef *)ml, NULL, NULL, defining_class) :
+            Py_NewRef(Py_None);
 }
 
 

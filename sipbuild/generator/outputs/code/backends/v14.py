@@ -10,6 +10,7 @@ from ....scoped_name import ScopedName, STRIP_GLOBAL
 from ....specification import (Argument, ArgumentType, GILUse, IfaceFileType,
         MappedType, MultiInterpreterSupport, PySlot, WrappedEnum,
         WrappedVariable)
+from ....utils import find_method
 
 from ...formatters import fmt_class_as_scoped_py_name
 
@@ -1044,6 +1045,9 @@ f'''    PyObject *sipModule = PyDict_GetItemString(PySys_GetObject("modules"), "
         nr_instance_variables = self._g_variables_table(sf, scope=klass,
                 for_unbound=False)
 
+        # Generate the properties table.
+        properties_table = self._g_properties_table(sf, klass)
+
         # Generate the array of super-class type IDs.
         if len(klass.superclasses) != 0:
             supers = ', '.join(
@@ -1105,6 +1109,9 @@ f'''    PyObject *sipModule = PyDict_GetItemString(PySys_GetObject("modules"), "
         if nr_instance_variables != 0:
             fields.append(
                     '.instance_variables = sipInstanceVariables_' + klass_name)
+
+        if properties_table is not None:
+            fields.append('.properties = ' + properties_table)
 
         if klass.metatype is not None:
             fields.append(
@@ -1519,6 +1526,52 @@ static int module_traverse(PyObject *mod, visitproc visit, void *arg)
     return sipModuleTraverse(mod, visit, arg);
 }
 ''')
+
+    def _g_properties_table(self, sf, klass):
+        """ Generate the properties table for a type.  Return the name of the
+        table or None if nothing was generated.
+        """
+
+        if len(klass.properties) == 0:
+            return None
+
+        klass_name = klass.iface_file.fq_cpp_name.as_word
+
+        # Generate any property docstrings.
+        for prop in klass.properties:
+            if prop.docstring is not None:
+                docstring = get_docstring_text(prop.docstring)
+                sf.write(f'\nPyDoc_STRVAR(doc_{klass_name}_{prop.name}, "{docstring}");\n')
+
+        table_name = 'sipProperties_' + klass_name
+
+        sf.write(
+f'''
+
+static sipPropertySpec {table_name}[] = {{
+''')
+
+        for prop in klass.properties:
+            fields = [f'.name = "{prop.name}"']
+
+            getter_nr = find_method(klass, prop.getter).member_nr
+            fields.append(f'.getter = &sipMethods_{klass_name}[{getter_nr}]')
+
+            if prop.setter is not None:
+                setter_nr = find_method(klass, prop.setter).member_nr
+                fields.append(
+                        f'.setter = &sipMethods_{klass_name}[{setter_nr}]')
+
+            if prop.docstring is not None:
+                fields.append(f'.docstring = doc_{klass_name}_{prop.name}')
+
+            fields = ', '.join(fields)
+
+            sf.write(f'    {{{fields}}},\n')
+
+        sf.write('    {}\n};\n')
+
+        return table_name
 
     def _g_slots_table(self, sf, type_name, members, mixin=False):
         """ Generate the slots table for a type.  Return the name of the table
