@@ -32,16 +32,16 @@ extern "C" {
 
 
 /* Macros to access the parts of a valid type ID. */
-#define sipTypeIDTypeNr(id)             ((sipTypeNr)(id))
-#define sipTypeIDModuleNr(id)           ((sipModuleNr)((id) >> 16))
-#define sipTypeIDIsSentinel(id)         ((id) & SIP_TYPE_ID_SENTINEL)
-#define sipTypeIDIsAbsolute(id)         ((id) & SIP_TYPE_ID_ABSOLUTE)
-#define sipTypeIDIsExternal(id)         ((id) & SIP_TYPE_ID_EXTERNAL)
-#define sipTypeIDIsPOD(id)              (((id) & SIP_TYPE_ID_TYPE_MASK) == SIP_TYPE_ID_TYPE_POD)
-#define sipTypeIDIsClass(id)            (((id) & SIP_TYPE_ID_TYPE_MASK) == SIP_TYPE_ID_TYPE_CLASS)
-#define sipTypeIDIsMapped(id)           (((id) & SIP_TYPE_ID_TYPE_MASK) == SIP_TYPE_ID_TYPE_MAPPED)
-#define sipTypeIDIsEnum(id)             (((id) & SIP_TYPE_ID_TYPE_MASK) == SIP_TYPE_ID_TYPE_ENUM)
-#define sipTypeIDIsCurrentModule(id)    (((id) & SIP_TYPE_ID_CURRENT_MODULE) == SIP_TYPE_ID_CURRENT_MODULE)
+#define sipTypeIDTypeNr(id)         ((sipTypeNr)(id))
+#define sipTypeIDModuleNr(id)       ((sipModuleNr)((id) >> 16))
+#define sipTypeIDIsSentinel(id)     ((id) & SIP_TYPE_ID_SENTINEL)
+#define sipTypeIDIsAbsolute(id)     ((id) & SIP_TYPE_ID_ABSOLUTE)
+#define sipTypeIDIsExternal(id)     ((id) & SIP_TYPE_ID_EXTERNAL)
+#define sipTypeIDIsPOD(id)          (((id) & SIP_TYPE_ID_TYPE_MASK) == SIP_TYPE_ID_TYPE_POD)
+#define sipTypeIDIsClass(id)        (((id) & SIP_TYPE_ID_TYPE_MASK) == SIP_TYPE_ID_TYPE_CLASS)
+#define sipTypeIDIsMapped(id)       (((id) & SIP_TYPE_ID_TYPE_MASK) == SIP_TYPE_ID_TYPE_MAPPED)
+#define sipTypeIDIsEnum(id)         (((id) & SIP_TYPE_ID_TYPE_MASK) == SIP_TYPE_ID_TYPE_ENUM)
+#define sipTypeIDIsLocalModule(id)  (((id) & SIP_TYPE_ID_LOCAL_MODULE) == SIP_TYPE_ID_LOCAL_MODULE)
 
 /*
  * An entry in the linked list of event handlers.

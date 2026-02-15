@@ -41,45 +41,45 @@ static PyObject *sip_api_convert_from_enum(PyObject *mod, void *addr,
         sipTypeID type_id);
 static Py_ssize_t sip_api_convert_from_sequence_index(Py_ssize_t idx,
         Py_ssize_t len);
-static int sip_api_convert_to_enum(PyObject *w_mod, PyObject *obj, void *addr,
+static int sip_api_convert_to_enum(PyObject *mod, PyObject *obj, void *addr,
         sipTypeID type_id);
 static PyTypeObject *sip_api_get_py_type(PyObject *mod, sipTypeID type_id);
 static int sip_api_get_state(PyObject *transferObj);
-static void sip_api_trace(PyObject *w_mod, unsigned mask, const char *fmt,
+static void sip_api_trace(PyObject *mod, unsigned mask, const char *fmt,
         ...);
-static void sip_api_transfer_back(PyObject *w_mod, PyObject *self);
-static void sip_api_transfer_to(PyObject *w_mod, PyObject *self,
+static void sip_api_transfer_back(PyObject *mod, PyObject *self);
+static void sip_api_transfer_to(PyObject *mod, PyObject *self,
         PyObject *owner);
 static void sip_api_abstract_method(const char *classname, const char *method);
 static void sip_api_bad_class(const char *classname);
-static PyObject *sip_api_is_py_method(PyObject *w_mod, sip_gilstate_t *gil,
+static PyObject *sip_api_is_py_method(PyObject *mod, sip_gilstate_t *gil,
         char *pymc, PyObject **self_p, const char *cname, const char *mname);
 static void sip_api_call_hook(const char *hookname);
 static void sip_api_raise_unknown_exception(void);
-static void sip_api_raise_type_exception(PyObject *w_mod, sipTypeID type_id,
+static void sip_api_raise_type_exception(PyObject *mod, sipTypeID type_id,
         void *ptr);
-static int sip_api_add_type_instance(PyObject *w_mod, PyObject *dict,
+static int sip_api_add_type_instance(PyObject *mod, PyObject *dict,
         const char *name, void *cppPtr, sipTypeID type_id);
 static void sip_api_bad_operator_arg(PyObject *self, PyObject *arg,
         int slot_id);
-static PyObject *sip_api_py_slot_extend(PyObject *w_mod, int slot_id,
+static PyObject *sip_api_py_slot_extend(PyObject *mod, int slot_id,
         sipTypeID type_id, PyObject *arg0, PyObject *arg1);
 static void sip_api_add_delayed_dtor(PyObject *w_inst);
-static int sip_api_export_symbol(PyObject *w_mod, const char *name, void *sym);
-static void *sip_api_import_symbol(PyObject *w_mod, const char *name);
-static sipTypeID sip_api_find_type_id(PyObject *w_mod, const char *type);
-static int sip_api_register_py_type(PyObject *w_mod, PyTypeObject *supertype);
+static int sip_api_export_symbol(PyObject *mod, const char *name, void *sym);
+static void *sip_api_import_symbol(PyObject *mod, const char *name);
+static sipTypeID sip_api_find_type_id(PyObject *mod, const char *type);
+static int sip_api_register_py_type(PyObject *mod, PyTypeObject *supertype);
 static const char *sip_api_resolve_typedef(PyObject *mod, const char *name);
 static PyObject *sip_api_get_reference(PyObject *self, int key);
 static int sip_api_is_owned_by_python(PyObject *w_inst);
 static int sip_api_is_derived_class(PyObject *w_inst);
-static int sip_api_init_mixin(PyObject *w_mod, PyObject *self, PyObject *args,
+static int sip_api_init_mixin(PyObject *mod, PyObject *self, PyObject *args,
         PyObject *kwds, sipTypeID type_id);
 static const sipClassTypeSpec *sip_api_get_class_type_spec(void *context,
         sipTypeID type_id, void **cts_context_p);
 static void *sip_api_get_mixin_address(PyObject *w_inst,
         const sipTypeSpec *td);
-static PyInterpreterState *sip_api_get_interpreter(PyObject *w_mod);
+static PyInterpreterState *sip_api_get_interpreter(PyObject *mod);
 static void sip_api_set_type_user_data(PyTypeObject *py_type, PyObject *data);
 static PyObject *sip_api_get_type_user_data(PyTypeObject *py_type);
 static PyObject *sip_api_py_type_dict_ref(PyTypeObject *py_type);
@@ -110,17 +110,17 @@ static PyObject *sip_api_get_user_object(PyObject *w_inst);
 static void sip_api_set_user_object(PyObject *w_inst, PyObject *user);
 static int sip_api_enable_gc(int enable);
 static void sip_api_print_object(PyObject *o);
-static int sip_api_register_event_handler(PyObject *w_mod, sipEventType type,
+static int sip_api_register_event_handler(PyObject *mod, sipEventType type,
         sipTypeID type_id, void *handler);
-static void sip_api_instance_destroyed(PyObject *w_mod, PyObject **self_p);
-static void sip_api_visit_wrappers(PyObject *w_mod,
+static void sip_api_instance_destroyed(PyObject *mod, PyObject **self_p);
+static void sip_api_visit_wrappers(PyObject *mod,
         sipWrapperVisitorFunc visitor, void *closure);
 static int sip_api_register_exit_notifier(PyMethodDef *md);
-static sipExceptionHandler sip_api_next_exception_handler(PyObject *w_mod,
+static sipExceptionHandler sip_api_next_exception_handler(PyObject *mod,
         Py_ssize_t *statep);
 static PyFrameObject *sip_api_get_frame(int depth);
-static sipTypeID sip_api_type_scope(PyObject *w_mod, sipTypeID type_id);
-static int sip_api_keep_reference(PyObject *w_mod, PyObject *w_inst, int key,
+static sipTypeID sip_api_type_scope(PyObject *mod, sipTypeID type_id);
+static int sip_api_keep_reference(PyObject *mod, PyObject *w_inst, int key,
         PyObject *obj);
 
 
@@ -292,13 +292,13 @@ static PyObject *create_property(const sipPropertySpec *ps,
         PyTypeObject *defining_class);
 static PyTypeObject *find_registered_py_type(sipSipModuleState *sms,
         const char *name);
-static sipModuleState *get_defining_module_state(sipModuleState *ms,
-        sipTypeID type_id);
 static PyObject *import_module_attr(const char *module, const char *attr);
 #if 0
 static PyObject *pickle_type(PyObject *self, PyTypeObject *defining_class,
         PyObject *const *args, Py_ssize_t nargs, PyObject *kwd_args);
 #endif
+static sipModuleState *resolve_type_id(sipModuleState *ms, sipTypeID type_id,
+        sipTypeNr *def_type_nr_p);
 #if 0
 static int set_reduce(PyTypeObject *type, PyMethodDef *pickler);
 #endif
@@ -447,7 +447,7 @@ static void sip_api_add_delayed_dtor(PyObject *w_inst)
         PyObject *mod = PyList_GET_ITEM(sms->module_list, i);
         sipModuleState *ms = sip_get_module_state(mod);
         const sipModuleSpec *md = ms->module_spec;
-        int i;
+        sipTypeNr i;
 
         for (i = 0; i < md->nr_type_specs; ++i)
             if (md->type_specs[i] == (const sipTypeSpec *)ctd)
@@ -995,7 +995,7 @@ static PyTypeObject *create_class_type(sipModuleState *ms, sipTypeNr type_nr,
         metatype = Py_TYPE(first);
     }
 
-    sipTypeID type_id = SIP_TYPE_ID_TYPE_CLASS | SIP_TYPE_ID_CURRENT_MODULE | type_nr;
+    sipTypeID type_id = SIP_TYPE_ID_TYPE_CLASS | SIP_TYPE_ID_LOCAL_MODULE | type_nr;
 
     PyTypeObject *py_type = create_container_type(ms, type_id, &cts->container,
             bases, metatype);
@@ -1065,7 +1065,7 @@ PyTypeObject *create_mapped_type(sipModuleState *ms, sipTypeNr type_nr,
     sipSipModuleState *sms = ms->sip_module_state;
 
     return create_container_type(ms,
-            SIP_TYPE_ID_TYPE_MAPPED | SIP_TYPE_ID_CURRENT_MODULE | type_nr,
+            SIP_TYPE_ID_TYPE_MAPPED | SIP_TYPE_ID_LOCAL_MODULE | type_nr,
             &mts->container, (PyObject *)sms->simple_wrapper_type,
             sms->wrapper_type_type);
 }
@@ -1148,8 +1148,8 @@ PyTypeObject *sip_get_py_type_from_name(sipSipModuleState *sms,
         if (cmp == 0)
         {
             sipModuleState *ms = sip_get_module_state(mod);
-            Py_ssize_t nr_type_specs = ms->module_spec->nr_type_specs;
-            int p;
+            sipTypeNr nr_type_specs = ms->module_spec->nr_type_specs;
+            sipTypeNr p;
 
             for (p = 0; p < nr_type_specs; p++)
             {
@@ -1228,7 +1228,7 @@ static PyObject *pickle_type(PyObject *self, PyTypeObject *defining_class,
         PyObject *mod = PyList_GET_ITEM(sms->module_list, i);
         const sipModuleSpec *md = sip_get_module_state(mod)->module_spec;
 
-        int ti;
+        sipTypeNr ti;
 
         for (ti = 0; ti < md->nr_type_specs; ti++)
         {
@@ -2036,30 +2036,40 @@ static const sipClassTypeSpec *sip_api_get_class_type_spec(void *context,
 
 
 /*
- * Return the wrapped module state for the defining module of a type ID.
+ * Return the module state for the defining module of a type ID and the
+ * defining type number.
  */
-static sipModuleState *get_defining_module_state(sipModuleState *ms,
-        sipTypeID type_id)
+static sipModuleState *resolve_type_id(sipModuleState *ms, sipTypeID type_id,
+        sipTypeNr *def_type_nr_p)
 {
-    // TODO Add support for external IDs where the module number is the index
-    // into a table in the wrapped module state that is a cache of type defs.
-    // If in the cache then it must remain valid, ie. should include a strong
-    // reference to the defining module.
-    // If the cached type def is NULL then the number is the index of a table
-    // of strings in the wrapped module definition that are the corresponding
-    // names of external types.
     // Check for non-generated types.
     if (type_id == sipTypeID_Invalid)
         return NULL;
 
-    if (sipTypeIDIsCurrentModule(type_id))
-        return ms;
+    sipModuleState *def_ms;
+    sipTypeNr def_type_nr = sipTypeIDTypeNr(type_id);
 
-    PyObject *modules = sipTypeIDIsAbsolute(type_id) ?
-            ms->sip_module_state->module_list : ms->imported_modules;
+    if (sipTypeIDIsAbsolute(type_id))
+    {
+        def_ms = sip_get_module_state(
+                PyList_GET_ITEM(ms->sip_module_state->module_list,
+                        sipTypeIDModuleNr(type_id)));
+    }
+    else if (sipTypeIDIsLocalModule(type_id))
+    {
+        def_ms = ms;
+    }
+    else
+    {
+        sipImportedModule *im = &ms->imported_modules[sipTypeIDModuleNr(type_id)];
 
-    return sip_get_module_state(
-            PyList_GET_ITEM(modules, sipTypeIDModuleNr(type_id)));
+        def_ms = sip_get_module_state(im->module);
+        def_type_nr = im->type_nr_map[def_type_nr];
+    }
+
+    *def_type_nr_p = def_type_nr;
+
+    return def_ms;
 }
 
 
@@ -2073,23 +2083,23 @@ static sipModuleState *get_defining_module_state(sipModuleState *ms,
 const sipTypeSpec *sip_get_type_detail(sipModuleState *ms, sipTypeID type_id,
         PyTypeObject **py_type_p, sipModuleState **defining_ms_p)
 {
-    if ((ms = get_defining_module_state(ms, type_id)) == NULL)
+    sipTypeNr def_type_nr;
+    sipModuleState *def_ms = resolve_type_id(ms, type_id, &def_type_nr);
+    if (def_ms == NULL)
         return NULL;
 
     // TODO Handle unresolved external types.
     // TODO Handle namespace extenders.
-    sipTypeNr type_nr = sipTypeIDTypeNr(type_id);
-
     if (py_type_p != NULL)
     {
-        if (sip_get_local_py_type(ms, type_nr, py_type_p) < 0)
+        if (sip_get_local_py_type(def_ms, def_type_nr, py_type_p) < 0)
             return NULL;
     }
 
     if (defining_ms_p != NULL)
-        *defining_ms_p = ms;
+        *defining_ms_p = def_ms;
 
-    return ms->module_spec->type_specs[type_nr];
+    return def_ms->module_spec->type_specs[def_type_nr];
 }
 
 

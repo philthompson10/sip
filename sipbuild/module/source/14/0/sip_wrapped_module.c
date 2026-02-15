@@ -19,6 +19,8 @@
 
 /* Forward references. */
 static int add_license(PyObject *mod, const sipLicenseDef *lc);
+static int import_module(const sipImportedModuleSpec *ims,
+        sipImportedModule *im);
 static void module_clear(sipModuleState *ms);
 
 
@@ -59,6 +61,18 @@ void sip_api_module_free(void *mod_ptr)
     /* Free the additional memory related to Python types. */
     if (ms->py_types != NULL)
         PyMem_Free(ms->py_types);
+
+    /* Free the additional memory related to imported modules. */
+    if (ms->imported_modules != NULL)
+    {
+        sipModuleNr mi;
+
+        for (mi = 0; mi < ms->module_spec->nr_import_specs; mi++)
+            if (ms->imported_modules[mi].type_nr_map != NULL)
+                PyMem_Free(ms->imported_modules[mi].type_nr_map);
+
+        PyMem_Free(ms->imported_modules);
+    }
 
 #if !_SIP_MODULE_SHARED
     sip_sip_module_free(ms->sip_module_state);
@@ -156,24 +170,19 @@ int sip_api_module_exec(PyObject *mod, const sipModuleSpec *m_spec)
 
     /* Allocate the space for any wrapped type type objects. */
     if (m_spec->nr_type_specs > 0 && (ms->py_types = PyMem_Calloc(m_spec->nr_type_specs, sizeof (PyTypeObject *))) == NULL)
-            return -1;
+        return -1;
 
     /* Import any required wrapped modules. */
-    if (m_spec->nr_imports > 0)
+    if (m_spec->nr_import_specs > 0)
     {
-        if ((ms->imported_modules = PyList_New(m_spec->nr_imports)) == NULL)
+        if ((ms->imported_modules = PyMem_Calloc(m_spec->nr_import_specs, sizeof (sipImportedModule))) == NULL)
             return -1;
 
-        Py_ssize_t i;
+        sipModuleNr mi;
 
-        for (i = 0; i < m_spec->nr_imports; i++)
-        {
-            PyObject *im_mod = PyImport_ImportModule(m_spec->imports[i]);
-            if (im_mod == NULL)
+        for (mi = 0; mi < m_spec->nr_import_specs; mi++)
+            if (import_module(&m_spec->import_specs[mi], &ms->imported_modules[mi]) < 0)
                 return -1;
-
-            PyList_SET_ITEM(ms->imported_modules, i, im_mod);
-        }
     }
 
     /* Add it to the list of wrapped modules. */
@@ -271,9 +280,11 @@ int sip_api_module_exec(PyObject *mod, const sipModuleSpec *m_spec)
             if (etd->py_name == NULL)
                 continue;
 
-            for (i = 0; i < m_spec->nr_type_specs; ++i)
+            sipTypeNr tn;
+
+            for (tn = 0; tn < m_spec->nr_type_specs; ++tn)
             {
-                sipTypeSpec *td = m_spec->type_specs[i];
+                sipTypeSpec *td = m_spec->type_specs[tn];
 
                 if (td != NULL && sipTypeIsClass(td))
                 {
@@ -303,13 +314,18 @@ int sip_api_module_traverse(PyObject *mod, visitproc visit, void *arg)
     sipModuleState *ms = sip_get_module_state(mod);
 
     /* Visit the types. */
-    int i;
+    sipTypeNr ti;
 
-    for (i = 0; i < ms->module_spec->nr_type_specs; i++)
-        Py_VISIT(ms->py_types[i]);
+    for (ti = 0; ti < ms->module_spec->nr_type_specs; ti++)
+        Py_VISIT(ms->py_types[ti]);
+
+    /* Visit the imported modules. */
+    sipModuleNr mi;
+
+    for (mi = 0; mi < ms->module_spec->nr_import_specs; mi++)
+        Py_VISIT(ms->imported_modules[ti].module);
 
     Py_VISIT(ms->extra_refs);
-    Py_VISIT(ms->imported_modules);
     Py_VISIT(ms->sip_module);
 
 #if !_SIP_MODULE_SHARED
@@ -382,22 +398,7 @@ static int add_license(PyObject *w_mod, const sipLicenseDef *lc)
     }
 
     /* Create and save a read-only proxy. */
-#if PY_MAJOR_VERSION >= 0x030d0000
     rc = PyModule_Add(w_mod, "__license__", PyDictProxy_New(ldict));
-#else
-    PyObject *proxy = PyDictProxy_New(ldict);
-#if PY_MAJOR_VERSION >= 0x030a0000
-    rc = PyModule_AddObjectRef(w_mod, "__license__", proxy);
-    Py_XDECREF(proxy);
-#else
-    if (proxy == NULL)
-        goto deldict;
-
-    rc = PyModule_AddObject(w_mod, "__license__", proxy);
-    if (rc < 0)
-        Py_DECREF(proxy);
-#endif
-#endif
 
     Py_DECREF(ldict);
     return rc;
@@ -408,17 +409,67 @@ deldict:
 }
 
 
+/*
+ * Import a module that the module being created requires.
+ */
+static int import_module(const sipImportedModuleSpec *ims,
+        sipImportedModule *im)
+{
+    /* Import the module. */
+    if ((im->module = PyImport_ImportModule(ims->name)) == NULL)
+        return -1;
+
+    /* Populate the type number map. */
+    if (ims->nr_types > 0)
+    {
+        if ((im->type_nr_map = PyMem_Calloc(ims->nr_types, sizeof (sipTypeNr))) == NULL)
+            return -1;
+
+        sipModuleState *ms = sip_get_module_state(im->module);
+        sipTypeNr ti, iti;
+
+        /* We rely on both tables being in the same order. */
+        for (iti = ti = 0; ti < ims->nr_types; ti++)
+        {
+            const char *type_name = ims[ti].name;
+
+            while (strcmp(type_name, ms->module_spec->type_specs[iti]->cpp_name) != 0)
+            {
+                if (iti >= ms->module_spec->nr_type_specs)
+                {
+                    PyErr_Format(PyExc_RuntimeError,
+                            "unable to find type '%s' in module %s", type_name,
+                            ims->name);
+                    return -1;
+                }
+
+                iti++;
+            }
+
+            im->type_nr_map[ti] = iti;
+        }
+    }
+
+    return 0;
+}
+
+
 /* Clear a wrapped module's Python references. */
 static void module_clear(sipModuleState *ms)
 {
     /* Clear the wrapped types. */
-    int i;
+    sipTypeNr ti;
 
-    for (i = 0; i < ms->module_spec->nr_type_specs; i++)
-        Py_CLEAR(ms->py_types[i]);
+    for (ti = 0; ti < ms->module_spec->nr_type_specs; ti++)
+        Py_CLEAR(ms->py_types[ti]);
+
+    /* Clear the imported modules. */
+    sipModuleNr mi;
+
+    for (mi = 0; mi < ms->module_spec->nr_import_specs; mi++)
+        Py_CLEAR(ms->imported_modules[ti].module);
 
     Py_CLEAR(ms->extra_refs);
-    Py_CLEAR(ms->imported_modules);
     Py_CLEAR(ms->sip_module);
 
 #if !_SIP_MODULE_SHARED

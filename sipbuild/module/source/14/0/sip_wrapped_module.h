@@ -20,6 +20,22 @@
 extern "C" {
 #endif
 
+/*
+ * An imported wrapped module.  Note that we don't refer to it as a state to
+ * avoid confusion with the Python module state.
+ */
+typedef struct _sipImportedModule {
+    /* A strong reference to the module. */
+    PyObject *module;
+
+    /*
+     * An array on the heap mapping contextual type numbers to defining type
+     * numbers.
+     */
+    sipTypeNr *type_nr_map;
+} sipImportedModule;
+
+
 /* A wrapped module's state. */
 struct _sipModuleState {
     /* The list of delayed dtors. */
@@ -28,16 +44,15 @@ struct _sipModuleState {
     /* The optional dictionary of extra references using an int key. */
     PyObject *extra_refs;
 
-    /* The list of imported modules. */
-    PyObject *imported_modules;
+    /* The array of imported modules. */
+    sipImportedModule *imported_modules;
 
     /*
      * The array of type object references accessed using the type ID.  These
      * can be wrapper types, custom enum types or Python enum types.  We don't
      * use a Python list because some elements can be NULL (ie. related to a
-     * mapped type, a lazy attribute or an external class).
+     * mapped type or an external class).
      */
-    // TODO Use None rather than NULL and use a Python list?
     PyTypeObject **py_types;
 
     /* A strong reference to the sip module. */

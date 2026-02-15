@@ -163,8 +163,8 @@ typedef struct _sipDateDef sipDateDef;
 struct _sipEnumTypeSpec;
 typedef struct _sipEnumTypeSpec sipEnumTypeSpec;
 
-struct _sipImportedModule;
-typedef struct _sipImportedModule sipImportedModule;
+struct _sipImportedModuleSpec;
+typedef struct _sipImportedModuleSpec sipImportedModuleSpec;
 
 struct _sipMethodDef;
 typedef struct _sipMethodDef sipMethodDef;
@@ -809,15 +809,14 @@ struct _sipModuleSpec {
     /* The required sip module configuration. */
     unsigned sip_configuration;
 
-    /* The number of imported modules. */
-    int nr_imports;
+    /* The number of specifications of imported modules. */
+    sipModuleNr nr_import_specs;
 
-    /* The names of the imported modules. */
-    const char *const *imports;
+    /* The table of specifications of imported modules. */
+    const sipImportedModuleSpec *const import_specs;
 
     /* The number of wrapped type specifications. */
-    // TODO This should be sipTypeNr rather than int.
-    int nr_type_specs;
+    sipTypeNr nr_type_specs;
 
     /* The table of wrapped type specifications. */
     const sipTypeSpec *const *type_specs;
@@ -859,6 +858,21 @@ struct _sipModuleSpec {
 
     /* The exception handler. */
     sipExceptionHandler exception_handler;
+};
+
+
+/*
+ * The immutable specification of a module to be imported.
+ */
+struct _sipImportedModuleSpec {
+    /* The name of the module. */
+    const char *name;
+
+    /* The number of types to import. */
+    sipTypeNr nr_types;
+
+    /* The array of names of types to import. */
+    const char *const *type_names;
 };
 
 
@@ -1121,16 +1135,17 @@ struct _sipABISpec {
 
 /*
  * A type ID is a 32 bit value.  The value (unless it is an absolute type ID)
- * is interpreted in the context of the module from which it is used.  For
- * example a class A.K (ie. class K defined in module A) with have different
- * type IDs when referenced from module A and module B.  However the symbolic
- * name of these different type IDs will be the same.  Absolute type IDs are
- * created dynamically by sipFindTypeID() and their values do not need a module
- * context to be interpreted.
+ * is made up of a module number and a type number within the module.  A type
+ * ID is interpreted in the context of the module in which it is used (the
+ * contextual module), which may be different to the module in which it is
+ * defined (the defining module).  For example a class A.K (ie. class K defined
+ * in module A) with have different type IDs when referenced from module A and
+ * module B.  However the symbolic name of these different type IDs will be the
+ * same.  Absolute type IDs are created dynamically by sipFindTypeID() and
+ * their values do not need a module context to be interpreted.
  *
  * The most significant 3 bits of the value specify the general type, either a
- * type that has an immutable type definition (eg. a class) or a POD type.
- * type.
+ * type that has an immutable type specification (eg. a class) or a POD type.
  *
  * The next 2 bits are currently unused.
  *
@@ -1139,17 +1154,16 @@ struct _sipABISpec {
  * If the type is a POD type then the remaining 24 bits specify the particular
  * type (although only 10 bits are currently used).
  *
- * For other types the next 8 bits specify the number (in the context of the
- * module from which the value is used) of the module that contains the
- * immutable type definition.  The final 16 bits specify the number of the
- * type definition (in the context of the module that contains it).
+ * For other types the next 8 bits specify the contextual module number.  Using
+ * a lookup table in the context module the defining module's Python object can
+ * be found.  The final 16 bits specify the contextual type number of the type
+ * specification.  Using another lookup table in the context module it is
+ * converted to the defining type number.  Together the defining module and
+ * defining type number identify the actual type specification and any
+ * corresponding Python type object.
  *
  * The values of certain fields are designed so that 0 is an invalid type ID.
  */
-// TODO The above is broken for imported types as it uses an index into the
-// imported module's data (which may change from version to version).  Instead
-// it should be done as in older ABIs where the imported type is only referred
-// to by name (ie. an index into a list of imported types).
 
 /* The general type part of a type ID. */
 #define SIP_TYPE_ID_TYPE_MASK           0xe0000000
@@ -1167,8 +1181,8 @@ struct _sipABISpec {
 #define SIP_TYPE_ID_UNUSED_1            0x08000000
 #define SIP_TYPE_ID_UNUSED_2            0x01000000
 
-/* The number of the current module. */
-#define SIP_TYPE_ID_CURRENT_MODULE      0x00ff0000
+/* The number of the local module. */
+#define SIP_TYPE_ID_LOCAL_MODULE        0x00ff0000
 
 
 /* The invalid type ID.  It must be 0. */
