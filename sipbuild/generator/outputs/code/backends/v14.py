@@ -85,6 +85,21 @@ f'''    if (target_cts == sipGetClassTypeSpec(context, {sc_type_ref}, NULL))
 }
 ''')
 
+    def g_catch_body(self, sf):
+        """ Generate the body of a catch clause. """
+
+        sf.write(
+'''                Py_ssize_t sipExcState = 0;
+                PyObject *sipHandlerModule;
+                sipExceptionHandler sipExcHandler;
+                std::exception_ptr sipExcPtr = std::current_exception();
+
+                while ((sipExcHandler = sipNextExceptionHandler(sipModule, &sipHandlerModule, &sipExcState)) != SIP_NULLPTR)
+                    if (sipExcHandler(sipHandlerModule, sipExcPtr))
+                        return SIP_NULLPTR;
+
+''')
+
     def g_conversion_to_enum(self, sf, enum):
         """ Generate the code to convert a Python enum (sipSelf) to a C/C++
         enum (sipCpp).
@@ -155,8 +170,11 @@ static const sipModuleSpec sipModule_{module_name} = {{
     .sip_configuration = 0x{spec.sip_module_configuration:04x},
 ''')
 
-        if len(module.all_imports) != 0:
-            sf.write('    .imports = importsTable,\n')
+        nr_imports = len(module.all_imports)
+
+        if nr_imports != 0:
+            sf.write(f'    .nr_import_specs = {nr_imports},\n')
+            sf.write('    .import_specs = importsTable,\n')
 
         # TODO Exclude non-local types.  They are needed (ie. I think we need
         # the iface file) but we don't generated definition structures.
@@ -164,8 +182,8 @@ static const sipModuleSpec sipModule_{module_name} = {{
             sf.write(f'    .nr_type_specs = {len(module.needed_types)},\n')
             sf.write(f'    .type_specs = sipTypeSpecs_{module_name},\n')
 
-        if has_external:
-            sf.write('    .imports = externalTypesTable,\n')
+        #if has_external:
+        #    sf.write('    .imports = externalTypesTable,\n')
 
         if module.nr_typedefs != 0:
             sf.write(f'    .nr_typedefs = {module.nr_typedefs},\n')
@@ -329,6 +347,52 @@ f'''    .py_base_type = SIP_ENUM_{enum.base_type.name},
 
         return enums_in_module
 
+    def g_exceptions_specifications(self, sf):
+        """ Generate the specifications for any exceptions. """
+
+        spec = self.spec
+
+        if spec.module.nr_exceptions > 0:
+            module_name = spec.module.py_name
+
+            sf.write(f'''
+/* The module's immutable exceptions specifications. */
+static sipExceptionTypeSpec sipExceptionTypeSpecs_{module_name}[] = {{
+''')
+
+            for exception in self.spec.exceptions:
+                if exception.exception_nr < 0:
+                    continue
+
+                if exception.builtin_base_exception is not None:
+                    base_type_id = 'sipTypeID_' + exception.builtin_base_exception
+                else:
+                    base_type_id = self.get_type_ref(
+                            exception.defined_base_exception)
+
+                sf.write(f'''    {{
+        .base.flags = SIP_TYPE_EXCEPTION,
+        .base.cpp_name = {self.cached_name_ref(exception.iface_file.cpp_name)},
+        .fq_py_name = "{module_name}.{exception.py_name}",
+        .base_type_id = {base_type_id},
+    }},
+''')
+
+            sf.write('};\n')
+
+    def g_exceptions_decls(self, sf):
+        """ Generate the declarations of all exceptions. """
+
+        spec = self.spec
+        module = spec.module
+        module_name = module.py_name
+        newline = '\n'
+
+        for exception in spec.exceptions:
+            if exception.iface_file.module is module and exception.exception_nr >= 0:
+                sf.write(f'{newline}#define {self.get_type_ref(exception)} SIP_TYPE_ID_TYPE_EXCEPTION|SIP_TYPE_ID_LOCAL_MODULE|{exception.iface_file.type_nr}\n')
+                newline = ''
+
     def g_get_py_reimpl(self, sf, klass, overload, virt_nr):
         """ Generate the code to get the Python reimplementation of a C++
         virtual.
@@ -360,6 +424,91 @@ f'''    PyObject *sipModule;
     }}
 ''')
 
+    def g_import_tables(self, sf):
+        """ Generated the tables related to imported modules. """
+
+        module = self.spec.module
+        module_name = module.py_name
+
+        # Generate the subsiduary tables.
+        for imported_module in module.all_imports:
+            imported_module_name = imported_module.py_name
+
+            if len(imported_module.needed_types) != 0:
+                sf.write(
+f'''
+
+/* This defines the types that this module needs to import from {imported_module_name}. */
+const char *sipImportedTypes_{module_name}_{imported_module_name}[] = {{
+''')
+
+                for needed_type in imported_module.needed_types:
+                    if needed_type.type is ArgumentType.MAPPED:
+                        type_name = needed_type.definition.cpp_name
+                    else:
+                        if needed_type.type is ArgumentType.CLASS:
+                            scoped_name = needed_type.definition.iface_file.fq_cpp_name
+                        else:
+                            scoped_name = needed_type.definition.fq_cpp_name
+
+                        type_name = scoped_name.cpp_stripped(STRIP_GLOBAL)
+
+                    sf.write(f'    {{"{type_name}"}},\n')
+
+                sf.write('};\n')
+
+            if imported_module.nr_virtual_error_handlers > 0:
+                sf.write(
+f'''
+
+/*
+ * This defines the virtual error handlers that this module needs to import
+ * from {imported_module_name}.
+ */
+sipImportedVirtErrorHandlerDef sipImportedVirtErrorHandlers_{module_name}_{imported_module_name}[] = {{
+''')
+
+                # The handlers are unordered so search for each in turn.  There
+                # will probably be only one so speed isn't an issue.
+                for i in range(imported_module.nr_virtual_error_handlers):
+                    for handler in spec.virtual_error_handlers:
+                        if handler.module is imported_module and handler.handler_nr == i:
+                            sf.write(f'    {{"{handler.name}"}},\n')
+
+                sf.write(
+'''    {SIP_NULLPTR}
+};
+''')
+
+        # Generate the main table.
+        sf.write(
+'''
+
+/* This defines the modules that this module needs to import. */
+static const sipImportedModuleSpec importsTable[] = {
+''')
+
+        for imported_module in module.all_imports:
+            imported_module_name = imported_module.py_name
+
+            fields = [f'.name = "{imported_module.fq_py_name}"']
+
+            nr_types = len(imported_module.needed_types)
+
+            if nr_types != 0:
+                fields.append(f'.nr_types = {nr_types}')
+                fields.append(f'.type_names = sipImportedTypes_{module_name}_{imported_module_name}')
+
+            # TODO
+            #if imported_module.nr_virtual_error_handlers != 0:
+            #    handlers = f'sipImportedVirtErrorHandlers_{module_name}_{imported_module_name}'
+
+            fields = ', '.join(fields)
+
+            sf.write(f'    {{{fields}}},\n')
+
+        sf.write('};\n')
+
     def g_init_mixin_impl_body(self, sf, klass):
         """ Generate the body of the implementation of a mixin initialisation
         function.
@@ -380,7 +529,7 @@ f'''    PyObject *sipModule;
 
         sf.write(
 f'''
-#define {self.get_type_ref(mapped_type)} SIP_TYPE_ID_TYPE_MAPPED|SIP_TYPE_ID_CURRENT_MODULE|{iface_file.type_nr}
+#define {self.get_type_ref(mapped_type)} SIP_TYPE_ID_TYPE_MAPPED|SIP_TYPE_ID_LOCAL_MODULE|{iface_file.type_nr}
 
 extern sipMappedTypeSpec sipTypeSpec_{module_name}_{mapped_type_name};
 ''')
@@ -685,6 +834,7 @@ f'''#define sipGetClassTypeSpec         sipABI_{module_name}->api_get_class_type
 #define sipInstanceDestroyed        sipABI_{module_name}->api_instance_destroyed
 #define sipIsDerivedClass           sipABI_{module_name}->api_is_derived_class
 #define sipIsPyMethod               sipABI_{module_name}->api_is_py_method
+#define sipNextExceptionHandler     sipABI_{module_name}->api_next_exception_handler
 #define sipNoFunction               sipABI_{module_name}->api_no_function
 #define sipNoMethod                 sipABI_{module_name}->api_no_method
 #define sipParseArgs                sipABI_{module_name}->api_parse_args
@@ -693,6 +843,7 @@ f'''#define sipGetClassTypeSpec         sipABI_{module_name}->api_get_class_type
 #define sipParseVectorcallKwdArgs   sipABI_{module_name}->api_parse_vectorcall_kwd_args
 #define sipParsePair                sipABI_{module_name}->api_parse_pair
 #define sipPySlotExtend             sipABI_{module_name}->api_py_slot_extend
+#define sipRaiseUnknownException    sipABI_{module_name}->api_raise_unknown_exception
 ''')
 
         # TODO These have yet to be reviewed.
@@ -721,7 +872,6 @@ f'''#define sipMalloc                   sipAPI->api_malloc
 #define sipGetMixinAddress          sipAPI->api_get_mixin_address
 #define sipCallHook                 sipAPI->api_call_hook
 #define sipEndThread                sipAPI->api_end_thread
-#define sipRaiseUnknownException    sipAPI->api_raise_unknown_exception
 #define sipRaiseTypeException       sipAPI->api_raise_type_exception
 #define sipBadLengthForSlice        sipAPI->api_bad_length_for_slice
 #define sipAddTypeInstance          sipAPI->api_add_type_instance
@@ -794,7 +944,6 @@ f'''#define sipMalloc                   sipAPI->api_malloc
 #define sipGetFrame                 sipAPI->api_get_frame
 #define sipDeprecated               sipAPI->api_deprecated
 #define sipPyTypeDictRef            sipAPI->api_py_type_dict_ref
-#define sipNextExceptionHandler     sipAPI->api_next_exception_handler
 #define sipConvertToTypeUS          sipAPI->api_convert_to_type_us
 #define sipForceConvertToTypeUS     sipAPI->api_force_convert_to_type_us
 ''')
@@ -1002,6 +1151,15 @@ f'''    PyObject *sipModule = PyDict_GetItemString(PySys_GetObject("modules"), "
 
                 py_name = str(enum.py_name)
                 type_nr = enum.type_nr
+
+            elif needed_type.type is ArgumentType.EXCEPTION:
+                if scope is not None:
+                    continue
+
+                exception = needed_type.definition
+
+                py_name = exception.py_name
+                type_nr = exception.iface_file.type_nr
 
             type_nrs.append((py_name, type_nr))
 
@@ -1226,7 +1384,7 @@ f'''static void *init_type_{klass_name}(PyObject *sipSelf, PyObject *const *sipA
     def get_class_ref_value(self, klass):
         """ Return the value of a class's reference. """
 
-        return f'SIP_TYPE_ID_TYPE_CLASS|SIP_TYPE_ID_CURRENT_MODULE|{klass.iface_file.type_nr}'
+        return f'SIP_TYPE_ID_TYPE_CLASS|SIP_TYPE_ID_LOCAL_MODULE|{klass.iface_file.type_nr}'
 
     def get_enum_to_py_conversion(self, enum, value_name):
         """ Return the code to convert a C/C++ enum to a Python object. """
@@ -1240,7 +1398,7 @@ f'''static void *init_type_{klass_name}(PyObject *sipSelf, PyObject *const *sipA
     def get_enum_ref_value(self, enum):
         """ Return the value of an enum's reference. """
 
-        module_nr = 'SIP_TYPE_ID_CURRENT_MODULE' if enum.module is self.spec.module else enum.module.module_nr
+        module_nr = 'SIP_TYPE_ID_LOCAL_MODULE' if enum.module is self.spec.module else enum.module.module_nr
 
         return f'SIP_TYPE_ID_TYPE_ENUM|{module_nr}|{enum.type_nr}'
 
@@ -1316,15 +1474,20 @@ f'''static void *init_type_{klass_name}(PyObject *sipSelf, PyObject *const *sipA
 
         return f'sipTypeSpec_{self.spec.module.py_name}_{klass.iface_file.fq_cpp_name.as_word}.base'
 
-    def get_spec_for_mapped_type(self, mapped_type):
-        """ Return the name of the data structure specifying a mapped type. """
-
-        return f'sipTypeSpec_{self.spec.module.py_name}_{mapped_type.iface_file.fq_cpp_name.as_word}.base'
-
     def get_spec_for_enum(self, enum, enums_state):
         """ Return the name of the data structure specifying an enum. """
 
         return f'sipEnumTypeSpec_{self.spec.module.py_name}_{enum.fq_cpp_name.as_word}.base'
+
+    def get_spec_for_exception(self, exception):
+        """ Return the name of the data structure specifying an exception. """
+
+        return f'sipExceptionTypeSpecs_{self.spec.module.py_name}[{exception.exception_nr}].base'
+
+    def get_spec_for_mapped_type(self, mapped_type):
+        """ Return the name of the data structure specifying a mapped type. """
+
+        return f'sipTypeSpec_{self.spec.module.py_name}_{mapped_type.iface_file.fq_cpp_name.as_word}.base'
 
     @staticmethod
     def get_spec_suffix():

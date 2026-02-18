@@ -147,12 +147,11 @@ of its purpose.
 
 These are the remaining broad areas of work.
 
-- Port any remaining tests.
+- Imports (virtual handlers, slot and namespace extenders, external types).
 - Multiple inheritance tests (especially across modules).
 - Resolve issue #100 (`const` enforcement).
 - Use `tp_token` instead of `wt_td`?
 - Abstract classes.
-- Imports.
 - Events.
 - Buffer protocol.
 - Pickling.

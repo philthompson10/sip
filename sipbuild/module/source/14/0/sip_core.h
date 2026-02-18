@@ -41,6 +41,7 @@ extern "C" {
 #define sipTypeIDIsClass(id)        (((id) & SIP_TYPE_ID_TYPE_MASK) == SIP_TYPE_ID_TYPE_CLASS)
 #define sipTypeIDIsMapped(id)       (((id) & SIP_TYPE_ID_TYPE_MASK) == SIP_TYPE_ID_TYPE_MAPPED)
 #define sipTypeIDIsEnum(id)         (((id) & SIP_TYPE_ID_TYPE_MASK) == SIP_TYPE_ID_TYPE_ENUM)
+#define sipTypeIDIsException(id)    (((id) & SIP_TYPE_ID_TYPE_MASK) == SIP_TYPE_ID_TYPE_EXCEPTION)
 #define sipTypeIDIsLocalModule(id)  (((id) & SIP_TYPE_ID_LOCAL_MODULE) == SIP_TYPE_ID_LOCAL_MODULE)
 
 /*

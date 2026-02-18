@@ -164,8 +164,7 @@ void sip_api_add_exception(sipErrorState es, PyObject **parse_err_p)
     if (es == sipErrorFail)
     {
         Py_XDECREF(*parse_err_p);
-        *parse_err_p = Py_None;
-        Py_INCREF(Py_None);
+        *parse_err_p = Py_NewRef(Py_None);
     }
 }
 

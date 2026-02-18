@@ -253,10 +253,7 @@ PyObject *sip_variable_get(sipModuleState *ms, PyObject *instance,
             const char *c_value = *(char **)addr;
 
             if (c_value == SIP_NULLPTR)
-            {
-                Py_INCREF(Py_None);
-                return Py_None;
-            }
+                return Py_NewRef(Py_None);
 
             return PyBytes_FromString(c_value);
         }
@@ -266,10 +263,7 @@ PyObject *sip_variable_get(sipModuleState *ms, PyObject *instance,
             const char *c_value = *(char **)addr;
 
             if (c_value == SIP_NULLPTR)
-            {
-                Py_INCREF(Py_None);
-                return Py_None;
-            }
+                return Py_NewRef(Py_None);
 
             return PyUnicode_DecodeASCII(c_value, strlen(c_value),
                     SIP_NULLPTR);
@@ -280,10 +274,7 @@ PyObject *sip_variable_get(sipModuleState *ms, PyObject *instance,
             const char *c_value = *(char **)addr;
 
             if (c_value == SIP_NULLPTR)
-            {
-                Py_INCREF(Py_None);
-                return Py_None;
-            }
+                return Py_NewRef(Py_None);
 
             return PyUnicode_DecodeLatin1(c_value, strlen(c_value),
                     SIP_NULLPTR);
@@ -294,10 +285,7 @@ PyObject *sip_variable_get(sipModuleState *ms, PyObject *instance,
             const char *c_value = *(char **)addr;
 
             if (c_value == SIP_NULLPTR)
-            {
-                Py_INCREF(Py_None);
-                return Py_None;
-            }
+                return Py_NewRef(Py_None);
 
             return PyUnicode_DecodeUTF8(c_value, strlen(c_value), NULL);
         }
@@ -307,10 +295,7 @@ PyObject *sip_variable_get(sipModuleState *ms, PyObject *instance,
             const wchar_t *c_value = *(wchar_t **)addr;
 
             if (c_value == SIP_NULLPTR)
-            {
-                Py_INCREF(Py_None);
-                return Py_None;
-            }
+                return Py_NewRef(Py_None);
 
             return PyUnicode_FromWideChar(c_value,
                     (Py_ssize_t)wcslen(c_value));
@@ -342,9 +327,7 @@ PyObject *sip_variable_get(sipModuleState *ms, PyObject *instance,
             if (c_value == NULL)
                 c_value = Py_None;
 
-            Py_INCREF(c_value);
-
-            return c_value;
+            return Py_NewRef(c_value);
         }
 
         case sipTypeID_pycapsule:

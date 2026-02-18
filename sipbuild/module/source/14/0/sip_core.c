@@ -117,7 +117,7 @@ static void sip_api_visit_wrappers(PyObject *mod,
         sipWrapperVisitorFunc visitor, void *closure);
 static int sip_api_register_exit_notifier(PyMethodDef *md);
 static sipExceptionHandler sip_api_next_exception_handler(PyObject *mod,
-        Py_ssize_t *statep);
+        PyObject **handler_module_p, Py_ssize_t *statep);
 static PyFrameObject *sip_api_get_frame(int depth);
 static sipTypeID sip_api_type_scope(PyObject *mod, sipTypeID type_id);
 static int sip_api_keep_reference(PyObject *mod, PyObject *w_inst, int key,
@@ -284,6 +284,8 @@ static PyTypeObject *create_class_type(sipModuleState *ms, sipTypeNr type_nr,
 static PyTypeObject *create_container_type(sipModuleState *ms,
         sipTypeID type_id, const sipContainerSpec *cs, PyObject *bases,
         PyTypeObject *metatype);
+static PyTypeObject *create_exception_type(sipModuleState *ms,
+        const sipExceptionTypeSpec *ets);
 static PyObject *create_function(const PyMethodDef *ml,
         PyTypeObject *defining_class);
 static PyTypeObject *create_mapped_type(sipModuleState *ms, sipTypeNr type_nr,
@@ -904,7 +906,7 @@ int sip_fix_type_attrs(sipModuleState *ms, const char *fq_py_name,
 
 
 /*
- * Create a single class type object.
+ * Create a class type object.
  */
 static PyTypeObject *create_class_type(sipModuleState *ms, sipTypeNr type_nr,
         const sipClassTypeSpec *cts)
@@ -1057,9 +1059,100 @@ static PyTypeObject *create_class_type(sipModuleState *ms, sipTypeNr type_nr,
 
 
 /*
- * Create a single mapped type object.
+ * Create an exception type object.
  */
-PyTypeObject *create_mapped_type(sipModuleState *ms, sipTypeNr type_nr,
+static PyTypeObject *create_exception_type(sipModuleState *ms,
+        const sipExceptionTypeSpec *ets)
+{
+    PyObject *base;
+
+    switch (ets->base_type_id)
+    {
+        /* Convert the standard exceptions. */
+        case sipTypeID_BaseException: base = PyExc_BaseException; break;
+        case sipTypeID_BaseExceptionGroup: base = PyExc_BaseExceptionGroup; break;
+        case sipTypeID_Exception: base = PyExc_Exception; break;
+        case sipTypeID_ArithmeticError: base = PyExc_ArithmeticError; break;
+        case sipTypeID_AssertionError: base = PyExc_AssertionError; break;
+        case sipTypeID_AttributeError: base = PyExc_AttributeError; break;
+        case sipTypeID_BlockingIOError: base = PyExc_BlockingIOError; break;
+        case sipTypeID_BrokenPipeError: base = PyExc_BrokenPipeError; break;
+        case sipTypeID_BufferError: base = PyExc_BufferError; break;
+        case sipTypeID_ChildProcessError: base = PyExc_ChildProcessError; break;
+        case sipTypeID_ConnectionAbortedError: base = PyExc_ConnectionAbortedError; break;
+        case sipTypeID_ConnectionError: base = PyExc_ConnectionError; break;
+        case sipTypeID_ConnectionRefusedError: base = PyExc_ConnectionRefusedError; break;
+        case sipTypeID_ConnectionResetError: base = PyExc_ConnectionResetError; break;
+        case sipTypeID_EOFError: base = PyExc_EOFError; break;
+        case sipTypeID_FileExistsError: base = PyExc_FileExistsError; break;
+        case sipTypeID_FileNotFoundError: base = PyExc_FileNotFoundError; break;
+        case sipTypeID_FloatingPointError: base = PyExc_FloatingPointError; break;
+        case sipTypeID_GeneratorExit: base = PyExc_GeneratorExit; break;
+        case sipTypeID_ImportCycleError: base = PyExc_ImportCycleError; break;
+        case sipTypeID_ImportError: base = PyExc_ImportError; break;
+        case sipTypeID_IndentationError: base = PyExc_IndentationError; break;
+        case sipTypeID_IndexError: base = PyExc_IndexError; break;
+        case sipTypeID_InterruptedError: base = PyExc_InterruptedError; break;
+        case sipTypeID_IsADirectoryError: base = PyExc_IsADirectoryError; break;
+        case sipTypeID_KeyError: base = PyExc_KeyError; break;
+        case sipTypeID_KeyboardInterrupt: base = PyExc_KeyboardInterrupt; break;
+        case sipTypeID_LookupError: base = PyExc_LookupError; break;
+        case sipTypeID_MemoryError: base = PyExc_MemoryError; break;
+        case sipTypeID_ModuleNotFoundError: base = PyExc_ModuleNotFoundError; break;
+        case sipTypeID_NameError: base = PyExc_NameError; break;
+        case sipTypeID_NotADirectoryError: base = PyExc_NotADirectoryError; break;
+        case sipTypeID_NotImplementedError: base = PyExc_NotImplementedError; break;
+        case sipTypeID_OSError: base = PyExc_OSError; break;
+        case sipTypeID_OverflowError: base = PyExc_OverflowError; break;
+        case sipTypeID_PermissionError: base = PyExc_PermissionError; break;
+        case sipTypeID_ProcessLookupError: base = PyExc_ProcessLookupError; break;
+        case sipTypeID_PythonFinalizationError: base = PyExc_PythonFinalizationError; break;
+        case sipTypeID_RecursionError: base = PyExc_RecursionError; break;
+        case sipTypeID_ReferenceError: base = PyExc_ReferenceError; break;
+        case sipTypeID_RuntimeError: base = PyExc_RuntimeError; break;
+        case sipTypeID_StopAsyncIteration: base = PyExc_StopAsyncIteration; break;
+        case sipTypeID_StopIteration: base = PyExc_StopIteration; break;
+        case sipTypeID_SyntaxError: base = PyExc_SyntaxError; break;
+        case sipTypeID_SystemError: base = PyExc_SystemError; break;
+        case sipTypeID_SystemExit: base = PyExc_SystemExit; break;
+        case sipTypeID_TabError: base = PyExc_TabError; break;
+        case sipTypeID_TimeoutError: base = PyExc_TimeoutError; break;
+        case sipTypeID_TypeError: base = PyExc_TypeError; break;
+        case sipTypeID_UnboundLocalError: base = PyExc_UnboundLocalError; break;
+        case sipTypeID_UnicodeDecodeError: base = PyExc_UnicodeDecodeError; break;
+        case sipTypeID_UnicodeEncodeError: base = PyExc_UnicodeEncodeError; break;
+        case sipTypeID_UnicodeError: base = PyExc_UnicodeError; break;
+        case sipTypeID_UnicodeTranslateError: base = PyExc_UnicodeTranslateError; break;
+        case sipTypeID_ValueError: base = PyExc_ValueError; break;
+        case sipTypeID_ZeroDivisionError: base = PyExc_ZeroDivisionError; break;
+
+        /* Convert the standard warnings. */
+        case sipTypeID_Warning: base = PyExc_Warning; break;
+        case sipTypeID_BytesWarning: base = PyExc_BytesWarning; break;
+        case sipTypeID_DeprecationWarning: base = PyExc_DeprecationWarning; break;
+        case sipTypeID_EncodingWarning: base = PyExc_EncodingWarning; break;
+        case sipTypeID_FutureWarning: base = PyExc_FutureWarning; break;
+        case sipTypeID_ImportWarning: base = PyExc_ImportWarning; break;
+        case sipTypeID_PendingDeprecationWarning: base = PyExc_PendingDeprecationWarning; break;
+        case sipTypeID_ResourceWarning: base = PyExc_ResourceWarning; break;
+        case sipTypeID_RuntimeWarning: base = PyExc_RuntimeWarning; break;
+        case sipTypeID_SyntaxWarning: base = PyExc_SyntaxWarning; break;
+        case sipTypeID_UnicodeWarning: base = PyExc_UnicodeWarning; break;
+        case sipTypeID_UserWarning: base = PyExc_UserWarning; break;
+
+        default:
+            base = (PyObject *)sip_get_py_type(ms, ets->base_type_id);
+            assert(base != NULL);
+    }
+
+    return (PyTypeObject *)PyErr_NewException(ets->fq_py_name, base, NULL);
+}
+
+
+/*
+ * Create a mapped type object.
+ */
+static PyTypeObject *create_mapped_type(sipModuleState *ms, sipTypeNr type_nr,
         const sipMappedTypeSpec *mts)
 {
     sipSipModuleState *sms = ms->sip_module_state;
@@ -2029,6 +2122,8 @@ static void sip_api_raise_type_exception(PyObject *mod, sipTypeID type_id,
 static const sipClassTypeSpec *sip_api_get_class_type_spec(void *context,
         sipTypeID type_id, void **cts_context_p)
 {
+    assert(sipTypeIDIsClass(type_id));
+
     return (const sipClassTypeSpec *)sip_get_type_detail(
             (sipModuleState *)context, type_id, NULL,
             (sipModuleState **)cts_context_p);
@@ -2139,6 +2234,14 @@ int sip_get_local_py_type(sipModuleState *ms, sipTypeNr type_nr,
                 if (py_type == NULL)
                     return -1;
             }
+        }
+        else if (sipTypeIsException(ts))
+        {
+            py_type = create_exception_type(ms,
+                    (const sipExceptionTypeSpec *)ts);
+
+            if (py_type == NULL)
+                return -1;
         }
         else
         {
@@ -3245,7 +3348,7 @@ void sip_raise_no_convert_from(const sipTypeSpec *td)
  * Return the next exception handler.  The order is undefined.
  */
 static sipExceptionHandler sip_api_next_exception_handler(PyObject *mod,
-        Py_ssize_t *statep)
+        PyObject **handler_module_p, Py_ssize_t *statep)
 {
     sipSipModuleState *sms = sip_get_module_state(mod)->sip_module_state;
     PyObject *module_list = sms->module_list;
@@ -3253,11 +3356,14 @@ static sipExceptionHandler sip_api_next_exception_handler(PyObject *mod,
 
     for (i = *statep; i < PyList_GET_SIZE(module_list); i++)
     {
-        sipExceptionHandler eh = sip_get_module_state(PyList_GET_ITEM(module_list, i))->module_spec->exception_handler;
+        PyObject *handler_module = PyList_GET_ITEM(module_list, i);
+        sipExceptionHandler eh = sip_get_module_state(handler_module)->module_spec->exception_handler;
 
         if (eh != NULL)
         {
+            *handler_module_p = handler_module;
             *statep = i;
+
             return eh;
         }
     }
