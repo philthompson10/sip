@@ -74,6 +74,15 @@ void sip_api_module_free(void *mod_ptr)
         PyMem_Free(ms->imported_modules);
     }
 
+    /* Free any pending extenders. */
+    while (ms->pending_extenders != NULL)
+    {
+        sipPendingExtender *pe = ms->pending_extenders;
+
+        ms->pending_extenders = pe->next;
+        sip_api_free(pe);
+    }
+
 #if !_SIP_MODULE_SHARED
     sip_sip_module_free(ms->sip_module_state);
     sip_api_free(ms->sip_module_state);
@@ -226,27 +235,6 @@ int sip_api_module_exec(PyObject *mod, const sipModuleSpec *m_spec)
     }
 #endif
 
-#if defined(SIP_CONFIGURATION_CustomEnums)
-#if 0
-    /* Create the module's enum members. */
-    sipEnumMemberSpec *emd;
-
-    for (emd = m_spec->enum_members, i = 0; i < m_spec->nr_enum_members; ++i, ++emd)
-    {
-        const sipTypeSpec *etd = m_spec->types[emd->enum_nr];
-        PyObject *mo;
-
-        if (sipTypeIsScopedEnum(etd))
-            continue;
-
-        mo = sip_enum_convert_from_enum(sms, emd->value, etd);
-
-        if (sip_dict_set_and_discard(mod_dict, emd->name, mo) < 0)
-            return -1;
-    }
-#endif
-#endif
-
 #if 0
 // This is no longer needed but are any non-static values that need to be added?
     /* Add any global static instances. */
@@ -258,8 +246,61 @@ int sip_api_module_exec(PyObject *mod, const sipModuleSpec *m_spec)
     if (m_spec->license != NULL && add_license(mod, m_spec->license) < 0)
         return -1;
 
+    /* See if this module contains any class extenders. */
+    sipTypeNr ti;
+
+    for (ti = 0; ti < m_spec->nr_type_specs; ti++)
+    {
+        const sipTypeSpec *ts = m_spec->type_specs[ti];
+
+        if (ts->cpp_name != NULL)
+            continue;
+
+        if (!sipTypeIsClass(ts) && !sipTypeIsNamespace(ts))
+            continue;
+
+        sipTypeNr extending_type_nr;
+        sipModuleState *extending_ms = sip_resolve_type_id(ms,
+                ((const sipClassTypeSpec *)ts)->container.scope_id, &extending_type_nr);
+        assert(extending_ms != NULL);
+
+        PyTypeObject *py_type = extending_ms->py_types[extending_type_nr];
+
+        if (py_type == NULL)
+        {
+            /* Register the extender for future use. */
+            sipPendingExtender *pe = sip_api_malloc(
+                    sizeof (sipPendingExtender));
+            if (pe == NULL)
+                return -1;
+
+            /*
+             * Use a weak reference so that the module containing the extender
+             * can be freed if the extender is never used.
+             */
+            pe->extender_module = PyWeakref_NewRef(mod, NULL);
+            assert(pe->extender_module != NULL);
+
+            pe->extending = (const sipClassTypeSpec *)extending_ms->module_spec->type_specs[extending_type_nr];
+            pe->extender_id = SIP_TYPE_ID_TYPE_CLASS|SIP_TYPE_ID_LOCAL_MODULE|ti;
+            pe->next = extending_ms->pending_extenders;
+            extending_ms->pending_extenders = pe;
+        }
+        else
+        {
+            /* Create the extender. */
+            PyTypeObject *extender_py_type;
+            if (sip_get_local_py_type(ms, ti, &extender_py_type) < 0)
+                return -1;
+
+            /* Extend the extending type from the extender. */
+            if (sip_extend_type(ms->sip_module_state, py_type, extender_py_type) < 0)
+                return -1;
+        }
+    }
+
 #if 0
-    /* See if the new module satisfies any outstanding external types. */
+    /* See if this module satisfies any outstanding external types. */
     for (i = 0; i < PyList_GET_SIZE(sms->module_list); i++)
     {
         PyObject *mod = PyList_GET_ITEM(sms->module_list, i);
@@ -288,7 +329,7 @@ int sip_api_module_exec(PyObject *mod, const sipModuleSpec *m_spec)
 
                 if (td != NULL && sipTypeIsClass(td))
                 {
-                    const char *pyname = &((const sipClassTypeSpec *)td)->container.fq_py_name, td);
+                    const char *pyname = td->fq_py_name;
 
                     if (strcmp(etd->py_name, pyname) == 0)
                     {
@@ -323,7 +364,13 @@ int sip_api_module_traverse(PyObject *mod, visitproc visit, void *arg)
     sipModuleNr mi;
 
     for (mi = 0; mi < ms->module_spec->nr_import_specs; mi++)
-        Py_VISIT(ms->imported_modules[ti].module);
+        Py_VISIT(ms->imported_modules[mi].module);
+
+    /* Visit the pending extenders. */
+    sipPendingExtender *pe;
+
+    for (pe = ms->pending_extenders; pe != NULL; pe = pe->next)
+        Py_VISIT(pe->extender_module);
 
     Py_VISIT(ms->extra_refs);
     Py_VISIT(ms->sip_module);
@@ -431,20 +478,16 @@ static int import_module(const sipImportedModuleSpec *ims,
         /* We rely on both tables being in the same order. */
         for (iti = ti = 0; ti < ims->nr_types; ti++)
         {
-            const char *type_name = ims[ti].name;
+            const char *type_name = ims->type_names[ti];
 
             while (strcmp(type_name, ms->module_spec->type_specs[iti]->cpp_name) != 0)
-            {
-                if (iti >= ms->module_spec->nr_type_specs)
+                if (++iti >= ms->module_spec->nr_type_specs)
                 {
                     PyErr_Format(PyExc_RuntimeError,
                             "unable to find type '%s' in module %s", type_name,
                             ims->name);
                     return -1;
                 }
-
-                iti++;
-            }
 
             im->type_nr_map[ti] = iti;
         }
@@ -468,6 +511,12 @@ static void module_clear(sipModuleState *ms)
 
     for (mi = 0; mi < ms->module_spec->nr_import_specs; mi++)
         Py_CLEAR(ms->imported_modules[ti].module);
+
+    /* Clear the pending extenders. */
+    sipPendingExtender *pe;
+
+    for (pe = ms->pending_extenders; pe != NULL; pe = pe->next)
+        Py_CLEAR(pe->extender_module);
 
     Py_CLEAR(ms->extra_refs);
     Py_CLEAR(ms->sip_module);

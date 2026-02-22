@@ -940,18 +940,9 @@ static int compare_type_nr(const void *key, const void *el,
     const char *s1 = (const char *)key;
     sipTypeNr type_nr = *(const sipTypeNr *)el;
     const sipModuleSpec *m_spec = (const sipModuleSpec *)context;
-
     const sipTypeSpec *ts = m_spec->type_specs[type_nr];
-    const char *s2;
 
-    if (sipTypeIsClass(ts) || sipTypeIsNamespace(ts))
-        s2 = ((const sipClassTypeSpec *)ts)->container.fq_py_name;
-    else if (sipTypeIsMapped(ts))
-        s2 = ((const sipMappedTypeSpec *)ts)->container.fq_py_name;
-    else
-        s2 = ((const sipEnumTypeSpec *)ts)->fq_py_name;
-
-    return strcmp(s1, strrchr(s2, '.') + 1);
+    return strcmp(s1, strrchr(ts->fq_py_name, '.') + 1);
 }
 
 

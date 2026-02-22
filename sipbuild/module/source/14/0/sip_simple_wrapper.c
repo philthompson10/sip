@@ -554,8 +554,7 @@ static int SimpleWrapper_init(PyObject *self, PyObject *args,
                         docstring = NULL;
                 }
 
-                sip_api_no_function(parseErr, ctd->container.fq_py_name,
-                        docstring);
+                sip_api_no_function(parseErr, ctd->base.fq_py_name, docstring);
 
                 return -1;
             }

@@ -282,8 +282,8 @@ static int compare_typedef_name(const void *key, const void *el);
 static PyTypeObject *create_class_type(sipModuleState *ms, sipTypeNr type_nr,
         const sipClassTypeSpec *ctd);
 static PyTypeObject *create_container_type(sipModuleState *ms,
-        sipTypeID type_id, const sipContainerSpec *cs, PyObject *bases,
-        PyTypeObject *metatype);
+        sipTypeID type_id, const char *fq_py_name, const sipContainerSpec *cs,
+        PyObject *bases, PyTypeObject *metatype);
 static PyTypeObject *create_exception_type(sipModuleState *ms,
         const sipExceptionTypeSpec *ets);
 static PyObject *create_function(const PyMethodDef *ml,
@@ -299,8 +299,6 @@ static PyObject *import_module_attr(const char *module, const char *attr);
 static PyObject *pickle_type(PyObject *self, PyTypeObject *defining_class,
         PyObject *const *args, Py_ssize_t nargs, PyObject *kwd_args);
 #endif
-static sipModuleState *resolve_type_id(sipModuleState *ms, sipTypeID type_id,
-        sipTypeNr *def_type_nr_p);
 #if 0
 static int set_reduce(PyTypeObject *type, PyMethodDef *pickler);
 #endif
@@ -461,7 +459,7 @@ static void sip_api_add_delayed_dtor(PyObject *w_inst)
 
                 /* Add to the list. */
                 dd->ptr = ptr;
-                dd->name = ctd->container.fq_py_name;
+                dd->name = ctd->base.fq_py_name;
                 dd->isderived = sipIsDerived(sw);
                 dd->next = ms->delayed_dtors_list;
 
@@ -652,6 +650,28 @@ static void sip_api_instance_destroyed(PyObject *mod, PyObject **self_p)
 
 
 /*
+ * Extend a Python type by adding references to the attributes of an
+ * extender type.
+ */
+int sip_extend_type(sipSipModuleState *sms, PyTypeObject *py_type,
+        PyTypeObject *extender_py_type)
+{
+    Py_ssize_t pos = 0;
+    PyObject *key, *value;
+
+    while (PyDict_Next(extender_py_type->tp_dict, &pos, &key, &value))
+    {
+        // TODO This is insufficent.
+        if (Py_TYPE(value) == sms->method_descr_type)
+            if (PyDict_SetItem(py_type->tp_dict, key, value) < 0)
+                return -1;
+    }
+
+    return 0;
+}
+
+
+/*
  * Isolate a wrapper, ie. clear any relationships with other wrappers.  This
  * may mean it gets garbage collected.
  */
@@ -781,8 +801,8 @@ static Py_ssize_t sip_api_convert_from_sequence_index(Py_ssize_t idx,
  * Create a container type and return a strong reference to it.
  */
 static PyTypeObject *create_container_type(sipModuleState *ms,
-        sipTypeID type_id, const sipContainerSpec *cs, PyObject *bases,
-        PyTypeObject *metatype)
+        sipTypeID type_id, const char *fq_py_name, const sipContainerSpec *cs,
+        PyObject *bases, PyTypeObject *metatype)
 {
     /* Configure the type. */
     const PyType_Slot *slots = cs->py_slots;
@@ -795,7 +815,7 @@ static PyTypeObject *create_container_type(sipModuleState *ms,
     }
 
     PyType_Spec spec = {
-        .name = cs->fq_py_name,
+        .name = fq_py_name,
         .basicsize = 0,
         .flags = Py_TPFLAGS_DEFAULT|Py_TPFLAGS_BASETYPE,
         .slots = (PyType_Slot *)slots,
@@ -835,7 +855,7 @@ static PyTypeObject *create_container_type(sipModuleState *ms,
 
     /* Fix the type's name attributes. */
     if (cs->scope_id != sipTypeID_Invalid)
-        if (sip_fix_type_attrs(ms, cs->fq_py_name, (PyObject *)w_type) < 0)
+        if (sip_fix_type_attrs(ms, fq_py_name, (PyObject *)w_type) < 0)
             goto rel_type;
 
     return w_type;
@@ -999,8 +1019,8 @@ static PyTypeObject *create_class_type(sipModuleState *ms, sipTypeNr type_nr,
 
     sipTypeID type_id = SIP_TYPE_ID_TYPE_CLASS | SIP_TYPE_ID_LOCAL_MODULE | type_nr;
 
-    PyTypeObject *py_type = create_container_type(ms, type_id, &cts->container,
-            bases, metatype);
+    PyTypeObject *py_type = create_container_type(ms, type_id,
+            cts->base.fq_py_name, &cts->container, bases, metatype);
 
     Py_DECREF(bases);
 
@@ -1017,10 +1037,7 @@ static PyTypeObject *create_class_type(sipModuleState *ms, sipTypeNr type_nr,
             PyObject *descr = sipVariableDescr_New(sms, py_type, vs);
 
             if (sip_dict_set_and_discard(py_type->tp_dict, vs->name, descr) < 0)
-            {
-                Py_DECREF(py_type);
-                return NULL;
-            }
+                goto discard_py_type;
         }
     }
 
@@ -1034,11 +1051,40 @@ static PyTypeObject *create_class_type(sipModuleState *ms, sipTypeNr type_nr,
             PyObject *prop = create_property(ps, py_type);
 
             if (sip_dict_set_and_discard(py_type->tp_dict, ps->name, prop) < 0)
-            {
-                Py_DECREF(py_type);
-                return NULL;
-            }
+                goto discard_py_type;
         }
+    }
+
+    /* Apply any pending extenders. */
+    sipPendingExtender *pe;
+
+    for (pe = ms->pending_extenders; pe != NULL; pe = pe->next)
+    {
+        if (pe->extending != cts)
+            continue;
+
+        PyObject *extender_mod;
+        if (PyWeakref_GetRef(pe->extender_module, &extender_mod) < 0)
+            goto discard_py_type;
+
+        if (extender_mod == NULL)
+            continue;
+
+        PyTypeObject *extender_py_type = sip_api_get_py_type(extender_mod,
+                pe->extender_id);
+        if (extender_py_type == NULL)
+        {
+            Py_DECREF(extender_mod);
+            goto discard_py_type;
+        }
+
+        if (sip_extend_type(sms, py_type, extender_py_type) < 0)
+        {
+            Py_DECREF(extender_mod);
+            goto discard_py_type;
+        }
+
+        Py_DECREF(extender_mod);
     }
 
 #if 0
@@ -1055,6 +1101,11 @@ static PyTypeObject *create_class_type(sipModuleState *ms, sipTypeNr type_nr,
 #endif
 
     return py_type;
+
+    /* Unwind on errors. */
+discard_py_type:
+    Py_DECREF(py_type);
+    return NULL;
 }
 
 
@@ -1145,7 +1196,8 @@ static PyTypeObject *create_exception_type(sipModuleState *ms,
             assert(base != NULL);
     }
 
-    return (PyTypeObject *)PyErr_NewException(ets->fq_py_name, base, NULL);
+    return (PyTypeObject *)PyErr_NewException(ets->base.fq_py_name, base,
+            NULL);
 }
 
 
@@ -1159,8 +1211,8 @@ static PyTypeObject *create_mapped_type(sipModuleState *ms, sipTypeNr type_nr,
 
     return create_container_type(ms,
             SIP_TYPE_ID_TYPE_MAPPED | SIP_TYPE_ID_LOCAL_MODULE | type_nr,
-            &mts->container, (PyObject *)sms->simple_wrapper_type,
-            sms->wrapper_type_type);
+            mts->base.fq_py_name, &mts->container,
+            (PyObject *)sms->simple_wrapper_type, sms->wrapper_type_type);
 }
 
 
@@ -1332,7 +1384,7 @@ static PyObject *pickle_type(PyObject *self, PyTypeObject *defining_class,
                 {
                     PyObject *init_args;
                     const sipClassTypeSpec *ctd = (const sipClassTypeSpec *)td;
-                    const char *pyname = ctd->container.fq_py_name;
+                    const char *pyname = ctd->base.fq_py_name;
 
                     /*
                      * Ask the handwritten pickle code for the tuple of
@@ -2134,7 +2186,7 @@ static const sipClassTypeSpec *sip_api_get_class_type_spec(void *context,
  * Return the module state for the defining module of a type ID and the
  * defining type number.
  */
-static sipModuleState *resolve_type_id(sipModuleState *ms, sipTypeID type_id,
+sipModuleState *sip_resolve_type_id(sipModuleState *ms, sipTypeID type_id,
         sipTypeNr *def_type_nr_p)
 {
     // Check for non-generated types.
@@ -2179,12 +2231,11 @@ const sipTypeSpec *sip_get_type_detail(sipModuleState *ms, sipTypeID type_id,
         PyTypeObject **py_type_p, sipModuleState **defining_ms_p)
 {
     sipTypeNr def_type_nr;
-    sipModuleState *def_ms = resolve_type_id(ms, type_id, &def_type_nr);
+    sipModuleState *def_ms = sip_resolve_type_id(ms, type_id, &def_type_nr);
     if (def_ms == NULL)
         return NULL;
 
     // TODO Handle unresolved external types.
-    // TODO Handle namespace extenders.
     if (py_type_p != NULL)
     {
         if (sip_get_local_py_type(def_ms, def_type_nr, py_type_p) < 0)
@@ -2226,7 +2277,7 @@ int sip_get_local_py_type(sipModuleState *ms, sipTypeNr type_nr,
         }
         else if (sipTypeIsMapped(ts))
         {
-            if (((const sipMappedTypeSpec *)ts)->container.fq_py_name != NULL)
+            if (ts->fq_py_name != NULL)
             {
                 py_type = create_mapped_type(ms, type_nr,
                         (const sipMappedTypeSpec *)ts);

@@ -964,7 +964,7 @@ void *sip_force_convert_to_type_us(sipModuleState *ms, PyObject *pyObj,
         else
             PyErr_Format(PyExc_TypeError, "%s cannot be converted to %s.%s",
                     Py_TYPE(pyObj)->tp_name, sipNameOfModule(td->td_module),
-                    ((const sipClassTypeSpec *)td)->container.fq_py_name);
+                    ((const sipClassTypeSpec *)td)->fq_py_name);
 
         if (statep != NULL)
             *statep = 0;

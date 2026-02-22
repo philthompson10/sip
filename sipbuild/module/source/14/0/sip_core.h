@@ -98,6 +98,8 @@ PyTypeObject *sip_create_mapped_type(sipSipModuleState *sms,
         PyObject *w_mod_dict);
 PyObject *sip_create_type_dict(const sipModuleSpec *wmd);
 int sip_dict_set_and_discard(PyObject *dict, const char *name, PyObject *obj);
+int sip_extend_type(sipSipModuleState *sms, PyTypeObject *py_type,
+        PyTypeObject *extender_py_type);
 int sip_fix_type_attrs(sipModuleState *ms, const char *fq_py_name,
         PyObject *py_type);
 const sipContainerSpec *sip_get_container(const sipTypeSpec *td);
@@ -124,6 +126,8 @@ PyObject *sip_next_in_mro(PyObject *self, PyObject *after);
 void sip_raise_no_convert_from(const sipTypeSpec *td);
 void sip_remove_from_parent(sipWrapper *self);
 int sip_register_py_type(sipSipModuleState *sms, PyTypeObject *supertype);
+sipModuleState *sip_resolve_type_id(sipModuleState *ms, sipTypeID type_id,
+        sipTypeNr *def_type_nr_p);
 int sip_super_init(PyObject *self, PyObject *args, PyObject *kwds,
         PyObject *type);
 void sip_transfer_back(PyObject *self);

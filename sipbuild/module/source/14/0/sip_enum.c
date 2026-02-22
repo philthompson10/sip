@@ -142,7 +142,8 @@ PyTypeObject *sip_create_enum_type(sipModuleState *ms, sipTypeNr type_nr,
     if (init_enum_module_types(ms->sip_module_state) < 0)
         return NULL;
 
-    PyObject *name = PyUnicode_FromString(strrchr(ets->fq_py_name, '.') + 1);
+    PyObject *name = PyUnicode_FromString(
+            strrchr(ets->base.fq_py_name, '.') + 1);
     if (name == NULL)
         return NULL;
 
@@ -431,7 +432,7 @@ static PyTypeObject *create_custom_enum_type(sipModuleState *ms,
      * Note that we have to do this for all enums including those at the module
      * level.
      */
-    if (sip_fix_type_attrs(ms, ets->fq_py_name, enum_obj) < 0)
+    if (sip_fix_type_attrs(ms, ets->base.fq_py_name, enum_obj) < 0)
     {
         Py_DECREF(enum_obj);
         return NULL;
@@ -598,7 +599,7 @@ static PyTypeObject *create_py_enum_type(sipModuleState *ms,
     Py_DECREF(members);
 
     if (ets->scope_nr >= 0)
-        if (sip_fix_type_attrs(ms, ets->fq_py_name, enum_obj) < 0)
+        if (sip_fix_type_attrs(ms, ets->base.fq_py_name, enum_obj) < 0)
         {
             Py_DECREF(enum_obj);
             return NULL;
@@ -906,7 +907,7 @@ static void add_operator_slots(PyObject *enum_obj, const PyType_Slot *pts)
 static void enum_expected(PyObject *obj, const sipEnumTypeSpec *ets)
 {
     PyErr_Format(PyExc_TypeError, "a member of enum '%s' is expected not '%s'",
-            ets->fq_py_name, Py_TYPE(obj)->tp_name);
+            ets->base.fq_py_name, Py_TYPE(obj)->tp_name);
 }
 
 

@@ -36,7 +36,27 @@ typedef struct _sipImportedModule {
 } sipImportedModule;
 
 
-/* A wrapped module's state. */
+/*
+ * An extender for a class that hasn't yet been created.
+ */
+typedef struct _sipPendingExtender {
+    /* The specification of the class that is to be extended. */
+    const sipClassTypeSpec *extending;
+
+    /* A weak reference to the module containing the extender. */
+    PyObject *extender_module;
+
+    /* The type ID of the pending extender. */
+    sipTypeID extender_id;
+
+    /* The next in the linked list of pending extenders. */
+    struct _sipPendingExtender *next;
+} sipPendingExtender;
+
+
+/*
+ * A wrapped module's state.
+ */
 struct _sipModuleState {
     /* The list of delayed dtors. */
     sipDelayedDtor *delayed_dtors_list;
@@ -69,6 +89,9 @@ struct _sipModuleState {
 
     /* The specification of the wrapped module. */
     const sipModuleSpec *module_spec;
+
+    /* The linked list of any pending class extenders. */
+    sipPendingExtender *pending_extenders;
 
     // TODO Extensions to the state provided by the bindings author.  It must
     // be a PyObject (or another type that can be garbage collected) and may
