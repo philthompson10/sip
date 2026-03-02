@@ -132,7 +132,7 @@ f'''
 
         sf.write(
 '''    if (sipPySelf)
-        sipInstanceDestroyed(sipGetModule(sipPySelf), &sipPySelf);
+        sipInstanceDestroyed(sipGetModuleFromInstance(sipPySelf), &sipPySelf);
 ''')
 
     def g_create_wrapped_module(self, sf, bindings,
@@ -428,7 +428,7 @@ f'''    PyObject *sipModule;
 
     if (sipPySelf)
     {{
-        sipModule = sipGetModule(sipPySelf);
+        sipModule = sipGetModuleFromInstance(sipPySelf);
         sipMeth = sipIsPyMethod(sipModule, &sipGILState, {const_cast_char}&sipPyMethods[{virt_nr}]{const_cast_tail}, {const_cast_po}&sipPySelf{const_cast_tail}, {klass_py_name_ref}, {member_py_name_ref});
     }}
     else
@@ -824,8 +824,6 @@ static PyMethodDef sipMethods_{scope_name}[] = {{
         """ Generate the SIP API as seen by generated code. """
 
         # TODO These have been reviewed as part of the public v14 API.
-        # TODO Make sure sipGetModule() is documented as part of the public
-        # API (if appropriate).
         sf.write(
 f'''
 
@@ -833,7 +831,7 @@ f'''
 extern const sipABISpec *sipABI_{module_name};
 
 extern PyModuleDef_Slot sipModuleSlots_{module_name}[];
-#define sipGetModule(self)          PyType_GetModuleByToken(Py_TYPE(self), sipModuleSlots_{module_name})
+#define sipGetModule()              sipABI_{module_name}->api_get_module(sipModuleSlots_{module_name})
 
 #define sipModuleClear              sipABI_{module_name}->api_module_clear
 #define sipModuleExec               sipABI_{module_name}->api_module_exec
@@ -852,6 +850,7 @@ extern PyModuleDef_Slot sipModuleSlots_{module_name}[];
 #define sipFindTypeID               sipABI_{module_name}->api_find_type_id
 #define sipForceConvertToType       sipABI_{module_name}->api_force_convert_to_type
 #define sipGetAddress               sipABI_{module_name}->api_get_address
+#define sipGetModuleFromInstance    sipABI_{module_name}->api_get_module_from_instance
 #define sipGetPyType                sipABI_{module_name}->api_get_py_type
 #define sipGetState                 sipABI_{module_name}->api_get_state
 #define sipGetTypeUserData          sipABI_{module_name}->api_get_type_user_data
@@ -1136,16 +1135,11 @@ f'''    }}
         """ Generate the variables needed by a slot function. """
 
         if isinstance(scope, WrappedEnum) and self.py_enums_supported:
-            # Python enums are not extension types and so the defining module
-            # has to be obtained from sys.modules.  This use case is very rare
-            # and so we don't bother about the efficiency or otherwise.
-            sf.write(
-f'''    PyObject *sipModule = PyDict_GetItemString(PySys_GetObject("modules"), "{self.spec.module.py_name}");
-    Py_DECREF(sipModule);
-''')
+            # Python enums are not extension types.
+            sf.write(f'    PyObject *sipModule = sipGetModule();\n')
         else:
             name = 'sipArg0' if member is not None and is_number_slot(member.py_slot) else 'sipSelf'
-            sf.write(f'    PyObject *sipModule = sipGetModule({name});\n')
+            sf.write(f'    PyObject *sipModule = sipGetModuleFromInstance({name});\n')
 
     def g_static_variables_table(self, sf, scope=None):
         """ Generate the tables of static variables and types for a scope and

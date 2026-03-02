@@ -43,6 +43,8 @@ static Py_ssize_t sip_api_convert_from_sequence_index(Py_ssize_t idx,
         Py_ssize_t len);
 static int sip_api_convert_to_enum(PyObject *mod, PyObject *obj, void *addr,
         sipTypeID type_id);
+static PyObject *sip_api_get_module(const void *mod_token);
+static PyObject *sip_api_get_module_from_instance(PyObject *pyObj);
 static PyTypeObject *sip_api_get_py_type(PyObject *mod, sipTypeID type_id);
 static int sip_api_get_state(PyObject *transferObj);
 static void sip_api_trace(PyObject *mod, unsigned mask, const char *fmt,
@@ -151,6 +153,8 @@ const sipABISpec sip_abi = {
     sip_api_convert_from_enum,
     sip_api_get_state,
     sip_api_free,
+    sip_api_get_module,
+    sip_api_get_module_from_instance,
     sip_api_get_pyobject,
     sip_api_get_py_type,
     sip_api_malloc,
@@ -544,6 +548,65 @@ void *sip_api_malloc(size_t nbytes)
 void sip_api_free(void *mem)
 {
     PyMem_RawFree(mem);
+}
+
+
+/*
+ * Return a borrowed reference to the module corresponding to a module token in
+ * the current interpreter.
+ */
+static PyObject *sip_api_get_module(const void *mod_token)
+{
+    PyObject *modules_s = PyUnicode_InternFromString("modules");
+    if (modules_s == NULL)
+        return NULL;
+
+    PyObject *modules = PySys_GetAttr(modules_s);
+
+    Py_DECREF(modules_s);
+
+    if (modules == NULL)
+        return NULL;
+
+    Py_ssize_t pos;
+    PyObject *name, *module;
+
+    while (PyDict_Next(modules, &pos, &name, &module))
+    {
+        const void *token;
+
+        if (PyModule_GetToken(module, &token) < 0)
+            goto ret_error;
+
+        if (token == mod_token)
+        {
+            Py_DECREF(modules);
+            return module;
+        }
+    }
+
+ret_error:
+    Py_DECREF(modules);
+
+    return NULL;
+}
+
+
+/*
+ * Return a borrowed reference to the module in which the wrapped type of an
+ * instance was defined.
+ */
+static PyObject *sip_api_get_module_from_instance(PyObject *pyObj)
+{
+    /*
+     * Note that the standard Python method for doing this is to use
+     * PyType_GetModuleByToken, but this is faster and simpler.  However we
+     * still use that (with METH_METHOD) in our method descriptor because in
+     * that context we would first have to work out the nature of 'self' (ie.
+     * and instance or a type).
+     */
+
+    return ((sipWrapperType *)Py_TYPE(pyObj))->wt_d_mod;
 }
 
 

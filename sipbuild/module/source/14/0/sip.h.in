@@ -469,6 +469,26 @@ typedef enum {
 
 
 /*
+ * The immutable specification of a namespace extender.
+ */
+typedef struct _sipNamespaceExtenderSpec {
+    /* The type ID of the namespace being extended. */
+    sipTypeID namespace_id;
+
+    /*
+     * The table of methods.  These are new methods, not new overloads of
+     * existing methods.
+     */
+    // TODO Handle new overloads of existing methods.
+    const PyMethodDef *methods;
+
+    /* The table of static variables. */
+    // TODO
+    const sipVariableSpec *const static_variables;
+} sipNamespaceExtenderSpec;
+
+
+/*
  * The immutable specification of a Python slot extender.
  */
 // TODO Rename to Spec
@@ -853,6 +873,9 @@ struct _sipModuleSpec {
     // TODO
     const sipInitExtenderDef *const init_extend;
 
+    /* The table of namespace extenders. */
+    const sipNamespaceExtenderSpec *const ns_extend;
+
     /* The delayed dtor handler. */
     // TODO
     const void (*delayeddtors)(const struct _sipDelayedDtor *);
@@ -944,6 +967,8 @@ struct _sipABISpec {
             sipTypeID type_id);
     int (*api_get_state)(PyObject *transferObj);
     void (*api_free)(void *mem);
+    PyObject *(*api_get_module)(const void *mod_token);
+    PyObject *(*api_get_module_from_instance)(PyObject *pyObj);
     PyObject *(*api_get_pyobject)(PyObject *mod, void *cppPtr,
             sipTypeID type_id);
     PyTypeObject *(*api_get_py_type)(PyObject *mod, sipTypeID type_id);

@@ -50,6 +50,7 @@ struct _sipWrapperType {
     PyObject *wt_d_mod;
 
     /* The type ID in the context of the defining module. */
+    // TODO Why not just a type nr?
     sipTypeID wt_type_id;
 
     /* The list of init extenders. */
