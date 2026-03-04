@@ -54,23 +54,19 @@ void *sip_api_force_convert_to_type_us(PyObject *mod, PyObject *pyObj,
         sipTypeID type_id, PyObject *transferObj, int flags, int *statep,
         void **user_statep, int *iserrp);
 PyObject *sip_api_get_pyobject(PyObject *mod, void *cppPtr, sipTypeID type_id);
-void sip_api_no_function(PyObject *parse_err, const char *func,
-        const char *doc);
-void sip_api_no_method(PyObject *parse_err, const char *scope,
-        const char *method, const char *doc);
-int sip_api_parse_args(PyObject *mod, PyObject **parse_err_p, PyObject *args,
+bool sip_api_parse_args(PyObject *mod, const char *type_hint,
+        PyObject **p_state_p, PyObject *self, PyObject *args, const char *fmt,
+        ...);
+bool sip_api_parse_kwd_args(PyObject *mod, const char *type_hint,
+        PyObject **p_state_p, PyObject *self, PyObject *args, PyObject *kwargs,
+        const char **kwd_list, const char *fmt, ...);
+bool sip_api_parse_pair(PyObject *mod, const char *type_hint,
+        PyObject **p_state_p, PyObject *arg_0, PyObject *arg_1,
         const char *fmt, ...);
-int sip_api_parse_kwd_args(PyObject *mod, PyObject **parse_err_p,
-        PyObject *args, PyObject *kwargs, const char **kwd_list,
-        const char *fmt, ...);
-int sip_api_parse_vectorcall_args(PyObject *mod, PyObject **parse_err_p,
-        PyObject *const *args, Py_ssize_t nr_pos_args, PyObject *kwd_names,
-        const char *fmt, ...);
-int sip_api_parse_vectorcall_kwd_args(PyObject *mod, PyObject **parse_err_p,
-        PyObject *const *args, Py_ssize_t nr_pos_args, PyObject *kwd_names,
-        const char **kwd_list, PyObject **unused_p, const char *fmt, ...);
-int sip_api_parse_pair(PyObject *mod, PyObject **parse_err_p,
-        PyObject *arg_0, PyObject *arg_1, const char *fmt, ...);
+bool sip_api_parse_vc_kwd_args(PyObject *mod, const char *type_hint,
+        PyObject **p_state_p, PyObject *self, PyObject *const *args,
+        Py_ssize_t nr_pos_args, PyObject *kwd_names, const char **kwd_list,
+        PyObject **unused_p, const char *fmt, ...);
 int sip_api_parse_result(PyObject *mod, sip_gilstate_t gil_state,
         sipVirtErrorHandlerFunc error_handler, PyObject *w_inst,
         PyObject *method, PyObject *res, const char *fmt, ...);
@@ -86,6 +82,7 @@ void *sip_force_convert_to_type_us(sipModuleState *ms, PyObject *pyObj,
         void **user_statep, int *iserrp);
 PyObject *sip_is_py_method(sipModuleState *ms, sip_gilstate_t *gil,
         char *pymc, PyObject **self_p, const char *cname, const char *mname);
+void sip_no_callable(PyObject *p_state, const char *scope, const char *method);
 void sip_release(void *addr, const sipTypeSpec *td, int state,
         void *user_state);
 int sip_vectorcall_create(PyObject *args, PyObject *kwargs,

@@ -540,22 +540,7 @@ static int SimpleWrapper_init(PyObject *self, PyObject *args,
 
             if (sipNew == NULL)
             {
-                const char *docstring = ctd->docstring;
-
-                /*
-                 * Use the docstring for errors if it was automatically
-                 * generated.
-                 */
-                if (docstring != NULL)
-                {
-                    if (*docstring == AUTO_DOCSTRING)
-                        ++docstring;
-                    else
-                        docstring = NULL;
-                }
-
-                sip_api_no_function(parseErr, ctd->base.fq_py_name, docstring);
-
+                sip_no_callable(parseErr, NULL, ctd->base.fq_py_name);
                 return -1;
             }
 

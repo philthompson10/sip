@@ -235,11 +235,8 @@ const sipABISpec sip_abi = {
      */
     sip_api_parse_args,
     sip_api_parse_kwd_args,
-    sip_api_parse_vectorcall_args,
-    sip_api_parse_vectorcall_kwd_args,
     sip_api_parse_pair,
-    sip_api_no_function,
-    sip_api_no_method,
+    sip_api_parse_vc_kwd_args,
     sip_api_abstract_method,
     sip_api_bad_class,
     sip_api_get_class_type_spec,
@@ -573,7 +570,7 @@ static PyObject *sip_api_get_module(const void *mod_token)
 
     while (PyDict_Next(modules, &pos, &name, &module))
     {
-        const void *token;
+        void *token;
 
         if (PyModule_GetToken(module, &token) < 0)
             goto ret_error;
@@ -903,6 +900,8 @@ static PyTypeObject *create_container_type(sipModuleState *ms,
      * Add the descriptors for the methods.  The dict is created by the
      * PyType_Ready() call in PyType_FromMetaclass().
      */
+    // TODO
+#if 0
     if (cs->methods != NULL)
     {
         const PyMethodDef *pmd;
@@ -915,6 +914,7 @@ static PyTypeObject *create_container_type(sipModuleState *ms,
                 goto rel_type;
         }
     }
+#endif
 
     /* Fix the type's name attributes. */
     if (cs->scope_id != sipTypeID_Invalid)

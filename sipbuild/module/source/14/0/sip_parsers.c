@@ -65,6 +65,7 @@ typedef enum {
  */
 typedef struct {
     sipParseFailureReason reason;   /* The reason for the failure. */
+    const char *type_hint;          /* The overload's type hint. */
     const char *detail_str;         /* The detail if a string. */
     PyObject *detail_obj;           /* The detail if a Python object. */
     int arg_nr;                     /* The wrong positional argument. */
@@ -75,7 +76,7 @@ typedef struct {
 
 
 /* Forward references. */
-static void add_failure(PyObject **parse_err_p, sipParseFailure *failure);
+static void add_failure(PyObject **p_state_p, sipParseFailure *failure);
 static PyObject *bad_type_str(int arg_nr, PyObject *arg);
 static PyObject *build_object(sipModuleState *ms, PyObject *tup,
         const char *fmt, va_list va);
@@ -100,35 +101,38 @@ static void *convert_to_type_us(sipModuleState *ms, PyObject *pyObj,
         sipTypeID type_id, PyObject *transferObj, int flags, int *statep,
         void **user_statep, int *iserrp);
 static PyObject *deref_mixin(PyObject *w_inst);
-static PyObject *detail_from_failure(PyObject *failure_obj);
+static const char *detail_from_failure(PyObject *failure_obj,
+        PyObject **detail_p);
 static void failure_dtor(PyObject *capsule);
 static PyObject *get_kwd_arg(PyObject *const *args, Py_ssize_t nr_pos_args,
         PyObject *kwd_names, Py_ssize_t nr_kwd_names, const char *name);
 static PyObject *get_pyobject(sipSipModuleState *sms, void *cppPtr,
         PyTypeObject *w_type);
+#if 0
 static int get_self_from_args(PyTypeObject *w_type, PyObject *const *args,
         Py_ssize_t nr_pos_args, Py_ssize_t arg_nr, PyObject **self_p);
+#endif
 static void handle_failed_int_conversion(sipParseFailure *pf, PyObject *arg);
 static void handle_failed_type_conversion(sipParseFailure *pf, PyObject *arg);
-static int parse_kwd_args(PyObject *w_mod, PyObject **parse_err_p,
-        PyObject *const *args, Py_ssize_t nr_pos_args, PyObject *kwd_names,
-        const char **kwd_list, PyObject **unused_p, const char *fmt,
-        va_list va_orig);
-static int parse_pass_1(sipModuleState *ms, PyObject **parse_err_p,
-        PyObject **self_p, int *self_in_args_p, PyObject *const *args,
+static bool parse_kwd_args(PyObject *mod, const char *type_hint,
+        PyObject **p_state_p, PyObject *self, PyObject *const *args,
+        Py_ssize_t nr_pos_args, PyObject *kwd_names, const char **kwd_list,
+        PyObject **unused_p, const char *fmt, va_list va_orig);
+static bool parse_pass_1(sipModuleState *ms, const char *type_hint,
+        PyObject **p_state_p, PyObject *self, PyObject *const *args,
         Py_ssize_t nr_pos_args, PyObject *kwd_names, Py_ssize_t nr_kwd_names,
         const char **kwd_list, PyObject **unused_p, const char *fmt,
         va_list va);
-static int parse_pass_2(sipModuleState *ms, PyObject *self,
-        int self_in_args, PyObject *const *args, Py_ssize_t nr_pos_args,
-        PyObject *kwd_names, Py_ssize_t nr_kwd_names, const char **kwd_list,
-        const char *fmt, va_list va);
+static bool parse_pass_2(sipModuleState *ms, PyObject *self,
+        PyObject *const *args, Py_ssize_t nr_pos_args, PyObject *kwd_names,
+        Py_ssize_t nr_kwd_names, const char **kwd_list, const char *fmt,
+        va_list va);
 static int parse_result(sipModuleState *ms, PyObject *method, PyObject *res,
         PyObject *py_self, const char *fmt, va_list va);
 static void raise_no_convert_to(PyObject *py, const sipTypeSpec *td);
 static void release_type_us(sipModuleState *ms, void *cpp, sipTypeID type_id,
         int state, void *user_state);
-static PyObject *signature_from_docstring(const char *doc, Py_ssize_t line);
+static void set_parser_error(PyObject **p_state_p);
 static int user_state_is_valid(const sipTypeSpec *td, void **user_statep);
 
 
@@ -136,9 +140,10 @@ static int user_state_is_valid(const sipTypeSpec *td, void **user_statep);
  * Adds the current exception to the current list of exceptions (if it is a
  * user exception) or replace the current list of exceptions.
  */
-void sip_api_add_exception(sipErrorState es, PyObject **parse_err_p)
+// TODO Is this needed?
+void sip_api_add_exception(sipErrorState es, PyObject **p_state_p)
 {
-    assert(*parse_err_p == NULL);
+    assert(*p_state_p == NULL);
 
     if (es == sipErrorContinue)
     {
@@ -152,7 +157,8 @@ void sip_api_add_exception(sipErrorState es, PyObject **parse_err_p)
 
         failure.reason = Exception;
 
-        add_failure(parse_err_p, &failure);
+        // TODO Handle the type hint.
+        add_failure(p_state_p, &failure);
 
         if (failure.reason == Raised)
         {
@@ -162,10 +168,7 @@ void sip_api_add_exception(sipErrorState es, PyObject **parse_err_p)
     }
 
     if (es == sipErrorFail)
-    {
-        Py_XDECREF(*parse_err_p);
-        *parse_err_p = Py_NewRef(Py_None);
-    }
+        set_parser_error(p_state_p);
 }
 
 
@@ -500,27 +503,16 @@ PyObject *sip_api_get_pyobject(PyObject *mod, void *cppPtr, sipTypeID type_id)
 
 
 /*
- * Report a function with invalid argument types.
+ * Report a callable with invalid argument types.
  */
-void sip_api_no_function(PyObject *parse_err, const char *func,
-        const char *doc)
-{
-    sip_api_no_method(parse_err, NULL, func, doc);
-}
-
-
-/*
- * Report a method with invalid argument types.
- */
-void sip_api_no_method(PyObject *parse_err, const char *scope,
-        const char *method, const char *doc)
+void sip_no_callable(PyObject *p_state, const char *scope, const char *method)
 {
     const char *sep = ".";
 
     if (scope == NULL)
         scope = ++sep;
 
-    if (parse_err == NULL)
+    if (p_state == NULL)
     {
         /*
          * If we have got this far without trying a parse then there must be no
@@ -529,37 +521,24 @@ void sip_api_no_method(PyObject *parse_err, const char *scope,
         PyErr_Format(PyExc_TypeError, "%s%s%s() is a private method", scope,
                 sep, method);
     }
-    else if (PyList_Check(parse_err))
+    else if (PyList_Check(p_state))
     {
         PyObject *exc;
 
         /* There is an entry for each overload that was tried. */
-        if (PyList_GET_SIZE(parse_err) == 1)
+        if (PyList_GET_SIZE(p_state) == 1)
         {
-            PyObject *detail = detail_from_failure(
-                    PyList_GET_ITEM(parse_err, 0));
+            PyObject *detail;
+            const char *type_hint = detail_from_failure(
+                    PyList_GET_ITEM(p_state, 0), &detail);
 
             if (detail != NULL)
             {
-                if (doc != NULL)
-                {
-                    PyObject *doc_obj = signature_from_docstring(doc, 0);
-
-                    if (doc_obj != NULL)
-                    {
-                        exc = PyUnicode_FromFormat("%U: %U", doc_obj, detail);
-                        Py_DECREF(doc_obj);
-                    }
-                    else
-                    {
-                        exc = NULL;
-                    }
-                }
+                if (type_hint != NULL)
+                    exc = PyUnicode_FromFormat("%s: %U", type_hint, detail);
                 else
-                {
                     exc = PyUnicode_FromFormat("%s%s%s(): %U", scope, sep,
                             method, detail);
-                }
 
                 Py_DECREF(detail);
             }
@@ -572,51 +551,41 @@ void sip_api_no_method(PyObject *parse_err, const char *scope,
         {
             static const char *summary = "arguments did not match any overloaded call:";
 
-            Py_ssize_t i;
-
-            if (doc != NULL)
-                exc = PyUnicode_FromString(summary);
-            else
+            // TODO The legacy code allowed for no docstring.  Why?
+            //if (doc != NULL)
+            //    exc = PyUnicode_FromString(summary);
+            //else
                 exc = PyUnicode_FromFormat("%s%s%s(): %s", scope, sep, method,
                         summary);
 
-            for (i = 0; i < PyList_GET_SIZE(parse_err); ++i)
+            Py_ssize_t i;
+
+            for (i = 0; i < PyList_GET_SIZE(p_state); ++i)
             {
-                PyObject *failure;
-                PyObject *detail = detail_from_failure(
-                        PyList_GET_ITEM(parse_err, i));
+                PyObject *detail, *failure;
+                const char *type_hint = detail_from_failure(
+                        PyList_GET_ITEM(p_state, i), &detail);
 
                 if (detail != NULL)
                 {
-                    if (doc != NULL)
-                    {
-                        PyObject *doc_obj = signature_from_docstring(doc, i);
-
-                        if (doc_obj != NULL)
-                        {
-                            failure = PyUnicode_FromFormat("\n  %U: %U",
-                                    doc_obj, detail);
-
-                            Py_DECREF(doc_obj);
-                        }
-                        else
-                        {
-                            Py_XDECREF(exc);
-                            exc = NULL;
-                            break;
-                        }
-                    }
+                    if (type_hint != NULL)
+                        failure = PyUnicode_FromFormat("\n  %s: %U", type_hint,
+                                detail);
                     else
-                    {
                         failure = PyUnicode_FromFormat("\n  overload %zd: %U",
                                 i + 1, detail);
-                    }
 
                     Py_DECREF(detail);
 
-                    PyUnicode_AppendAndDel(&exc, failure);
+                    if (failure != NULL)
+                        PyUnicode_AppendAndDel(&exc, failure);
                 }
                 else
+                {
+                    failure = NULL;
+                }
+
+                if (failure == NULL)
                 {
                     Py_XDECREF(exc);
                     exc = NULL;
@@ -637,10 +606,10 @@ void sip_api_no_method(PyObject *parse_err, const char *scope,
          * None is used as a marker to say that an exception has already been
          * raised.
          */
-        assert(parse_err == Py_None);
+        assert(p_state == Py_None);
     }
 
-    Py_XDECREF(parse_err);
+    Py_XDECREF(p_state);
 }
 
 
@@ -649,8 +618,9 @@ void sip_api_no_method(PyObject *parse_err, const char *scope,
  * effects.
  */
 #define SMALL_ARGV 8
-int sip_api_parse_args(PyObject *w_mod, PyObject **parse_err_p, PyObject *args,
-        const char *fmt, ...)
+bool sip_api_parse_args(PyObject *mod, const char *type_hint,
+        PyObject **p_state_p, PyObject *self, PyObject *args, const char *fmt,
+        ...)
 {
     /* Convert the traditional arguments to vectorcall style. */
     PyObject *small_argv[SMALL_ARGV];
@@ -660,14 +630,17 @@ int sip_api_parse_args(PyObject *w_mod, PyObject **parse_err_p, PyObject *args,
     Py_ssize_t nr_pos_args;
 
     if (sip_vectorcall_create(args, NULL, small_argv, &argv_len, &argv, &nr_pos_args, NULL) < 0)
-        return 0;
+    {
+        set_parser_error(p_state_p);
+        return FALSE;
+    }
 
-    int ok;
+    bool ok;
     va_list va;
 
     va_start(va, fmt);
-    ok = parse_kwd_args(w_mod, parse_err_p, argv, nr_pos_args, NULL, NULL,
-            NULL, fmt, va);
+    ok = parse_kwd_args(mod, type_hint, p_state_p, self, argv, nr_pos_args,
+            NULL, NULL, NULL, fmt, va);
     va_end(va);
 
     sip_vectorcall_dispose(small_argv, argv, argv_len, NULL);
@@ -680,9 +653,9 @@ int sip_api_parse_args(PyObject *w_mod, PyObject **parse_err_p, PyObject *args,
  * Parse the positional and/or keyword traditional arguments to a C/C++
  * function without any side effects.
  */
-int sip_api_parse_kwd_args(PyObject *w_mod, PyObject **parse_err_p,
-        PyObject *args, PyObject *kwargs, const char **kwd_list,
-        const char *fmt, ...)
+bool sip_api_parse_kwd_args(PyObject *mod, const char *type_hint,
+        PyObject **p_state_p, PyObject *self, PyObject *args, PyObject *kwargs,
+        const char **kwd_list, const char *fmt, ...)
 {
     /* Convert the traditional arguments to vectorcall style. */
     PyObject *small_argv[SMALL_ARGV];
@@ -692,14 +665,17 @@ int sip_api_parse_kwd_args(PyObject *w_mod, PyObject **parse_err_p,
     Py_ssize_t nr_pos_args;
 
     if (sip_vectorcall_create(args, kwargs, small_argv, &argv_len, &argv, &nr_pos_args, &kwd_names) < 0)
-        return 0;
+    {
+        set_parser_error(p_state_p);
+        return FALSE;
+    }
 
-    int ok;
+    bool ok;
     va_list va;
 
     va_start(va, fmt);
-    ok = parse_kwd_args(w_mod, parse_err_p, argv, argv_len, kwd_names,
-            kwd_list, NULL, fmt, va);
+    ok = parse_kwd_args(mod, type_hint, p_state_p, self, argv, argv_len,
+            kwd_names, kwd_list, NULL, fmt, va);
     va_end(va);
 
     sip_vectorcall_dispose(small_argv, argv, argv_len, kwd_names);
@@ -709,52 +685,25 @@ int sip_api_parse_kwd_args(PyObject *w_mod, PyObject **parse_err_p,
 
 
 /*
- * Parse the vectorcall arguments to a C/C++ function without any side effects.
- */
-int sip_api_parse_vectorcall_args(PyObject *w_mod, PyObject **parse_err_p,
-        PyObject *const *args, Py_ssize_t nr_pos_args, PyObject *kwd_names,
-        const char *fmt, ...)
-{
-    int ok;
-    va_list va;
-
-    va_start(va, fmt);
-    ok = parse_kwd_args(w_mod, parse_err_p, args, nr_pos_args, kwd_names, NULL,
-            NULL, fmt, va);
-    va_end(va);
-
-    return ok;
-}
-
-
-/*
  * Parse the positional and/or keyword vectorcall arguments to a C/C++ function
- * without any side effects.
+ * without any side effects.  Return false if there was an error (an exception
+ * will have been raised and the parser state will be Py_None) or if the
+ * arguments didn't match (and an explanation will be added to the parser state
+ * list, creating it if necessary).  Return true if the arguments matched (and
+ * the parser state will be NULL).
  */
-int sip_api_parse_vectorcall_kwd_args(PyObject *w_mod, PyObject **parse_err_p,
-        PyObject *const *args, Py_ssize_t nr_pos_args, PyObject *kwd_names,
-        const char **kwd_list, PyObject **unused_p, const char *fmt, ...)
+bool sip_api_parse_vc_kwd_args(PyObject *mod, const char *type_hint,
+        PyObject **p_state_p, PyObject *self, PyObject *const *args,
+        Py_ssize_t nr_pos_args, PyObject *kwd_names, const char **kwd_list,
+        PyObject **unused_p, const char *fmt, ...)
 {
-    int ok;
+    bool ok;
     va_list va;
 
-    if (unused_p != NULL)
-    {
-        /*
-         * Initialise the return of any unused keyword arguments.  This is
-         * used by any ctor overload.
-         */
-        *unused_p = NULL;
-    }
-
     va_start(va, fmt);
-    ok = parse_kwd_args(w_mod, parse_err_p, args, nr_pos_args, kwd_names,
-            kwd_list, unused_p, fmt, va);
+    ok = parse_kwd_args(mod, type_hint, p_state_p, self, args, nr_pos_args,
+            kwd_names, kwd_list, unused_p, fmt, va);
     va_end(va);
-
-    /* Release any unused arguments if the parse failed. */
-    if (!ok && unused_p != NULL)
-        Py_XDECREF(*unused_p);
 
     return ok;
 }
@@ -764,17 +713,16 @@ int sip_api_parse_vectorcall_kwd_args(PyObject *w_mod, PyObject **parse_err_p,
  * Parse one or a pair of arguments to a C/C++ function without any side
  * effects.
  */
-int sip_api_parse_pair(PyObject *w_mod, PyObject **parse_err_p,
-        PyObject *arg_0, PyObject *arg_1, const char *fmt, ...)
+bool sip_api_parse_pair(PyObject *mod, const char *type_hint,
+        PyObject **p_state_p, PyObject *arg_0, PyObject *arg_1,
+        const char *fmt, ...)
 {
     int ok;
     va_list va;
 
-    PyObject *args[] = {arg_0, arg_1};
-
     va_start(va, fmt);
-    ok = parse_kwd_args(w_mod, parse_err_p, args,
-            (arg_1 != NULL ? 2 : 1), NULL, NULL, NULL, fmt, va);
+    ok = parse_kwd_args(mod, type_hint, p_state_p, arg_0, &arg_1,
+            (arg_1 != NULL ? 1 : 0), NULL, NULL, NULL, fmt, va);
     va_end(va);
 
     return ok;
@@ -1248,13 +1196,13 @@ void sip_vectorcall_dispose(PyObject **small_argv, PyObject **argv,
 /*
  * Add a parse failure to the current list of exceptions.
  */
-static void add_failure(PyObject **parse_err_p, sipParseFailure *failure)
+static void add_failure(PyObject **p_state_p, sipParseFailure *failure)
 {
     sipParseFailure *failure_copy;
     PyObject *failure_obj;
 
     /* Create the list if necessary. */
-    if (*parse_err_p == NULL && (*parse_err_p = PyList_New(0)) == NULL)
+    if (*p_state_p == NULL && (*p_state_p = PyList_New(0)) == NULL)
     {
         failure->reason = Raised;
         return;
@@ -1282,7 +1230,7 @@ static void add_failure(PyObject **parse_err_p, sipParseFailure *failure)
     /* Ownership of any detail object is now with the wrapped failure. */
     failure->detail_obj = NULL;
 
-    if (PyList_Append(*parse_err_p, failure_obj) < 0)
+    if (PyList_Append(*p_state_p, failure_obj) < 0)
     {
         Py_DECREF(failure_obj);
         failure->reason = Raised;
@@ -2096,9 +2044,11 @@ static PyObject *deref_mixin(PyObject *w_inst)
 
 
 /*
- * Return a string/unicode object that describes the given failure.
+ * Return the type hint of the failed callable and a string/unicode object that
+ * describes the failure.
  */
-static PyObject *detail_from_failure(PyObject *failure_obj)
+static const char *detail_from_failure(PyObject *failure_obj,
+        PyObject **detail_p)
 {
     sipParseFailure *failure;
     PyObject *detail;
@@ -2157,7 +2107,9 @@ static PyObject *detail_from_failure(PyObject *failure_obj)
         detail = PyUnicode_FromString("unknown reason");
     }
 
-    return detail;
+    *detail_p = detail;
+
+    return failure->type_hint;
 }
 
 
@@ -2204,6 +2156,7 @@ static PyObject *get_pyobject(sipSipModuleState *sms, void *cppPtr,
 }
 
 
+#if 0
 /*
  * Get "self" from the argument array for a method called as
  * Class.Method(self, ...) rather than self.Method(...).
@@ -2223,6 +2176,7 @@ static int get_self_from_args(PyTypeObject *w_type, PyObject *const *args,
 
     return TRUE;
 }
+#endif
 
 
 /*
@@ -2268,16 +2222,30 @@ static void handle_failed_type_conversion(sipParseFailure *pf, PyObject *arg)
 
 
 /*
+ * Set the parser state to indicate that there has been an error.
+ */
+static void set_parser_error(PyObject **p_state_p)
+{
+    PyObject *p_state = *p_state_p;
+
+    Py_XDECREF(p_state);
+    p_state = Py_NewRef(Py_None);
+
+    *p_state_p = p_state;
+}
+
+
+/*
  * Parse the arguments to a C/C++ function without any side effects.
  */
-static int parse_kwd_args(PyObject *mod, PyObject **parse_err_p,
-        PyObject *const *args, Py_ssize_t nr_pos_args, PyObject *kwd_names,
-        const char **kwd_list, PyObject **unused_p, const char *fmt,
-        va_list va_orig)
+static bool parse_kwd_args(PyObject *mod, const char *type_hint,
+        PyObject **p_state_p, PyObject *self, PyObject *const *args,
+        Py_ssize_t nr_pos_args, PyObject *kwd_names, const char **kwd_list,
+        PyObject **unused_p, const char *fmt, va_list va_orig)
 {
     /* Previous second pass errors stop subsequent parses. */
-    if (*parse_err_p != NULL && !PyList_Check(*parse_err_p))
-        return FALSE;
+    if (*p_state_p != NULL && *p_state_p == Py_None)
+        return false;
 
     /* Get the number of keyword names given. */
     Py_ssize_t nr_kwd_names;
@@ -2299,39 +2267,31 @@ static int parse_kwd_args(PyObject *mod, PyObject **parse_err_p,
      * and have no side effects.
      */
     sipModuleState *ms = sip_get_module_state(mod);
-    int ok, self_in_args;
-    PyObject *self;
+    bool ok;
     va_list va;
 
     va_copy(va, va_orig);
-    ok = parse_pass_1(ms, parse_err_p, &self, &self_in_args, args, nr_pos_args,
+    ok = parse_pass_1(ms, type_hint, p_state_p, self, args, nr_pos_args,
             kwd_names, nr_kwd_names, kwd_list, unused_p, fmt, va);
     va_end(va);
 
     if (ok)
     {
+        /* Remove any previous failed parses. */
+        Py_XDECREF(*p_state_p);
+        *p_state_p = NULL;
+
         /*
          * The second pass does any remaining conversions now that we know we
          * have the right signature.
          */
         va_copy(va, va_orig);
-        ok = parse_pass_2(ms, self, self_in_args, args, nr_pos_args, kwd_names,
-                nr_kwd_names, kwd_list, fmt, va);
+        ok = parse_pass_2(ms, self, args, nr_pos_args, kwd_names, nr_kwd_names,
+                kwd_list, fmt, va);
         va_end(va);
 
-        /* Remove any previous failed parses. */
-        Py_XDECREF(*parse_err_p);
-
-        if (ok)
-        {
-            *parse_err_p = NULL;
-        }
-        else
-        {
-            /* Indicate that an exception has been raised. */
-            *parse_err_p = Py_None;
-            Py_INCREF(Py_None);
-        }
+        if (!ok)
+            set_parser_error(p_state_p);
     }
 
     return ok;
@@ -2340,10 +2300,10 @@ static int parse_kwd_args(PyObject *mod, PyObject **parse_err_p,
 
 /*
  * First pass of the argument parse, converting those that can be done so
- * without any side effects.  Return TRUE if the arguments matched.
+ * without any side effects.  Return true if the arguments matched.
  */
-static int parse_pass_1(sipModuleState *ms, PyObject **parse_err_p,
-        PyObject **self_p, int *self_in_args_p, PyObject *const *args,
+static bool parse_pass_1(sipModuleState *ms, const char *type_hint,
+        PyObject **p_state_p, PyObject *self, PyObject *const *args,
         Py_ssize_t nr_pos_args, PyObject *kwd_names, Py_ssize_t nr_kwd_names,
         const char **kwd_list, PyObject **unused_p, const char *fmt,
         va_list va)
@@ -2354,9 +2314,11 @@ static int parse_pass_1(sipModuleState *ms, PyObject **parse_err_p,
     Py_ssize_t nr_kwd_names_used = 0;
     sipParseFailure failure = {
         .reason = Ok,
+        .type_hint = type_hint,
         .detail_obj = NULL,
     };
 
+#if 0
     /*
      * Handle those format characters that deal with the "self" argument.  They
      * will always be the first one.
@@ -2421,6 +2383,7 @@ static int parse_pass_1(sipModuleState *ms, PyObject **parse_err_p,
     default:
         --fmt;
     }
+#endif
 
     /*
      * Now handle the remaining arguments.  We continue to parse if we get an
@@ -2531,7 +2494,7 @@ static int parse_pass_1(sipModuleState *ms, PyObject **parse_err_p,
                             break;
                         }
                     }
-                    else if (a < nr_pos_args - *self_in_args_p)
+                    else if (a < nr_pos_args)
                     {
                         /*
                          * The argument has been given positionally and as a
@@ -2561,7 +2524,7 @@ static int parse_pass_1(sipModuleState *ms, PyObject **parse_err_p,
         }
         else if (nr_kwd_names != 0 && kwd_list != NULL)
         {
-            const char *name = kwd_list[arg_nr - *self_in_args_p];
+            const char *name = kwd_list[arg_nr];
 
             if (name != NULL)
             {
@@ -3540,7 +3503,7 @@ static int parse_pass_1(sipModuleState *ms, PyObject **parse_err_p,
     }
 
     if (failure.reason != Raised)
-        add_failure(parse_err_p, &failure);
+        add_failure(p_state_p, &failure);
 
     if (failure.reason == Raised)
     {
@@ -3550,8 +3513,8 @@ static int parse_pass_1(sipModuleState *ms, PyObject **parse_err_p,
          * Discard any previous errors and flag that the exception we want the
          * user to see has been raised.
          */
-        Py_XDECREF(*parse_err_p);
-        *parse_err_p = Py_None;
+        Py_XDECREF(*p_state_p);
+        *p_state_p = Py_None;
         Py_INCREF(Py_None);
     }
 
@@ -3561,9 +3524,9 @@ static int parse_pass_1(sipModuleState *ms, PyObject **parse_err_p,
 
 /*
  * Second pass of the argument parse, converting the remaining ones that might
- * have side effects.  Return TRUE if there was no error.
+ * have side effects.  Return true if there was no error.
  */
-static int parse_pass_2(sipModuleState *ms, PyObject *self, int self_in_args,
+static bool parse_pass_2(sipModuleState *ms, PyObject *self,
         PyObject *const *args, Py_ssize_t nr_pos_args, PyObject *kwd_names,
         Py_ssize_t nr_kwd_names, const char **kwd_list, const char *fmt,
         va_list va)
@@ -3571,6 +3534,7 @@ static int parse_pass_2(sipModuleState *ms, PyObject *self, int self_in_args,
     /* Handle the conversions of "self" first. */
     int isstatic = FALSE;
 
+#if 0
     switch (*fmt++)
     {
     case '#':
@@ -3622,11 +3586,12 @@ static int parse_pass_2(sipModuleState *ms, PyObject *self, int self_in_args,
     default:
         --fmt;
     }
+#endif
 
     Py_ssize_t arg_nr;
     int ok = TRUE;
 
-    for (arg_nr = (self_in_args ? 1 : 0); *fmt != '\0' && *fmt != 'W' && ok; arg_nr++)
+    for (arg_nr = 0; *fmt != '\0' && *fmt != 'W' && ok; arg_nr++)
     {
         char ch;
         PyObject *arg;
@@ -3644,7 +3609,7 @@ static int parse_pass_2(sipModuleState *ms, PyObject *self, int self_in_args,
         }
         else if (kwd_names != NULL)
         {
-            const char *name = kwd_list[arg_nr - self_in_args];
+            const char *name = kwd_list[arg_nr];
 
             if (name != NULL)
                 arg = get_kwd_arg(args, nr_pos_args, kwd_names, nr_kwd_names,
@@ -4678,39 +4643,6 @@ static void release_type_us(sipModuleState *ms, void *cpp, sipTypeID type_id,
     /* See if there is something to release. */
     if (state & SIP_TEMPORARY)
         sip_release(cpp, sip_get_type_spec(ms, type_id), state, user_state);
-}
-
-
-/*
- * Return a string/unicode object extracted from a particular line of a
- * docstring.
- */
-static PyObject *signature_from_docstring(const char *doc, Py_ssize_t line)
-{
-    const char *eol;
-    Py_ssize_t size = 0;
-
-    /*
-     * Find the start of the line.  If there is a non-default versioned
-     * overload that has been enabled then it won't have an entry in the
-     * docstring.  This means that the returned signature may be incorrect.
-     */
-    while (line-- > 0)
-    {
-        const char *next = strchr(doc, '\n');
-
-        if (next == NULL)
-            break;
-
-        doc = next + 1;
-    }
-
-    /* Find the last closing parenthesis. */
-    for (eol = doc; *eol != '\n' && *eol != '\0'; ++eol)
-        if (*eol == ')')
-            size = eol - doc + 1;
-
-    return PyUnicode_FromStringAndSize(doc, size);
 }
 
 

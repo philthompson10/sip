@@ -7,28 +7,232 @@ from .....sip_module_configuration import SipModuleConfiguration
 
 from ....python_slots import is_number_slot, is_rich_compare_slot
 from ....scoped_name import ScopedName, STRIP_GLOBAL
-from ....specification import (Argument, ArgumentType, GILUse, IfaceFileType,
-        MappedType, MultiInterpreterSupport, PySlot, WrappedEnum,
-        WrappedVariable)
+from ....specification import (Argument, ArgumentType, ArrayArgument, GILUse,
+        IfaceFileType, KwArgs, MappedType, MultiInterpreterSupport, PySlot,
+        Transfer, WrappedClass, WrappedEnum, WrappedVariable)
 from ....utils import find_method
 
 from ...formatters import fmt_class_as_scoped_py_name
 
-from ..snippets import (g_class_docstring, g_class_method_table,
-        g_module_docstring, g_py_slot, g_pyqt_class_plugin,
-        g_pyqt_helper_defns, g_pyqt_helper_init, g_static_function,
+from ..snippets import (g_argument_variable, g_class_docstring,
+        g_class_method_table, g_function_body, g_method_docstring,
+        g_module_docstring, g_overload_type_hint, g_py_slot,
+        g_pyqt_class_plugin, g_pyqt_helper_defns, g_pyqt_helper_init,
         g_type_init_body)
-from ..utils import (get_class_flags, get_class_from_void, get_enum_member,
+from ..utils import (add_parser_format_values, callable_overloads,
+        get_class_flags, get_class_from_void, get_enum_member,
         get_function_table, get_mapped_type_flags, get_optional_ptr,
         get_type_from_void, has_method_docstring, need_dealloc, py_scope,
         pyqt5_supported, pyqt6_supported, scoped_class_name,
-        variables_in_scope)
+        update_parser_format, variables_in_scope)
 
 from .abstract_backend import AbstractBackend
 
 
 class v14Backend(AbstractBackend):
     """ The backend code generator for v14 of the ABI. """
+
+    def g_arg_parser(self, sf, scope, py_signature, signature_nr, ctor=None,
+            is_method=False, overload=None):
+        """ Generate a call to an argument parser for a Python signature. """
+
+        spec = self.spec
+
+        # If the scope is a mapped type or a namespace, then ignore it.
+        if isinstance(scope, MappedType) or (isinstance(scope, WrappedClass) and scope.iface_file.type is IfaceFileType.NAMESPACE):
+            scope = None
+
+        # Static methods use self for the type object.
+        handle_self = (scope is not None and overload is not None and overload.common.py_slot is None)
+
+        # Generate the local variables that will hold the parsed arguments and
+        # values returned via arguments.
+        array_len_arg_nr = -1
+        need_owner = False
+        ctor_needs_self = False
+
+        for arg_nr, arg in enumerate(py_signature.args):
+            if arg.array is ArrayArgument.ARRAY_SIZE:
+                array_len_arg_nr = arg_nr
+
+            g_argument_variable(self, sf, scope, arg, arg_nr)
+
+            if arg.transfer is Transfer.TRANSFER_THIS:
+                need_owner = True
+
+            if ctor is not None and arg.transfer is Transfer.TRANSFER:
+                ctor_needs_self = True
+
+        if overload is not None and need_owner:
+            sf.write('        sipWrapper *sipOwner = SIP_NULLPTR;\n')
+
+        if handle_self and not overload.is_static:
+            cpp_type = 'const ' if overload.is_const else ''
+
+            if overload.access_specifier is AccessSpecifier.PROTECTED and scope.has_shadow:
+                cpp_type += 'sip' + scope.iface_file.fq_cpp_name.as_word
+            else:
+                cpp_type += scoped_class_name(spec, scope)
+
+            sf.write(f'        {cpp_type} *sipCpp;\n\n')
+        elif len(py_signature.args) != 0:
+            sf.write('\n')
+
+        # Generate the call to the parser function.
+        args = ['sipModule']
+
+        if overload is not None:
+            callable_name = overload.common.py_name.name
+        else:
+            assert ctor is not None
+
+            callable_name = 'TODO'
+
+        args.append(f'type_hints_{callable_name}[{signature_nr}]')
+
+        args.append('sipPStateP')
+
+        if overload is not None and is_number_slot(overload.common.py_slot):
+            parser_function = 'sipParsePair'
+            args.append('sipArg0')
+            args.append('sipArg1')
+
+        elif overload is not None and overload.common.py_slot is PySlot.SETATTR:
+            # We don't even try to invoke the parser if there is a value and
+            # there shouldn't be (or vice versa) so that the list of errors
+            # doesn't get polluted with signatures that can never apply.
+            if overload.is_delattr:
+                operator = '=='
+                sip_value = 'SIP_NULLPTR'
+            else:
+                operator = '!='
+                sip_value = 'sipValue'
+
+            # TODO This needs fixing.
+            parser_function = f'sipValue {operator} SIP_NULLPTR && sipParsePair'
+            args.append('sipName')
+            args.append(sip_value)
+
+        elif (overload is not None and overload.common.allow_keyword_args) or ctor is not None:
+            # We handle keywords if we might have been passed some (because one
+            # of the overloads uses them or we are a ctor).  However this
+            # particular overload might not have any.
+            if overload is not None:
+                kw_args = overload.kw_args
+            elif ctor is not None:
+                kw_args = ctor.kw_args
+            else:
+                kw_args = KwArgs.NONE
+
+            # The above test isn't good enough because when the flags were set
+            # in the parser we couldn't know for sure if an argument was an
+            # output pointer.  Therefore we check here.  The drawback is that
+            # we may generate the name string for the argument but never use
+            # it, or we might have an empty keyword name array or one that
+            # contains only NULLs.
+            is_ka_list = False
+
+            if kw_args is not KwArgs.NONE:
+                for arg in py_signature.args:
+                    if not arg.is_in:
+                        continue
+
+                    if not is_ka_list:
+                        sf.write('        static const char *sipKwdList[] = {\n')
+                        is_ka_list = True
+
+                    if arg.name is not None and (kw_args is KwArgs.ALL or arg.default_value is not None):
+                        arg_name_ref = self.cached_name_ref(arg.name)
+                    else:
+                        arg_name_ref = 'SIP_NULLPTR'
+
+                    sf.write(f'            {arg_name_ref},\n')
+
+                if is_ka_list:
+                    sf.write('        };\n\n')
+
+            if ctor is None:
+                sip_self = 'sipSelf'
+                sip_unused_p = 'SIP_NULLPTR'
+            else:
+                sip_self = 'SIP_NULLPTR'
+                sip_unused_p = 'sipUnusedP'
+
+            args.append(sip_self)
+            args.append('sipArgs')
+
+            if overload is not None and overload.common.py_slot is PySlot.CALL:
+                # The call slot has a traditional signature.
+                parser_function = 'sipParseKwdArgs'
+            else:
+                parser_function = 'sipParseVcKwdArgs'
+                args.append('sipNrArgs')
+
+            args.append('sipKwds')
+            args.append('sipKwdList' if is_ka_list else 'SIP_NULLPTR')
+            args.append(sip_unused_p)
+
+        elif overload is not None and overload.common.py_slot is PySlot.SETITEM:
+            # We use a non-standard API for setitem as we know we have two
+            # arguments.
+            parser_function = 'sipParsePair'
+            args.append('sipKey')
+            args.append('sipValue')
+        else:
+            args.append('sipSelf')
+
+            if overload is not None and overload.common.py_slot is PySlot.CALL:
+                # The call slot has a traditional signature.
+                parser_function = 'sipParseArgs'
+                args.append('sipArgs')
+            else:
+                single_arg = not (overload is None or overload.common.py_slot is None or is_multi_arg_slot(overload.common.py_slot))
+
+                if single_arg:
+                    parser_function = 'sipParsePair'
+                    args.append('sipArg')
+                    args.append('SIP_NULLPTR')
+                else:
+                    parser_function = 'sipParseVcKwdArgs'
+                    args.append('sipArgs')
+                    args.append('sipNrArgs')
+                    args.append('sipKwds')
+                    args.append('SIP_NULLPTR')
+                    args.append('SIP_NULLPTR')
+
+        # Generate the format string.
+        format_s = '"'
+
+        if ctor_needs_self:
+            format_s += '#'
+        elif handle_self:
+            if overload.is_static:
+                format_s += 'C'
+            elif overload.access_is_really_protected:
+                format_s += 'p'
+            else:
+                format_s += 'B'
+
+        format_s = update_parser_format(format_s, py_signature)
+
+        format_s += '"'
+        args.append(format_s)
+
+        # Add the arguments corresponding to the format string.
+        if ctor_needs_self:
+            args.append('sipSelf')
+        elif handle_self:
+            args.append('&sipSelf')
+
+            if not overload.is_static:
+                args.append(self.get_type_ref(scope))
+                args.append('&sipCpp')
+
+        add_parser_format_values(self, args, py_signature, ctor)
+
+        args = ', '.join(args)
+
+        sf.write(f'        if ({parser_function}({args}))\n')
 
     def g_cast_function(self, sf, klass):
         """ Generate the function that casts a C++ pointer to a target type.
@@ -157,6 +361,8 @@ f'''
 
         nr_static_variables, nr_types = static_variables_state
 
+        has_module_functions = self._g_module_functions_table(sf, module)
+
         # Generate the pointer to the immutable SIP ABI structure that is
         # obtained from the sip module.  It is the only static variable used
         # and is set when the wrapped module is first imported into an
@@ -216,6 +422,9 @@ static const sipModuleSpec sipModule_{module_name} = {{
             sf.write(f'    .attributes.nr_types = {nr_types},\n')
             sf.write(f'    .attributes.type_nrs = sipTypeNrs_{module_name},\n')
 
+        if has_module_functions:
+            sf.write(f'    .callables = sip_callables_{module_name},\n')
+
         if module.license is not None:
             sf.write('    .license = &module_license,\n')
 
@@ -240,8 +449,6 @@ static const sipModuleSpec sipModule_{module_name} = {{
         self._g_module_exec(sf)
         self._g_module_free(sf)
         self._g_module_traverse(sf)
-        has_module_functions = self.g_module_functions_table(sf, bindings,
-                module)
         self.g_module_definition(sf, has_module_functions=has_module_functions)
         self.g_module_init_start(sf)
 
@@ -650,11 +857,6 @@ sipMappedTypeSpec sipTypeSpec_{module_name}_{mapped_type_name} = {{
 }};
 ''')
 
-    def g_method_support_vars(self, sf):
-        """ Generate the variables needed by a method. """
-
-        sf.write('    PyObject *sipModule = PyType_GetModule(sipDefType);\n')
-
     # Map GILUse values.
     _MAP_GIL_USED = {
         GILUse.USED:        'Py_MOD_GIL_USED',
@@ -671,11 +873,81 @@ sipMappedTypeSpec sipTypeSpec_{module_name}_{mapped_type_name} = {{
                 'Py_MOD_MULTIPLE_INTERPRETERS_SUPPORTED',
     }
 
+    def g_module_function(self, sf, bindings, member, scope=None):
+        """ Generate a module function.  The scope may be a mapped type or a
+        hidden namespace.
+        """
+
+        spec = self.spec
+        member_name = member.py_name.name
+
+        if scope is None:
+            overloads = spec.module.overloads
+            scope_py = None
+        else:
+            overloads = scope.overloads
+            scope_py = py_scope(scope)
+
+            if scope_py is not None:
+                member_name = scope_py.iface_file.fq_cpp_name.as_word + '_' + member_name
+
+        sf.write('\n\n')
+
+        # Generate any type hints and docstrings.
+        type_hints, user_docstring = self._get_doc_details(member, overloads)
+
+        if type_hints:
+            sf.write(f'static const char *type_hints_{member_name}[] = {{\n')
+
+            for overload in callable_overloads(member, overloads):
+                sf.write('    "')
+                g_overload_type_hint(sf, spec, overload)
+                sf.write('",\n')
+
+            sf.write('};\n\n')
+
+        if user_docstring:
+            sf.write(f'PyDoc_STRVAR(doc_{member_name}, "')
+            g_method_docstring(sf, spec, bindings, member, overloads,
+                    default_to_type_hints=False)
+            sf.write('");\n\n')
+
+        if member.no_arg_parser or member.allow_keyword_args:
+            kw_fw_decl = ', PyObject *'
+            kw_decl = ', PyObject *sipKwds'
+        else:
+            kw_fw_decl = kw_decl = ''
+
+        if not spec.c_bindings:
+            sf.write(f'extern "C" {{static PyObject *callable_{member_name}(PyObject *, PyObject **, PyObject *, bool, PyObject *const *, Py_ssize_t, PyObject *);}}\n')
+
+        sf.write(f'static PyObject *callable_{member_name}(PyObject *sipModule, PyObject **sipPStateP, PyObject *sipSelf, bool sipSelfWasArg, PyObject *const *sipArgs, Py_ssize_t sipNrArgs, PyObject *sipKwds)\n')
+
+        sf.write('{')
+
+        overload_nr = 0
+
+        for overload in overloads:
+            if overload.common is not member:
+                continue
+
+            if member.no_arg_parser:
+                # TODO The new environment for any handwritten code needs to be
+                # documented.
+                sf.write_code(overload.method_code)
+                break
+
+            g_function_body(self, sf, bindings, scope, overload, overload_nr)
+            overload_nr += 1
+
+        sf.write('\n    return SIP_NULLPTR;\n}\n')
+
     def g_module_definition(self, sf, has_module_functions=False):
         """ Generate the module definition structure. """
 
         spec = self.spec
         module = spec.module
+        module_name = module.py_name
 
         gil_support = self._MAP_GIL_USED[module.gil_use]
         interp_support = self._MAP_MULTI_INTERPRETER_SUPPORT[module.multi_interpreter_support]
@@ -699,7 +971,7 @@ f'''
 /* The module's immutable slot definitions. */
 PyABIInfo_VAR(sip_abi_info);
 
-PyModuleDef_Slot sipModuleSlots_{module.py_name}[] = {{
+PyModuleDef_Slot sipModuleSlots_{module_name}[] = {{
     {{Py_mod_name, (void *)"{module.fq_py_name}"}},
     {{Py_mod_state_size, {state_size}}},
     {{Py_mod_abi, &sip_abi_info}},
@@ -713,36 +985,9 @@ PyModuleDef_Slot sipModuleSlots_{module.py_name}[] = {{
 
         if module.docstring is not None:
             # TODO The name should have a sip_ prefix.
-            sf.write(f'    {{Py_mod_doc, (void *)doc_mod_{module.py_name}}},\n')
+            sf.write(f'    {{Py_mod_doc, (void *)doc_mod_{module_name}}},\n')
 
-        if has_module_functions:
-            sf.write(f'    {{Py_mod_methods, sip_methods_{module.py_name}}},\n')
-
-        sf.write('    {0}\n};\n')
-
-    def g_module_functions_table(self, sf, bindings, module):
-        """ Generate the table of module functions and return True if anything
-        was actually generated.
-        """
-
-        has_module_functions = self._g_module_function_table_entries(sf,
-                bindings, module, module.global_functions)
-
-        # Generate the module functions for any hidden namespaces.
-        for klass in self.spec.classes:
-            if klass.iface_file.module is module and klass.is_hidden_namespace:
-                has_module_functions = self._g_module_function_table_entries(
-                        sf, bindings, module, klass.members,
-                        has_module_functions=has_module_functions)
-
-        if has_module_functions:
-            sf.write(
-'''    {}
-};
-
-''')
-
-        return has_module_functions
+        sf.write('    {}\n};\n')
 
     def g_module_init_start(self, sf):
         """ Generate the start of the Python module initialisation function.
@@ -871,13 +1116,10 @@ f'''#define sipGetClassTypeSpec         sipABI_{module_name}->api_get_class_type
 #define sipIsDerivedClass           sipABI_{module_name}->api_is_derived_class
 #define sipIsPyMethod               sipABI_{module_name}->api_is_py_method
 #define sipNextExceptionHandler     sipABI_{module_name}->api_next_exception_handler
-#define sipNoFunction               sipABI_{module_name}->api_no_function
-#define sipNoMethod                 sipABI_{module_name}->api_no_method
 #define sipParseArgs                sipABI_{module_name}->api_parse_args
 #define sipParseKwdArgs             sipABI_{module_name}->api_parse_kwd_args
-#define sipParseVectorcallArgs      sipABI_{module_name}->api_parse_vectorcall_args
-#define sipParseVectorcallKwdArgs   sipABI_{module_name}->api_parse_vectorcall_kwd_args
 #define sipParsePair                sipABI_{module_name}->api_parse_pair
+#define sipParseVcKwdArgs           sipABI_{module_name}->api_parse_vc_kwd_args
 #define sipPySlotExtend             sipABI_{module_name}->api_py_slot_extend
 #define sipRaiseUnknownException    sipABI_{module_name}->api_raise_unknown_exception
 ''')
@@ -1020,7 +1262,7 @@ f'''#define sipIsEnumFlag               sipAPI->api_is_enum_flag
 
         for member in members:
             if is_ns:
-                g_static_function(self, sf, bindings, member, scope=scope)
+                self.g_module_function(sf, bindings, member, scope=scope)
             elif member.py_slot is not None:
                 g_py_slot(self, sf, bindings, member, scope=scope)
 
@@ -1390,7 +1632,7 @@ sipClassTypeSpec sipTypeSpec_{module_name}_{klass_name} = {{
         sip_owner = 'sipOwner' if need_owner else ''
 
         sf.write(
-f'''static void *init_type_{klass_name}(PyObject *sipSelf, PyObject *const *sipArgs, Py_ssize_t sipNrArgs, PyObject *sipKwds, PyObject **sipUnused, PyObject **{sip_owner}, PyObject **sipParseErr)
+f'''static void *init_type_{klass_name}(PyObject *sipSelf, PyObject *const *sipArgs, Py_ssize_t sipNrArgs, PyObject *sipKwds, PyObject **{sip_owner}, PyObject **sipParseErr)
 {{
 ''')
 
@@ -1676,8 +1918,8 @@ static void module_free(void *mod_ptr)
 }
 ''')
 
-    @staticmethod
-    def _g_module_function_table_entries(sf, bindings, module, members,
+    @classmethod
+    def _g_module_function_table_entries(cls, sf, module, members,
             has_module_functions=False):
         """ Generate the entries in a table of PyMethodDef for module
         functions.
@@ -1686,21 +1928,43 @@ static void module_free(void *mod_ptr)
         for member in members:
             if member.py_slot is None:
                 if not has_module_functions:
-                    sf.write(f'\n\nstatic PyMethodDef sip_methods_{module.py_name}[] = {{\n')
+                    sf.write(f'static sipCallableSpec sip_callables_{module.py_name}[] = {{\n')
                     has_module_functions = True
 
+                type_hints, user_docstring = cls._get_doc_details(member,
+                        module.overloads)
+
                 py_name = member.py_name.name
+                type_hints_ref = get_optional_ptr(type_hints,
+                        'type_hints_' + py_name)
+                docstring_ref = get_optional_ptr(user_docstring,
+                        'doc_' + py_name)
 
-                sf.write(f'    {{"{py_name}", SIP_MLMETH_CAST(func_{py_name}), METH_FASTCALL')
+                sf.write(f'    {{"{py_name}", callable_{py_name}, {type_hints_ref}, {docstring_ref}}},\n')
 
-                if member.no_arg_parser or member.allow_keyword_args:
-                    sf.write('|METH_KEYWORDS')
+        return has_module_functions
 
-                docstring_ref = get_optional_ptr(
-                        has_method_docstring(bindings, member,
-                                module.overloads),
-                        'doc_' + member.py_name.name)
-                sf.write(f', {docstring_ref}}},\n')
+    def _g_module_functions_table(self, sf, module):
+        """ Generate the table of module functions and return True if anything
+        was actually generated.
+        """
+
+        has_module_functions = self._g_module_function_table_entries(sf,
+                module, module.global_functions)
+
+        # Generate the module functions for any hidden namespaces.
+        for klass in self.spec.classes:
+            if klass.iface_file.module is module and klass.is_hidden_namespace:
+                has_module_functions = self._g_module_function_table_entries(
+                        sf, module, klass.members,
+                        has_module_functions=has_module_functions)
+
+        if has_module_functions:
+            sf.write(
+'''    {}
+};
+
+''')
 
         return has_module_functions
 
@@ -2215,6 +2479,27 @@ static const sipVariableSpec sip{table_type}Variables_{suffix}[] = {{
         # __len__ is placed in two slots.
         if py_slot is PySlot.LEN:
             slots.append(('Py_sq_length', f'slot_{scope_name}_{py_name}'))
+
+    @staticmethod
+    def _get_doc_details(member, overloads):
+        """ Return a 2-tuple of a bool that is true if a member has type hints
+        and a bool that is true if the member has a user supplied docstring.
+        """
+
+        type_hints = False
+        user_docstring = False
+
+        for overload in callable_overloads(member, overloads):
+            type_hints = True
+
+            if overload.docstring is not None:
+                user_docstring = True
+                break
+
+        if member.no_arg_parser:
+            type_hints = False
+
+        return type_hints, user_docstring
 
     def _get_enum_member_value_field(self, member, base_type=None):
         """ Return the initialisation of the value field of an enum member
