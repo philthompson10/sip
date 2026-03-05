@@ -3,7 +3,7 @@
 /*
  * The sip module implementation.
  *
- * Copyright (c) 2025 Phil Thompson <phil@riverbankcomputing.com>
+ * Copyright (c) 2026 Phil Thompson <phil@riverbankcomputing.com>
  */
 
 
@@ -14,10 +14,12 @@
 #include "sip.h"
 
 #include "sip_array.h"
+#include "sip_callable.h"
 #include "sip_core.h"
 #include "sip_enum.h"
 #include "sip_method_descriptor.h"
 #include "sip_module.h"
+#include "sip_module_methods.h"
 #include "sip_module_wrapper.h"
 #include "sip_object_map.h"
 #include "sip_threads.h"
@@ -47,6 +49,7 @@ static PyModuleDef_Slot module_slots[] = {
     {Py_mod_doc, (void *)PyDoc_STR("Bindings related utilities")},
     {Py_mod_exec, (void *)module_exec},
     {Py_mod_gil, Py_MOD_GIL_USED},
+    {Py_mod_methods, sipSipModuleMethods},
     {Py_mod_multiple_interpreters, Py_MOD_PER_INTERPRETER_GIL_SUPPORTED},
     {Py_mod_state_clear, (void *)module_clear},
     {Py_mod_state_free, (void *)module_free},
@@ -161,6 +164,7 @@ int sip_sip_module_init(sipSipModuleState *sms, PyObject *mod)
         sip_wrapper_init(mod, sms) < 0 ||
         sip_module_wrapper_init(mod, sms) < 0 ||
         sip_method_descr_init(mod, sms) < 0 ||
+        sip_callable_init(mod, sms) < 0 ||
         sip_variable_descr_init(mod, sms) < 0 ||
         sip_enum_init(mod, sms) < 0 ||
         sip_void_ptr_init(mod, sms) < 0 ||
@@ -192,6 +196,7 @@ int sip_sip_module_init(sipSipModuleState *sms, PyObject *mod)
 int sip_sip_module_clear(sipSipModuleState *sms)
 {
     Py_CLEAR(sms->array_type);
+    Py_CLEAR(sms->callable_type);
 #if defined(SIP_CONFIGURATION_PyEnums)
     Py_CLEAR(sms->builtin_int_type);
     Py_CLEAR(sms->builtin_object_type);
@@ -288,6 +293,7 @@ void sip_sip_module_free(sipSipModuleState *sms)
 int sip_sip_module_traverse(sipSipModuleState *sms, visitproc visit, void *arg)
 {
     Py_VISIT(sms->array_type);
+    Py_VISIT(sms->callable_type);
 #if defined(SIP_CONFIGURATION_PyEnums)
     Py_VISIT(sms->builtin_int_type);
     Py_VISIT(sms->builtin_object_type);

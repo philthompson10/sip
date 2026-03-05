@@ -3,7 +3,7 @@
 /*
  * The implementation of the wrapped module support.
  *
- * Copyright (c) 2025 Phil Thompson <phil@riverbankcomputing.com>
+ * Copyright (c) 2026 Phil Thompson <phil@riverbankcomputing.com>
  */
 
 
@@ -11,6 +11,7 @@
 
 #include "sip_wrapped_module.h"
 
+#include "sip_callable.h"
 #include "sip_core.h"
 #include "sip_enum.h"
 #include "sip_module.h"
@@ -145,12 +146,14 @@ int sip_api_module_exec(PyObject *mod, const sipModuleSpec *m_spec)
     ms->wrapped_module = mod;
     ms->module_spec = m_spec;
 
+    sipSipModuleState *sms = ms->sip_module_state;
+
     /* Update the new module's super-type. */
     PyObject *class_s = PyUnicode_InternFromString("__class__");
     if (class_s == NULL)
         return -1;
 
-    if (PyObject_SetAttr(mod, class_s, (PyObject *)ms->sip_module_state->module_wrapper_type) < 0)
+    if (PyObject_SetAttr(mod, class_s, (PyObject *)sms->module_wrapper_type) < 0)
     {
         Py_DECREF(class_s);
         return -1;
@@ -173,9 +176,29 @@ int sip_api_module_exec(PyObject *mod, const sipModuleSpec *m_spec)
     if (PyModule_AddIntConstant(mod, "SIP_ABI_VERSION", abi_version) < 0)
         return -1;
 
-    /* Add the module's methods. */
-    if (PyModule_AddFunctions(mod, sipModuleMethods) < 0)
+#if !_SIP_MODULE_SHARED
+    /* Add the sip module's methods. */
+    if (PyModule_AddFunctions(mod, sipSipModuleMethods) < 0)
         return -1;
+#endif
+
+    /* Add any module callables. */
+    if (m_spec->callables != NULL)
+    {
+        const sipCallableSpec *c_spec = m_spec->callables;
+
+        while (c_spec->name != NULL)
+        {
+            PyObject *callable = sipCallable_New(sms, c_spec, mod);
+            int rc = PyModule_AddObjectRef(mod, c_spec->name, callable);
+            Py_XDECREF(callable);
+
+            if (rc < 0)
+                return -1;
+
+            c_spec++;
+        }
+    }
 
     /* Allocate the space for any wrapped type type objects. */
     if (m_spec->nr_type_specs > 0 && (ms->py_types = PyMem_Calloc(m_spec->nr_type_specs, sizeof (PyTypeObject *))) == NULL)
@@ -195,8 +218,6 @@ int sip_api_module_exec(PyObject *mod, const sipModuleSpec *m_spec)
     }
 
     /* Add it to the list of wrapped modules. */
-    sipSipModuleState *sms = ms->sip_module_state;
-
     if (sip_append_py_object_to_list(&sms->module_list, mod) < 0)
         return -1;
 

@@ -27,11 +27,11 @@
 typedef struct {
     PyObject_HEAD
 
-    /* The method definition. */
-    const PyMethodDef *pmd;
+    /* The callable specification. */
+    const sipCallableSpec *c_spec;
 
-    /* A strong reference to the defining class. */
-    PyTypeObject *defining_class;
+    /* A strong reference to the defining module. */
+    PyObject *defining_module;
 
     /* The mixin name, if any. */
     PyObject *mixin_name;
@@ -62,6 +62,7 @@ static PyType_Slot MethodDescr_slots[] = {
 static PyType_Spec MethodDescr_TypeSpec = {
     .name = _SIP_MODULE_FQ_NAME ".methoddescriptor",
     .basicsize = sizeof (MethodDescr),
+    // TODO Py_TPFLAGS_METHOD_DESCRIPTOR?
     .flags = Py_TPFLAGS_DEFAULT |
              Py_TPFLAGS_DISALLOW_INSTANTIATION |
              Py_TPFLAGS_IMMUTABLETYPE |
@@ -77,15 +78,15 @@ static MethodDescr *alloc_method_descr(sipSipModuleState *sms);
 /*
  * Return a new method descriptor for the given method.
  */
-PyObject *sipMethodDescr_New(sipSipModuleState *sms, const PyMethodDef *pmd,
-        PyTypeObject *defining_class)
+PyObject *sipMethodDescr_New(sipSipModuleState *sms,
+        const sipCallableSpec *c_spec, PyObject *defining_module)
 {
     MethodDescr *descr = alloc_method_descr(sms);
 
     if (descr != NULL)
     {
-        descr->pmd = pmd;
-        descr->defining_class = (PyTypeObject *)Py_NewRef(defining_class);
+        descr->c_spec = c_spec;
+        descr->defining_module = Py_NewRef(defining_module);
         descr->mixin_name = NULL;
     }
 
@@ -104,9 +105,8 @@ PyObject *sipMethodDescr_Copy(sipSipModuleState *sms, PyObject *orig,
 
     if (descr != NULL)
     {
-        descr->pmd = orig_descr->pmd;
-        descr->defining_class = (PyTypeObject *)Py_NewRef(
-                orig_descr->defining_class);
+        descr->c_spec = orig_descr->c_spec;
+        descr->defining_module = Py_NewRef(orig_descr->defining_module);
         descr->mixin_name = Py_XNewRef(mixin_name);
     }
 
@@ -140,8 +140,10 @@ static PyObject *MethodDescr_descr_get(MethodDescr *self, PyObject *obj,
         bind = Py_NewRef(obj);
     }
 
-    PyObject *func = PyCMethod_New((PyMethodDef *)self->pmd, bind, NULL,
-            (PyTypeObject *)self->defining_class);
+    // TODO
+    //PyObject *func = PyCMethod_New(self->c_spec, bind, NULL,
+    //        self->defining_module);
+    PyObject *func = Py_NewRef(PyExc_NotImplementedError);
     Py_DECREF(bind);
 
     return func;
@@ -154,7 +156,7 @@ static PyObject *MethodDescr_descr_get(MethodDescr *self, PyObject *obj,
  */
 static PyObject *MethodDescr_repr(MethodDescr *self)
 {
-    return PyUnicode_FromFormat("<built-in method %s>", self->pmd->ml_name);
+    return PyUnicode_FromFormat("<built-in method %s>", self->c_spec->name);
 }
 
 
@@ -164,7 +166,7 @@ static PyObject *MethodDescr_repr(MethodDescr *self)
 static int MethodDescr_traverse(MethodDescr *self, visitproc visit, void *arg)
 {
     Py_VISIT(Py_TYPE(self));
-    Py_VISIT(self->defining_class);
+    Py_VISIT(self->defining_module);
     Py_VISIT(self->mixin_name);
 
     return 0;
@@ -176,7 +178,7 @@ static int MethodDescr_traverse(MethodDescr *self, visitproc visit, void *arg)
  */
 static int MethodDescr_clear(MethodDescr *self)
 {
-    Py_CLEAR(self->defining_class);
+    Py_CLEAR(self->defining_module);
     Py_CLEAR(self->mixin_name);
 
     return 0;

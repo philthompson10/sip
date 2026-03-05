@@ -12,6 +12,7 @@
 
 #include <Python.h>
 
+#include "sip.h"
 #include "sip_decls.h"
 
 
@@ -19,8 +20,8 @@
 extern "C" {
 #endif
 
-PyObject *sipMethodDescr_New(sipSipModuleState *sms, const PyMethodDef *pmd,
-        PyTypeObject *defining_class);
+PyObject *sipMethodDescr_New(sipSipModuleState *sms,
+        const sipCallableSpec *c_spec, PyObject *defining_module);
 PyObject *sipMethodDescr_Copy(sipSipModuleState *sms, PyObject *orig,
         PyObject *mixin_name);
 int sip_method_descr_init(PyObject *module, sipSipModuleState *sms);

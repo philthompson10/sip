@@ -3,7 +3,7 @@
 /*
  * The implementation of the sip module's methods.
  *
- * Copyright (c) 2025 Phil Thompson <phil@riverbankcomputing.com>
+ * Copyright (c) 2026 Phil Thompson <phil@riverbankcomputing.com>
  */
 
 
@@ -40,7 +40,7 @@ static PyObject *meth_wrapinstance(PyObject *mod, PyObject *args);
 static PyObject *meth_unwrapinstance(PyObject *mod, PyObject *args);
 
 
-PyMethodDef sipModuleMethods[] = {
+PyMethodDef sipSipModuleMethods[] = {
     {"assign", meth_assign, METH_VARARGS, NULL},
     {"delete", meth_delete, METH_VARARGS, NULL},
     {"dump", meth_dump, METH_O, NULL},

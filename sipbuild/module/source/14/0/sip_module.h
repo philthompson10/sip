@@ -3,7 +3,7 @@
 /*
  * The sip module interface.
  *
- * Copyright (c) 2025 Phil Thompson <phil@riverbankcomputing.com>
+ * Copyright (c) 2026 Phil Thompson <phil@riverbankcomputing.com>
  */
 
 
@@ -26,6 +26,9 @@ extern "C" {
 struct _sipSipModuleState {
     /* The sip.array type object. */
     PyTypeObject *array_type;
+
+    /* The sip.callable type object. */
+    PyTypeObject *callable_type;
 
 #if defined(SIP_CONFIGURATION_CustomEnums)
     /* The sip.enumtype type object. */

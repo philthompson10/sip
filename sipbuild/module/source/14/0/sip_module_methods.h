@@ -3,7 +3,7 @@
 /*
  * This file defines the API for the sip module's methods.
  *
- * Copyright (c) 2025 Phil Thompson <phil@riverbankcomputing.com>
+ * Copyright (c) 2026 Phil Thompson <phil@riverbankcomputing.com>
  */
 
 
@@ -17,7 +17,7 @@
 extern "C" {
 #endif
 
-extern PyMethodDef sipModuleMethods[];
+extern PyMethodDef sipSipModuleMethods[];
 
 #ifdef __cplusplus
 }
