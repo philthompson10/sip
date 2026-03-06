@@ -231,8 +231,8 @@ typedef void *(*sipArrayFunc)(Py_ssize_t);
 typedef void (*sipArrayDeleteFunc)(void *);
 typedef void (*sipAssignFunc)(void *, Py_ssize_t, void *);
 // TODO Pass sipModule's state instead of sipModule.
-typedef PyObject *(*sipCallableImplFunc)(PyObject *, PyObject **, PyObject *,
-        bool, PyObject *const *, Py_ssize_t, PyObject *);
+typedef PyObject *(*sipCallableImplFunc)(PyObject *, PyObject **,
+        PyObject *const *, Py_ssize_t, PyObject *);
 typedef void *(*sipCastFunc)(void *, void *, const sipClassTypeSpec *);
 typedef int (*sipClearFunc)(void *);
 typedef PyObject *(*sipConvertFromFunc)(PyObject *, void *, PyObject *);
@@ -1087,16 +1087,15 @@ struct _sipABISpec {
      * The following are not part of the public API.
      */
     bool (*api_parse_args)(PyObject *mod, const char *type_hint,
-            PyObject **p_state_p,  PyObject *self, PyObject *args,
-            const char *fmt, ...);
+            PyObject **p_state_p,  PyObject *args, const char *fmt, ...);
     bool (*api_parse_kwd_args)(PyObject *mod, const char *type_hint,
-            PyObject **p_state_p, PyObject *self, PyObject *args,
-            PyObject *kwargs, const char **kwd_list, const char *fmt, ...);
+            PyObject **p_state_p, PyObject *args, PyObject *kwargs,
+            const char **kwd_list, const char *fmt, ...);
     bool (*api_parse_pair)(PyObject *mod, const char *type_hint,
             PyObject **p_state_p, PyObject *arg_0, PyObject *arg_1,
             const char *fmt, ...);
     bool (*api_parse_vc_kwd_args)(PyObject *mod, const char *type_hint,
-            PyObject **p_state_p, PyObject *self, PyObject *const *args,
+            PyObject **p_state_p, PyObject *const *args,
             Py_ssize_t nr_pos_args, PyObject *kwd_names, const char **kwd_list,
             PyObject **unused_p, const char *fmt, ...);
     void (*api_abstract_method)(const char *classname, const char *method);

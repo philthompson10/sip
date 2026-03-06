@@ -55,18 +55,17 @@ void *sip_api_force_convert_to_type_us(PyObject *mod, PyObject *pyObj,
         void **user_statep, int *iserrp);
 PyObject *sip_api_get_pyobject(PyObject *mod, void *cppPtr, sipTypeID type_id);
 bool sip_api_parse_args(PyObject *mod, const char *type_hint,
-        PyObject **p_state_p, PyObject *self, PyObject *args, const char *fmt,
-        ...);
+        PyObject **p_state_p, PyObject *args, const char *fmt, ...);
 bool sip_api_parse_kwd_args(PyObject *mod, const char *type_hint,
-        PyObject **p_state_p, PyObject *self, PyObject *args, PyObject *kwargs,
+        PyObject **p_state_p, PyObject *args, PyObject *kwargs,
         const char **kwd_list, const char *fmt, ...);
 bool sip_api_parse_pair(PyObject *mod, const char *type_hint,
         PyObject **p_state_p, PyObject *arg_0, PyObject *arg_1,
         const char *fmt, ...);
 bool sip_api_parse_vc_kwd_args(PyObject *mod, const char *type_hint,
-        PyObject **p_state_p, PyObject *self, PyObject *const *args,
-        Py_ssize_t nr_pos_args, PyObject *kwd_names, const char **kwd_list,
-        PyObject **unused_p, const char *fmt, ...);
+        PyObject **p_state_p, PyObject *const *args, Py_ssize_t nr_pos_args,
+        PyObject *kwd_names, const char **kwd_list, PyObject **unused_p,
+        const char *fmt, ...);
 int sip_api_parse_result(PyObject *mod, sip_gilstate_t gil_state,
         sipVirtErrorHandlerFunc error_handler, PyObject *w_inst,
         PyObject *method, PyObject *res, const char *fmt, ...);

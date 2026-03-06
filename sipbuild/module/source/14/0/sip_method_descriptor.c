@@ -62,10 +62,10 @@ static PyType_Slot MethodDescr_slots[] = {
 static PyType_Spec MethodDescr_TypeSpec = {
     .name = _SIP_MODULE_FQ_NAME ".methoddescriptor",
     .basicsize = sizeof (MethodDescr),
-    // TODO Py_TPFLAGS_METHOD_DESCRIPTOR?
     .flags = Py_TPFLAGS_DEFAULT |
              Py_TPFLAGS_DISALLOW_INSTANTIATION |
              Py_TPFLAGS_IMMUTABLETYPE |
+             // TODO Py_TPFLAGS_METHOD_DESCRIPTOR |
              Py_TPFLAGS_HAVE_GC,
     .slots = MethodDescr_slots,
 };

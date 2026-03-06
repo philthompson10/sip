@@ -78,8 +78,7 @@ PyObject *sipCallable_New(sipSipModuleState *sms,
         const sipCallableSpec *c_spec, PyObject *defining_module)
 {
     // TODO Investigate the optimisations implemented by PyCMethod, specifially
-    // to reduce heap allocations.  Don't bother if we can get rid of the
-    // custom method descriptor.
+    // to reduce heap allocations.
     CallableObject *callable = (CallableObject *)PyType_GenericAlloc(
             sms->callable_type, 0);
 
@@ -140,7 +139,7 @@ static PyObject *Callable_vectorcall(CallableObject *self,
     PyObject *p_state = NULL;
 
     PyObject *res = self->c_spec->callable_impl(self->defining_module,
-            &p_state, NULL, false, args, PyVectorcall_NARGS(nargsf), kwnames);
+            &p_state, args, PyVectorcall_NARGS(nargsf), kwnames);
 
     if (res != NULL)
         return res;

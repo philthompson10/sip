@@ -108,22 +108,20 @@ static PyObject *get_kwd_arg(PyObject *const *args, Py_ssize_t nr_pos_args,
         PyObject *kwd_names, Py_ssize_t nr_kwd_names, const char *name);
 static PyObject *get_pyobject(sipSipModuleState *sms, void *cppPtr,
         PyTypeObject *w_type);
-#if 0
-static int get_self_from_args(PyTypeObject *w_type, PyObject *const *args,
+static bool get_self_from_args(PyTypeObject *w_type, PyObject *const *args,
         Py_ssize_t nr_pos_args, Py_ssize_t arg_nr, PyObject **self_p);
-#endif
 static void handle_failed_int_conversion(sipParseFailure *pf, PyObject *arg);
 static void handle_failed_type_conversion(sipParseFailure *pf, PyObject *arg);
 static bool parse_kwd_args(PyObject *mod, const char *type_hint,
-        PyObject **p_state_p, PyObject *self, PyObject *const *args,
-        Py_ssize_t nr_pos_args, PyObject *kwd_names, const char **kwd_list,
-        PyObject **unused_p, const char *fmt, va_list va_orig);
+        PyObject **p_state_p, PyObject *const *args, Py_ssize_t nr_pos_args,
+        PyObject *kwd_names, const char **kwd_list, PyObject **unused_p,
+        const char *fmt, va_list va_orig);
 static bool parse_pass_1(sipModuleState *ms, const char *type_hint,
-        PyObject **p_state_p, PyObject *self, PyObject *const *args,
-        Py_ssize_t nr_pos_args, PyObject *kwd_names, Py_ssize_t nr_kwd_names,
-        const char **kwd_list, PyObject **unused_p, const char *fmt,
-        va_list va);
-static bool parse_pass_2(sipModuleState *ms, PyObject *self,
+        PyObject **p_state_p, PyObject **self_p, bool *self_was_arg_p,
+        PyObject *const *args, Py_ssize_t nr_pos_args, PyObject *kwd_names,
+        Py_ssize_t nr_kwd_names, const char **kwd_list, PyObject **unused_p,
+        const char *fmt, va_list va);
+static bool parse_pass_2(sipModuleState *ms, PyObject *self, bool self_was_arg,
         PyObject *const *args, Py_ssize_t nr_pos_args, PyObject *kwd_names,
         Py_ssize_t nr_kwd_names, const char **kwd_list, const char *fmt,
         va_list va);
@@ -619,8 +617,7 @@ void sip_no_callable(PyObject *p_state, const char *scope, const char *method)
  */
 #define SMALL_ARGV 8
 bool sip_api_parse_args(PyObject *mod, const char *type_hint,
-        PyObject **p_state_p, PyObject *self, PyObject *args, const char *fmt,
-        ...)
+        PyObject **p_state_p, PyObject *args, const char *fmt, ...)
 {
     /* Convert the traditional arguments to vectorcall style. */
     PyObject *small_argv[SMALL_ARGV];
@@ -639,8 +636,8 @@ bool sip_api_parse_args(PyObject *mod, const char *type_hint,
     va_list va;
 
     va_start(va, fmt);
-    ok = parse_kwd_args(mod, type_hint, p_state_p, self, argv, nr_pos_args,
-            NULL, NULL, NULL, fmt, va);
+    ok = parse_kwd_args(mod, type_hint, p_state_p, argv, nr_pos_args, NULL,
+            NULL, NULL, fmt, va);
     va_end(va);
 
     sip_vectorcall_dispose(small_argv, argv, argv_len, NULL);
@@ -654,7 +651,7 @@ bool sip_api_parse_args(PyObject *mod, const char *type_hint,
  * function without any side effects.
  */
 bool sip_api_parse_kwd_args(PyObject *mod, const char *type_hint,
-        PyObject **p_state_p, PyObject *self, PyObject *args, PyObject *kwargs,
+        PyObject **p_state_p, PyObject *args, PyObject *kwargs,
         const char **kwd_list, const char *fmt, ...)
 {
     /* Convert the traditional arguments to vectorcall style. */
@@ -674,8 +671,8 @@ bool sip_api_parse_kwd_args(PyObject *mod, const char *type_hint,
     va_list va;
 
     va_start(va, fmt);
-    ok = parse_kwd_args(mod, type_hint, p_state_p, self, argv, argv_len,
-            kwd_names, kwd_list, NULL, fmt, va);
+    ok = parse_kwd_args(mod, type_hint, p_state_p, argv, argv_len, kwd_names,
+            kwd_list, NULL, fmt, va);
     va_end(va);
 
     sip_vectorcall_dispose(small_argv, argv, argv_len, kwd_names);
@@ -693,15 +690,15 @@ bool sip_api_parse_kwd_args(PyObject *mod, const char *type_hint,
  * the parser state will be NULL).
  */
 bool sip_api_parse_vc_kwd_args(PyObject *mod, const char *type_hint,
-        PyObject **p_state_p, PyObject *self, PyObject *const *args,
-        Py_ssize_t nr_pos_args, PyObject *kwd_names, const char **kwd_list,
-        PyObject **unused_p, const char *fmt, ...)
+        PyObject **p_state_p, PyObject *const *args, Py_ssize_t nr_pos_args,
+        PyObject *kwd_names, const char **kwd_list, PyObject **unused_p,
+        const char *fmt, ...)
 {
     bool ok;
     va_list va;
 
     va_start(va, fmt);
-    ok = parse_kwd_args(mod, type_hint, p_state_p, self, args, nr_pos_args,
+    ok = parse_kwd_args(mod, type_hint, p_state_p, args, nr_pos_args,
             kwd_names, kwd_list, unused_p, fmt, va);
     va_end(va);
 
@@ -720,9 +717,11 @@ bool sip_api_parse_pair(PyObject *mod, const char *type_hint,
     int ok;
     va_list va;
 
+    PyObject *args[] = {arg_0, arg_1};
+
     va_start(va, fmt);
-    ok = parse_kwd_args(mod, type_hint, p_state_p, arg_0, &arg_1,
-            (arg_1 != NULL ? 1 : 0), NULL, NULL, NULL, fmt, va);
+    ok = parse_kwd_args(mod, type_hint, p_state_p, args,
+            (arg_1 != NULL ? 2 : 1), NULL, NULL, NULL, fmt, va);
     va_end(va);
 
     return ok;
@@ -2156,27 +2155,25 @@ static PyObject *get_pyobject(sipSipModuleState *sms, void *cppPtr,
 }
 
 
-#if 0
 /*
  * Get "self" from the argument array for a method called as
  * Class.Method(self, ...) rather than self.Method(...).
  */
-static int get_self_from_args(PyTypeObject *w_type, PyObject *const *args,
+static bool get_self_from_args(PyTypeObject *w_type, PyObject *const *args,
         Py_ssize_t nr_pos_args, Py_ssize_t arg_nr, PyObject **self_p)
 {
     if (arg_nr >= nr_pos_args)
-        return FALSE;
+        return false;
 
     PyObject *self = args[arg_nr];
 
     if (!PyObject_TypeCheck(self, w_type))
-        return FALSE;
+        return false;
 
     *self_p = self;
 
-    return TRUE;
+    return true;
 }
-#endif
 
 
 /*
@@ -2239,9 +2236,9 @@ static void set_parser_error(PyObject **p_state_p)
  * Parse the arguments to a C/C++ function without any side effects.
  */
 static bool parse_kwd_args(PyObject *mod, const char *type_hint,
-        PyObject **p_state_p, PyObject *self, PyObject *const *args,
-        Py_ssize_t nr_pos_args, PyObject *kwd_names, const char **kwd_list,
-        PyObject **unused_p, const char *fmt, va_list va_orig)
+        PyObject **p_state_p, PyObject *const *args, Py_ssize_t nr_pos_args,
+        PyObject *kwd_names, const char **kwd_list, PyObject **unused_p,
+        const char *fmt, va_list va_orig)
 {
     /* Previous second pass errors stop subsequent parses. */
     if (*p_state_p != NULL && *p_state_p == Py_None)
@@ -2267,12 +2264,13 @@ static bool parse_kwd_args(PyObject *mod, const char *type_hint,
      * and have no side effects.
      */
     sipModuleState *ms = sip_get_module_state(mod);
-    bool ok;
+    bool ok, self_was_arg;
+    PyObject *self;
     va_list va;
 
     va_copy(va, va_orig);
-    ok = parse_pass_1(ms, type_hint, p_state_p, self, args, nr_pos_args,
-            kwd_names, nr_kwd_names, kwd_list, unused_p, fmt, va);
+    ok = parse_pass_1(ms, type_hint, p_state_p, &self, &self_was_arg, args,
+            nr_pos_args, kwd_names, nr_kwd_names, kwd_list, unused_p, fmt, va);
     va_end(va);
 
     if (ok)
@@ -2286,8 +2284,8 @@ static bool parse_kwd_args(PyObject *mod, const char *type_hint,
          * have the right signature.
          */
         va_copy(va, va_orig);
-        ok = parse_pass_2(ms, self, args, nr_pos_args, kwd_names, nr_kwd_names,
-                kwd_list, fmt, va);
+        ok = parse_pass_2(ms, self, self_was_arg, args, nr_pos_args, kwd_names,
+                nr_kwd_names, kwd_list, fmt, va);
         va_end(va);
 
         if (!ok)
@@ -2303,10 +2301,10 @@ static bool parse_kwd_args(PyObject *mod, const char *type_hint,
  * without any side effects.  Return true if the arguments matched.
  */
 static bool parse_pass_1(sipModuleState *ms, const char *type_hint,
-        PyObject **p_state_p, PyObject *self, PyObject *const *args,
-        Py_ssize_t nr_pos_args, PyObject *kwd_names, Py_ssize_t nr_kwd_names,
-        const char **kwd_list, PyObject **unused_p, const char *fmt,
-        va_list va)
+        PyObject **p_state_p, PyObject **self_p, bool *self_was_arg_p,
+        PyObject *const *args, Py_ssize_t nr_pos_args, PyObject *kwd_names,
+        Py_ssize_t nr_kwd_names, const char **kwd_list, PyObject **unused_p,
+        const char *fmt, va_list va)
 {
     sipSipModuleState *sms = ms->sip_module_state;
     int compulsory = TRUE;
@@ -2318,13 +2316,12 @@ static bool parse_pass_1(sipModuleState *ms, const char *type_hint,
         .detail_obj = NULL,
     };
 
-#if 0
     /*
      * Handle those format characters that deal with the "self" argument.  They
      * will always be the first one.
      */
     *self_p = NULL;
-    *self_in_args_p = FALSE;
+    *self_was_arg_p = false;
 
     switch (*fmt++)
     {
@@ -2350,7 +2347,7 @@ static bool parse_pass_1(sipModuleState *ms, const char *type_hint,
             else if (get_self_from_args(w_type, args, nr_pos_args, arg_nr, self_p))
             {
                 /* The call was cls.method(self, ...). */
-                *self_in_args_p = TRUE;
+                *self_was_arg_p = true;
                 ++arg_nr;
             }
             else
@@ -2383,7 +2380,8 @@ static bool parse_pass_1(sipModuleState *ms, const char *type_hint,
     default:
         --fmt;
     }
-#endif
+
+    int adjust = *self_was_arg_p ? 1 : 0;
 
     /*
      * Now handle the remaining arguments.  We continue to parse if we get an
@@ -2494,7 +2492,7 @@ static bool parse_pass_1(sipModuleState *ms, const char *type_hint,
                             break;
                         }
                     }
-                    else if (a < nr_pos_args)
+                    else if (a < nr_pos_args - adjust)
                     {
                         /*
                          * The argument has been given positionally and as a
@@ -2524,7 +2522,7 @@ static bool parse_pass_1(sipModuleState *ms, const char *type_hint,
         }
         else if (nr_kwd_names != 0 && kwd_list != NULL)
         {
-            const char *name = kwd_list[arg_nr];
+            const char *name = kwd_list[arg_nr - adjust];
 
             if (name != NULL)
             {
@@ -3478,7 +3476,7 @@ static bool parse_pass_1(sipModuleState *ms, const char *type_hint,
     /* Handle parse failures appropriately. */
 
     if (failure.reason == Ok)
-        return TRUE;
+        return true;
 
     if (failure.reason == Overflow)
     {
@@ -3518,7 +3516,7 @@ static bool parse_pass_1(sipModuleState *ms, const char *type_hint,
         Py_INCREF(Py_None);
     }
 
-    return FALSE;
+    return false;
 }
 
 
@@ -3526,7 +3524,7 @@ static bool parse_pass_1(sipModuleState *ms, const char *type_hint,
  * Second pass of the argument parse, converting the remaining ones that might
  * have side effects.  Return true if there was no error.
  */
-static bool parse_pass_2(sipModuleState *ms, PyObject *self,
+static bool parse_pass_2(sipModuleState *ms, PyObject *self, bool self_was_arg,
         PyObject *const *args, Py_ssize_t nr_pos_args, PyObject *kwd_names,
         Py_ssize_t nr_kwd_names, const char **kwd_list, const char *fmt,
         va_list va)
@@ -3534,7 +3532,6 @@ static bool parse_pass_2(sipModuleState *ms, PyObject *self,
     /* Handle the conversions of "self" first. */
     int isstatic = FALSE;
 
-#if 0
     switch (*fmt++)
     {
     case '#':
@@ -3556,7 +3553,7 @@ static bool parse_pass_2(sipModuleState *ms, PyObject *self,
             *p = sip_get_cpp_ptr(self, target_type);
 
             if (*p == NULL)
-                return FALSE;
+                return false;
 
             break;
         }
@@ -3573,7 +3570,7 @@ static bool parse_pass_2(sipModuleState *ms, PyObject *self,
             void **p = va_arg(va, void **);
 
             if ((*p = sip_get_complex_cpp_ptr(ms, self, type_id)) == NULL)
-                return FALSE;
+                return false;
 
             break;
         }
@@ -3586,12 +3583,12 @@ static bool parse_pass_2(sipModuleState *ms, PyObject *self,
     default:
         --fmt;
     }
-#endif
 
     Py_ssize_t arg_nr;
-    int ok = TRUE;
+    bool ok = true;
+    int adjust = self_was_arg ? 1 : 0;
 
-    for (arg_nr = 0; *fmt != '\0' && *fmt != 'W' && ok; arg_nr++)
+    for (arg_nr = adjust; *fmt != '\0' && *fmt != 'W' && ok; arg_nr++)
     {
         char ch;
         PyObject *arg;
@@ -3609,7 +3606,7 @@ static bool parse_pass_2(sipModuleState *ms, PyObject *self,
         }
         else if (kwd_names != NULL)
         {
-            const char *name = kwd_list[arg_nr];
+            const char *name = kwd_list[arg_nr - adjust];
 
             if (name != NULL)
                 arg = get_kwd_arg(args, nr_pos_args, kwd_names, nr_kwd_names,
@@ -3640,7 +3637,7 @@ static bool parse_pass_2(sipModuleState *ms, PyObject *self,
                 Py_ssize_t *nr_elem = va_arg(va, Py_ssize_t *);
 
                 if (arg != NULL && !convert_from_sequence(ms, arg, type_id, array, nr_elem))
-                    return FALSE;
+                    return false;
 
                 break;
             }
@@ -3671,7 +3668,7 @@ static bool parse_pass_2(sipModuleState *ms, PyObject *self,
                     }
                     else
                     {
-                        return FALSE;
+                        return false;
                     }
                 }
 
@@ -3729,7 +3726,7 @@ static bool parse_pass_2(sipModuleState *ms, PyObject *self,
                             statep, user_statep, &iserr);
 
                     if (iserr)
-                        return FALSE;
+                        return false;
 
                     if (owner != NULL && *p != NULL)
                         *owner = arg;
@@ -3803,7 +3800,7 @@ static bool parse_pass_2(sipModuleState *ms, PyObject *self,
                     }
 
                     if (PyErr_Occurred())
-                        return FALSE;
+                        return false;
 
                     *keep_p = keep;
                     *p = cp;
@@ -3839,7 +3836,7 @@ static bool parse_pass_2(sipModuleState *ms, PyObject *self,
                     }
 
                     if (PyErr_Occurred())
-                        return FALSE;
+                        return false;
 
                     *p = ch;
                 }
@@ -3874,7 +3871,7 @@ static bool parse_pass_2(sipModuleState *ms, PyObject *self,
 
         /* Create a tuple for any remaining arguments. */
         if ((al = PyTuple_New(nr_pos_args - arg_nr)) == NULL)
-            return FALSE;
+            return false;
 
         while (arg_nr < nr_pos_args)
         {
@@ -3892,7 +3889,7 @@ static bool parse_pass_2(sipModuleState *ms, PyObject *self,
         *va_arg(va, PyObject **) = al;
     }
 
-    return TRUE;
+    return true;
 }
 
 
