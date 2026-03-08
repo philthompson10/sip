@@ -7,14 +7,14 @@ from .....sip_module_configuration import SipModuleConfiguration
 
 from ....python_slots import is_number_slot, is_rich_compare_slot
 from ....scoped_name import ScopedName, STRIP_GLOBAL
-from ....specification import (Argument, ArgumentType, GILUse, IfaceFileType,
-        MappedType, MultiInterpreterSupport, PySlot, WrappedEnum,
-        WrappedVariable)
+from ....specification import (AccessSpecifier, Argument, ArgumentType, GILUse,
+        IfaceFileType, MappedType, Module, MultiInterpreterSupport, PySlot,
+        WrappedClass, WrappedEnum, WrappedVariable)
 from ....utils import find_method
 
 from ...formatters import fmt_class_as_scoped_py_name
 
-from ..snippets import (g_class_docstring, g_class_method_table,
+from ..snippets import (g_class_method_table, g_ctor_type_hint,
         g_method_docstring, g_module_docstring, g_overload_type_hint,
         g_py_slot, g_pyqt_class_plugin, g_pyqt_helper_defns,
         g_pyqt_helper_init, g_static_function, g_type_init_body)
@@ -96,7 +96,10 @@ f'''    if (target_cts == sipGetClassTypeSpec(context, {sc_type_ref}, NULL))
 
                 while ((sipExcHandler = sipNextExceptionHandler(sipModule, &sipHandlerModule, &sipExcState)) != SIP_NULLPTR)
                     if (sipExcHandler(sipHandlerModule, sipExcPtr))
+                    {
+                        sipSetParserError(sipPStateP);
                         return SIP_NULLPTR;
+                    }
 
 ''')
 
@@ -156,8 +159,7 @@ f'''
         module_name = module.py_name
 
         nr_static_variables, nr_types = static_variables_state
-
-        has_module_functions = self._g_module_functions_table(sf, module)
+        nr_callables = self._g_module_functions_table(sf, module)
 
         # Generate the pointer to the immutable SIP ABI structure that is
         # obtained from the sip module.  It is the only static variable used
@@ -218,8 +220,8 @@ static const sipModuleSpec sipModule_{module_name} = {{
             sf.write(f'    .attributes.nr_types = {nr_types},\n')
             sf.write(f'    .attributes.type_nrs = sipTypeNrs_{module_name},\n')
 
-        if has_module_functions:
-            sf.write(f'    .callables = sip_callables_{module_name},\n')
+        if nr_callables != 0:
+            sf.write(f'    .callables = sipCallables_{module_name},\n')
 
         if module.license is not None:
             sf.write('    .license = &module_license,\n')
@@ -245,7 +247,7 @@ static const sipModuleSpec sipModule_{module_name} = {{
         self._g_module_exec(sf)
         self._g_module_free(sf)
         self._g_module_traverse(sf)
-        self.g_module_definition(sf, has_module_functions=has_module_functions)
+        self.g_module_definition(sf, has_module_functions=(nr_callables != 0))
         self.g_module_init_start(sf)
 
         if spec.sip_module:
@@ -623,7 +625,7 @@ extern sipMappedTypeSpec sipTypeSpec_{module_name}_{mapped_type_name};
 
         if nr_methods != 0:
             fields.append(
-                    '.container.methods = sipMethods_' + mapped_type_name)
+                    '.container.callables = sipCallables_' + mapped_type_name)
 
         if not mapped_type.no_assignment_operator:
             fields.append('.assign = assign_' + mapped_type_name)
@@ -755,41 +757,44 @@ PyMODEXPORT_FUNC PyModExport_{module_name}({arg_type})
     return Py_NewRef(Py_NotImplemented);
 ''')
 
+    def g_py_method_end(self, sf, state, nr_signatures):
+        """ Generate the end of a method implementation. """
+
+        self.g_static_function_end(sf, state, nr_signatures)
+
+    def g_py_method_start(self, sf, bindings, klass, member, original_klass,
+            need_args, need_self):
+        """ Generate the start of a method implementation. """
+
+        spec = self.spec
+        name = klass.iface_file.fq_cpp_name.as_word + '_' + member.py_name.name
+
+        self._g_type_hints_docstring(sf, bindings, member,
+                original_klass.overloads, name,
+                is_method=not klass.is_hidden_namespace)
+
+        if not spec.c_bindings:
+            sf.write(f'extern "C" {{static PyObject *callable_{name}({self.get_py_method_args(is_impl=False)});}}\n')
+
+        sf.write(f'static PyObject *callable_{name}({self.get_py_method_args(is_impl=True, need_self=need_self, need_args=need_args)})\n{{\n')
+
+        return None
+
     def g_py_method_table(self, sf, bindings, members, scope):
         """ Generate a Python method table for a class or mapped type and
         return the number of entries.
         """
 
-        scope_name = scope.iface_file.fq_cpp_name.as_word
+        nr_callables = self._g_callables_table(sf, members, scope)
 
-        no_intro = True
+        if nr_callables != 0:
+            sf.write(
+'''    {}
+};
 
-        for member_nr, member in enumerate(members):
-            # Save the index in the table.
-            member.member_nr = member_nr
-
-            py_name = member.py_name
-            cached_py_name = self.cached_name_ref(py_name)
-
-            docstring = get_optional_ptr(
-                    has_method_docstring(bindings, member, scope.overloads),
-                    f'doc_{scope_name}_{py_name.name}')
-
-            if no_intro:
-                sf.write(
-f'''
-
-static PyMethodDef sipMethods_{scope_name}[] = {{
 ''')
 
-                no_intro = False
-
-            sf.write(f'    {{{cached_py_name}, SIP_MLMETH_CAST(meth_{scope_name}_{py_name.name}), METH_METHOD|METH_FASTCALL|METH_KEYWORDS, {docstring}}},\n')
-
-        if not no_intro:
-            sf.write('    {}\n};\n')
-
-        return len(members)
+        return nr_callables
 
     def g_sip_api(self, sf, module_name, module_state):
         """ Generate the SIP API as seen by generated code. """
@@ -842,12 +847,14 @@ f'''#define sipGetClassTypeSpec         sipABI_{module_name}->api_get_class_type
 #define sipIsDerivedClass           sipABI_{module_name}->api_is_derived_class
 #define sipIsPyMethod               sipABI_{module_name}->api_is_py_method
 #define sipNextExceptionHandler     sipABI_{module_name}->api_next_exception_handler
+#define sipNoCallable               sipABI_{module_name}->api_no_callable
 #define sipParseArgs                sipABI_{module_name}->api_parse_args
 #define sipParseKwdArgs             sipABI_{module_name}->api_parse_kwd_args
 #define sipParseVcKwdArgs           sipABI_{module_name}->api_parse_vc_kwd_args
 #define sipParsePair                sipABI_{module_name}->api_parse_pair
 #define sipPySlotExtend             sipABI_{module_name}->api_py_slot_extend
 #define sipRaiseUnknownException    sipABI_{module_name}->api_raise_unknown_exception
+#define sipSetParserError           sipABI_{module_name}->api_set_parser_error
 ''')
 
         # TODO These have yet to be reviewed.
@@ -972,49 +979,6 @@ f'''#define sipIsEnumFlag               sipAPI->api_is_enum_flag
                 need_intro = False
 
             sf.write(f'extern const sipEnumTypeSpec sipEnumTypeSpec_{module_name}_{enum.fq_cpp_name.as_word};\n')
-
-    def g_static_function_end(self, sf, state, nr_signatures):
-        """ Generate the end of a static function implementation. """
-
-        if nr_signatures != 0:
-            sf.write('\n    return SIP_NULLPTR;\n')
-
-        sf.write('}\n')
-
-    def g_static_function_start(self, sf, bindings, scope_py, member,
-            overloads):
-        """ Generate the start of a static function implementation. """
-
-        spec = self.spec
-        member_name = member.py_name.name
-
-        # Generate any type hints and docstrings.
-        type_hints, user_docstring = self._get_doc_details(member, overloads)
-
-        if type_hints:
-            sf.write(f'static const char *type_hints_{member_name}[] = {{\n')
-
-            for overload in callable_overloads(member, overloads):
-                sf.write('    "')
-                g_overload_type_hint(sf, spec, overload)
-                sf.write('",\n')
-
-            sf.write('};\n\n')
-
-        if user_docstring:
-            sf.write(f'PyDoc_STRVAR(doc_{member_name}, "')
-            g_method_docstring(sf, spec, bindings, member, overloads,
-                    default_to_type_hints=False)
-            sf.write('");\n\n')
-
-        if not spec.c_bindings:
-            sf.write(f'extern "C" {{static PyObject *callable_{member_name}({self.get_py_method_args(is_impl=False)});}}\n')
-
-        sf.write(f'static PyObject *callable_{member_name}({self.get_py_method_args(is_impl=True)})\n')
-
-        sf.write('{')
-
-        return None
 
     def g_slot_implementations(self, sf, bindings, scope, members):
         """ Generate the slot implementations for a scope. """
@@ -1152,6 +1116,33 @@ f'''    }}
             name = 'sipArg0' if member is not None and is_number_slot(member.py_slot) else 'sipSelf'
             sf.write(f'    PyObject *sipModule = sipGetModuleFromInstance({name});\n')
 
+    def g_static_function_end(self, sf, state, nr_signatures):
+        """ Generate the end of a static function implementation. """
+
+        if nr_signatures != 0:
+            sf.write('\n    return SIP_NULLPTR;\n')
+
+        sf.write('}\n')
+
+    def g_static_function_start(self, sf, bindings, scope_py, member,
+            overloads):
+        """ Generate the start of a static function implementation. """
+
+        spec = self.spec
+        member_name = member.py_name.name
+
+        self._g_type_hints_docstring(sf, bindings, member, overloads,
+                member_name)
+
+        if not spec.c_bindings:
+            sf.write(f'extern "C" {{static PyObject *callable_{member_name}({self.get_py_method_args(is_impl=False)});}}\n')
+
+        sf.write(f'static PyObject *callable_{member_name}({self.get_py_method_args(is_impl=True)})\n')
+
+        sf.write('{')
+
+        return None
+
     def g_static_variables_table(self, sf, scope=None):
         """ Generate the tables of static variables and types for a scope and
         return a 2-tuple of the length of each table.
@@ -1256,7 +1247,9 @@ f'''    }}
             sf.write(f'\nstatic const sipTypeID supers_{klass_name}[] = {{{supers}|SIP_TYPE_ID_SENTINEL}};\n')
 
         # Generate the docstring.
-        docstring_ref = g_class_docstring(sf, spec, bindings, klass)
+        # TODO Generate something to allow the creation of the docstring on the
+        # fly.
+        #docstring_ref = g_class_docstring(sf, spec, bindings, klass)
 
         # Generate the type definition itself.
         fields = []
@@ -1288,7 +1281,7 @@ f'''    }}
 
         if nr_methods != 0:
             fields.append(
-                    '.container.methods = sipMethods_' + klass_name)
+                    '.container.callables = sipCallables_' + klass_name)
 
         if nr_static_variables != 0:
             fields.append(
@@ -1305,8 +1298,9 @@ f'''    }}
         if slots_table is not None:
             fields.append('.container.py_slots = ' + slots_table)
 
-        if docstring_ref is not None:
-            fields.append('.docstring = ' + docstring_ref)
+        # TODO
+        #if docstring_ref is not None:
+        #    fields.append('.docstring = ' + docstring_ref)
 
         if nr_instance_variables != 0:
             fields.append(
@@ -1395,21 +1389,37 @@ sipClassTypeSpec sipTypeSpec_{module_name}_{klass_name} = {{
         spec = self.spec
         klass_name = klass.iface_file.fq_cpp_name.as_word
 
+        # Generate any type hints.
+        need_decl = True
+
+        for ctor in klass.ctors:
+            if ctor.access_specifier is AccessSpecifier.PRIVATE:
+                continue
+
+            if need_decl:
+                sf.write(f'static const char *sipTypeHints_{klass_name}[] = {{\n')
+                need_decl = False
+
+            sf.write('    "')
+            g_ctor_type_hint(sf, spec, bindings, klass, ctor)
+            sf.write('",\n')
+
+        if not need_decl:
+            sf.write('};\n\n')
+
         if not spec.c_bindings:
-            sf.write(f'extern "C" {{static void *init_type_{klass_name}(PyObject *, PyObject *const *, Py_ssize_t, PyObject *, PyObject **, PyObject **, PyObject **);}}\n')
+            sf.write(f'extern "C" {{static void *init_type_{klass_name}(PyObject *, PyObject **, PyObject *, PyObject *const *, Py_ssize_t, PyObject *, PyObject **, PyObject **);}}\n')
 
         sip_owner = 'sipOwner' if need_owner else ''
 
         sf.write(
-f'''static void *init_type_{klass_name}(PyObject *sipSelf, PyObject *const *sipArgs, Py_ssize_t sipNrArgs, PyObject *sipKwds, PyObject **sipUnused, PyObject **{sip_owner}, PyObject **sipParseErr)
+f'''static void *init_type_{klass_name}(PyObject *sipModule, PyObject **sipPStateP, PyObject *sipSelf, PyObject *const *sipArgs, Py_ssize_t sipNrArgs, PyObject *sipKwdNames, PyObject **sipUnused, PyObject **{sip_owner})
 {{
 ''')
 
-        self.g_slot_support_vars(sf, klass, None)
-
         g_type_init_body(self, sf, bindings, klass)
 
-        sf.write('}\n')
+        sf.write('}\n\n')
 
     @staticmethod
     def cached_name_ref(cached_name, as_nr=False):
@@ -1462,9 +1472,15 @@ f'''static void *init_type_{klass_name}(PyObject *sipSelf, PyObject *const *sipA
         dependent.
         """
 
-        args = 'PyObject *sipModule, PyObject **sipPStateP, ' if is_impl else 'PyObject *, PyObject **, '
+        if is_impl:
+            args = 'PyObject *sipModule, PyObject **sipPStateP, PyObject *'
 
-        args += 'PyObject *const *'
+            if need_self:
+                args += 'sipSelf'
+        else:
+            args = 'PyObject *, PyObject **, PyObject *'
+
+        args += ', PyObject *const *'
 
         if is_impl and need_args:
             args += 'sipArgs'
@@ -1480,6 +1496,13 @@ f'''static void *init_type_{klass_name}(PyObject *sipSelf, PyObject *const *sipA
             args += 'sipKwdNames'
 
         return args
+
+    @staticmethod
+    def get_raise_unknown_exception():
+        """ Return the call to raise an exception about an unknown exception.
+        """
+
+        return 'sipRaiseUnknownException(sipPStateP)'
 
     @staticmethod
     def get_result_parser():
@@ -1683,54 +1706,68 @@ static void module_free(void *mod_ptr)
 ''')
 
     @classmethod
-    def _g_module_function_table_entries(cls, sf, module, members,
-            has_module_functions=False):
-        """ Generate the entries in a table of callable specs for module
-        functions.
-        """
+    def _g_callables_table(cls, sf, members, scope, nr_callables=0):
+        """ Generate a table of callable specs for a list of functions. """
 
-        for member in members:
-            if member.py_slot is None:
-                if not has_module_functions:
-                    sf.write(f'static sipCallableSpec sip_callables_{module.py_name}[] = {{\n')
-                    has_module_functions = True
+        if isinstance(scope, Module):
+            name = scope.py_name
+            prefix = ''
+        else:
+            name = scope.iface_file.fq_cpp_name.as_word
 
-                type_hints, user_docstring = cls._get_doc_details(member,
-                        module.overloads)
+            if isinstance(scope, MappedType) or (isinstance(scope, WrappedClass) and scope.iface_file.type is IfaceFileType.NAMESPACE):
+                prefix = ''
+            else:
+                prefix = name + '_'
 
-                py_name = member.py_name.name
-                type_hints_ref = get_optional_ptr(type_hints,
-                        'type_hints_' + py_name)
-                docstring_ref = get_optional_ptr(user_docstring,
-                        'doc_' + py_name)
+        overloads = scope.overloads
 
-                sf.write(f'    {{"{py_name}", callable_{py_name}, {type_hints_ref}, {docstring_ref}}},\n')
+        for member_nr, member in enumerate(members):
+            # Save the member's index in case it is used by a property.
+            member.member_nr = member_nr
 
-        return has_module_functions
+            if nr_callables == 0:
+                sf.write(f'static sipCallableSpec sipCallables_{name}[] = {{\n')
+                nr_callables += 1
+
+            type_hints, user_docstring = cls._get_doc_details(member,
+                    overloads)
+
+            member_name = member.py_name.name
+            fq_name = prefix + member_name
+
+            type_hints_ref = get_optional_ptr(type_hints,
+                    'sipTypeHints_' + fq_name)
+            docstring_ref = get_optional_ptr(user_docstring, 'doc_' + fq_name)
+
+            sf.write(f'    {{"{member_name}", callable_{fq_name}, {type_hints_ref}, {docstring_ref}}},\n')
+
+        return nr_callables
 
     def _g_module_functions_table(self, sf, module):
-        """ Generate the table of module functions and return True if anything
-        was actually generated.
+        """ Generate the table of module functions and return the number
+        actually generated.
         """
 
-        has_module_functions = self._g_module_function_table_entries(sf,
-                module, module.global_functions)
+        # TODO Investigate why there can be module level slots.
+        functions = [f for f in module.global_functions if f.py_slot is None]
+
+        nr_callables = self._g_callables_table(sf, functions, module)
 
         # Generate the module functions for any hidden namespaces.
         for klass in self.spec.classes:
             if klass.iface_file.module is module and klass.is_hidden_namespace:
-                has_module_functions = self._g_module_function_table_entries(
-                        sf, module, klass.members,
-                        has_module_functions=has_module_functions)
+                nr_callables = self._g_callables_table(sf, klass,
+                        nr_callables=nr_callables)
 
-        if has_module_functions:
+        if nr_callables != 0:
             sf.write(
 '''    {}
 };
 
 ''')
 
-        return has_module_functions
+        return nr_callables
 
     @staticmethod
     def _g_module_traverse(sf):
@@ -1757,6 +1794,7 @@ static int module_traverse(PyObject *mod, visitproc visit, void *arg)
         klass_name = klass.iface_file.fq_cpp_name.as_word
 
         # Generate any property docstrings.
+        # TODO Review this now that type hints are separate.
         for prop in klass.properties:
             if prop.docstring is not None:
                 docstring = get_docstring_text(prop.docstring)
@@ -1774,15 +1812,16 @@ static sipPropertySpec {table_name}[] = {{
             fields = [f'.name = "{prop.name}"']
 
             getter_nr = find_method(klass, prop.getter).member_nr
-            fields.append(f'.getter = &sipMethods_{klass_name}[{getter_nr}]')
+            fields.append(f'.getter = &sipCallables_{klass_name}[{getter_nr}]')
 
             if prop.setter is not None:
                 setter_nr = find_method(klass, prop.setter).member_nr
                 fields.append(
-                        f'.setter = &sipMethods_{klass_name}[{setter_nr}]')
+                        f'.setter = &sipCallables_{klass_name}[{setter_nr}]')
 
-            if prop.docstring is not None:
-                fields.append(f'.docstring = doc_{klass_name}_{prop.name}')
+            # TODO
+            #if prop.docstring is not None:
+            #    fields.append(f'.docstring = doc_{klass_name}_{prop.name}')
 
             fields = ', '.join(fields)
 
@@ -1851,6 +1890,30 @@ static PyType_Slot {table_name}[] = {{
             table_name = None
 
         return table_name
+
+    def _g_type_hints_docstring(self, sf, bindings, member, overloads, name,
+            is_method=False):
+        """ Generate any type hints and docstring. """
+
+        spec = self.spec
+        type_hints, user_docstring = self._get_doc_details(member, overloads)
+
+        if type_hints:
+            sf.write(f'static const char *sipTypeHints_{name}[] = {{\n')
+
+            for overload in callable_overloads(member, overloads):
+                sf.write('    "')
+                g_overload_type_hint(sf, spec, overload)
+                sf.write('",\n')
+
+            sf.write('};\n\n')
+
+        # TODO Generate the docstring on the fly?
+        if user_docstring:
+            sf.write(f'PyDoc_STRVAR(doc_{name}, "')
+            g_method_docstring(sf, spec, bindings, member, overloads,
+                    default_to_type_hints=False, is_method=is_method)
+            sf.write('");\n\n')
 
     def _g_variables_table(self, sf, scope, *, for_unbound):
         """ Generate the table of either bound or unbound variables for a scope

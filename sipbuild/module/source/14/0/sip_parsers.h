@@ -54,6 +54,8 @@ void *sip_api_force_convert_to_type_us(PyObject *mod, PyObject *pyObj,
         sipTypeID type_id, PyObject *transferObj, int flags, int *statep,
         void **user_statep, int *iserrp);
 PyObject *sip_api_get_pyobject(PyObject *mod, void *cppPtr, sipTypeID type_id);
+void sip_api_no_callable(PyObject *p_state, const char *scope,
+        const char *name);
 bool sip_api_parse_args(PyObject *mod, const char *type_hint,
         PyObject **p_state_p, PyObject *args, const char *fmt, ...);
 bool sip_api_parse_kwd_args(PyObject *mod, const char *type_hint,
@@ -73,6 +75,7 @@ void sip_api_release_type(PyObject *mod, void *cpp, sipTypeID type_id,
         int state);
 void sip_api_release_type_us(PyObject *mod, void *cpp, sipTypeID type_id,
         int state, void *user_state);
+void sip_api_set_parser_error(PyObject **p_state_p);
 
 PyObject *sip_convert_from_type(sipModuleState *ms, void *cppPtr,
         sipTypeID type_id, PyObject *transferObj);
@@ -81,7 +84,6 @@ void *sip_force_convert_to_type_us(sipModuleState *ms, PyObject *pyObj,
         void **user_statep, int *iserrp);
 PyObject *sip_is_py_method(sipModuleState *ms, sip_gilstate_t *gil,
         char *pymc, PyObject **self_p, const char *cname, const char *mname);
-void sip_no_callable(PyObject *p_state, const char *scope, const char *method);
 void sip_release(void *addr, const sipTypeSpec *td, int state,
         void *user_state);
 int sip_vectorcall_create(PyObject *args, PyObject *kwargs,

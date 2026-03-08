@@ -20,6 +20,7 @@
 
 #include "sip.h"
 #include "sip_array.h"
+#include "sip_callable.h"
 #include "sip_enum.h"
 #include "sip_int_convertors.h"
 #include "sip_method_descriptor.h"
@@ -57,7 +58,7 @@ static void sip_api_bad_class(const char *classname);
 static PyObject *sip_api_is_py_method(PyObject *mod, sip_gilstate_t *gil,
         char *pymc, PyObject **self_p, const char *cname, const char *mname);
 static void sip_api_call_hook(const char *hookname);
-static void sip_api_raise_unknown_exception(void);
+static void sip_api_raise_unknown_exception(PyObject **p_state_p);
 static void sip_api_raise_type_exception(PyObject *mod, sipTypeID type_id,
         void *ptr);
 static int sip_api_add_type_instance(PyObject *mod, PyObject *dict,
@@ -237,6 +238,7 @@ const sipABISpec sip_abi = {
     sip_api_parse_kwd_args,
     sip_api_parse_pair,
     sip_api_parse_vc_kwd_args,
+    sip_api_no_callable,
     sip_api_abstract_method,
     sip_api_bad_class,
     sip_api_get_class_type_spec,
@@ -246,6 +248,7 @@ const sipABISpec sip_abi = {
     sip_api_end_thread,
     sip_api_raise_unknown_exception,
     sip_api_raise_type_exception,
+    sip_api_set_parser_error,
     sip_api_add_type_instance,
     sip_api_bad_operator_arg,
     sip_api_py_slot_extend,
@@ -280,6 +283,8 @@ const sipABISpec sip_abi = {
 /* Forward references. */
 static void call_py_dtor(sipModuleState *ms, PyObject *self);
 static int compare_typedef_name(const void *key, const void *el);
+static PyObject *create_callable(sipModuleState *ms,
+        const sipCallableSpec *c_spec);
 static PyTypeObject *create_class_type(sipModuleState *ms, sipTypeNr type_nr,
         const sipClassTypeSpec *ctd);
 static PyTypeObject *create_container_type(sipModuleState *ms,
@@ -287,12 +292,10 @@ static PyTypeObject *create_container_type(sipModuleState *ms,
         PyObject *bases, PyTypeObject *metatype);
 static PyTypeObject *create_exception_type(sipModuleState *ms,
         const sipExceptionTypeSpec *ets);
-static PyObject *create_function(const PyMethodDef *ml,
-        PyTypeObject *defining_class);
 static PyTypeObject *create_mapped_type(sipModuleState *ms, sipTypeNr type_nr,
         const sipMappedTypeSpec *mts);
-static PyObject *create_property(const sipPropertySpec *ps,
-        PyTypeObject *defining_class);
+static PyObject *create_property(sipModuleState *ms,
+        const sipPropertySpec *ps);
 static PyTypeObject *find_registered_py_type(sipSipModuleState *sms,
         const char *name);
 static PyObject *import_module_attr(const char *module, const char *attr);
@@ -565,7 +568,7 @@ static PyObject *sip_api_get_module(const void *mod_token)
     if (modules == NULL)
         return NULL;
 
-    Py_ssize_t pos;
+    Py_ssize_t pos = 0;
     PyObject *name, *module;
 
     while (PyDict_Next(modules, &pos, &name, &module))
@@ -575,6 +578,8 @@ static PyObject *sip_api_get_module(const void *mod_token)
         if (PyModule_GetToken(module, &token) < 0)
             goto ret_error;
 
+        // TODO Should be check that there is only one?  The user can use
+        // tricks to import a module more than once.
         if (token == mod_token)
         {
             Py_DECREF(modules);
@@ -900,21 +905,18 @@ static PyTypeObject *create_container_type(sipModuleState *ms,
      * Add the descriptors for the methods.  The dict is created by the
      * PyType_Ready() call in PyType_FromMetaclass().
      */
-    // TODO
-#if 0
-    if (cs->methods != NULL)
+    if (cs->callables != NULL)
     {
-        const PyMethodDef *pmd;
+        const sipCallableSpec *c_spec;
 
-        for (pmd = cs->methods; pmd->ml_name != NULL; pmd++)
+        for (c_spec = cs->callables; c_spec->name != NULL; c_spec++)
         {
-            PyObject *descr = sipMethodDescr_New(sms, pmd, w_type);
+            PyObject *descr = sipMethodDescr_New(sms, c_spec, wt->wt_d_mod);
 
-            if (sip_dict_set_and_discard(w_type->tp_dict, pmd->ml_name, descr) < 0)
+            if (sip_dict_set_and_discard(w_type->tp_dict, c_spec->name, descr) < 0)
                 goto rel_type;
         }
     }
-#endif
 
     /* Fix the type's name attributes. */
     if (cs->scope_id != sipTypeID_Invalid)
@@ -1111,7 +1113,7 @@ static PyTypeObject *create_class_type(sipModuleState *ms, sipTypeNr type_nr,
 
         for (ps = cts->properties; ps->name != NULL; ps++)
         {
-            PyObject *prop = create_property(ps, py_type);
+            PyObject *prop = create_property(ms, ps);
 
             if (sip_dict_set_and_discard(py_type->tp_dict, ps->name, prop) < 0)
                 goto discard_py_type;
@@ -1282,17 +1284,16 @@ static PyTypeObject *create_mapped_type(sipModuleState *ms, sipTypeNr type_nr,
 /*
  * Create and return a Python property.
  */
-static PyObject *create_property(const sipPropertySpec *ps,
-        PyTypeObject *defining_class)
+static PyObject *create_property(sipModuleState *ms, const sipPropertySpec *ps)
 {
     PyObject *prop, *fget, *fset, *doc;
 
     prop = fget = fset = doc = NULL;
 
-    if ((fget = create_function(ps->getter, defining_class)) == NULL)
+    if ((fget = create_callable(ms, ps->getter)) == NULL)
         goto done;
 
-    if ((fset = create_function(ps->setter, defining_class)) == NULL)
+    if ((fset = create_callable(ms, ps->setter)) == NULL)
         goto done;
 
     if (ps->docstring == NULL)
@@ -1317,14 +1318,16 @@ done:
 
 
 /*
- * Return a PyCFunction as an object or Py_None if there isn't one.
+ * Return a callable or Py_None if there isn't one.
  */
-static PyObject *create_function(const PyMethodDef *ml,
-        PyTypeObject *defining_class)
+static PyObject *create_callable(sipModuleState *ms,
+        const sipCallableSpec *c_spec)
 {
-    return ml != NULL ?
-            PyCMethod_New((PyMethodDef *)ml, NULL, NULL, defining_class) :
-            Py_NewRef(Py_None);
+    if (c_spec == NULL)
+        return Py_NewRef(Py_None);
+
+    return sipCallable_New(ms->sip_module_state, c_spec, ms->wrapped_module,
+            NULL);
 }
 
 
@@ -2195,11 +2198,12 @@ static void sip_api_call_hook(const char *hookname)
 /*
  * Raise an unknown exception.  Make no assumptions about the GIL.
  */
-static void sip_api_raise_unknown_exception(void)
+static void sip_api_raise_unknown_exception(PyObject **p_state_p)
 {
     SIP_BLOCK_THREADS
 
     PyErr_SetObject(PyExc_Exception, PyUnicode_InternFromString("unknown"));
+    sip_api_set_parser_error(p_state_p);
 
     SIP_UNBLOCK_THREADS
 }
@@ -3461,6 +3465,8 @@ void sip_raise_no_convert_from(const sipTypeSpec *td)
 /*
  * Return the next exception handler.  The order is undefined.
  */
+// TODO Check was state the GIL will be in.  This code assumes it is held but
+// the example %RaiseCode and sipRaiseUnkownException() don't.
 static sipExceptionHandler sip_api_next_exception_handler(PyObject *mod,
         PyObject **handler_module_p, Py_ssize_t *statep)
 {

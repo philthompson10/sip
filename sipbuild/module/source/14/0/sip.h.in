@@ -84,12 +84,6 @@ typedef unsigned int uint;
 /* Some C++ compatibility stuff. */
 #if defined(__cplusplus)
 
-/*
- * Cast to a PyCFunction in such a way that it suppresses the GCC
- * -Wcast-function-type warning.
- */
-#define SIP_MLMETH_CAST(m)  reinterpret_cast<PyCFunction>(reinterpret_cast<void (*)(void)>(m))
-
 #if __cplusplus >= 201103L || defined(_MSVC_LANG)
 
 /* C++11 and later. */
@@ -105,10 +99,6 @@ typedef unsigned int uint;
 #endif
 
 #else
-
-/* Cast to a PyCFunction. */
-// TODO Remove this.
-#define SIP_MLMETH_CAST(m)  ((PyCFunction)(m))
 
 /* C. */
 #define SIP_NULLPTR     NULL
@@ -231,7 +221,7 @@ typedef void *(*sipArrayFunc)(Py_ssize_t);
 typedef void (*sipArrayDeleteFunc)(void *);
 typedef void (*sipAssignFunc)(void *, Py_ssize_t, void *);
 // TODO Pass sipModule's state instead of sipModule.
-typedef PyObject *(*sipCallableImplFunc)(PyObject *, PyObject **,
+typedef PyObject *(*sipCallableImplFunc)(PyObject *, PyObject **, PyObject *,
         PyObject *const *, Py_ssize_t, PyObject *);
 typedef void *(*sipCastFunc)(void *, void *, const sipClassTypeSpec *);
 typedef int (*sipClearFunc)(void *);
@@ -240,8 +230,9 @@ typedef int (*sipConvertToFunc)(PyObject *, PyObject *, void **, int *,
         PyObject *, void **);
 typedef void *(*sipCopyFunc)(const void *, Py_ssize_t);
 typedef void (*sipDeallocFunc)(PyObject *);
-typedef void *(*sipInitFunc)(PyObject *, PyObject *const *, Py_ssize_t,
-        PyObject *, PyObject **, PyObject **, PyObject **);
+// TODO Pass sipModule's state instead of sipModule.
+typedef void *(*sipInitFunc)(PyObject *, PyObject **, PyObject *,
+        PyObject *const *, Py_ssize_t, PyObject *, PyObject **, PyObject **);
 typedef int (*sipFinalFunc)(PyObject *, void *, PyObject *, PyObject **);
 typedef int (*sipGetBufferFuncLimited)(PyObject *, void *, sipBufferDef *);
 typedef PyObject *(*sipPickleFunc)(void *);
@@ -521,24 +512,6 @@ typedef struct _sipTypedefSpec {
 
 
 /*
- * The immutable specification of a property.
- */
-typedef struct _sipPropertySpec {
-    /* The name. */
-    const char *name;
-
-    /* The getter. */
-    const PyMethodDef *getter;
-
-    /* The setter. */
-    const PyMethodDef *setter;
-
-    /* The docstring. */
-    const char *docstring;
-} sipPropertySpec;
-
-
-/*
  * The immutable specification of the unbound wrapped attributes of either a
  * module or a type.
  */
@@ -579,6 +552,24 @@ typedef struct {
     /* The optional user supplied docstring. */
     const char *docstring;
 } sipCallableSpec;
+
+
+/*
+ * The immutable specification of a property.
+ */
+typedef struct _sipPropertySpec {
+    /* The name. */
+    const char *name;
+
+    /* The getter. */
+    const sipCallableSpec *getter;
+
+    /* The setter. */
+    const sipCallableSpec *setter;
+
+    /* The docstring. */
+    const char *docstring;
+} sipPropertySpec;
 
 
 /*
@@ -645,6 +636,8 @@ struct _sipClassTypeSpec {
     sipContainerSpec container;
 
     /* The docstring. */
+    // TODO Implement this as a getter and create it on the fly including any
+    // init extenders.
     const char *docstring;
 
     /* The table of instance variables. */
@@ -1098,6 +1091,8 @@ struct _sipABISpec {
             PyObject **p_state_p, PyObject *const *args,
             Py_ssize_t nr_pos_args, PyObject *kwd_names, const char **kwd_list,
             PyObject **unused_p, const char *fmt, ...);
+    void (*api_no_callable)(PyObject *p_state, const char *scope,
+            const char *name);
     void (*api_abstract_method)(const char *classname, const char *method);
     void (*api_bad_class)(const char *classname);
     const sipClassTypeSpec *(*api_get_class_type_spec)(void *context,
@@ -1109,9 +1104,10 @@ struct _sipABISpec {
             const char *mname);
     void (*api_call_hook)(const char *hookname);
     void (*api_end_thread)(PyObject *mod);
-    void (*api_raise_unknown_exception)(void);
+    void (*api_raise_unknown_exception)(PyObject **p_state_p);
     void (*api_raise_type_exception)(PyObject *mod, sipTypeID type_id,
             void *ptr);
+    void (*api_set_parser_error)(PyObject **p_state_p);
     int (*api_add_type_instance)(PyObject *mod, PyObject *dict,
             const char *name, void *cppPtr, sipTypeID type_id);
     void (*api_bad_operator_arg)(PyObject *self, PyObject *arg, int slot_id);

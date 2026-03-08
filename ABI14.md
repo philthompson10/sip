@@ -151,6 +151,7 @@ These are the remaining broad areas of work.
 - Multiple inheritance tests (especially across modules).
 - Resolve issue #100 (`const` enforcement).
 - Use `tp_token` instead of `wt_td`?
+- Docstrings (taking account of extenders).
 - Abstract classes.
 - Events.
 - Buffer protocol.

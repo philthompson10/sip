@@ -189,7 +189,7 @@ int sip_api_module_exec(PyObject *mod, const sipModuleSpec *m_spec)
 
         while (c_spec->name != NULL)
         {
-            PyObject *callable = sipCallable_New(sms, c_spec, mod);
+            PyObject *callable = sipCallable_New(sms, c_spec, mod, NULL);
             int rc = PyModule_AddObjectRef(mod, c_spec->name, callable);
             Py_XDECREF(callable);
 

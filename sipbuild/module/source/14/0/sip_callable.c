@@ -29,6 +29,9 @@ typedef struct {
     /* A strong reference to the defining module. */
     PyObject *defining_module;
 
+    /* A strong reference to the optional self object. */
+    PyObject *self;
+
     /* The vectorcall implementation. */
     vectorcallfunc vectorcall;
 } CallableObject;
@@ -75,7 +78,8 @@ static PyType_Spec Callable_TypeSpec = {
  * Return a new callable.
  */
 PyObject *sipCallable_New(sipSipModuleState *sms,
-        const sipCallableSpec *c_spec, PyObject *defining_module)
+        const sipCallableSpec *c_spec, PyObject *defining_module,
+        PyObject *self)
 {
     // TODO Investigate the optimisations implemented by PyCMethod, specifially
     // to reduce heap allocations.
@@ -86,6 +90,7 @@ PyObject *sipCallable_New(sipSipModuleState *sms,
     {
         callable->c_spec = c_spec;
         callable->defining_module = Py_NewRef(defining_module);
+        callable->self = Py_XNewRef(self);
         callable->vectorcall = (vectorcallfunc)Callable_vectorcall;
     }
 
@@ -99,6 +104,7 @@ PyObject *sipCallable_New(sipSipModuleState *sms,
 static int Callable_clear(CallableObject *self)
 {
     Py_CLEAR(self->defining_module);
+    Py_CLEAR(self->self);
 
     return 0;
 }
@@ -124,6 +130,7 @@ static int Callable_traverse(CallableObject *self, visitproc visit, void *arg)
 {
     Py_VISIT(Py_TYPE(self));
     Py_VISIT(self->defining_module);
+    Py_VISIT(self->self);
 
     return 0;
 }
@@ -135,16 +142,15 @@ static int Callable_traverse(CallableObject *self, visitproc visit, void *arg)
 static PyObject *Callable_vectorcall(CallableObject *self,
         PyObject *const *args, size_t nargsf, PyObject *kwnames)
 {
-    // TODO Handle things other than module callables.
     PyObject *p_state = NULL;
 
     PyObject *res = self->c_spec->callable_impl(self->defining_module,
-            &p_state, args, PyVectorcall_NARGS(nargsf), kwnames);
+            &p_state, self->self, args, PyVectorcall_NARGS(nargsf), kwnames);
 
     if (res != NULL)
         return res;
 
-    sip_no_callable(p_state, NULL, self->c_spec->name);
+    sip_api_no_callable(p_state, NULL, self->c_spec->name);
 
     return NULL;
 }

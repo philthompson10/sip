@@ -480,9 +480,9 @@ static int SimpleWrapper_init(PyObject *self, PyObject *args,
 
     if (sipNew == NULL)
     {
-        PyObject *parseErr = NULL, **unused_p = NULL;
-
         /* See if we are interested in any unused keyword arguments. */
+        PyObject **unused_p = NULL;
+
         if (sipTypeCallSuperInit(&ctd->base) || final_func != NULL)
             unused_p = &unused;
 
@@ -494,14 +494,15 @@ static int SimpleWrapper_init(PyObject *self, PyObject *args,
         PyObject *small_argv[SMALL_ARGV];
         Py_ssize_t argv_len = SMALL_ARGV;
 
+        PyObject *p_state_p = NULL;
         PyObject **argv, *kw_names;
         Py_ssize_t nr_pos_args;
 
         if (sip_vectorcall_create(args, kwargs, small_argv, &argv_len, &argv, &nr_pos_args, &kw_names) < 0)
             return -1;
 
-        sipNew = ctd->init(self, argv, nr_pos_args, kw_names, unused_p,
-                (PyObject **)&owner, &parseErr);
+        sipNew = ctd->init(wt->wt_d_mod, &p_state_p, self, argv, nr_pos_args,
+                kw_names, unused_p, (PyObject **)&owner);
 
         sip_vectorcall_dispose(small_argv, argv, argv_len, kw_names);
 
@@ -509,12 +510,13 @@ static int SimpleWrapper_init(PyObject *self, PyObject *args,
         {
             sipFlags = SIP_DERIVED_CLASS;
         }
-        else if (parseErr == NULL)
+        else if (p_state_p == Py_None)
         {
             /*
              * The C++ ctor must have raised an exception which has been
              * translated to a Python exception.
              */
+            Py_DECREF(p_state_p);
             return -1;
         }
         else
@@ -526,10 +528,10 @@ static int SimpleWrapper_init(PyObject *self, PyObject *args,
              * If we have not found an appropriate overload then try any
              * extenders.
              */
-            while (PyList_Check(parseErr) && ie != NULL)
+            while (PyList_Check(p_state_p) && ie != NULL)
             {
                 sipNew = ie->extender(self, args, kwd_args, &unused,
-                        (PyObject **)&owner, &parseErr);
+                        (PyObject **)&owner, &p_state_p);
 
                 if (sipNew != NULL)
                     break;
@@ -540,7 +542,7 @@ static int SimpleWrapper_init(PyObject *self, PyObject *args,
 
             if (sipNew == NULL)
             {
-                sip_no_callable(parseErr, NULL, ctd->base.fq_py_name);
+                sip_api_no_callable(p_state_p, NULL, ctd->base.fq_py_name);
                 return -1;
             }
 

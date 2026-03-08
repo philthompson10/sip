@@ -130,7 +130,6 @@ static int parse_result(sipModuleState *ms, PyObject *method, PyObject *res,
 static void raise_no_convert_to(PyObject *py, const sipTypeSpec *td);
 static void release_type_us(sipModuleState *ms, void *cpp, sipTypeID type_id,
         int state, void *user_state);
-static void set_parser_error(PyObject **p_state_p);
 static int user_state_is_valid(const sipTypeSpec *td, void **user_statep);
 
 
@@ -166,7 +165,7 @@ void sip_api_add_exception(sipErrorState es, PyObject **p_state_p)
     }
 
     if (es == sipErrorFail)
-        set_parser_error(p_state_p);
+        sip_api_set_parser_error(p_state_p);
 }
 
 
@@ -503,7 +502,8 @@ PyObject *sip_api_get_pyobject(PyObject *mod, void *cppPtr, sipTypeID type_id)
 /*
  * Report a callable with invalid argument types.
  */
-void sip_no_callable(PyObject *p_state, const char *scope, const char *method)
+void sip_api_no_callable(PyObject *p_state, const char *scope,
+        const char *name)
 {
     const char *sep = ".";
 
@@ -516,8 +516,9 @@ void sip_no_callable(PyObject *p_state, const char *scope, const char *method)
          * If we have got this far without trying a parse then there must be no
          * overloads.
          */
+        // TODO Or it may be that all ctor's are private - better message.
         PyErr_Format(PyExc_TypeError, "%s%s%s() is a private method", scope,
-                sep, method);
+                sep, name);
     }
     else if (PyList_Check(p_state))
     {
@@ -536,7 +537,7 @@ void sip_no_callable(PyObject *p_state, const char *scope, const char *method)
                     exc = PyUnicode_FromFormat("%s: %U", type_hint, detail);
                 else
                     exc = PyUnicode_FromFormat("%s%s%s(): %U", scope, sep,
-                            method, detail);
+                            name, detail);
 
                 Py_DECREF(detail);
             }
@@ -553,7 +554,7 @@ void sip_no_callable(PyObject *p_state, const char *scope, const char *method)
             //if (doc != NULL)
             //    exc = PyUnicode_FromString(summary);
             //else
-                exc = PyUnicode_FromFormat("%s%s%s(): %s", scope, sep, method,
+                exc = PyUnicode_FromFormat("%s%s%s(): %s", scope, sep, name,
                         summary);
 
             Py_ssize_t i;
@@ -628,7 +629,7 @@ bool sip_api_parse_args(PyObject *mod, const char *type_hint,
 
     if (sip_vectorcall_create(args, NULL, small_argv, &argv_len, &argv, &nr_pos_args, NULL) < 0)
     {
-        set_parser_error(p_state_p);
+        sip_api_set_parser_error(p_state_p);
         return FALSE;
     }
 
@@ -663,7 +664,7 @@ bool sip_api_parse_kwd_args(PyObject *mod, const char *type_hint,
 
     if (sip_vectorcall_create(args, kwargs, small_argv, &argv_len, &argv, &nr_pos_args, &kwd_names) < 0)
     {
-        set_parser_error(p_state_p);
+        sip_api_set_parser_error(p_state_p);
         return FALSE;
     }
 
@@ -2221,7 +2222,7 @@ static void handle_failed_type_conversion(sipParseFailure *pf, PyObject *arg)
 /*
  * Set the parser state to indicate that there has been an error.
  */
-static void set_parser_error(PyObject **p_state_p)
+void sip_api_set_parser_error(PyObject **p_state_p)
 {
     PyObject *p_state = *p_state_p;
 
@@ -2289,7 +2290,7 @@ static bool parse_kwd_args(PyObject *mod, const char *type_hint,
         va_end(va);
 
         if (!ok)
-            set_parser_error(p_state_p);
+            sip_api_set_parser_error(p_state_p);
     }
 
     return ok;

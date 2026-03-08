@@ -3,7 +3,7 @@
 /*
  * The implementation of the method descriptor type.
  *
- * Copyright (c) 2025 Phil Thompson <phil@riverbankcomputing.com>
+ * Copyright (c) 2026 Phil Thompson <phil@riverbankcomputing.com>
  */
 
 
@@ -11,6 +11,7 @@
 
 #include "sip_method_descriptor.h"
 
+#include "sip_callable.h"
 #include "sip_module.h"
 
 
@@ -120,6 +121,13 @@ PyObject *sipMethodDescr_Copy(sipSipModuleState *sms, PyObject *orig,
 static PyObject *MethodDescr_descr_get(MethodDescr *self, PyObject *obj,
         PyObject *type)
 {
+    sipModuleState *ms = (sipModuleState *)PyModule_GetState(
+            self->defining_module);
+    if (ms == NULL)
+        return NULL;
+
+    // TODO We could tell the callable about the nature of 'self' (mixin?) but
+    // for the moment we use the legacy introspection in the parser.
     PyObject *bind;
 
     if (obj == NULL)
@@ -140,13 +148,12 @@ static PyObject *MethodDescr_descr_get(MethodDescr *self, PyObject *obj,
         bind = Py_NewRef(obj);
     }
 
-    // TODO
-    //PyObject *func = PyCMethod_New(self->c_spec, bind, NULL,
-    //        self->defining_module);
-    PyObject *func = Py_NewRef(PyExc_NotImplementedError);
+    // TODO Pass the module state rather than the module.
+    PyObject *callable = sipCallable_New(ms->sip_module_state, self->c_spec,
+            self->defining_module, bind);
     Py_DECREF(bind);
 
-    return func;
+    return callable;
 }
 
 
