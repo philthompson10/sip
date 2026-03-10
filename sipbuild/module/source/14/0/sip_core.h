@@ -81,7 +81,9 @@ int sip_api_deprecated(const char *classname, const char *method,
 int sip_api_enable_autoconversion(PyTypeObject *w_type, int enable);
 void sip_api_free(void *mem);
 void *sip_api_get_address(PyObject *w_inst);
-void *sip_api_get_cpp_ptr(PyObject *mod, PyObject *w_inst, sipTypeID type_id);
+void *sip_api_get_cpp_ptr(sipModuleState *ms, PyObject *w_inst,
+        sipTypeID type_id);
+PyTypeObject *sip_api_get_py_type(sipModuleState *ms, sipTypeID type_id);
 void *sip_api_malloc(size_t nbytes);
 
 
@@ -114,7 +116,6 @@ int sip_get_local_py_type(sipModuleState *wms, sipTypeNr type_nr,
         PyTypeObject **py_type_p);
 const sipTypeSpec *sip_get_type_detail(sipModuleState *wms, sipTypeID type_id,
         PyTypeObject **py_type_p, sipModuleState **defining_wms_p);
-PyTypeObject *sip_get_py_type(sipModuleState *ms, sipTypeID type_id);
 PyTypeObject *sip_get_py_type_from_name(sipSipModuleState *sms,
         PyObject *target_module_name_obj, const char *target_type_name);
 int sip_is_subtype(sipModuleState *wms, const sipClassTypeSpec *ctd,

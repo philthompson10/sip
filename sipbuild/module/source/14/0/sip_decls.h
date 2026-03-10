@@ -10,9 +10,6 @@
 #ifndef _SIP_DECLS_H
 #define _SIP_DECLS_H
 
-struct _sipModuleState;
-typedef struct _sipModuleState sipModuleState;
-
 struct _sipSimpleWrapper;
 typedef struct _sipSimpleWrapper sipSimpleWrapper;
 

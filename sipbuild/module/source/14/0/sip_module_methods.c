@@ -401,7 +401,7 @@ static PyObject *meth_wrapinstance(PyObject *smod, PyObject *args)
     if (!PyArg_ParseTuple(args, "KO!:wrapinstance", &addr, sms->wrapper_type_type, &wt))
         return NULL;
 
-    return sip_convert_from_type(sms, (void *)addr,
+    return sip_api_convert_from_type(sms, (void *)addr,
             sip_get_type_spec_from_wt(wt), NULL);
 #else
     return NULL;

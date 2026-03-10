@@ -41,8 +41,8 @@ class v14Backend(AbstractBackend):
 f'''
 
 /* Cast a pointer to a type somewhere in its inheritance hierarchy. */
-extern "C" {{static void *cast_{as_word}(void *, void *, const sipClassTypeSpec *);}}
-static void *cast_{as_word}(void *context, void *sipCppV, const sipClassTypeSpec *target_cts)
+extern "C" {{static void *cast_{as_word}(sipModuleState *, void *, const sipClassTypeSpec *);}}
+static void *cast_{as_word}(sipModuleState *sipMS, void *sipCppV, const sipClassTypeSpec *target_cts)
 {{
     {get_class_from_void(spec, klass)};
 
@@ -60,13 +60,13 @@ static void *cast_{as_word}(void *context, void *sipCppV, const sipClassTypeSpec
 
             if len(superclass.superclasses) != 0:
                 if needs_new_context:
-                    sf.write('    void *sc_context;\n\n')
+                    sf.write('    sipModuleState *sc_ms;\n\n')
                     needs_new_context = False
 
                 # Delegate to the super-class's cast function.  This will
                 # handle virtual and non-virtual diamonds.
                 sf.write(
-f'''    sipCppV = sipGetClassTypeSpec(context, {sc_type_ref}, &sc_context)->cast(sc_context, static_cast<{sc_scope_s} *>(sipCpp), target_cts);
+f'''    sipCppV = sipGetClassTypeSpec(sipMS, {sc_type_ref}, &sc_ms)->cast(sc_ms, static_cast<{sc_scope_s} *>(sipCpp), target_cts);
     if (sipCppV)
         return sipCppV;
 
@@ -75,7 +75,7 @@ f'''    sipCppV = sipGetClassTypeSpec(context, {sc_type_ref}, &sc_context)->cast
                 # The super-class is a base class and so doesn't have a cast
                 # function.  It also means that a simple check will do instead.
                 sf.write(
-f'''    if (target_cts == sipGetClassTypeSpec(context, {sc_type_ref}, NULL))
+f'''    if (target_cts == sipGetClassTypeSpec(sipMS, {sc_type_ref}, NULL))
         return static_cast<{sc_scope_s} *>(sipCpp);
 
 ''')
@@ -90,12 +90,12 @@ f'''    if (target_cts == sipGetClassTypeSpec(context, {sc_type_ref}, NULL))
 
         sf.write(
 '''                Py_ssize_t sipExcState = 0;
-                PyObject *sipHandlerModule;
+                sipModuleState *sipHandlerMS;
                 sipExceptionHandler sipExcHandler;
                 std::exception_ptr sipExcPtr = std::current_exception();
 
-                while ((sipExcHandler = sipNextExceptionHandler(sipModule, &sipHandlerModule, &sipExcState)) != SIP_NULLPTR)
-                    if (sipExcHandler(sipHandlerModule, sipExcPtr))
+                while ((sipExcHandler = sipNextExceptionHandler(sipMS, &sipHandlerMS, &sipExcState)) != SIP_NULLPTR)
+                    if (sipExcHandler(sipHandlerMS, sipExcPtr))
                     {
                         sipSetParserError(sipPStateP);
                         return SIP_NULLPTR;
@@ -127,7 +127,7 @@ f'''    if (target_cts == sipGetClassTypeSpec(context, {sc_type_ref}, NULL))
         sf.write(
 f'''
     {cpp_name} sipCpp;
-    if (sipConvertToEnum(sipModule, sipSelf, &sipCpp, {type_ref}) < 0)
+    if (sipConvertToEnum(sipMS, sipSelf, &sipCpp, {type_ref}) < 0)
 ''')
 
     def g_cpp_dtor(self, sf):
@@ -135,7 +135,7 @@ f'''
 
         sf.write(
 '''    if (sipPySelf)
-        sipInstanceDestroyed(sipGetModuleFromInstance(sipPySelf), &sipPySelf);
+        sipInstanceDestroyed(sipGetModuleStateFromInstance(sipPySelf), &sipPySelf);
 ''')
 
     def g_create_wrapped_module(self, sf, bindings,
@@ -429,16 +429,17 @@ static sipExceptionTypeSpec sipExceptionTypeSpecs_{module_name}[] = {{
         member_py_name_ref = self.cached_name_ref(overload.common.py_name)
 
         sf.write(
-f'''    PyObject *sipModule;
+f'''    sipModuleState *sipMS;
 
     if (sipPySelf)
     {{
-        sipModule = sipGetModuleFromInstance(sipPySelf);
-        sipMeth = sipIsPyMethod(sipModule, &sipGILState, {const_cast_char}&sipPyMethods[{virt_nr}]{const_cast_tail}, {const_cast_po}&sipPySelf{const_cast_tail}, {klass_py_name_ref}, {member_py_name_ref});
+        sipMS = sipGetModuleStateFromInstance(sipPySelf);
+        sipMeth = sipIsPyMethod(sipMS, &sipGILState, {const_cast_char}&sipPyMethods[{virt_nr}]{const_cast_tail}, {const_cast_po}&sipPySelf{const_cast_tail}, {klass_py_name_ref}, {member_py_name_ref});
     }}
     else
     {{
-        sipModule = sipMeth = SIP_NULLPTR;
+        sipMS = SIP_NULLPTR;
+        sipMeth = SIP_NULLPTR;
     }}
 ''')
 
@@ -550,7 +551,7 @@ static const sipImportedModuleSpec sipImportedModules_{module_name}[] = {{
 
         type_ref = self.get_type_ref(klass)
 
-        sf.write(f'    return sipInitMixin(sipModule, sipSelf, sipArgs, sipKwds, {type_ref});\n')
+        sf.write(f'    return sipInitMixin(sipMS, sipSelf, sipArgs, sipKwds, {type_ref});\n')
 
     def g_mapped_type_api(self, sf, mapped_type):
         """ Generate the API details for a mapped type. """
@@ -807,7 +808,7 @@ f'''
 extern const sipABISpec *sipABI_{module_name};
 
 extern PyModuleDef_Slot sipModuleSlots_{module_name}[];
-#define sipGetModule()              sipABI_{module_name}->api_get_module(sipModuleSlots_{module_name})
+#define sipGetModuleState()              sipABI_{module_name}->api_get_module_state(sipModuleSlots_{module_name})
 
 #define sipModuleClear              sipABI_{module_name}->api_module_clear
 #define sipModuleExec               sipABI_{module_name}->api_module_exec
@@ -826,7 +827,7 @@ extern PyModuleDef_Slot sipModuleSlots_{module_name}[];
 #define sipFindTypeID               sipABI_{module_name}->api_find_type_id
 #define sipForceConvertToType       sipABI_{module_name}->api_force_convert_to_type
 #define sipGetAddress               sipABI_{module_name}->api_get_address
-#define sipGetModuleFromInstance    sipABI_{module_name}->api_get_module_from_instance
+#define sipGetModuleStateFromInstance   sipABI_{module_name}->api_get_module_state_from_instance
 #define sipGetPyType                sipABI_{module_name}->api_get_py_type
 #define sipGetState                 sipABI_{module_name}->api_get_state
 #define sipGetTypeUserData          sipABI_{module_name}->api_get_type_user_data
@@ -1111,10 +1112,11 @@ f'''    }}
 
         if isinstance(scope, WrappedEnum) and self.py_enums_supported:
             # Python enums are not extension types.
-            sf.write(f'    PyObject *sipModule = sipGetModule();\n')
+            # TODO Add sipGetModuleStateFromType() and use it for both?
+            sf.write(f'    sipModuleState *sipMS = sipGetModuleState();\n')
         else:
             name = 'sipArg0' if member is not None and is_number_slot(member.py_slot) else 'sipSelf'
-            sf.write(f'    PyObject *sipModule = sipGetModuleFromInstance({name});\n')
+            sf.write(f'    sipModuleState *sipMS = sipGetModuleStateFromInstance({name});\n')
 
     def g_static_function_end(self, sf, state, nr_signatures):
         """ Generate the end of a static function implementation. """
@@ -1408,12 +1410,12 @@ sipClassTypeSpec sipTypeSpec_{module_name}_{klass_name} = {{
             sf.write('};\n\n')
 
         if not spec.c_bindings:
-            sf.write(f'extern "C" {{static void *init_type_{klass_name}(PyObject *, PyObject **, PyObject *, PyObject *const *, Py_ssize_t, PyObject *, PyObject **, PyObject **);}}\n')
+            sf.write(f'extern "C" {{static void *init_type_{klass_name}(sipModuleState *, PyObject **, PyObject *, PyObject *const *, Py_ssize_t, PyObject *, PyObject **, PyObject **);}}\n')
 
         sip_owner = 'sipOwner' if need_owner else ''
 
         sf.write(
-f'''static void *init_type_{klass_name}(PyObject *sipModule, PyObject **sipPStateP, PyObject *sipSelf, PyObject *const *sipArgs, Py_ssize_t sipNrArgs, PyObject *sipKwdNames, PyObject **sipUnused, PyObject **{sip_owner})
+f'''static void *init_type_{klass_name}(sipModuleState *sipMS, PyObject **sipPStateP, PyObject *sipSelf, PyObject *const *sipArgs, Py_ssize_t sipNrArgs, PyObject *sipKwdNames, PyObject **sipUnused, PyObject **{sip_owner})
 {{
 ''')
 
@@ -1442,7 +1444,7 @@ f'''static void *init_type_{klass_name}(PyObject *sipModule, PyObject **sipPStat
             # TODO: This needs to support larger types and unsigned types.
             return f'PyLong_FromLong({value_name})'
 
-        return f'sipConvertFromEnum(sipModule, &{value_name}, {self.get_type_ref(enum)})'
+        return f'sipConvertFromEnum(sipMS, &{value_name}, {self.get_type_ref(enum)})'
 
     def get_enum_ref_value(self, enum):
         """ Return the value of an enum's reference. """
@@ -1457,7 +1459,7 @@ f'''static void *init_type_{klass_name}(PyObject *sipModule, PyObject **sipPStat
         to many ABI calls.
         """
 
-        return 'sipModule, '
+        return 'sipMS, '
 
     @staticmethod
     def get_module_context_decl():
@@ -1465,7 +1467,7 @@ f'''static void *init_type_{klass_name}(PyObject *sipModule, PyObject **sipPStat
         the first argument to many ABI calls.
         """
 
-        return 'PyObject *sipModule, '
+        return 'sipModuleState *sipMS, '
 
     def get_py_method_args(self, *, is_impl, need_self=False, need_args=True):
         """ Return the part of a Python method signature that are ABI
@@ -1473,7 +1475,7 @@ f'''static void *init_type_{klass_name}(PyObject *sipModule, PyObject **sipPStat
         """
 
         if is_impl:
-            args = 'PyObject *sipModule, PyObject **sipPStateP, PyObject *'
+            args = 'sipModuleState *sipMS, PyObject **sipPStateP, PyObject *'
 
             if need_self:
                 args += 'sipSelf'
@@ -1515,7 +1517,7 @@ f'''static void *init_type_{klass_name}(PyObject *sipModule, PyObject **sipPStat
         argument.
         """
 
-        return f'(!PyObject_TypeCheck(sipSelf, sipGetPyType(sipModule, {self.get_type_ref(klass)})) || sipIsDerivedClass(sipSelf))'
+        return f'(!PyObject_TypeCheck(sipSelf, sipGetPyType(sipMS, {self.get_type_ref(klass)})) || sipIsDerivedClass(sipSelf))'
 
     @staticmethod
     def get_slot_ref(slot_type):

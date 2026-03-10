@@ -3,7 +3,7 @@
 /*
  * This file defines the API for the array type.
  *
- * Copyright (c) 2025 Phil Thompson <phil@riverbankcomputing.com>
+ * Copyright (c) 2026 Phil Thompson <phil@riverbankcomputing.com>
  */
 
 
@@ -20,9 +20,9 @@
 extern "C" {
 #endif
 
-PyObject *sip_api_convert_to_array(PyObject *mod, void *data,
+PyObject *sip_api_convert_to_array(sipModuleState *ms, void *data,
         const char *format, Py_ssize_t len, int flags);
-PyObject *sip_api_convert_to_typed_array(PyObject *mod, void *data,
+PyObject *sip_api_convert_to_typed_array(sipModuleState *ms, void *data,
         sipTypeID type_id, const char *format, size_t stride, Py_ssize_t len,
         int flags);
 

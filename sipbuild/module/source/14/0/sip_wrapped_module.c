@@ -405,6 +405,21 @@ int sip_api_module_traverse(PyObject *mod, visitproc visit, void *arg)
 
 
 /*
+ * Return a wrapped module's state.
+ */
+sipModuleState *sip_get_module_state(PyObject *mod)
+{
+    sipModuleState *ms = (sipModuleState *)PyModule_GetState(mod);
+
+    /* Something has gone seriously wrong if there is no state. */
+    if (ms == NULL)
+        Py_FatalError("wrapped module has no state");
+
+    return ms;
+}
+
+
+/*
  * Add a license to a module.
  */
 static int add_license(PyObject *w_mod, const sipLicenseDef *lc)

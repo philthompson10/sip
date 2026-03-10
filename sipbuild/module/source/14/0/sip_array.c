@@ -159,7 +159,7 @@ static PyObject *Array_item(PyObject *self, Py_ssize_t idx)
     }
     else
     {
-        py_item = sip_convert_from_type(array->ms, data, array->type_id,
+        py_item = sip_api_convert_from_type(array->ms, data, array->type_id,
                 NULL);
     }
 
@@ -635,8 +635,9 @@ static void *get_value(Array *array, PyObject *value)
     {
         int iserr = FALSE;
 
-        data = sip_force_convert_to_type_us(array->ms, value, array->type_id,
-                NULL, SIP_NOT_NONE|SIP_NO_CONVERTORS, NULL, NULL, &iserr);
+        data = sip_api_force_convert_to_type_us(array->ms, value,
+                array->type_id, NULL, SIP_NOT_NONE|SIP_NO_CONVERTORS, NULL,
+                NULL, &iserr);
     }
 
     return data;
@@ -794,7 +795,7 @@ static PyObject *create_array(PyTypeObject *array_type, void *data,
  * be either "b" (char), "B" (unsigned char), "h" (short), "H" (unsigned
  * short), "i" (int), "I" (unsigned int), "f" (float) or "d" (double).
  */
-PyObject *sip_api_convert_to_array(PyObject *mod, void *data,
+PyObject *sip_api_convert_to_array(sipModuleState *ms, void *data,
         const char *format, Py_ssize_t len, int flags)
 {
     size_t stride;
@@ -844,8 +845,6 @@ PyObject *sip_api_convert_to_array(PyObject *mod, void *data,
         return NULL;
     }
 
-    sipModuleState *ms = sip_get_module_state(mod);
-
     return create_array(ms->sip_module_state->array_type, data, NULL, 0,
             format, stride, len, flags, NULL);
 }
@@ -854,7 +853,7 @@ PyObject *sip_api_convert_to_array(PyObject *mod, void *data,
 /*
  * Wrap an array of instances of a defined type.
  */
-PyObject *sip_api_convert_to_typed_array(PyObject *mod, void *data,
+PyObject *sip_api_convert_to_typed_array(sipModuleState *ms, void *data,
         sipTypeID type_id, const char *format, size_t stride, Py_ssize_t len,
         int flags)
 {
@@ -863,8 +862,6 @@ PyObject *sip_api_convert_to_typed_array(PyObject *mod, void *data,
 
     assert(stride > 0);
     assert(len >= 0);
-
-    sipModuleState *ms = sip_get_module_state(mod);
 
     return create_array(ms->sip_module_state->array_type, data, ms, type_id,
             format, stride, len, flags, NULL);

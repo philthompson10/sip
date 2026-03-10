@@ -167,9 +167,9 @@ PyTypeObject *sip_create_enum_type(sipModuleState *ms, sipTypeNr type_nr,
 
 
 /*
- * Implement the creation of a Python object for a member of a named enum.
+ * Create a Python object for a member of a named enum.
  */
-PyObject *sip_enum_convert_from_enum(sipModuleState *ms, void *addr,
+PyObject *sip_api_convert_from_enum(sipModuleState *ms, void *addr,
         sipTypeID type_id)
 {
     assert(sipTypeIDIsEnum(type_id));

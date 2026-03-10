@@ -501,8 +501,8 @@ static int SimpleWrapper_init(PyObject *self, PyObject *args,
         if (sip_vectorcall_create(args, kwargs, small_argv, &argv_len, &argv, &nr_pos_args, &kw_names) < 0)
             return -1;
 
-        sipNew = ctd->init(wt->wt_d_mod, &p_state_p, self, argv, nr_pos_args,
-                kw_names, unused_p, (PyObject **)&owner);
+        sipNew = ctd->init(ms, &p_state_p, self, argv, nr_pos_args, kw_names,
+                unused_p, (PyObject **)&owner);
 
         sip_vectorcall_dispose(small_argv, argv, argv_len, kw_names);
 

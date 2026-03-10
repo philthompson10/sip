@@ -144,8 +144,9 @@ static PyObject *Callable_vectorcall(CallableObject *self,
 {
     PyObject *p_state = NULL;
 
-    PyObject *res = self->c_spec->callable_impl(self->defining_module,
-            &p_state, self->self, args, PyVectorcall_NARGS(nargsf), kwnames);
+    PyObject *res = self->c_spec->callable_impl(
+            sip_get_module_state(self->defining_module), &p_state, self->self,
+            args, PyVectorcall_NARGS(nargsf), kwnames);
 
     if (res != NULL)
         return res;

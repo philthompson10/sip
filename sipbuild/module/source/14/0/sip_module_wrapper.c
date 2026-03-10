@@ -346,7 +346,7 @@ PyObject *sip_variable_get(sipModuleState *ms, PyObject *instance,
 
         default:
             if (sipTypeIDIsEnum(wvd->type_id))
-                return sip_enum_convert_from_enum(ms, addr, wvd->type_id);
+                return sip_api_convert_from_enum(ms, addr, wvd->type_id);
 
             // TODO Handle classes and mapped types.
             break;
