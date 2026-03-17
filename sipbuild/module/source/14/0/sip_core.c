@@ -284,7 +284,7 @@ static PyObject *create_callable(sipModuleState *ms,
 static PyTypeObject *create_class_type(sipModuleState *ms, sipTypeNr type_nr,
         const sipClassTypeSpec *ctd);
 static PyTypeObject *create_container_type(sipModuleState *ms,
-        sipTypeID type_id, const char *fq_py_name, const sipContainerSpec *cs,
+        sipTypeID type_id, const sipTypeSpec *ts, const sipContainerSpec *cs,
         PyObject *bases, PyTypeObject *metatype);
 static PyTypeObject *create_exception_type(sipModuleState *ms,
         const sipExceptionTypeSpec *ets);
@@ -840,7 +840,7 @@ static Py_ssize_t sip_api_convert_from_sequence_index(Py_ssize_t idx,
  * Create a container type and return a strong reference to it.
  */
 static PyTypeObject *create_container_type(sipModuleState *ms,
-        sipTypeID type_id, const char *fq_py_name, const sipContainerSpec *cs,
+        sipTypeID type_id, const sipTypeSpec *ts, const sipContainerSpec *cs,
         PyObject *bases, PyTypeObject *metatype)
 {
     /* Configure the type. */
@@ -854,7 +854,7 @@ static PyTypeObject *create_container_type(sipModuleState *ms,
     }
 
     PyType_Spec spec = {
-        .name = fq_py_name,
+        .name = ts->fq_py_name,
         .basicsize = 0,
         .flags = Py_TPFLAGS_DEFAULT|Py_TPFLAGS_BASETYPE,
         .slots = (PyType_Slot *)slots,
@@ -885,7 +885,8 @@ static PyTypeObject *create_container_type(sipModuleState *ms,
 
         for (c_spec = cs->callables; c_spec->name != NULL; c_spec++)
         {
-            PyObject *descr = sipMethodDescr_New(sms, c_spec, wt->wt_d_mod);
+            PyObject *descr = sipMethodDescr_New(sms, c_spec, wt->wt_d_mod,
+                    sipTypeIsNamespace(ts) ? ts : NULL);
 
             if (sip_dict_set_and_discard(w_type->tp_dict, c_spec->name, descr) < 0)
                 goto rel_type;
@@ -894,7 +895,7 @@ static PyTypeObject *create_container_type(sipModuleState *ms,
 
     /* Fix the type's name attributes. */
     if (cs->scope_id != sipTypeID_Invalid)
-        if (sip_fix_type_attrs(ms, fq_py_name, (PyObject *)w_type) < 0)
+        if (sip_fix_type_attrs(ms, ts->fq_py_name, (PyObject *)w_type) < 0)
             goto rel_type;
 
     return w_type;
@@ -1059,8 +1060,8 @@ static PyTypeObject *create_class_type(sipModuleState *ms, sipTypeNr type_nr,
 
     sipTypeID type_id = SIP_TYPE_ID_TYPE_CLASS | SIP_TYPE_ID_LOCAL_MODULE | type_nr;
 
-    PyTypeObject *py_type = create_container_type(ms, type_id,
-            cts->base.fq_py_name, &cts->container, bases, metatype);
+    PyTypeObject *py_type = create_container_type(ms, type_id, &cts->base,
+            &cts->container, bases, metatype);
 
     Py_DECREF(bases);
 
@@ -1093,38 +1094,6 @@ static PyTypeObject *create_class_type(sipModuleState *ms, sipTypeNr type_nr,
             if (sip_dict_set_and_discard(py_type->tp_dict, ps->name, prop) < 0)
                 goto discard_py_type;
         }
-    }
-
-    /* Apply any pending extenders. */
-    sipPendingExtender *pe;
-
-    for (pe = ms->pending_extenders; pe != NULL; pe = pe->next)
-    {
-        if (pe->extending != cts)
-            continue;
-
-        PyObject *extender_mod;
-        if (PyWeakref_GetRef(pe->extender_module, &extender_mod) < 0)
-            goto discard_py_type;
-
-        if (extender_mod == NULL)
-            continue;
-
-        PyTypeObject *extender_py_type = sip_api_get_py_type(
-                sip_get_module_state(extender_mod), pe->extender_id);
-        if (extender_py_type == NULL)
-        {
-            Py_DECREF(extender_mod);
-            goto discard_py_type;
-        }
-
-        if (sip_extend_type(sms, py_type, extender_py_type) < 0)
-        {
-            Py_DECREF(extender_mod);
-            goto discard_py_type;
-        }
-
-        Py_DECREF(extender_mod);
     }
 
 #if 0
@@ -1251,8 +1220,8 @@ static PyTypeObject *create_mapped_type(sipModuleState *ms, sipTypeNr type_nr,
 
     return create_container_type(ms,
             SIP_TYPE_ID_TYPE_MAPPED | SIP_TYPE_ID_LOCAL_MODULE | type_nr,
-            mts->base.fq_py_name, &mts->container,
-            (PyObject *)sms->simple_wrapper_type, sms->wrapper_type_type);
+            &mts->base, &mts->container, (PyObject *)sms->simple_wrapper_type,
+            sms->wrapper_type_type);
 }
 
 
@@ -1302,7 +1271,7 @@ static PyObject *create_callable(sipModuleState *ms,
         return Py_NewRef(Py_None);
 
     return sipCallable_New(ms->sip_module_state, c_spec, ms->wrapped_module,
-            NULL);
+            NULL, NULL);
 }
 
 

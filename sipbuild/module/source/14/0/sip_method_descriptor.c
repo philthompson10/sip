@@ -34,6 +34,9 @@ typedef struct {
     /* A strong reference to the defining module. */
     PyObject *defining_module;
 
+    /* The type specification of the containing type if it is extendable. */
+    const sipTypeSpec *extending_ts;
+
     /* The mixin name, if any. */
     PyObject *mixin_name;
 } MethodDescr;
@@ -66,7 +69,6 @@ static PyType_Spec MethodDescr_TypeSpec = {
     .flags = Py_TPFLAGS_DEFAULT |
              Py_TPFLAGS_DISALLOW_INSTANTIATION |
              Py_TPFLAGS_IMMUTABLETYPE |
-             // TODO Py_TPFLAGS_METHOD_DESCRIPTOR |
              Py_TPFLAGS_HAVE_GC,
     .slots = MethodDescr_slots,
 };
@@ -80,7 +82,8 @@ static MethodDescr *alloc_method_descr(sipSipModuleState *sms);
  * Return a new method descriptor for the given method.
  */
 PyObject *sipMethodDescr_New(sipSipModuleState *sms,
-        const sipCallableSpec *c_spec, PyObject *defining_module)
+        const sipCallableSpec *c_spec, PyObject *defining_module,
+        const sipTypeSpec *extending_ts)
 {
     MethodDescr *descr = alloc_method_descr(sms);
 
@@ -88,6 +91,7 @@ PyObject *sipMethodDescr_New(sipSipModuleState *sms,
     {
         descr->c_spec = c_spec;
         descr->defining_module = Py_NewRef(defining_module);
+        descr->extending_ts = extending_ts;
         descr->mixin_name = NULL;
     }
 
@@ -108,6 +112,7 @@ PyObject *sipMethodDescr_Copy(sipSipModuleState *sms, PyObject *orig,
     {
         descr->c_spec = orig_descr->c_spec;
         descr->defining_module = Py_NewRef(orig_descr->defining_module);
+        descr->extending_ts = orig_descr->extending_ts;
         descr->mixin_name = Py_XNewRef(mixin_name);
     }
 
@@ -148,9 +153,8 @@ static PyObject *MethodDescr_descr_get(MethodDescr *self, PyObject *obj,
         bind = Py_NewRef(obj);
     }
 
-    // TODO Pass the module state rather than the module.
     PyObject *callable = sipCallable_New(ms->sip_module_state, self->c_spec,
-            self->defining_module, bind);
+            self->defining_module, bind, self->extending_ts);
     Py_DECREF(bind);
 
     return callable;

@@ -472,26 +472,6 @@ typedef enum {
 
 
 /*
- * The immutable specification of a namespace extender.
- */
-typedef struct _sipNamespaceExtenderSpec {
-    /* The type ID of the namespace being extended. */
-    sipTypeID namespace_id;
-
-    /*
-     * The table of methods.  These are new methods, not new overloads of
-     * existing methods.
-     */
-    // TODO Handle new overloads of existing methods.
-    const PyMethodDef *methods;
-
-    /* The table of static variables. */
-    // TODO
-    const sipVariableSpec *const static_variables;
-} sipNamespaceExtenderSpec;
-
-
-/*
  * The immutable specification of a Python slot extender.
  */
 // TODO Rename to Spec
@@ -797,6 +777,22 @@ struct _sipExceptionTypeSpec {
 
 
 /*
+ * The immutable specification of a type extender.
+ */
+// TODO Namespace attribute extensions.
+typedef struct _sipExtenderSpec {
+    /* The type ID of the type being extended. */
+    sipTypeID extending_type_id;
+
+    /*
+     * The array of callables that extend the type.  A callable may be new or
+     * supply new overloads to an existing callable.
+     */
+    const sipCallableSpec *const callables;
+} sipExtenderSpec;
+
+
+/*
  * The immutable specification of an external type.
  */
 // TODO Rename to Spec
@@ -902,8 +898,8 @@ struct _sipModuleSpec {
     // TODO
     const sipInitExtenderDef *const init_extend;
 
-    /* The table of namespace extenders. */
-    const sipNamespaceExtenderSpec *const ns_extend;
+    /* The table of type extenders. */
+    const sipExtenderSpec *const extenders;
 
     /* The delayed dtor handler. */
     // TODO

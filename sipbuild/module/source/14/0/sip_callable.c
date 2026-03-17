@@ -13,6 +13,7 @@
 
 #include "sip_callable.h"
 
+#include "sip_extenders.h"
 #include "sip_module.h"
 #include "sip_parsers.h"
 
@@ -29,6 +30,9 @@ typedef struct {
     /* A strong reference to the defining module. */
     PyObject *defining_module;
 
+    /* The type specification of the containing type if it is extendable. */
+    const sipTypeSpec *extending_ts;
+
     /* A strong reference to the optional self object. */
     PyObject *self;
 
@@ -42,7 +46,7 @@ static int Callable_clear(CallableObject *self);
 static void Callable_dealloc(CallableObject *self);
 static int Callable_traverse(CallableObject *self, visitproc visit, void *arg);
 static PyObject *Callable_vectorcall(CallableObject *self,
-        PyObject *const *args, size_t nargsf, PyObject *kwnames);
+        PyObject *const *args, size_t nargsf, PyObject *kwd_names);
 
 
 /*
@@ -79,7 +83,7 @@ static PyType_Spec Callable_TypeSpec = {
  */
 PyObject *sipCallable_New(sipSipModuleState *sms,
         const sipCallableSpec *c_spec, PyObject *defining_module,
-        PyObject *self)
+        PyObject *self, const sipTypeSpec *extending_ts)
 {
     // TODO Investigate the optimisations implemented by PyCMethod, specifially
     // to reduce heap allocations.
@@ -91,6 +95,7 @@ PyObject *sipCallable_New(sipSipModuleState *sms,
         callable->c_spec = c_spec;
         callable->defining_module = Py_NewRef(defining_module);
         callable->self = Py_XNewRef(self);
+        callable->extending_ts = extending_ts;
         callable->vectorcall = (vectorcallfunc)Callable_vectorcall;
     }
 
@@ -140,13 +145,18 @@ static int Callable_traverse(CallableObject *self, visitproc visit, void *arg)
  * The callable's vectorcall slot.
  */
 static PyObject *Callable_vectorcall(CallableObject *self,
-        PyObject *const *args, size_t nargsf, PyObject *kwnames)
+        PyObject *const *args, size_t nargsf, PyObject *kwd_names)
 {
+    sipModuleState *ms = sip_get_module_state(self->defining_module);
     PyObject *p_state = NULL;
+    Py_ssize_t nr_args = PyVectorcall_NARGS(nargsf);
 
-    PyObject *res = self->c_spec->callable_impl(
-            sip_get_module_state(self->defining_module), &p_state, self->self,
-            args, PyVectorcall_NARGS(nargsf), kwnames);
+    PyObject *res = self->c_spec->callable_impl(ms, &p_state, self->self, args,
+            nr_args, kwd_names);
+
+    if (res == NULL && p_state != Py_None && self->extending_ts != NULL)
+        res = sip_extend(ms, &p_state, self->self, args, nr_args, kwd_names,
+                self->extending_ts, self->c_spec->name);
 
     if (res != NULL)
         return res;

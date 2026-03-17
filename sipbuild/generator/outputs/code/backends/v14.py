@@ -10,7 +10,7 @@ from ....scoped_name import ScopedName, STRIP_GLOBAL
 from ....specification import (AccessSpecifier, Argument, ArgumentType, GILUse,
         IfaceFileType, MappedType, Module, MultiInterpreterSupport, PySlot,
         WrappedClass, WrappedEnum, WrappedVariable)
-from ....utils import find_method
+from ....utils import find_method, is_namespace_extender
 
 from ...formatters import fmt_class_as_scoped_py_name
 
@@ -114,7 +114,19 @@ f'''    if (target_cts == sipGetClassTypeSpec(sipMS, {sc_type_ref}, NULL))
         else:
             module_ref = iface_file.module.module_nr
 
-        sf.write(f'#define {self.get_type_ref(klass)} SIP_TYPE_ID_TYPE_CLASS|{module_ref}|{iface_file.type_nr}\n')
+        if not is_namespace_extender(klass):
+            sf.write(f'#define {self.get_type_ref(klass)} SIP_TYPE_ID_TYPE_CLASS|{module_ref}|{iface_file.type_nr}\n')
+
+    def g_class_spec_extern_decl(self, sf, klass):
+        """ Generate the extern declaration of a class specification. """
+
+        klass_name = klass.iface_file.fq_cpp_name.as_word
+
+        if is_namespace_extender(klass):
+            sf.write(f'\nextern sipCallableSpec sipCallables_{klass_name}[];\n')
+        else:
+            module_name = self.spec.module.py_name
+            sf.write(f'\nextern sipClassTypeSpec sipTypeSpec_{module_name}_{klass_name};\n')
 
     def g_conversion_to_enum(self, sf, enum):
         """ Generate the code to convert a Python enum (sipSelf) to a C/C++
@@ -159,7 +171,8 @@ f'''
         module_name = module.py_name
 
         nr_static_variables, nr_types = static_variables_state
-        nr_callables = self._g_module_functions_table(sf, module)
+        nr_callables = self._g_module_functions_table(sf)
+        nr_extenders = self._g_extenders_table(sf)
 
         # Generate the pointer to the immutable SIP ABI structure that is
         # obtained from the sip module.  It is the only static variable used
@@ -231,6 +244,9 @@ static const sipModuleSpec sipModule_{module_name} = {{
 
         if init_extenders:
             sf.write('    .initextend = initExtenders,\n')
+
+        if nr_extenders != 0:
+            sf.write(f'    .extenders = sipExtenders_{module_name},\n')
 
         if module.has_delayed_dtors:
             sf.write('    .delayeddtors = sipDelayedDtors,\n')
@@ -1220,15 +1236,18 @@ f'''    }}
         module_name = module.py_name
         klass_name = klass.iface_file.fq_cpp_name.as_word
 
+        # Generate the methods table.
+        nr_methods = g_class_method_table(self, sf, bindings, klass)
+
+        if is_namespace_extender(klass):
+            return
+
         # Generate the enums table.
         self.g_enums_specifications(sf, bindings, scope=klass)
 
         # Generate the slots table.
         slots_table = self._g_slots_table(sf, klass_name, klass.members,
                 mixin=klass.mixin)
-
-        # Generate the methods table.
-        nr_methods = g_class_method_table(self, sf, bindings, klass)
 
         # Generate the static variables table.
         nr_static_variables, nr_types = self.g_static_variables_table(sf,
@@ -1729,7 +1748,10 @@ static void module_free(void *mod_ptr)
             member.member_nr = member_nr
 
             if nr_callables == 0:
-                sf.write(f'static sipCallableSpec sipCallables_{name}[] = {{\n')
+                if not isinstance(scope, WrappedClass) or not is_namespace_extender(scope):
+                    sf.write('static ')
+
+                sf.write(f'sipCallableSpec sipCallables_{name}[] = {{\n')
                 nr_callables += 1
 
             type_hints, user_docstring = cls._get_doc_details(member,
@@ -1746,10 +1768,42 @@ static void module_free(void *mod_ptr)
 
         return nr_callables
 
-    def _g_module_functions_table(self, sf, module):
+    def _g_extenders_table(self, sf):
+        """ Generate the table of type extenders and return the number actually
+        generated.
+        """
+
+        spec = self.spec
+        module = self.spec.module
+        nr_extenders = 0
+
+        for klass in spec.classes:
+            if klass.iface_file.module is not module:
+                continue
+
+            if not is_namespace_extender(klass):
+                continue
+
+            if nr_extenders == 0:
+                sf.write(f'''/* This defines the type extenders this module exports. */
+static const sipExtenderSpec sipExtenders_{module.py_name}[] = {{
+''')
+
+            klass_name = klass.iface_file.fq_cpp_name.as_word
+            sf.write(f'    {{sipTypeID_{klass_name}, sipCallables_{klass_name}}},\n')
+            nr_extenders += 1
+
+        if nr_extenders != 0:
+            sf.write('    {sipTypeID_Invalid}\n};\n\n')
+
+        return nr_extenders;
+
+    def _g_module_functions_table(self, sf):
         """ Generate the table of module functions and return the number
         actually generated.
         """
+
+        module = self.spec.module
 
         # TODO Investigate why there can be module level slots.
         functions = [f for f in module.global_functions if f.py_slot is None]

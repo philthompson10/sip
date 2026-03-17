@@ -75,15 +75,6 @@ void sip_api_module_free(void *mod_ptr)
         PyMem_Free(ms->imported_modules);
     }
 
-    /* Free any pending extenders. */
-    while (ms->pending_extenders != NULL)
-    {
-        sipPendingExtender *pe = ms->pending_extenders;
-
-        ms->pending_extenders = pe->next;
-        sip_api_free(pe);
-    }
-
 #if !_SIP_MODULE_SHARED
     sip_sip_module_free(ms->sip_module_state);
     sip_api_free(ms->sip_module_state);
@@ -189,7 +180,7 @@ int sip_api_module_exec(PyObject *mod, const sipModuleSpec *m_spec)
 
         while (c_spec->name != NULL)
         {
-            PyObject *callable = sipCallable_New(sms, c_spec, mod, NULL);
+            PyObject *callable = sipCallable_New(sms, c_spec, mod, NULL, NULL);
             int rc = PyModule_AddObjectRef(mod, c_spec->name, callable);
             Py_XDECREF(callable);
 
@@ -267,59 +258,6 @@ int sip_api_module_exec(PyObject *mod, const sipModuleSpec *m_spec)
     if (m_spec->license != NULL && add_license(mod, m_spec->license) < 0)
         return -1;
 
-    /* See if this module contains any class extenders. */
-    sipTypeNr ti;
-
-    for (ti = 0; ti < m_spec->nr_type_specs; ti++)
-    {
-        const sipTypeSpec *ts = m_spec->type_specs[ti];
-
-        if (ts->cpp_name != NULL)
-            continue;
-
-        if (!sipTypeIsClass(ts) && !sipTypeIsNamespace(ts))
-            continue;
-
-        sipTypeNr extending_type_nr;
-        sipModuleState *extending_ms = sip_resolve_type_id(ms,
-                ((const sipClassTypeSpec *)ts)->container.scope_id, &extending_type_nr);
-        assert(extending_ms != NULL);
-
-        PyTypeObject *py_type = extending_ms->py_types[extending_type_nr];
-
-        if (py_type == NULL)
-        {
-            /* Register the extender for future use. */
-            sipPendingExtender *pe = sip_api_malloc(
-                    sizeof (sipPendingExtender));
-            if (pe == NULL)
-                return -1;
-
-            /*
-             * Use a weak reference so that the module containing the extender
-             * can be freed if the extender is never used.
-             */
-            pe->extender_module = PyWeakref_NewRef(mod, NULL);
-            assert(pe->extender_module != NULL);
-
-            pe->extending = (const sipClassTypeSpec *)extending_ms->module_spec->type_specs[extending_type_nr];
-            pe->extender_id = SIP_TYPE_ID_TYPE_CLASS|SIP_TYPE_ID_LOCAL_MODULE|ti;
-            pe->next = extending_ms->pending_extenders;
-            extending_ms->pending_extenders = pe;
-        }
-        else
-        {
-            /* Create the extender. */
-            PyTypeObject *extender_py_type;
-            if (sip_get_local_py_type(ms, ti, &extender_py_type) < 0)
-                return -1;
-
-            /* Extend the extending type from the extender. */
-            if (sip_extend_type(ms->sip_module_state, py_type, extender_py_type) < 0)
-                return -1;
-        }
-    }
-
 #if 0
     /* See if this module satisfies any outstanding external types. */
     for (i = 0; i < PyList_GET_SIZE(sms->module_list); i++)
@@ -386,12 +324,6 @@ int sip_api_module_traverse(PyObject *mod, visitproc visit, void *arg)
 
     for (mi = 0; mi < ms->module_spec->nr_import_specs; mi++)
         Py_VISIT(ms->imported_modules[mi].module);
-
-    /* Visit the pending extenders. */
-    sipPendingExtender *pe;
-
-    for (pe = ms->pending_extenders; pe != NULL; pe = pe->next)
-        Py_VISIT(pe->extender_module);
 
     Py_VISIT(ms->extra_refs);
     Py_VISIT(ms->sip_module);
@@ -547,12 +479,6 @@ static void module_clear(sipModuleState *ms)
 
     for (mi = 0; mi < ms->module_spec->nr_import_specs; mi++)
         Py_CLEAR(ms->imported_modules[ti].module);
-
-    /* Clear the pending extenders. */
-    sipPendingExtender *pe;
-
-    for (pe = ms->pending_extenders; pe != NULL; pe = pe->next)
-        Py_CLEAR(pe->extender_module);
 
     Py_CLEAR(ms->extra_refs);
     Py_CLEAR(ms->sip_module);

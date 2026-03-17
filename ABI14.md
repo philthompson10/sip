@@ -36,6 +36,9 @@ changed accordingly and may involve a type conversion of the new value.  With
 older ABIs the Python attribute would be changed (possibly to a different type
 entirely) but the underlying value would not change.
 
+ABI v14 supports the extending of namespaces with new overloads of existing
+callables.
+
 
 ## ABI Changes
 
