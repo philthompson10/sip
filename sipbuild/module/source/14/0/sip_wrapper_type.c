@@ -90,10 +90,12 @@ static PyObject *WrapperType_getattro(sipWrapperType *self, PyObject *name)
         return PyType_Type.tp_getattro((PyObject *)self, name);
 
     sipModuleState *ms = sip_get_module_state(self->wt_d_mod);
-    const sipClassTypeSpec *cts = (const sipClassTypeSpec *)sip_get_type_spec_from_wt(self);
+    const sipTypeSpec *ts = sip_get_type_spec_from_wt(self);
 
     return sip_mod_con_getattro(ms, (PyObject *)self, name,
-            &cts->container.attributes);
+            &((const sipClassTypeSpec *)ts)->container.attributes,
+            ((PyTypeObject *)self)->tp_name,
+            sipTypeIsNamespace(ts) ? ts : NULL);
 }
 
 

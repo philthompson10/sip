@@ -21,7 +21,8 @@ extern "C" {
 #endif
 
 PyObject *sip_mod_con_getattro(sipModuleState *ms, PyObject *self,
-        PyObject *name, const sipAttrsSpec *wad);
+        PyObject *name, const sipAttrsSpec *wad, const char *type_name,
+        const sipTypeSpec *extending_ts);
 int sip_mod_con_setattro(sipModuleState *ms, PyObject *self, PyObject *name,
         PyObject *value, const sipAttrsSpec *wad);
 int sip_module_wrapper_init(PyObject *module, sipSipModuleState *sms);

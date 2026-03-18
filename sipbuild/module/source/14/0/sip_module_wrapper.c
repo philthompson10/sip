@@ -16,6 +16,7 @@
 
 #include "sip_core.h"
 #include "sip_enum.h"
+#include "sip_extenders.h"
 #include "sip_int_convertors.h"
 #include "sip_module.h"
 #include "sip_string_convertors.h"
@@ -70,7 +71,8 @@ static PyObject *ModuleWrapper_getattro(PyObject *self, PyObject *name)
 {
     sipModuleState *ms = sip_get_module_state(self);
 
-    return sip_mod_con_getattro(ms, self, name, &ms->module_spec->attributes);
+    return sip_mod_con_getattro(ms, self, name, &ms->module_spec->attributes,
+            NULL, NULL);
 }
 
 
@@ -91,7 +93,8 @@ static int ModuleWrapper_setattro(PyObject *self, PyObject *name,
  * The getattro handler for modules and containers.
  */
 PyObject *sip_mod_con_getattro(sipModuleState *ms, PyObject *self,
-        PyObject *name, const sipAttrsSpec *wad)
+        PyObject *name, const sipAttrsSpec *wad, const char *type_name,
+        const sipTypeSpec *extending_ts)
 {
     const char *utf8_name = PyUnicode_AsUTF8(name);
 
@@ -117,7 +120,39 @@ PyObject *sip_mod_con_getattro(sipModuleState *ms, PyObject *self,
     const sipTypeNr *type_nr_p = get_wrapped_type_nr_p(ms->module_spec,
             utf8_name, wad);
     if (type_nr_p == NULL)
+    {
+        /* See if the type has been extended. */
+        if (extending_ts != NULL)
+        {
+            PyObject *attr;
+
+            if (sip_get_extension_callable(ms, self, extending_ts, utf8_name, &attr) < 0)
+                return NULL;
+
+            if (attr != NULL)
+                return attr;
+        }
+
+        /* If we don't have a type name then self is a module. */
+        if (type_name != NULL)
+        {
+            PyErr_Format(PyExc_AttributeError,
+                    "type object '%s', has no attribute '%s'", type_name,
+                    utf8_name);
+        }
+        else
+        {
+            PyObject *module_name = PyModule_GetNameObject(self);
+            if (module_name == NULL)
+                return NULL;
+
+            PyErr_Format(PyExc_AttributeError,
+                    "module object '%U', has no attribute '%s'", module_name,
+                    utf8_name);
+        }
+
         return NULL;
+    }
 
     PyErr_Clear();
 
