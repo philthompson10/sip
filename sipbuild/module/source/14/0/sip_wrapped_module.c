@@ -174,9 +174,9 @@ int sip_api_module_exec(PyObject *mod, const sipModuleSpec *m_spec)
 #endif
 
     /* Add any module callables. */
-    if (m_spec->callables != NULL)
+    if (m_spec->attributes.callables != NULL)
     {
-        const sipCallableSpec *c_spec = m_spec->callables;
+        const sipCallableSpec *c_spec = m_spec->attributes.callables;
 
         while (c_spec->name != NULL)
         {

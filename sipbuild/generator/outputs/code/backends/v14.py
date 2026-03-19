@@ -225,6 +225,9 @@ static const sipModuleSpec sipModule_{module_name} = {{
         if nr_subclass_convertors != 0:
             sf.write('    .convertors = convertorsTable,\n')
 
+        if nr_callables != 0:
+            sf.write(f'    .attributes.callables = sipCallables_{module_name},\n')
+
         if nr_static_variables != 0:
             sf.write(f'    .attributes.nr_static_variables = {nr_static_variables},\n')
             sf.write(f'    .attributes.static_variables = sipModuleVariables_{module_name},\n')
@@ -232,9 +235,6 @@ static const sipModuleSpec sipModule_{module_name} = {{
         if nr_types != 0:
             sf.write(f'    .attributes.nr_types = {nr_types},\n')
             sf.write(f'    .attributes.type_nrs = sipTypeNrs_{module_name},\n')
-
-        if nr_callables != 0:
-            sf.write(f'    .callables = sipCallables_{module_name},\n')
 
         if module.license is not None:
             sf.write('    .license = &module_license,\n')
@@ -634,15 +634,15 @@ extern sipMappedTypeSpec sipTypeSpec_{module_name}_{mapped_type_name};
         if slots_table is not None:
             fields.append('.container.py_slots = ' + slots_table)
 
+        if nr_methods != 0:
+            fields.append(
+                    '.container.attributes.callables = sipCallables_' + mapped_type_name)
+
         if nr_types != 0:
             fields.append(
                     '.container.attributes.nr_types = ' + str(nr_types))
             fields.append(
                     '.container.attributes.type_nrs = sipTypeNrs_' + mapped_type_name)
-
-        if nr_methods != 0:
-            fields.append(
-                    '.container.callables = sipCallables_' + mapped_type_name)
 
         if not mapped_type.no_assignment_operator:
             fields.append('.assign = assign_' + mapped_type_name)
@@ -1302,7 +1302,7 @@ f'''    }}
 
         if nr_methods != 0:
             fields.append(
-                    '.container.callables = sipCallables_' + klass_name)
+                    '.container.attributes.callables = sipCallables_' + klass_name)
 
         if nr_static_variables != 0:
             fields.append(

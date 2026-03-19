@@ -879,11 +879,11 @@ static PyTypeObject *create_container_type(sipModuleState *ms,
      * Add the descriptors for the methods.  The dict is created by the
      * PyType_Ready() call in PyType_FromMetaclass().
      */
-    if (cs->callables != NULL)
+    if (cs->attributes.callables != NULL)
     {
         const sipCallableSpec *c_spec;
 
-        for (c_spec = cs->callables; c_spec->name != NULL; c_spec++)
+        for (c_spec = cs->attributes.callables; c_spec->name != NULL; c_spec++)
         {
             PyObject *descr = sipMethodDescr_New(sms, c_spec, wt->wt_d_mod,
                     sipTypeIsNamespace(ts) ? ts : NULL);

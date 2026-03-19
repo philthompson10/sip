@@ -500,28 +500,6 @@ typedef struct _sipTypedefSpec {
 
 
 /*
- * The immutable specification of the unbound wrapped attributes of either a
- * module or a type.
- */
-typedef struct {
-    /* The number of static variables. */
-    size_t nr_static_variables;
-
-    /* The table of static variables. */
-    const sipVariableSpec *const static_variables;
-
-    /* The number of types. */
-    sipTypeNr nr_types;
-
-    /*
-     * The table of type numbers.  A full type ID isn't required as they refer
-     * to local types.
-     */
-    const sipTypeNr *type_nrs;
-} sipAttrsSpec;
-
-
-/*
  * The immutable specification of a wrapped callable.
  */
 typedef struct {
@@ -540,6 +518,31 @@ typedef struct {
     /* The optional user supplied docstring. */
     const char *docstring;
 } sipCallableSpec;
+
+
+/*
+ * The immutable specification of the unbound wrapped attributes of either a
+ * module or a type.
+ */
+typedef struct {
+    /* The table of callables. */
+    const sipCallableSpec *const callables;
+
+    /* The number of static variables. */
+    size_t nr_static_variables;
+
+    /* The table of static variables. */
+    const sipVariableSpec *const static_variables;
+
+    /* The number of types. */
+    sipTypeNr nr_types;
+
+    /*
+     * The table of type numbers.  A full type ID isn't required as they refer
+     * to local types.
+     */
+    const sipTypeNr *type_nrs;
+} sipAttrsSpec;
 
 
 /*
@@ -607,9 +610,6 @@ typedef struct _sipContainerSpec {
 
     /* The table of Python slots. */
     const PyType_Slot *py_slots;
-
-    /* The table of callables. */
-    const sipCallableSpec *callables;
 } sipContainerSpec;
 
 
@@ -788,6 +788,7 @@ typedef struct _sipExtenderSpec {
      * The array of callables that extend the type.  A callable may be new or
      * supply new overloads to an existing callable.
      */
+    // TODO Replace this with sipAttrSpec.
     const sipCallableSpec *const callables;
 } sipExtenderSpec;
 
@@ -883,9 +884,6 @@ struct _sipModuleSpec {
 
     /* The wrapped attributes. */
     sipAttrsSpec attributes;
-
-    /* The table of callables. */
-    const sipCallableSpec *callables;
 
     /* The license. */
     const struct _sipLicenseDef *license;
