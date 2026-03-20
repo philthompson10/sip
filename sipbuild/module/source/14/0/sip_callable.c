@@ -25,7 +25,7 @@ typedef struct {
     PyObject_HEAD
 
     /* The callable specification. */
-    const sipCallableSpec *c_spec;
+    const sipAttrSpec *attr_spec;
 
     /* A strong reference to the defining module. */
     PyObject *defining_module;
@@ -81,10 +81,12 @@ static PyType_Spec Callable_TypeSpec = {
 /*
  * Return a new callable.
  */
-PyObject *sipCallable_New(sipSipModuleState *sms,
-        const sipCallableSpec *c_spec, PyObject *defining_module,
-        PyObject *self, const sipTypeSpec *extending_ts)
+PyObject *sipCallable_New(sipSipModuleState *sms, const sipAttrSpec *attr_spec,
+        PyObject *defining_module, PyObject *self,
+        const sipTypeSpec *extending_ts)
 {
+    assert(attr_spec->name[0] == 'c');
+
     // TODO Investigate the optimisations implemented by PyCMethod, specifially
     // to reduce heap allocations.
     CallableObject *callable = (CallableObject *)PyType_GenericAlloc(
@@ -92,7 +94,7 @@ PyObject *sipCallable_New(sipSipModuleState *sms,
 
     if (callable != NULL)
     {
-        callable->c_spec = c_spec;
+        callable->attr_spec = attr_spec;
         callable->defining_module = Py_NewRef(defining_module);
         callable->self = Py_XNewRef(self);
         callable->extending_ts = extending_ts;
@@ -151,17 +153,17 @@ static PyObject *Callable_vectorcall(CallableObject *self,
     PyObject *p_state = NULL;
     Py_ssize_t nr_args = PyVectorcall_NARGS(nargsf);
 
-    PyObject *res = self->c_spec->callable_impl(ms, &p_state, self->self, args,
-            nr_args, kwd_names);
+    PyObject *res = self->attr_spec->spec.callable->callable_impl(ms, &p_state,
+            self->self, args, nr_args, kwd_names);
 
     if (res == NULL && p_state != Py_None && self->extending_ts != NULL)
         res = sip_extend(ms, &p_state, self->self, args, nr_args, kwd_names,
-                self->extending_ts, self->c_spec->name);
+                self->extending_ts, self->attr_spec->name + 1);
 
     if (res != NULL)
         return res;
 
-    sip_api_no_callable(p_state, NULL, self->c_spec->name);
+    sip_api_no_callable(p_state, NULL, self->attr_spec->name + 1);
 
     return NULL;
 }

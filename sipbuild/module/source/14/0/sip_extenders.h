@@ -23,9 +23,9 @@ extern "C" {
 PyObject *sip_extend(sipModuleState *ms, PyObject **p_state_p, PyObject *self,
         PyObject *const *args, Py_ssize_t nr_args, PyObject *kwd_names,
         const sipTypeSpec *extending_ts, const char *name);
-int sip_get_extension_callable(sipModuleState *ms, PyObject *self,
+int sip_get_extension_attribute(sipModuleState *ms,
         const sipTypeSpec *extending_ts, const char *name,
-        PyObject **callable_p);
+        sipModuleState **x_ms_p, const sipAttrSpec **x_attr_spec_p);
 
 #ifdef __cplusplus
 }

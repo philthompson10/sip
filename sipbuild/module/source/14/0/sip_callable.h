@@ -20,9 +20,9 @@
 extern "C" {
 #endif
 
-PyObject *sipCallable_New(sipSipModuleState *sms,
-        const sipCallableSpec *c_spec, PyObject *defining_module,
-        PyObject *self, const sipTypeSpec *extending_ts);
+PyObject *sipCallable_New(sipSipModuleState *sms, const sipAttrSpec *attr_spec,
+        PyObject *defining_module, PyObject *self,
+        const sipTypeSpec *extending_ts);
 int sip_callable_init(PyObject *module, sipSipModuleState *sms);
 
 #ifdef __cplusplus

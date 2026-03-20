@@ -173,24 +173,6 @@ int sip_api_module_exec(PyObject *mod, const sipModuleSpec *m_spec)
         return -1;
 #endif
 
-    /* Add any module callables. */
-    if (m_spec->attributes.callables != NULL)
-    {
-        const sipCallableSpec *c_spec = m_spec->attributes.callables;
-
-        while (c_spec->name != NULL)
-        {
-            PyObject *callable = sipCallable_New(sms, c_spec, mod, NULL, NULL);
-            int rc = PyModule_AddObjectRef(mod, c_spec->name, callable);
-            Py_XDECREF(callable);
-
-            if (rc < 0)
-                return -1;
-
-            c_spec++;
-        }
-    }
-
     /* Allocate the space for any wrapped type type objects. */
     if (m_spec->nr_type_specs > 0 && (ms->py_types = PyMem_Calloc(m_spec->nr_type_specs, sizeof (PyTypeObject *))) == NULL)
         return -1;
@@ -245,13 +227,6 @@ int sip_api_module_exec(PyObject *mod, const sipModuleSpec *m_spec)
             ++scc;
         }
     }
-#endif
-
-#if 0
-// This is no longer needed but are any non-static values that need to be added?
-    /* Add any global static instances. */
-    if (sip_container_add_instances(ms, mod_dict, &m_spec->instances) < 0)
-        return -1;
 #endif
 
     /* Add any license. */

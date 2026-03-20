@@ -29,7 +29,7 @@ typedef struct {
     PyObject_HEAD
 
     /* The callable specification. */
-    const sipCallableSpec *c_spec;
+    const sipAttrSpec *attr_spec;
 
     /* A strong reference to the defining module. */
     PyObject *defining_module;
@@ -82,14 +82,14 @@ static MethodDescr *alloc_method_descr(sipSipModuleState *sms);
  * Return a new method descriptor for the given method.
  */
 PyObject *sipMethodDescr_New(sipSipModuleState *sms,
-        const sipCallableSpec *c_spec, PyObject *defining_module,
+        const sipAttrSpec *attr_spec, PyObject *defining_module,
         const sipTypeSpec *extending_ts)
 {
     MethodDescr *descr = alloc_method_descr(sms);
 
     if (descr != NULL)
     {
-        descr->c_spec = c_spec;
+        descr->attr_spec = attr_spec;
         descr->defining_module = Py_NewRef(defining_module);
         descr->extending_ts = extending_ts;
         descr->mixin_name = NULL;
@@ -110,7 +110,7 @@ PyObject *sipMethodDescr_Copy(sipSipModuleState *sms, PyObject *orig,
 
     if (descr != NULL)
     {
-        descr->c_spec = orig_descr->c_spec;
+        descr->attr_spec = orig_descr->attr_spec;
         descr->defining_module = Py_NewRef(orig_descr->defining_module);
         descr->extending_ts = orig_descr->extending_ts;
         descr->mixin_name = Py_XNewRef(mixin_name);
@@ -153,7 +153,7 @@ static PyObject *MethodDescr_descr_get(MethodDescr *self, PyObject *obj,
         bind = Py_NewRef(obj);
     }
 
-    PyObject *callable = sipCallable_New(ms->sip_module_state, self->c_spec,
+    PyObject *callable = sipCallable_New(ms->sip_module_state, self->attr_spec,
             self->defining_module, bind, self->extending_ts);
     Py_DECREF(bind);
 
@@ -167,7 +167,9 @@ static PyObject *MethodDescr_descr_get(MethodDescr *self, PyObject *obj,
  */
 static PyObject *MethodDescr_repr(MethodDescr *self)
 {
-    return PyUnicode_FromFormat("<built-in method %s>", self->c_spec->name);
+    // TODO Match Callable.
+    return PyUnicode_FromFormat("<built-in method %s>",
+            self->attr_spec->name + 1);
 }
 
 

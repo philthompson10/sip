@@ -3,7 +3,7 @@
 /*
  * The implementation of the variable descriptor type.
  *
- * Copyright (c) 2025 Phil Thompson <phil@riverbankcomputing.com>
+ * Copyright (c) 2026 Phil Thompson <phil@riverbankcomputing.com>
  */
 
 
@@ -12,8 +12,7 @@
 #include "sip_variable_descriptor.h"
 
 #include "sip_module.h"
-#include "sip_module_wrapper.h"
-#include "sip_wrapped_module.h"
+#include "sip_variable.h"
 #include "sip_wrapper_type.h"
 
 
@@ -29,7 +28,7 @@ typedef struct {
     PyObject_HEAD
 
     /* The wrapped variable specification. */
-    const sipVariableSpec *wvd;
+    const sipAttrSpec *attr_spec;
 
     /* A strong reference to the wrapped type containing the variable. */
     // TODO If this is a type ID (or a type number) then we should be able to
@@ -83,13 +82,13 @@ static VariableDescr *alloc_variable_descr(sipSipModuleState *sms);
  * Return a new method descriptor for the given getter/setter.
  */
 PyObject *sipVariableDescr_New(sipSipModuleState *sms, PyTypeObject *w_type,
-        const sipVariableSpec *wvd)
+        const sipAttrSpec *attr_spec)
 {
     VariableDescr *descr = alloc_variable_descr(sms);
 
     if (descr != NULL)
     {
-        descr->wvd = wvd;
+        descr->attr_spec = attr_spec;
         descr->w_type = (PyTypeObject *)Py_NewRef(w_type);
         descr->mixin_name = NULL;
     }
@@ -109,7 +108,7 @@ PyObject *sipVariableDescr_Copy(sipSipModuleState *sms, PyObject *orig,
 
     if (descr != NULL)
     {
-        descr->wvd = orig_descr->wvd;
+        descr->attr_spec = orig_descr->attr_spec;
         descr->w_type = (PyTypeObject *)Py_NewRef(orig_descr->w_type);
         descr->mixin_name = Py_XNewRef(mixin_name);
     }
@@ -127,7 +126,7 @@ static PyObject *VariableDescr_descr_get(VariableDescr *self, PyObject *obj,
     sipWrapperType *wt = (sipWrapperType *)self->w_type;
     sipModuleState *ms = sip_get_module_state(wt->wt_d_mod);
 
-    return sip_variable_get(ms, obj, self->wvd, self->w_type,
+    return sip_variable_get(ms, obj, self->attr_spec, self->w_type,
             self->mixin_name);
 }
 
@@ -141,7 +140,7 @@ static int VariableDescr_descr_set(VariableDescr *self, PyObject *obj,
     sipWrapperType *wt = (sipWrapperType *)self->w_type;
     sipModuleState *ms = sip_get_module_state(wt->wt_d_mod);
 
-    return sip_variable_set(ms, obj, value, self->wvd, self->w_type,
+    return sip_variable_set(ms, obj, value, self->attr_spec, self->w_type,
             self->mixin_name);
 }
 

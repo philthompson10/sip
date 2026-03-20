@@ -14,15 +14,15 @@ from ....utils import find_method, is_namespace_extender
 
 from ...formatters import fmt_class_as_scoped_py_name
 
-from ..snippets import (g_class_method_table, g_ctor_type_hint,
-        g_method_docstring, g_module_docstring, g_overload_type_hint,
-        g_py_slot, g_pyqt_class_plugin, g_pyqt_helper_defns,
-        g_pyqt_helper_init, g_static_function, g_type_init_body)
+from ..snippets import (g_ctor_type_hint, g_method_docstring,
+        g_module_docstring, g_overload_type_hint, g_py_slot,
+        g_pyqt_class_plugin, g_pyqt_helper_defns, g_pyqt_helper_init,
+        g_static_function, g_type_init_body)
 from ..utils import (callable_overloads, get_class_flags, get_class_from_void,
         get_enum_member, get_function_table, get_mapped_type_flags,
-        get_optional_ptr, get_type_from_void, has_method_docstring,
-        need_dealloc, py_scope, pyqt5_supported, pyqt6_supported,
-        scoped_class_name, variables_in_scope)
+        get_method_table, get_optional_ptr, get_type_from_void,
+        has_method_docstring, need_dealloc, py_scope, pyqt5_supported,
+        pyqt6_supported, scoped_class_name, variables_in_scope)
 
 from .abstract_backend import AbstractBackend
 
@@ -171,8 +171,13 @@ f'''
         module_name = module.py_name
 
         nr_static_variables, nr_types = static_variables_state
-        nr_callables = self._g_module_functions_table(sf)
         nr_extenders = self._g_extenders_table(sf)
+
+        attrs = []
+        self._g_module_functions_table(sf, attrs)
+
+        if attrs:
+            self._g_attributes_table(sf, attrs, module_name)
 
         # Generate the pointer to the immutable SIP ABI structure that is
         # obtained from the sip module.  It is the only static variable used
@@ -225,13 +230,15 @@ static const sipModuleSpec sipModule_{module_name} = {{
         if nr_subclass_convertors != 0:
             sf.write('    .convertors = convertorsTable,\n')
 
-        if nr_callables != 0:
-            sf.write(f'    .attributes.callables = sipCallables_{module_name},\n')
+        if attrs:
+            sf.write(f'    .attributes.nr_attrs = {len(attrs)},\n')
+            sf.write(f'    .attributes.attrs = sipAttributes_{module_name},\n')
 
         if nr_static_variables != 0:
             sf.write(f'    .attributes.nr_static_variables = {nr_static_variables},\n')
             sf.write(f'    .attributes.static_variables = sipModuleVariables_{module_name},\n')
 
+        # TODO Is the type numbers table still needed?
         if nr_types != 0:
             sf.write(f'    .attributes.nr_types = {nr_types},\n')
             sf.write(f'    .attributes.type_nrs = sipTypeNrs_{module_name},\n')
@@ -263,7 +270,7 @@ static const sipModuleSpec sipModule_{module_name} = {{
         self._g_module_exec(sf)
         self._g_module_free(sf)
         self._g_module_traverse(sf)
-        self.g_module_definition(sf, has_module_functions=(nr_callables != 0))
+        self.g_module_definition(sf)
         self.g_module_init_start(sf)
 
         if spec.sip_module:
@@ -602,6 +609,7 @@ extern sipMappedTypeSpec sipTypeSpec_{module_name}_{mapped_type_name};
         module_name = mapped_type.iface_file.module.py_name
         mapped_type_name = mapped_type.iface_file.fq_cpp_name.as_word
 
+        attrs = []
         fields = []
 
         # Generate the enums table.
@@ -612,8 +620,8 @@ extern sipMappedTypeSpec sipTypeSpec_{module_name}_{mapped_type_name};
                 mapped_type.members)
 
         # Generate the methods table.
-        nr_methods = self.g_py_method_table(sf, bindings,
-                get_function_table(mapped_type.members), mapped_type)
+        self._g_py_method_table(sf, bindings,
+                get_function_table(mapped_type.members), mapped_type, attrs)
 
         # Generate the static variables (ie. enum types) table.
         _, nr_types = self.g_static_variables_table(sf, scope=mapped_type)
@@ -796,22 +804,6 @@ PyMODEXPORT_FUNC PyModExport_{module_name}({arg_type})
         sf.write(f'static PyObject *callable_{name}({self.get_py_method_args(is_impl=True, need_self=need_self, need_args=need_args)})\n{{\n')
 
         return None
-
-    def g_py_method_table(self, sf, bindings, members, scope):
-        """ Generate a Python method table for a class or mapped type and
-        return the number of entries.
-        """
-
-        nr_callables = self._g_callables_table(sf, members, scope)
-
-        if nr_callables != 0:
-            sf.write(
-'''    {}
-};
-
-''')
-
-        return nr_callables
 
     def g_sip_api(self, sf, module_name, module_state):
         """ Generate the SIP API as seen by generated code. """
@@ -1236,8 +1228,14 @@ f'''    }}
         module_name = module.py_name
         klass_name = klass.iface_file.fq_cpp_name.as_word
 
+        attrs = []
+
         # Generate the methods table.
-        nr_methods = g_class_method_table(self, sf, bindings, klass)
+        self._g_class_method_table(sf, bindings, klass, attrs)
+
+        # Generate the combined attributes table.
+        if attrs:
+            self._g_attributes_table(sf, attrs, klass_name)
 
         if is_namespace_extender(klass):
             return
@@ -1300,9 +1298,9 @@ f'''    }}
         if scope_id is not None:
             fields.append('.container.scope_id = ' + scope_id)
 
-        if nr_methods != 0:
-            fields.append(
-                    '.container.attributes.callables = sipCallables_' + klass_name)
+        if attrs:
+            fields.append(f'.container.attributes.nr_attrs = {len(attrs)}')
+            fields.append('.container.attributes.attrs = sipAttributes_' + klass_name)
 
         if nr_static_variables != 0:
             fields.append(
@@ -1726,9 +1724,30 @@ static void module_free(void *mod_ptr)
 }
 ''')
 
+    def _g_attributes_table(self, sf, attrs, table_name):
+        """ Generate an attributes specification table. """
+
+        # Sort the table on attribute name.
+        attrs.sort(key=lambda a: a[1])
+
+        sf.write(f'static const sipAttrSpec sipAttributes_{table_name}[] = {{\n')
+
+        for attr_type, name, docstring_ref, spec_ref in attrs:
+            sf.write(f'    {{.name = "{attr_type}{name}", ')
+
+            if docstring_ref != 'SIP_NULLPTR':
+                sf.write(f'.docstring = {docstring_ref}, ')
+
+            sf.write(f'.spec.{spec_ref}}},\n')
+
+        sf.write('};\n\n')
+
     @classmethod
-    def _g_callables_table(cls, sf, members, scope, nr_callables=0):
-        """ Generate a table of callable specs for a list of functions. """
+    def _g_callables_table(cls, sf, members, scope, attrs, nr_callables=0):
+        """ Generate a table of callable specs for a list of functions and
+        update the attributes generated.  An attribute is a 4-tuples of the
+        type, name, docstring reference and specification reference.
+        """
 
         if isinstance(scope, Module):
             name = scope.py_name
@@ -1751,8 +1770,7 @@ static void module_free(void *mod_ptr)
                 if not isinstance(scope, WrappedClass) or not is_namespace_extender(scope):
                     sf.write('static ')
 
-                sf.write(f'sipCallableSpec sipCallables_{name}[] = {{\n')
-                nr_callables += 1
+                sf.write(f'const sipCallableSpec sipCallables_{name}[] = {{\n')
 
             type_hints, user_docstring = cls._get_doc_details(member,
                     overloads)
@@ -1762,11 +1780,30 @@ static void module_free(void *mod_ptr)
 
             type_hints_ref = get_optional_ptr(type_hints,
                     'sipTypeHints_' + fq_name)
-            docstring_ref = get_optional_ptr(user_docstring, 'doc_' + fq_name)
 
-            sf.write(f'    {{"{member_name}", callable_{fq_name}, {type_hints_ref}, {docstring_ref}}},\n')
+            sf.write(f'    {{callable_{fq_name}, {type_hints_ref}}},\n')
+
+            docstring_ref = get_optional_ptr(user_docstring, 'doc_' + fq_name)
+            spec_ref = f'callable = &sipCallables_{name}[{nr_callables}]'
+            nr_callables += 1
+
+            attrs.append(('c', member_name, docstring_ref, spec_ref))
 
         return nr_callables
+
+    def _g_class_method_table(self, sf, bindings, klass, attrs):
+        """ Generate the table of methods for a class and update the attributes
+        generated.
+        """
+
+        # TODO Make sure get_function_table() and get_method_table() don't
+        # sort.  (Only needed for older ABI versions.)
+        if klass.iface_file.type is IfaceFileType.NAMESPACE:
+            members = get_function_table(klass.members)
+        else:
+            members = get_method_table(klass)
+
+        self._g_py_method_table(sf, bindings, members, klass, attrs)
 
     def _g_extenders_table(self, sf):
         """ Generate the table of type extenders and return the number actually
@@ -1798,9 +1835,9 @@ static const sipExtenderSpec sipExtenders_{module.py_name}[] = {{
 
         return nr_extenders;
 
-    def _g_module_functions_table(self, sf):
-        """ Generate the table of module functions and return the number
-        actually generated.
+    def _g_module_functions_table(self, sf, attrs):
+        """ Generate the table of module functions and update the attributes
+        generated.
         """
 
         module = self.spec.module
@@ -1808,22 +1845,16 @@ static const sipExtenderSpec sipExtenders_{module.py_name}[] = {{
         # TODO Investigate why there can be module level slots.
         functions = [f for f in module.global_functions if f.py_slot is None]
 
-        nr_callables = self._g_callables_table(sf, functions, module)
+        nr_callables = self._g_callables_table(sf, functions, module, attrs)
 
         # Generate the module functions for any hidden namespaces.
         for klass in self.spec.classes:
             if klass.iface_file.module is module and klass.is_hidden_namespace:
-                nr_callables = self._g_callables_table(sf, klass,
+                nr_callables = self._g_callables_table(sf, klass, attrs,
                         nr_callables=nr_callables)
 
         if nr_callables != 0:
-            sf.write(
-'''    {}
-};
-
-''')
-
-        return nr_callables
+            sf.write('};\n\n')
 
     @staticmethod
     def _g_module_traverse(sf):
@@ -1886,6 +1917,14 @@ static sipPropertySpec {table_name}[] = {{
         sf.write('    {}\n};\n')
 
         return table_name
+
+    def _g_py_method_table(self, sf, bindings, members, scope, attrs):
+        """ Generate a Python method table for a class or mapped type and
+        update the attributes generated.
+        """
+
+        if self._g_callables_table(sf, members, scope, attrs) != 0:
+            sf.write('};\n\n')
 
     def _g_slots_table(self, sf, type_name, members, mixin=False):
         """ Generate the slots table for a type.  Return the name of the table

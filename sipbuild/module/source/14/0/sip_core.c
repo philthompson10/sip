@@ -20,7 +20,6 @@
 
 #include "sip.h"
 #include "sip_array.h"
-#include "sip_callable.h"
 #include "sip_enum.h"
 #include "sip_int_convertors.h"
 #include "sip_method_descriptor.h"
@@ -279,8 +278,6 @@ const sipABISpec sip_abi = {
 /* Forward references. */
 static void call_py_dtor(sipModuleState *ms, PyObject *self);
 static int compare_typedef_name(const void *key, const void *el);
-static PyObject *create_callable(sipModuleState *ms,
-        const sipCallableSpec *c_spec);
 static PyTypeObject *create_class_type(sipModuleState *ms, sipTypeNr type_nr,
         const sipClassTypeSpec *ctd);
 static PyTypeObject *create_container_type(sipModuleState *ms,
@@ -290,8 +287,6 @@ static PyTypeObject *create_exception_type(sipModuleState *ms,
         const sipExceptionTypeSpec *ets);
 static PyTypeObject *create_mapped_type(sipModuleState *ms, sipTypeNr type_nr,
         const sipMappedTypeSpec *mts);
-static PyObject *create_property(sipModuleState *ms,
-        const sipPropertySpec *ps);
 static PyTypeObject *find_registered_py_type(sipSipModuleState *sms,
         const char *name);
 static PyObject *import_module_attr(const char *module, const char *attr);
@@ -864,7 +859,7 @@ static PyTypeObject *create_container_type(sipModuleState *ms,
             ms->wrapped_module, &spec, bases);
 
     if (w_type == NULL)
-        goto ret_error;
+        return NULL;
 
     /* Configure the type. */
     sipSipModuleState *sms = ms->sip_module_state;
@@ -875,38 +870,15 @@ static PyTypeObject *create_container_type(sipModuleState *ms,
     wt->wt_d_mod = Py_NewRef(ms->wrapped_module);
     wt->wt_type_id = type_id;
 
-    /*
-     * Add the descriptors for the methods.  The dict is created by the
-     * PyType_Ready() call in PyType_FromMetaclass().
-     */
-    if (cs->attributes.callables != NULL)
-    {
-        const sipCallableSpec *c_spec;
-
-        for (c_spec = cs->attributes.callables; c_spec->name != NULL; c_spec++)
-        {
-            PyObject *descr = sipMethodDescr_New(sms, c_spec, wt->wt_d_mod,
-                    sipTypeIsNamespace(ts) ? ts : NULL);
-
-            if (sip_dict_set_and_discard(w_type->tp_dict, c_spec->name, descr) < 0)
-                goto rel_type;
-        }
-    }
-
     /* Fix the type's name attributes. */
     if (cs->scope_id != sipTypeID_Invalid)
         if (sip_fix_type_attrs(ms, ts->fq_py_name, (PyObject *)w_type) < 0)
-            goto rel_type;
+        {
+            Py_DECREF(w_type);
+            return NULL;
+        }
 
     return w_type;
-
-    /* Unwind on error. */
-
-rel_type:
-    Py_DECREF(w_type);
-
-ret_error:
-    return NULL;
 }
 
 
@@ -1069,6 +1041,9 @@ static PyTypeObject *create_class_type(sipModuleState *ms, sipTypeNr type_nr,
         return NULL;
 
     /* Add the descriptors for the instance variables. */
+    // TODO Need to distinguish between instance data and type/module data.
+#if 0
+    ZZZ
     if (cts->instance_variables != NULL)
     {
         const sipVariableSpec *vs;
@@ -1081,20 +1056,7 @@ static PyTypeObject *create_class_type(sipModuleState *ms, sipTypeNr type_nr,
                 goto discard_py_type;
         }
     }
-
-    /* Add the properties. */
-    if (cts->properties != NULL)
-    {
-        const sipPropertySpec *ps;
-
-        for (ps = cts->properties; ps->name != NULL; ps++)
-        {
-            PyObject *prop = create_property(ms, ps);
-
-            if (sip_dict_set_and_discard(py_type->tp_dict, ps->name, prop) < 0)
-                goto discard_py_type;
-        }
-    }
+#endif
 
 #if 0
     /* Handle the pickle function. */
@@ -1105,16 +1067,14 @@ static PyTypeObject *create_class_type(sipModuleState *ms, sipTypeNr type_nr,
         };
 
         if (set_reduce(py_type, &md) < 0)
-            goto rel_type;
+        {
+            Py_DECREF(py_type);
+            return NULL;
+        }
     }
 #endif
 
     return py_type;
-
-    /* Unwind on errors. */
-discard_py_type:
-    Py_DECREF(py_type);
-    return NULL;
 }
 
 
@@ -1222,56 +1182,6 @@ static PyTypeObject *create_mapped_type(sipModuleState *ms, sipTypeNr type_nr,
             SIP_TYPE_ID_TYPE_MAPPED | SIP_TYPE_ID_LOCAL_MODULE | type_nr,
             &mts->base, &mts->container, (PyObject *)sms->simple_wrapper_type,
             sms->wrapper_type_type);
-}
-
-
-/*
- * Create and return a Python property.
- */
-static PyObject *create_property(sipModuleState *ms, const sipPropertySpec *ps)
-{
-    PyObject *prop, *fget, *fset, *doc;
-
-    prop = fget = fset = doc = NULL;
-
-    if ((fget = create_callable(ms, ps->getter)) == NULL)
-        goto done;
-
-    if ((fset = create_callable(ms, ps->setter)) == NULL)
-        goto done;
-
-    if (ps->docstring == NULL)
-    {
-        doc = Py_NewRef(Py_None);
-    }
-    else if ((doc = PyUnicode_FromString(ps->docstring)) == NULL)
-    {
-        goto done;
-    }
-
-    prop = PyObject_CallFunctionObjArgs((PyObject *)&PyProperty_Type, fget,
-            fset, Py_None, doc, NULL);
-
-done:
-    Py_XDECREF(fget);
-    Py_XDECREF(fset);
-    Py_XDECREF(doc);
-
-    return prop;
-}
-
-
-/*
- * Return a callable or Py_None if there isn't one.
- */
-static PyObject *create_callable(sipModuleState *ms,
-        const sipCallableSpec *c_spec)
-{
-    if (c_spec == NULL)
-        return Py_NewRef(Py_None);
-
-    return sipCallable_New(ms->sip_module_state, c_spec, ms->wrapped_module,
-            NULL, NULL);
 }
 
 

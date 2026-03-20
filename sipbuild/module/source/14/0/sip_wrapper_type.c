@@ -3,7 +3,7 @@
 /*
  * This is the implementation of the sip wrapper type type.
  *
- * Copyright (c) 2025 Phil Thompson <phil@riverbankcomputing.com>
+ * Copyright (c) 2026 Phil Thompson <phil@riverbankcomputing.com>
  */
 
 
@@ -11,9 +11,9 @@
 
 #include "sip_wrapper_type.h"
 
+#include "sip_attribute.h"
 #include "sip_core.h"
 #include "sip_module.h"
-#include "sip_module_wrapper.h"
 #include "sip_simple_wrapper.h"
 #include "sip_wrapped_module.h"
 
@@ -91,11 +91,11 @@ static PyObject *WrapperType_getattro(sipWrapperType *self, PyObject *name)
 
     sipModuleState *ms = sip_get_module_state(self->wt_d_mod);
     const sipTypeSpec *ts = sip_get_type_spec_from_wt(self);
+    const sipContainerSpec *cs = &((const sipClassTypeSpec *)ts)->container;
 
     return sip_mod_con_getattro(ms, (PyObject *)self, name,
-            &((const sipClassTypeSpec *)ts)->container.attributes,
-            ((PyTypeObject *)self)->tp_name,
-            sipTypeIsNamespace(ts) ? ts : NULL);
+            ((PyTypeObject *)self)->tp_dict, cs->attributes,
+            cs->static_variables, sipTypeIsNamespace(ts) ? ts : NULL);
 }
 
 
@@ -177,7 +177,7 @@ static int WrapperType_setattro(sipWrapperType *self, PyObject *name,
     const sipClassTypeSpec *cts = (const sipClassTypeSpec *)sip_get_type_spec_from_wt(self);
 
     return sip_mod_con_setattro(ms, (PyObject *)self, name, value,
-            &cts->container.attributes);
+            cts->container.attributes);
 }
 
 

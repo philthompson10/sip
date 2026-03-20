@@ -20,18 +20,7 @@
 extern "C" {
 #endif
 
-PyObject *sip_mod_con_getattro(sipModuleState *ms, PyObject *self,
-        PyObject *name, const sipAttrsSpec *wad, const char *type_name,
-        const sipTypeSpec *extending_ts);
-int sip_mod_con_setattro(sipModuleState *ms, PyObject *self, PyObject *name,
-        PyObject *value, const sipAttrsSpec *wad);
 int sip_module_wrapper_init(PyObject *module, sipSipModuleState *sms);
-PyObject *sip_variable_get(sipModuleState *ms, PyObject *instance,
-        const sipVariableSpec *wvd, PyTypeObject *binding_type,
-        PyObject *mixin_name);
-int sip_variable_set(sipModuleState *ms, PyObject *instance, PyObject *value,
-        const sipVariableSpec *wvd, PyTypeObject *binding_type,
-        PyObject *mixin_name);
 
 #ifdef __cplusplus
 }

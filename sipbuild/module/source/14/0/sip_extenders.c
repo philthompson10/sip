@@ -13,11 +13,9 @@
 
 #include "sip_extenders.h"
 
-#include "sip_callable.h"
-#include "sip_core.h"
+#include "sip_attribute.h"
 #include "sip_module.h"
 #include "sip_parsers.h"
-#include "sip_wrapped_module.h"
 
 
 /*
@@ -33,19 +31,17 @@ typedef struct {
 } ListIterator;
 
 
-/* A handler that is invoked when a callable extender is found. */
-typedef int (*CallableHandlerFunc)(sipModuleState *,
-        const sipCallableSpec *, void *, PyObject **);
+/* A handler that is invoked when an attribute extender is found. */
+typedef int (*AttrHandlerFunc)(sipModuleState *, const sipAttrSpec *, void *);
 
 
 /* Forward declarations. */
 static int call_extension(sipModuleState *x_ms,
-        const sipCallableSpec *x_c_spec, void *closure, PyObject **res_p);
-static int create_extension(sipModuleState *x_ms,
-        const sipCallableSpec *x_c_spec, void *closure, PyObject **res_p);
+        const sipAttrSpec *x_attr_spec, void *closure);
+static int get_extension(sipModuleState *x_ms,
+        const sipAttrSpec *x_attr_spec, void *closure);
 static int iterate(sipModuleState *ms, const sipTypeSpec *extending_ts,
-        const char *name, CallableHandlerFunc handler, void *closure,
-        PyObject **res_p);
+        const char *name, AttrHandlerFunc handler, void *closure);
 static int list_iterator_init(ListIterator *li, PyObject *list);
 static PyObject *list_iterator_next(ListIterator *li);
 static void list_iterator_release(ListIterator *li);
@@ -58,6 +54,7 @@ typedef struct {
     PyObject *const *args;
     Py_ssize_t nr_args;
     PyObject *kwd_names;
+    PyObject *result;
 } CallClosure;
 
 
@@ -77,32 +74,29 @@ PyObject *sip_extend(sipModuleState *ms, PyObject **p_state_p, PyObject *self,
         .kwd_names = kwd_names,
     };
 
-    PyObject *res;
-
-    int state = iterate(ms, extending_ts, name, call_extension, &call_closure,
-            &res);
+    int state = iterate(ms, extending_ts, name, call_extension, &call_closure);
 
     /* The caller uses the parser state to determine if there was an error. */
     if (state < 0)
         sip_api_set_parser_error(p_state_p);
 
-    return state > 0 ? res : NULL;
+    return state > 0 ? call_closure.result : NULL;
 }
 
 
 /*
- * The callable handler that calls the callable.
+ * The attribute handler that calls a callable.
  */
-static int call_extension(sipModuleState *x_ms,
-        const sipCallableSpec *x_c_spec, void *closure, PyObject **res_p)
+static int call_extension(sipModuleState *x_ms, const sipAttrSpec *x_attr_spec,
+        void *closure)
 {
     CallClosure *cc = (CallClosure *)closure;
 
-    *res_p = x_c_spec->callable_impl(x_ms, cc->p_state_p, cc->self, cc->args,
-            cc->nr_args, cc->kwd_names);
+    cc->result = x_attr_spec->spec.callable->callable_impl(x_ms, cc->p_state_p,
+            cc->self, cc->args, cc->nr_args, cc->kwd_names);
 
     /* See if there was a result. */
-    if (*res_p != NULL)
+    if (cc->result != NULL)
         return 1;
 
     /* Stop if there was an error. */
@@ -110,63 +104,61 @@ static int call_extension(sipModuleState *x_ms,
 }
 
 
-/* The closure used when looking for an extender to create. */
+/* The closure used when looking for an extender attribute. */
 typedef struct {
-    PyObject *self;
-    const sipTypeSpec *extending_ts;
-} CreateClosure;
+    sipModuleState *ms;
+    const sipAttrSpec *attr_spec;
+} GetClosure;
 
 
 /*
- * Return a callable object that extends a type.  Returns -1 if there was an
- * error, otherwise the object (if there is one) is returned via a pointer.
+ * Return an attribute specification that extends a type.  Returns -1 if there
+ * was an error, otherwise the specification (if there is one) and the defining
+ * module state are returned via pointers.
  */
-int sip_get_extension_callable(sipModuleState *ms, PyObject *self,
+int sip_get_extension_attribute(sipModuleState *ms,
         const sipTypeSpec *extending_ts, const char *name,
-        PyObject **callable_p)
+        sipModuleState **x_ms_p, const sipAttrSpec **x_attr_spec_p)
 {
-    CreateClosure create_closure = {
-        .self = self,
-        .extending_ts = extending_ts,
-    };
+    GetClosure get_closure = {};
 
-    int state = iterate(ms, extending_ts, name, create_extension,
-            &create_closure, callable_p);
-
-    if (state < 0)
+    if (iterate(ms, extending_ts, name, get_extension, &get_closure) < 0)
         return -1;
 
-    if (state == 0)
-        *callable_p = NULL;
+    *x_ms_p = get_closure.ms;
+    *x_attr_spec_p = get_closure.attr_spec;
 
     return 0;
 }
 
 
 /*
- * The callable handler that creates the callable.
+ * The attribute handler that returns an attribute extension.
  */
-static int create_extension(sipModuleState *x_ms,
-        const sipCallableSpec *x_c_spec, void *closure, PyObject **res_p)
+static int get_extension(sipModuleState *x_ms, const sipAttrSpec *x_attr_spec,
+        void *closure)
 {
-    CreateClosure *cc = (CreateClosure *)closure;
+    GetClosure *gc = (GetClosure *)closure;
 
-    *res_p = sipCallable_New(x_ms->sip_module_state, x_c_spec,
-            x_ms->wrapped_module, cc->self, cc->extending_ts);
+    gc->ms = x_ms;
+    gc->attr_spec = x_attr_spec;
 
-    /* There is no need to iterated further. */
-    return *res_p != NULL ? 1 : -1;
+    /*
+     * There is no need to iterate further.  Note that we don't check that
+     * there aren't any other extenders for the same name.  This isn't a
+     * problem for callables but other type of attribute should be unique.
+     */
+    return 1;
 }
 
 
 /*
- * Iterate over the (virtual) list of callables that extend a type and invoke a
- * handler to perform some action.  The value returned by the handler
+ * Iterate over the (virtual) list of attributes that extend a type and invoke
+ * a handler to perform some action.  The value returned by the handler
  * determines if the iteration continues.
  */
 static int iterate(sipModuleState *ms, const sipTypeSpec *extending_ts,
-        const char *name, CallableHandlerFunc handler, void *closure,
-        PyObject **res_p)
+        const char *name, AttrHandlerFunc handler, void *closure)
 {
     sipSipModuleState *sms = ms->sip_module_state;
 
@@ -203,27 +195,22 @@ static int iterate(sipModuleState *ms, const sipTypeSpec *extending_ts,
             /* See if this extender extends the type. */
             if (sip_get_type_detail(x_ms, extenders->extending_type_id, NULL, NULL) == extending_ts)
             {
-                const sipCallableSpec *x_c_spec = extenders->callables;
+                const sipAttrSpec *x_attr_spec = sip_get_attribute_spec(name,
+                        extenders->attributes);
 
-                /* Look for a matching name. */
-                while (x_c_spec->name != NULL)
+                if (x_attr_spec != NULL)
                 {
-                    if (strcmp(x_c_spec->name, name) == 0)
+                    /*
+                     * Invoke the handler.  A true result means we stop
+                     * iterating.
+                     */
+                    int state = handler(x_ms, x_attr_spec, closure);
+
+                    if (state != 0)
                     {
-                        /*
-                         * Invoke the handler.  A true result means we stop
-                         * iterating.
-                         */
-                        int state = handler(x_ms, x_c_spec, closure, res_p);
-
-                        if (state != 0)
-                        {
-                            list_iterator_release(&li);
-                            return state;
-                        }
+                        list_iterator_release(&li);
+                        return state;
                     }
-
-                    x_c_spec++;
                 }
             }
 

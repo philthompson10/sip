@@ -21,7 +21,7 @@ extern "C" {
 #endif
 
 PyObject *sipMethodDescr_New(sipSipModuleState *sms,
-        const sipCallableSpec *c_spec, PyObject *defining_module,
+        const sipAttrSpec *attr_spec, PyObject *defining_module,
         const sipTypeSpec *extending_ts);
 PyObject *sipMethodDescr_Copy(sipSipModuleState *sms, PyObject *orig,
         PyObject *mixin_name);
