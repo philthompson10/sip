@@ -155,6 +155,7 @@ These are the remaining broad areas of work.
 - Resolve issue #100 (`const` enforcement).
 - Use `tp_token` instead of `wt_td`?
 - Docstrings (taking account of extenders).
+- dir() (taking account of extenders).
 - Abstract classes.
 - Events.
 - Buffer protocol.

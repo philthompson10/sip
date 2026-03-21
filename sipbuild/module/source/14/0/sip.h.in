@@ -309,9 +309,6 @@ typedef PyObject *(*sipVariableGetCodeFunc)();
 typedef int (*sipVariableSetCodeFunc)(PyObject *);
 
 typedef struct {
-    /* The Python name of the variable. */
-    const char *name;
-
     /* The type of the variable's value. */
     sipTypeID type_id;
 
@@ -611,13 +608,13 @@ typedef struct _sipContainerSpec {
     sipTypeID scope_id;
 
     /* The attributes except for static variables. */
-    const sipAttributesSpec *const attributes;
+    sipAttributesSpec attributes;
 
     /* The table of Python slots. */
     const PyType_Slot *py_slots;
 
     /* The static variable attributes. */
-    const sipAttributesSpec *const static_variables;
+    sipAttributesSpec static_variables;
 } sipContainerSpec;
 
 
@@ -787,7 +784,7 @@ typedef struct _sipExtenderSpec {
     sipTypeID extending_type_id;
 
     /* The attributes. */
-    const sipAttributesSpec *const attributes;
+    sipAttributesSpec attributes;
 } sipExtenderSpec;
 
 
@@ -881,10 +878,10 @@ struct _sipModuleSpec {
     const sipSubClassConvertorDef *const convertors;
 
     /* The attributes except for static variables. */
-    const sipAttributesSpec *const attributes;
+    sipAttributesSpec attributes;
 
     /* The static variable attributes. */
-    const sipAttributesSpec *const static_variables;
+    sipAttributesSpec static_variables;
 
     /* The license. */
     const struct _sipLicenseDef *license;

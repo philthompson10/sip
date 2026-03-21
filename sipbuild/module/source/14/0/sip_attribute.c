@@ -28,6 +28,7 @@ static PyObject *create_callable(sipModuleState *ms,
         const sipAttrSpec *attr_spec);
 static PyObject *create_property(sipModuleState *ms,
         const sipAttrSpec *attr_spec);
+static PyObject *descriptor_get(PyObject *attr, PyObject *self);
 static PyObject *get_attribute_for_spec(sipModuleState *ms, PyObject *self,
         const sipAttrSpec *attr_spec, const sipTypeSpec *extending_ts);
 static PyObject *get_py_type(sipModuleState *ms, const sipAttrSpec *attr_spec);
@@ -39,6 +40,9 @@ static PyObject *get_py_type(sipModuleState *ms, const sipAttrSpec *attr_spec);
 const sipAttrSpec *sip_get_attribute_spec(const char *name,
         const sipAttributesSpec *attrs)
 {
+    if (attrs->nr_attrs == 0)
+        return NULL;
+
     return (const sipAttrSpec *)bsearch((const void *)name,
             (const void *)attrs->attrs, attrs->nr_attrs, sizeof (sipAttrSpec),
             compare_attribute);
@@ -55,19 +59,17 @@ PyObject *sip_mod_con_getattro(sipModuleState *ms, PyObject *self,
         const sipTypeSpec *extending_ts)
 {
     const char *utf8_name = PyUnicode_AsUTF8(name);
+    const sipAttrSpec *attr_spec;
+printf("!!! Attr: %s\n", utf8_name);
 
     /*
      * The behaviour of static variables is that of a data descriptor and they
      * take precedence over any attributes set by the user.
      */
-    if (static_variables != NULL)
-    {
-        const sipAttrSpec *attr_spec = sip_get_attribute_spec(utf8_name,
-                static_variables);
+    attr_spec = sip_get_attribute_spec(utf8_name, static_variables);
 
-        if (attr_spec != NULL)
-            return sip_variable_get(ms, self, attr_spec, NULL, NULL);
-    }
+    if (attr_spec != NULL)
+        return sip_variable_get(ms, self, attr_spec, NULL, NULL);
 
     /* Get any extension attribute. */
     const sipAttrSpec *x_attr_spec = NULL;
@@ -92,34 +94,38 @@ PyObject *sip_mod_con_getattro(sipModuleState *ms, PyObject *self,
         return attr;
 
     /* See if there is a wrapped attribute. */
-    if (attributes != NULL)
+    attr_spec = sip_get_attribute_spec(utf8_name, attributes);
+
+    if (attr_spec != NULL)
     {
-        const sipAttrSpec *attr_spec = sip_get_attribute_spec(utf8_name,
-                attributes);
+        attr = get_attribute_for_spec(ms, self, attr_spec, extending_ts);
+        if (attr == NULL)
+            return NULL;
 
-        if (attr_spec != NULL)
+        /* Save it in the dict. */
+        if (PyDict_SetItem(attr_dict, name, attr) < 0)
         {
-            PyObject *attr = get_attribute_for_spec(ms, self, attr_spec,
-                    extending_ts);
-            if (attr == NULL)
-                return NULL;
-
-            /* Save it in the dict. */
-            if (PyDict_SetItem(attr_dict, name, attr) < 0)
-            {
-                Py_DECREF(attr);
-                return NULL;
-            }
-
-            return attr;
+            Py_DECREF(attr);
+            return NULL;
         }
+
+        return descriptor_get(attr, self);
     }
 
     /* See if the type has been extended. */
     if (x_attr_spec != NULL)
-        return get_attribute_for_spec(x_ms, self, x_attr_spec, extending_ts);
+    {
+        attr = get_attribute_for_spec(x_ms, self, x_attr_spec, extending_ts);
+        if (attr == NULL)
+            return NULL;
 
-    /* The exception from the super-class should still be in place. */
+        return descriptor_get(attr, self);
+    }
+
+    /*
+     * The exception from the super-class should still be in place if no
+     * attribute was found.
+     */
     return NULL;
 }
 
@@ -128,13 +134,18 @@ PyObject *sip_mod_con_getattro(sipModuleState *ms, PyObject *self,
  * The setattro handler for modules and containers.
  */
 int sip_mod_con_setattro(sipModuleState *ms, PyObject *self, PyObject *name,
-        PyObject *value, const sipAttributesSpec *attributes)
+        PyObject *value, const sipAttributesSpec *const attributes,
+        const sipAttributesSpec *const static_variables,
+        const sipTypeSpec *extending_ts)
 {
     const char *utf8_name = PyUnicode_AsUTF8(name);
 
     /* See if there is a wrapped attribute. */
     const sipAttrSpec *attr_spec = sip_get_attribute_spec(utf8_name,
             attributes);
+
+    if (attr_spec == NULL)
+        attr_spec = sip_get_attribute_spec(utf8_name, static_variables);
 
     /*
      * Note that we can't use a real descriptor for class (ie. static)
@@ -145,6 +156,20 @@ int sip_mod_con_setattro(sipModuleState *ms, PyObject *self, PyObject *name,
 
     if (attr_spec != NULL)
         return sip_variable_set(ms, self, value, attr_spec, NULL, NULL);
+
+    /* See if there is an extension. */
+    if (extending_ts != NULL)
+    {
+        const sipAttrSpec *x_attr_spec;
+        sipModuleState *x_ms;
+
+        if (sip_get_extension_attribute(ms, extending_ts, utf8_name, &x_ms, &x_attr_spec) < 0)
+            return -1;
+
+        if (x_attr_spec != NULL && x_attr_spec->name[0] == 'v')
+            return sip_variable_set(x_ms, self, value, x_attr_spec, NULL,
+                    NULL);
+    }
 
     return Py_TYPE(self)->tp_base->tp_setattro(self, name, value);
 }
@@ -212,6 +237,20 @@ done:
 
 
 /*
+ * Implement the get part of the descriptor protocol.
+ */
+static PyObject *descriptor_get(PyObject *attr, PyObject *self)
+{
+    descrgetfunc getter = Py_TYPE(attr)->tp_descr_get;
+
+    if (getter != NULL)
+        Py_SETREF(attr, getter(attr, self, (PyObject *)Py_TYPE(self)));
+
+    return attr;
+}
+
+
+/*
  * Return a new reference to the Python object for an attribute according to
  * its specification.
  */
@@ -257,8 +296,6 @@ static PyObject *get_py_type(sipModuleState *ms, const sipAttrSpec *attr_spec)
      * from generated code) and this is just the first time it has been
      * accessed as an attribute.
      */
-    // TODO Pass the name object so that it doesn't need to be recreated from
-    // the spec when creating a new type.
     PyTypeObject *py_type;
 
     if (sip_get_local_py_type(ms, attr_spec->spec.type_nr, &py_type) < 0)

@@ -170,14 +170,23 @@ f'''
         module = spec.module
         module_name = module.py_name
 
-        nr_static_variables, nr_types = static_variables_state
         nr_extenders = self._g_extenders_table(sf)
 
+        # Generate the attributes tables.
         attrs = []
         self._g_module_functions_table(sf, attrs)
 
+        self._add_type_attributes(attrs)
+
         if attrs:
-            self._g_attributes_table(sf, attrs, module_name)
+            self._g_attributes_table(sf, attrs, "sipAttributes", module_name)
+
+        static_variables = []
+        self._g_module_functions_table(sf, static_variables)
+
+        if static_variables:
+            self._g_attributes_table(sf, static_variables,
+                    "sipStaticVariables", module_name)
 
         # Generate the pointer to the immutable SIP ABI structure that is
         # obtained from the sip module.  It is the only static variable used
@@ -234,14 +243,9 @@ static const sipModuleSpec sipModule_{module_name} = {{
             sf.write(f'    .attributes.nr_attrs = {len(attrs)},\n')
             sf.write(f'    .attributes.attrs = sipAttributes_{module_name},\n')
 
-        if nr_static_variables != 0:
-            sf.write(f'    .attributes.nr_static_variables = {nr_static_variables},\n')
-            sf.write(f'    .attributes.static_variables = sipModuleVariables_{module_name},\n')
-
-        # TODO Is the type numbers table still needed?
-        if nr_types != 0:
-            sf.write(f'    .attributes.nr_types = {nr_types},\n')
-            sf.write(f'    .attributes.type_nrs = sipTypeNrs_{module_name},\n')
+        if static_variables:
+            sf.write(f'    .static_variables.nr_attrs = {len(static_variables)},\n')
+            sf.write(f'    .static_variables.attrs = sipStaticVariables_{module_name},\n')
 
         if module.license is not None:
             sf.write('    .license = &module_license,\n')
@@ -645,12 +649,6 @@ extern sipMappedTypeSpec sipTypeSpec_{module_name}_{mapped_type_name};
         if nr_methods != 0:
             fields.append(
                     '.container.attributes.callables = sipCallables_' + mapped_type_name)
-
-        if nr_types != 0:
-            fields.append(
-                    '.container.attributes.nr_types = ' + str(nr_types))
-            fields.append(
-                    '.container.attributes.type_nrs = sipTypeNrs_' + mapped_type_name)
 
         if not mapped_type.no_assignment_operator:
             fields.append('.assign = assign_' + mapped_type_name)
@@ -1154,68 +1152,11 @@ f'''    }}
         return None
 
     def g_static_variables_table(self, sf, scope=None):
-        """ Generate the tables of static variables and types for a scope and
-        return a 2-tuple of the length of each table.
-        """
+        """ Generate the table of static variables. """
 
-        module = self.spec.module
-
-        # Do the variables.
-        nr_variables = self._g_variables_table(sf, scope, for_unbound=True)
-
-        # Do the wrapped types.  First create a list of 2-tuples of Python name
-        # and type number.
-        type_nrs = []
-
-        for needed_type in module.needed_types:
-            if needed_type.type is ArgumentType.CLASS:
-                klass = needed_type.definition
-
-                if py_scope(klass.scope) is not scope or klass.external or klass.real_class is not None:
-                    continue
-
-                py_name = str(klass.py_name)
-                type_nr = klass.iface_file.type_nr
-
-            elif needed_type.type is ArgumentType.MAPPED:
-                mapped_type = needed_type.definition
-
-                if scope is not None or mapped_type.py_name is None:
-                    continue
-
-                py_name = str(mapped_type.py_name)
-                type_nr = mapped_type.iface_file.type_nr
-
-            elif needed_type.type is ArgumentType.ENUM:
-                enum = needed_type.definition
-
-                if py_scope(enum.scope) is not scope:
-                    continue
-
-                py_name = str(enum.py_name)
-                type_nr = enum.type_nr
-
-            elif needed_type.type is ArgumentType.EXCEPTION:
-                if scope is not None:
-                    continue
-
-                exception = needed_type.definition
-
-                py_name = exception.py_name
-                type_nr = exception.iface_file.type_nr
-
-            type_nrs.append((py_name, type_nr))
-
-        if type_nrs:
-            type_nrs.sort(key=lambda tup: tup[0])
-
-            suffix = module.py_name if scope is None else scope.iface_file.fq_cpp_name.as_word
-
-            sf.write(f'\nstatic const sipTypeNr sipTypeNrs_{suffix}[] = {{\n    ')
-            sf.write(', '.join([str(n) for _, n in type_nrs]))
-            sf.write('\n};\n')
-
-        return nr_variables, len(type_nrs)
+        # We actually do it later.
+        # TODO Refactor so the snippets call is part of a bigger backend call.
+        return None
 
     def g_type_definition(self, sf, bindings, klass, py_debug):
         """ Generate the type structure that contains all the information
@@ -1229,34 +1170,49 @@ f'''    }}
         klass_name = klass.iface_file.fq_cpp_name.as_word
 
         attrs = []
+        static_variables = []
+
+        self._add_type_attributes(attrs, scope=klass)
 
         # Generate the methods table.
-        self._g_class_method_table(sf, bindings, klass, attrs)
-
-        # Generate the combined attributes table.
-        if attrs:
-            self._g_attributes_table(sf, attrs, klass_name)
-
-        if is_namespace_extender(klass):
-            return
+        self._g_class_method_table(sf, bindings, attrs, klass)
 
         # Generate the enums table.
+        # TODO Add to attrs.
         self.g_enums_specifications(sf, bindings, scope=klass)
 
         # Generate the slots table.
+        # TODO
         slots_table = self._g_slots_table(sf, klass_name, klass.members,
                 mixin=klass.mixin)
 
-        # Generate the static variables table.
-        nr_static_variables, nr_types = self.g_static_variables_table(sf,
-                scope=klass)
-
-        # Generate the instance variables table.
-        nr_instance_variables = self._g_variables_table(sf, scope=klass,
-                for_unbound=False)
-
         # Generate the properties table.
+        # TODO
         properties_table = self._g_properties_table(sf, klass)
+
+        if is_namespace_extender(klass):
+            # For namespace extenders the static variable attributes are
+            # combined with the rest.
+            self._g_variables_table(sf, attrs, attrs, klass)
+
+            # TODO Generate the init extenders.
+
+            # Generate the extender attributes table.
+            if attrs:
+                self._g_attributes_table(sf, attrs, "sipExtenders", klass_name)
+
+            return
+
+        # Generate the variables table.
+        self._g_variables_table(sf, attrs, static_variables, klass)
+
+        # Generate the attributes tables.
+        if attrs:
+            self._g_attributes_table(sf, attrs, "sipAttributes", klass_name)
+
+        if static_variables:
+            self._g_attributes_table(sf, static_variables,
+                    "sipStaticVariables", klass_name)
 
         # Generate the array of super-class type IDs.
         if len(klass.superclasses) != 0:
@@ -1299,20 +1255,16 @@ f'''    }}
             fields.append('.container.scope_id = ' + scope_id)
 
         if attrs:
-            fields.append(f'.container.attributes.nr_attrs = {len(attrs)}')
-            fields.append('.container.attributes.attrs = sipAttributes_' + klass_name)
+            fields.append(
+                    f'.container.attributes.nr_attrs = {len(attrs)}')
+            fields.append(
+                    '.container.attributes.attrs = sipAttributes_' + klass_name)
 
-        if nr_static_variables != 0:
+        if static_variables:
             fields.append(
-                    '.container.attributes.nr_static_variables = ' + str(nr_static_variables))
+                    f'.container.static_variables.nr_attrs = {len(static_variables)}')
             fields.append(
-                    '.container.attributes.static_variables = sipStaticVariables_' + klass_name)
-
-        if nr_types != 0:
-            fields.append(
-                    '.container.attributes.nr_types = ' + str(nr_types))
-            fields.append(
-                    '.container.attributes.type_nrs = sipTypeNrs_' + klass_name)
+                    '.container.static_variables.attrs = sipStaticVariables_' + klass_name)
 
         if slots_table is not None:
             fields.append('.container.py_slots = ' + slots_table)
@@ -1320,10 +1272,6 @@ f'''    }}
         # TODO
         #if docstring_ref is not None:
         #    fields.append('.docstring = ' + docstring_ref)
-
-        if nr_instance_variables != 0:
-            fields.append(
-                    '.instance_variables = sipInstanceVariables_' + klass_name)
 
         if properties_table is not None:
             fields.append('.properties = ' + properties_table)
@@ -1724,13 +1672,16 @@ static void module_free(void *mod_ptr)
 }
 ''')
 
-    def _g_attributes_table(self, sf, attrs, table_name):
+    def _g_attributes_table(self, sf, attrs, attrs_name, table_name):
         """ Generate an attributes specification table. """
 
         # Sort the table on attribute name.
         attrs.sort(key=lambda a: a[1])
 
-        sf.write(f'static const sipAttrSpec sipAttributes_{table_name}[] = {{\n')
+        sf.write(f'''
+
+static const sipAttrSpec {attrs_name}_{table_name}[] = {{
+''')
 
         for attr_type, name, docstring_ref, spec_ref in attrs:
             sf.write(f'    {{.name = "{attr_type}{name}", ')
@@ -1740,7 +1691,7 @@ static void module_free(void *mod_ptr)
 
             sf.write(f'.spec.{spec_ref}}},\n')
 
-        sf.write('};\n\n')
+        sf.write('};\n')
 
     @classmethod
     def _g_callables_table(cls, sf, members, scope, attrs, nr_callables=0):
@@ -1791,13 +1742,14 @@ static void module_free(void *mod_ptr)
 
         return nr_callables
 
-    def _g_class_method_table(self, sf, bindings, klass, attrs):
+    def _g_class_method_table(self, sf, bindings, attrs, klass):
         """ Generate the table of methods for a class and update the attributes
         generated.
         """
 
         # TODO Make sure get_function_table() and get_method_table() don't
-        # sort.  (Only needed for older ABI versions.)
+        # sort.  (Only needed for older ABI versions.)  But what about
+        # reproducable builds?
         if klass.iface_file.type is IfaceFileType.NAMESPACE:
             members = get_function_table(klass.members)
         else:
@@ -2010,9 +1962,9 @@ static PyType_Slot {table_name}[] = {{
                     default_to_type_hints=False, is_method=is_method)
             sf.write('");\n\n')
 
-    def _g_variables_table(self, sf, scope, *, for_unbound):
-        """ Generate the table of either bound or unbound variables for a scope
-        and return the length of the table.
+    def _g_variables_table(self, sf, attrs, static_variables, scope):
+        """ Generate the table of variables for a scope and update the
+        attributes generated.
         """
 
         spec = self.spec
@@ -2020,6 +1972,7 @@ static PyType_Slot {table_name}[] = {{
         module = spec.module
 
         # Get the sorted list of variables.
+        # TODO This doesn't need to be sorted.
         variables = list(variables_in_scope(spec, scope, check_handler=False))
 
         # Add the members of any anonymous enums.  Note that this would be
@@ -2048,18 +2001,12 @@ static PyType_Slot {table_name}[] = {{
 
                 variables.append(pseudo_var)
 
+        # We sort it for reproducable builds.
         variables.sort(key=lambda k: k.py_name.name)
 
         table = []
 
         for variable in variables:
-            # Check we are handling this sort of variable.
-            if scope is None or variable.is_static:
-                if not for_unbound:
-                    continue
-            elif for_unbound:
-                continue
-
             v_type = variable.type
             v_ref = variable.fq_cpp_name.as_word
 
@@ -2255,7 +2202,6 @@ static PyType_Slot {table_name}[] = {{
 
             fields = []
 
-            fields.append(f'.name = "{variable.py_name.name}"')
             fields.append('.type_id = ' + type_id)
 
             if enum_member_value is not None:
@@ -2283,7 +2229,7 @@ static PyType_Slot {table_name}[] = {{
             if variable.set_code is not None:
                 fields.append('.set_code = sipVariableSetCode_' + v_ref)
 
-            table.append(fields)
+            table.append((variable, fields))
 
             # Generate any %GetCode wrapper.
             if variable.get_code is not None:
@@ -2340,12 +2286,12 @@ f'''static int sipVariableSetCode_{v_ref}(PyObject *sipPy)
             if scope is None or variable.is_static or enum_member_value is not None:
                 continue
 
-            sf.write('\n\n')
-
             # TODO Why STRIP_GLOBAL here in particular?
             scope_name = scope.iface_file.fq_cpp_name.cpp_stripped(
                     STRIP_GLOBAL)
             cast = get_type_from_void(spec, scope_name, 'sipCppV')
+
+            sf.write('\n')
 
             if not c_bindings:
                 sf.write(f'extern "C" {{static void *sipVariableAddrGetter_{v_ref}(void *);}}\n')
@@ -2357,34 +2303,63 @@ f'''static void *sipVariableAddrGetter_{v_ref}(void *sipCppV)
 }}
 ''')
 
-        nr_variables = len(table)
-
-        if nr_variables != 0:
+        if table:
             if scope is None:
-                scope_type = 'module'
-                table_type = 'Module'
                 suffix = module.py_name
             else:
-                scope_type = 'type'
-                table_type = 'Static' if for_unbound else 'Instance'
                 suffix = scope.iface_file.fq_cpp_name.as_word
 
             sf.write(
 f'''
-/* Define the {table_type.lower()} variables for the {scope_type}. */
-static const sipVariableSpec sip{table_type}Variables_{suffix}[] = {{
+static const sipVariableSpec sipVariables_{suffix}[] = {{
 ''')
 
-            for fields in table:
+            for variable_nr, (variable, fields) in enumerate(table):
                 line = ', '.join(fields)
                 sf.write(f'    {{{line}}},\n')
 
-            if not for_unbound:
-                sf.write('    {}\n')
+                variable_name = variable.py_name.name
+                docstring_ref = 'SIP_NULLPTR'
+                spec_ref = f'variable = &sipVariables_{suffix}[{variable_nr}]'
+
+                if scope is None or variable.is_static:
+                    static_variables.append(
+                            ('v', variable_name, docstring_ref, spec_ref))
+                else:
+                    attrs.append(('i', variable_name, docstring_ref, spec_ref))
 
             sf.write('};\n')
 
-        return nr_variables
+    def _add_type_attributes(self, attrs, scope=None):
+        """ Add the type attributes of a scope to a list of attributes. """
+
+        spec = self.spec
+
+        # TODO
+        docstring_ref = 'SIP_NULLPTR'
+
+        for klass in spec.classes:
+            if klass.scope is not scope:
+                continue
+
+            type_nr = klass.iface_file.type_nr
+            if type_nr < 0:
+                continue
+
+            attrs.append(
+                    ('t', klass.py_name.name, docstring_ref, f'type_nr = {type_nr}'))
+
+        # TODO enums in mapped types.
+        for enum in spec.enums:
+            if enum.scope is not scope:
+                continue
+
+            type_nr = enum.type_nr
+            if type_nr < 0:
+                continue
+
+            attrs.append(
+                    ('t', enum.py_name.name, docstring_ref, f'type_nr = {type_nr}'))
 
     @staticmethod
     def _append_slot_table_entry(slots, scope_name, member):

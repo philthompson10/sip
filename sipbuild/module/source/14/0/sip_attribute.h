@@ -28,7 +28,9 @@ PyObject *sip_mod_con_getattro(sipModuleState *ms, PyObject *self,
         const sipAttributesSpec *const static_variables,
         const sipTypeSpec *extending_ts);
 int sip_mod_con_setattro(sipModuleState *ms, PyObject *self, PyObject *name,
-        PyObject *value, const sipAttributesSpec *attributes);
+        PyObject *value, const sipAttributesSpec *const attributes,
+        const sipAttributesSpec *const static_variables,
+        const sipTypeSpec *extending_ts);
 
 #ifdef __cplusplus
 }

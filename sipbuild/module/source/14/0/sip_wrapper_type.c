@@ -94,8 +94,8 @@ static PyObject *WrapperType_getattro(sipWrapperType *self, PyObject *name)
     const sipContainerSpec *cs = &((const sipClassTypeSpec *)ts)->container;
 
     return sip_mod_con_getattro(ms, (PyObject *)self, name,
-            ((PyTypeObject *)self)->tp_dict, cs->attributes,
-            cs->static_variables, sipTypeIsNamespace(ts) ? ts : NULL);
+            ((PyTypeObject *)self)->tp_dict, &cs->attributes,
+            &cs->static_variables, sipTypeIsNamespace(ts) ? ts : NULL);
 }
 
 
@@ -174,10 +174,12 @@ static int WrapperType_setattro(sipWrapperType *self, PyObject *name,
         return PyType_Type.tp_setattro((PyObject *)self, name, value);
 
     sipModuleState *ms = sip_get_module_state(self->wt_d_mod);
-    const sipClassTypeSpec *cts = (const sipClassTypeSpec *)sip_get_type_spec_from_wt(self);
+    const sipTypeSpec *ts = sip_get_type_spec_from_wt(self);
+    const sipContainerSpec *cs = &((const sipClassTypeSpec *)ts)->container;
 
     return sip_mod_con_setattro(ms, (PyObject *)self, name, value,
-            cts->container.attributes);
+            &cs->attributes, &cs->static_variables,
+            sipTypeIsNamespace(ts) ? ts : NULL);
 }
 
 

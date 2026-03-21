@@ -2345,6 +2345,9 @@ static int sip_api_init_mixin(sipModuleState *ms, PyObject *self,
         if (rc > 0)
             continue;
 
+        // TODO This needs reviewing as attributes are lazy and may not be in
+        // the dict.  A mixin is really an extender with instance attributes,
+        // or an instance extender rather than a type extender.
         if (PyObject_IsInstance(value, (PyObject *)sms->method_descr_type))
         {
             if ((value = sipMethodDescr_Copy(sms, value, mixin_name)) == NULL)

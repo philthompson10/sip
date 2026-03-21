@@ -22,7 +22,7 @@
 
 
 /* Forward declarations. */
-static void *get_variable_address(const sipVariableSpec *wvd,
+static void *get_variable_address(const sipAttrSpec *v_spec,
         PyTypeObject *binding_type, PyObject *instance, PyObject *mixin_name);
 static void raise_internal_error(const sipAttrSpec *attr_spec);
 
@@ -34,67 +34,67 @@ PyObject *sip_variable_get(sipModuleState *ms, PyObject *instance,
         const sipAttrSpec *attr_spec, PyTypeObject *binding_type,
         PyObject *mixin_name)
 {
-    const sipVariableSpec *wvd = attr_spec->spec.variable;
+    const sipVariableSpec *v_spec = attr_spec->spec.variable;
 
-    if (wvd->get_code != NULL)
-        return wvd->get_code();
+    if (v_spec->get_code != NULL)
+        return v_spec->get_code();
 
     void *addr;
 
-    if (wvd->key == SIP_WV_LITERAL)
+    if (v_spec->key == SIP_WV_LITERAL)
         addr = NULL;
-    else if ((addr = get_variable_address(wvd, binding_type, instance, mixin_name)) == NULL)
+    else if ((addr = get_variable_address(attr_spec, binding_type, instance, mixin_name)) == NULL)
         return NULL;
 
-    switch (wvd->type_id)
+    switch (v_spec->type_id)
     {
         case sipTypeID_bool:
             return PyBool_FromLong(
-                    addr != NULL ? *(bool *)addr : wvd->value.bool_t);
+                    addr != NULL ? *(bool *)addr : v_spec->value.bool_t);
 
         case sipTypeID_byte:
             return PyLong_FromLong(
-                    addr != NULL ? *(char *)addr : wvd->value.byte_t);
+                    addr != NULL ? *(char *)addr : v_spec->value.byte_t);
 
         case sipTypeID_sbyte:
             return PyLong_FromLong(
-                    addr != NULL ? *(signed char *)addr : wvd->value.sbyte_t);
+                    addr != NULL ? *(signed char *)addr : v_spec->value.sbyte_t);
 
         case sipTypeID_ubyte:
             return PyLong_FromUnsignedLong(
-                    addr != NULL ? *(unsigned char *)addr : wvd->value.ubyte_t);
+                    addr != NULL ? *(unsigned char *)addr : v_spec->value.ubyte_t);
 
         case sipTypeID_short:
             return PyLong_FromLong(
-                    addr != NULL ? *(short *)addr : wvd->value.short_t);
+                    addr != NULL ? *(short *)addr : v_spec->value.short_t);
 
         case sipTypeID_ushort:
             return PyLong_FromUnsignedLong(
-                    addr != NULL ? *(unsigned short *)addr : wvd->value.ushort_t);
+                    addr != NULL ? *(unsigned short *)addr : v_spec->value.ushort_t);
 
         case sipTypeID_int:
             return PyLong_FromLong(
-                    addr != NULL ? *(int *)addr : wvd->value.int_t);
+                    addr != NULL ? *(int *)addr : v_spec->value.int_t);
 
         case sipTypeID_uint:
             return PyLong_FromUnsignedLong(
-                    addr != NULL ? *(unsigned *)addr : wvd->value.uint_t);
+                    addr != NULL ? *(unsigned *)addr : v_spec->value.uint_t);
 
         case sipTypeID_long:
             return PyLong_FromLong(
-                    addr != NULL ? *(long *)addr : wvd->value.long_t);
+                    addr != NULL ? *(long *)addr : v_spec->value.long_t);
 
         case sipTypeID_ulong:
             return PyLong_FromUnsignedLong(
-                    addr != NULL ? *(unsigned long *)addr : wvd->value.ulong_t);
+                    addr != NULL ? *(unsigned long *)addr : v_spec->value.ulong_t);
 
         case sipTypeID_longlong:
             return PyLong_FromLongLong(
-                    addr != NULL ? *(long long *)addr : wvd->value.longlong_t);
+                    addr != NULL ? *(long long *)addr : v_spec->value.longlong_t);
 
         case sipTypeID_ulonglong:
             return PyLong_FromUnsignedLongLong(
-                    addr != NULL ?  *(unsigned long long *)addr : wvd->value.ulonglong_t);
+                    addr != NULL ?  *(unsigned long long *)addr : v_spec->value.ulonglong_t);
 
         case sipTypeID_Py_hash_t:
             return PyLong_FromLong(*(Py_hash_t *)addr);
@@ -227,8 +227,8 @@ PyObject *sip_variable_get(sipModuleState *ms, PyObject *instance,
             return PyCapsule_New(*(void **)addr, NULL, NULL);
 
         default:
-            if (sipTypeIDIsEnum(wvd->type_id))
-                return sip_api_convert_from_enum(ms, addr, wvd->type_id);
+            if (sipTypeIDIsEnum(v_spec->type_id))
+                return sip_api_convert_from_enum(ms, addr, v_spec->type_id);
 
             // TODO Handle classes and mapped types.
             break;
@@ -253,12 +253,12 @@ int sip_variable_set(sipModuleState *ms, PyObject *instance, PyObject *value,
         return -1;
     }
 
-    const sipVariableSpec *wvd = attr_spec->spec.variable;
+    const sipVariableSpec *v_spec = attr_spec->spec.variable;
 
-    if (wvd->set_code != NULL)
-        return wvd->set_code(value);
+    if (v_spec->set_code != NULL)
+        return v_spec->set_code(value);
 
-    if (wvd->key == SIP_WV_RO || wvd->key == SIP_WV_LITERAL)
+    if (v_spec->key == SIP_WV_RO || v_spec->key == SIP_WV_LITERAL)
     {
         PyErr_Format(PyExc_ValueError,
                 "'%s' is a constant and cannot be modified",
@@ -266,11 +266,12 @@ int sip_variable_set(sipModuleState *ms, PyObject *instance, PyObject *value,
         return -1;
     }
 
-    void *addr = get_variable_address(wvd, binding_type, instance, mixin_name);
+    void *addr = get_variable_address(attr_spec, binding_type, instance,
+            mixin_name);
     if (addr == NULL)
         return -1;
 
-    switch (wvd->type_id)
+    switch (v_spec->type_id)
     {
         case sipTypeID_byte:
         {
@@ -558,7 +559,7 @@ int sip_variable_set(sipModuleState *ms, PyObject *instance, PyObject *value,
             if (PyErr_Occurred())
                 return -1;
 
-            if (sip_keep_reference(ms, NULL, wvd->key, value) < 0)
+            if (sip_keep_reference(ms, NULL, v_spec->key, value) < 0)
                 return -1;
 
             *(const char **)addr = c_value;
@@ -573,7 +574,7 @@ int sip_variable_set(sipModuleState *ms, PyObject *instance, PyObject *value,
             if (PyErr_Occurred())
                 return -1;
 
-            if (sip_keep_reference(ms, NULL, wvd->key, value) < 0)
+            if (sip_keep_reference(ms, NULL, v_spec->key, value) < 0)
                 return -1;
 
             *(const char **)addr = c_value;
@@ -588,7 +589,7 @@ int sip_variable_set(sipModuleState *ms, PyObject *instance, PyObject *value,
             if (PyErr_Occurred())
                 return -1;
 
-            if (sip_keep_reference(ms, NULL, wvd->key, value) < 0)
+            if (sip_keep_reference(ms, NULL, v_spec->key, value) < 0)
                 return -1;
 
             *(const char **)addr = c_value;
@@ -603,7 +604,7 @@ int sip_variable_set(sipModuleState *ms, PyObject *instance, PyObject *value,
             if (PyErr_Occurred())
                 return -1;
 
-            if (sip_keep_reference(ms, NULL, wvd->key, value) < 0)
+            if (sip_keep_reference(ms, NULL, v_spec->key, value) < 0)
                 return -1;
 
             *(const char **)addr = c_value;
@@ -618,7 +619,7 @@ int sip_variable_set(sipModuleState *ms, PyObject *instance, PyObject *value,
             if (PyErr_Occurred())
                 return -1;
 
-            if (sip_keep_reference(ms, NULL, wvd->key, value) < 0)
+            if (sip_keep_reference(ms, NULL, v_spec->key, value) < 0)
                 return -1;
 
             *(const signed char **)addr = c_value;
@@ -633,7 +634,7 @@ int sip_variable_set(sipModuleState *ms, PyObject *instance, PyObject *value,
             if (PyErr_Occurred())
                 return -1;
 
-            if (sip_keep_reference(ms, NULL, wvd->key, value) < 0)
+            if (sip_keep_reference(ms, NULL, v_spec->key, value) < 0)
                 return -1;
 
             *(const unsigned char **)addr = c_value;
@@ -648,7 +649,7 @@ int sip_variable_set(sipModuleState *ms, PyObject *instance, PyObject *value,
             if (PyErr_Occurred())
                 return -1;
 
-            if (sip_keep_reference(ms, NULL, wvd->key, value) < 0)
+            if (sip_keep_reference(ms, NULL, v_spec->key, value) < 0)
                 return -1;
 
             *(wchar_t **)addr = c_value;
@@ -707,9 +708,9 @@ int sip_variable_set(sipModuleState *ms, PyObject *instance, PyObject *value,
             break;
 
         default:
-            if (sipTypeIDIsEnum(wvd->type_id))
-                return sip_enum_convert_to_enum(ms, value, addr, wvd->type_id,
-                        FALSE);
+            if (sipTypeIDIsEnum(v_spec->type_id))
+                return sip_enum_convert_to_enum(ms, value, addr,
+                        v_spec->type_id, FALSE);
 
             // TODO Handle classes and mapped types.
             break;
@@ -723,17 +724,21 @@ int sip_variable_set(sipModuleState *ms, PyObject *instance, PyObject *value,
 /*
  * Return the C/C++ address of a variable.
  */
-static void *get_variable_address(const sipVariableSpec *wvd,
+static void *get_variable_address(const sipAttrSpec *attr_spec,
         PyTypeObject *binding_type, PyObject *instance, PyObject *mixin_name)
 {
-    if (binding_type == NULL)
-        return wvd->value.ptr_t;
+    const sipVariableSpec *v_spec = attr_spec->spec.variable;
+
+    if (attr_spec->name[0] == 'v')
+        return v_spec->value.ptr_t;
 
     /* Check that access was via an instance. */
+    assert(attr_spec->name[0] == 'i');
+
     if (instance == NULL || instance == Py_None)
     {
         PyErr_Format(PyExc_AttributeError, "%s.%s is an instance attribute",
-                ((PyTypeObject *)binding_type)->tp_name, wvd->name);
+                ((PyTypeObject *)binding_type)->tp_name, attr_spec->name + 1);
         return NULL;
     }
 
@@ -745,7 +750,7 @@ static void *get_variable_address(const sipVariableSpec *wvd,
     if (instance_addr == NULL)
         return NULL;
 
-    return ((sipVariableAddrGetFunc)wvd->value.ptr_t)(instance_addr);
+    return ((sipVariableAddrGetFunc)v_spec->value.ptr_t)(instance_addr);
 }
 
 

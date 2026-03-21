@@ -52,7 +52,7 @@ static PyObject *ModuleWrapper_getattro(PyObject *self, PyObject *name)
     sipModuleState *ms = sip_get_module_state(self);
 
     return sip_mod_con_getattro(ms, self, name, mod_dict,
-            ms->module_spec->attributes, ms->module_spec->static_variables,
+            &ms->module_spec->attributes, &ms->module_spec->static_variables,
             NULL);
 }
 
@@ -66,7 +66,8 @@ static int ModuleWrapper_setattro(PyObject *self, PyObject *name,
     sipModuleState *ms = sip_get_module_state(self);
 
     return sip_mod_con_setattro(ms, self, name, value,
-            ms->module_spec->attributes);
+            &ms->module_spec->attributes,
+            &ms->module_spec->static_variables, NULL);
 }
 
 

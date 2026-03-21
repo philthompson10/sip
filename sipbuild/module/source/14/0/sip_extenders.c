@@ -196,7 +196,7 @@ static int iterate(sipModuleState *ms, const sipTypeSpec *extending_ts,
             if (sip_get_type_detail(x_ms, extenders->extending_type_id, NULL, NULL) == extending_ts)
             {
                 const sipAttrSpec *x_attr_spec = sip_get_attribute_spec(name,
-                        extenders->attributes);
+                        &extenders->attributes);
 
                 if (x_attr_spec != NULL)
                 {
